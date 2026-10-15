@@ -1,0 +1,88 @@
+"""Put a Chan Sampler (VST3 via FL's Fruity Wrapper) channel into a test project.
+
+The wrapper data comes from an FL autosave that contained Chan Sampler. Its
+record 3 holds the plugin's VST3 state, which is JUCE's "VC2!" XML chunk plus a
+small private block; we replace the XML and fix the two size fields:
+the record's own int64 size and the int64 "remaining bytes" field at offset 334.
+"""
+import struct, xml.sax.saxutils as sx
+import flp
+
+AUTOSAVE = r"C:/Users/wint1/Documents/Image-Line/FL Studio/Projects/Backup/untitled (autosaved on 10-14-2026 at 12h59).flp"
+
+def _wrapper_events():
+    h, ev = flp.read(AUTOSAVE)
+    i = next(k for k, (e, v) in enumerate(ev) if e == 203 and v.decode('utf-16le', 'replace').startswith('Chan Sampler'))
+    start = max(k for k in range(i) if ev[k][0] == 64)
+    chan = ev[start:i + 12]
+    get = lambda eid: bytes(next(v for e, v in chan if e == eid))
+    return get(212), get(213)
+
+def state_xml(sample_path, params):
+    attrs = "".join(f'<PARAM id="{k}" value="{float(v)!r}"/>' for k, v in params.items())
+    return f'<?xml version="1.0" encoding="UTF-8"?>\n\n<STATE samplePath={sx.quoteattr(sample_path)}>{attrs}</STATE>\n'
+
+def plugin_data(sample_path, params):
+    _, d = _wrapper_events()
+    vc = d.find(b"VC2!")
+    rec_size_off = vc - 8                      # int64 size of record 3
+    old_rec_size = struct.unpack_from('<Q', d, rec_size_off)[0]
+    old_xml_len = struct.unpack_from('<I', d, vc + 4)[0]
+    old_vc2_len = 8 + old_xml_len
+    x = state_xml(sample_path, params).encode('utf-8') + b'\0'
+    new_vc2 = b"VC2!" + struct.pack('<I', len(x)) + x
+    delta = len(new_vc2) - old_vc2_len
+    out = bytearray(d[:vc] + new_vc2 + d[vc + old_vc2_len:])
+    struct.pack_into('<Q', out, rec_size_off, old_rec_size + delta)
+    total = struct.unpack_from('<Q', out, 334)[0]
+    struct.pack_into('<Q', out, 334, total + delta)
+    return bytes(out)
+
+def make_vst_channel(template_channel_events, sample_path, params):
+    """Turn a copy of a Sampler channel's events into a Chan Sampler channel."""
+    p212, _ = _wrapper_events()
+    data = plugin_data(sample_path, params)
+    out = []
+    for eid, v in template_channel_events:
+        if eid == 196:          # sample path belongs to the Sampler only
+            continue
+        if eid == 21:
+            v = bytearray([4])  # instrument / plugin channel
+        elif eid == 201:
+            v = bytearray("Fruity Wrapper\0".encode('utf-16le'))
+        elif eid == 212:
+            v = bytearray(p212)
+        elif eid == 203:
+            v = bytearray("Chan Sampler\0".encode('utf-16le'))
+        out.append([eid, bytearray(v)])
+        if eid == 41:
+            out.append([213, bytearray(data)])
+    return out
+
+def build_vst_project(out_path, sample_path, params, notes, sampler_patch=None):
+    """Basic template with channel 1 replaced by Chan Sampler; notes = (start, len, key, vel, channel)."""
+    import build_project as B
+    header, ev = flp.read(B.TEMPLATE)
+    # channel 0: Sampler playing the same sample (optionally patched)
+    ch = -1
+    for e in ev:
+        if e[0] == 64: ch = flp.val(e[1])
+        if e[0] == 196 and ch == 0:
+            e[1] = bytearray((sample_path + '\0').encode('utf-16le'))
+    # Chan Sampler's channel is built from the unpatched Sampler channel: FL's
+    # channel levels (volume / pan) apply to plugin channels too.
+    starts = [i for i, e in enumerate(ev) if e[0] == 64]
+    c0 = [[eid, bytearray(v)] for eid, v in ev[starts[0] + 1:starts[1]]]
+    if sampler_patch:
+        sampler_patch(ev)
+    starts = [i for i, e in enumerate(ev) if e[0] == 64]
+    c1s, c1e = starts[1], starts[2]
+    ev[c1s + 1:c1e] = make_vst_channel(c0, sample_path, params)
+    data = b''.join(B.note(int(st * B.PPQ), int(ln * B.PPQ), k, v, c) for st, ln, k, v, c in notes)
+    length = int(max(st + ln for st, ln, *_ in notes) * B.PPQ)
+    first_ch = starts[0]
+    ev[first_ch:first_ch] = [[65, bytearray(struct.pack('<H', 1))], [224, bytearray(data)]]
+    for e in ev:
+        if e[0] == 233:
+            e[1] = bytearray(B.playlist_item(1, length)); break
+    flp.write(out_path, header, ev)

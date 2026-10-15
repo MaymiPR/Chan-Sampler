@@ -1,0 +1,285 @@
+void ChanSamplerEditor::buildTopBar()
+{
+    auto& bar = own (std::make_unique<Fill> (fl::colour::well), canvas, { 1, 0, 561, 45 });
+    bar.setInterceptsMouseClicks (false, true);
+
+    auto tabs = std::make_unique<fl::IconTabs> (std::vector<fl::Icon> { fl::Icon::sampler, fl::Icon::envelope, fl::Icon::wrench }, true);
+    sheetTabs = &own (std::move (tabs), bar, { 0, 0, 135, 45 });
+    sheetTabs->onChange = [this] (int i) { showSheet (i); };
+    sheetTabs->setTooltip ("Sampler / Envelopes / Misc");
+
+    // Product name and loaded-sample summary (FL's channel VOL / PAN / PITCH /
+    // RANGE / TRACK belong to the host channel and are left to the host).
+    auto& name = text (bar, "CHAN SAMPLER", 300, 6, 252, 16, 12.5f, true, juce::Justification::centredRight);
+    name.setColour (juce::Label::textColourId, fl::colour::tabIcon);
+    sampleInfo = &text (bar, {}, 240, 23, 312, 14, 10.5f, false, juce::Justification::centredRight);
+    sampleInfo->setColour (juce::Label::textColourId, fl::colour::dim);
+}
+
+void ChanSamplerEditor::buildSampleSheet()
+{
+    auto& sheet = smpSheet;
+
+    // File (FL's GrooveBox)
+    auto& file = panel (sheet, {}, 7, 7, 268, 35);
+    text (file, "File", 7, 10, 24, 15, 12.5f, true);
+    fileName = &text (file, {}, 33, 10, 159, 15, 12.5f);
+    fileName->setColour (juce::Label::textColourId, fl::colour::title);
+    auto& open = own (std::make_unique<fl::IconButton> (fl::Icon::folder), file, { 192, 6, 32, 23 });
+    open.setTooltip ("Load sample file");
+    open.onClick = [this] { chooseFile(); };
+    auto& locate = own (std::make_unique<fl::IconButton> (fl::Icon::locate), file, { 224, 6, 19, 23 });
+    locate.setTooltip ("Show sample file in Explorer");
+    locate.onClick = [this] { if (samplerProcessor.getSampleFile().existsAsFile()) samplerProcessor.getSampleFile().revealToUser(); };
+    auto& remove = own (std::make_unique<fl::IconButton> (fl::Icon::close), file, { 243, 6, 19, 23 });
+    remove.setTooltip ("Remove sample");
+    remove.onClick = [this] { samplerProcessor.removeSample(); };
+
+    // Declicking (FL's Content panel without the disk / region options)
+    auto& declick = panel (sheet, "Declicking", 7, 50, 268, 56);
+    text (declick, "Mode", 9, 26, 50, 23, 12.0f);
+    combo (declick, pid::declick, 62, 26, 197, 23);
+
+    // Playback
+    auto& playback = panel (sheet, "Playback", 7, 114, 268, 133);
+    knob (playback, pid::startOffset, 21, 30, 34);
+    caption (playback, "START OFFSET", 8, 67, 60, 9);
+    knob (playback, pid::loopStart, 116, 30, 34);
+    caption (playback, "LOOP START", 103, 67, 60, 9);
+    knob (playback, pid::loopEnd, 200, 30, 34);
+    caption (playback, "LOOP END", 187, 67, 60, 9);
+    led (playback, pid::useLoop, "Use loop points", 12, 92, 124, 21);
+    led (playback, pid::pingPong, "Ping pong loop", 140, 92, 120, 21);
+
+    // Pitch (FL's Time stretching panel, Resample mode: speed follows pitch)
+    auto& pitchPanel = panel (sheet, "Pitch", 283, 7, 268, 76);
+    knob (pitchPanel, pid::pitch, 14, 26, 32);
+    caption (pitchPanel, "PITCH", 16, 61, 28, 7);
+    text (pitchPanel, "Bend range", 80, 30, 80, 23, 12.0f);
+    digi (pitchPanel, pid::pitchRange, 160, 30, 36, 23, false).setTooltip ("MIDI pitch bend range (semitones)");
+    text (pitchPanel, "semitones", 200, 30, 64, 23, 11.0f).setColour (juce::Label::textColourId, fl::colour::dim);
+
+    // Precomputed effects: Tools (wrench) and Effects (valve) views
+    auto& fx = panel (sheet, "Precomputed effects", 283, 91, 268, 156, 48);
+    auto& tools = group (fx, 0, 0, 268, 156);
+    auto& effects = group (fx, 1, 22, 265, 130);
+    effects.setVisible (false);
+
+    auto& fxTabs = own (std::make_unique<fl::IconTabs> (std::vector<fl::Icon> { fl::Icon::wrench, fl::Icon::valve }, false), fx, { 1, 1, 46, 18 });
+    fxTabs.selectedColour = fl::colour::amber;
+    fxTabs.setTooltip ("Tools / Effects");
+    fxTabs.onChange = [&tools, &effects] (int i)
+    {
+        tools.setVisible (i == 0);
+        effects.setVisible (i == 1);
+    };
+
+    led (tools, pid::pcRemoveDC,        "Remove DC offset", 3, 25, 128, 23);
+    led (tools, pid::pcNormalize,       "Normalize",        3, 47, 128, 23);
+    led (tools, pid::pcReverse,         "Reverse",          3, 69, 128, 23);
+    led (tools, pid::pcReversePolarity, "Reverse polarity", 131, 25, 128, 23);
+    led (tools, pid::pcFadeStereo,      "Fade stereo",      131, 47, 128, 23);
+    led (tools, pid::pcSwapStereo,      "Swap stereo",      131, 69, 128, 23);
+    knob (tools, pid::pcStart,     7,   104, 34);  caption (tools, "SMP START", -3, 141, 54, 7);
+    knob (tools, pid::pcLength,    49,  104, 34);  caption (tools, "LENGTH", 51, 141, 31, 7);
+    knob (tools, pid::pcFadeIn,    103, 104, 34);  caption (tools, "IN", 106, 141, 28, 7);
+    knob (tools, pid::pcFadeOut,   142, 104, 34);  caption (tools, "OUT", 145, 141, 28, 7);
+    knob (tools, pid::pcCrossfade, 189, 104, 34);  caption (tools, "CROSSFADE", 182, 141, 48, 7);
+    knob (tools, pid::pcTrim,      228, 104, 34);  caption (tools, "TRIM", 231, 141, 28, 7);
+
+    // FL's FXLegacyPanel layout
+    own (std::make_unique<Fill> (fl::colour::well.withAlpha (0.6f), 3.0f), effects, { 2, 2, 44, 69 });
+    knob (effects, pid::pcBoost, 7, 5, 34);          caption (effects, "BOOST", 10, 42, 28, 7);
+    led (effects, pid::pcBoostClip, "CLIP", 5, 55, 38, 13);
+    knob (effects, pid::pcEq, 49, 5, 34);            caption (effects, "EQ", 52, 42, 28, 7);
+    knob (effects, pid::pcRmMix, 97, 5, 34);         caption (effects, "RM MIX", 100, 42, 28, 7);
+    knob (effects, pid::pcRmFreq, 137, 5, 34);       caption (effects, "RM FREQ", 137, 42, 34, 7);
+    knob (effects, pid::pcCut, 188, 4, 34);          caption (effects, "CUT", 191, 42, 28, 7);
+    knob (effects, pid::pcRes, 227, 4, 34);          caption (effects, "RES", 230, 42, 28, 7);
+    knob (effects, pid::pcReverb, 49, 82, 34);       caption (effects, "REVERB", 27, 119, 36, 7);
+    knob (effects, pid::pcStereoDelay, 97, 82, 34);  caption (effects, "STEREO DELAY", 84, 119, 60, 7);
+    knob (effects, pid::pcPogo, 227, 82, 34);        caption (effects, "POGO", 230, 119, 28, 7);
+
+    // Reverb type switch (A / B)
+    auto& revType = own (std::make_unique<juce::TextButton> ("A"), effects, { 12, 85, 31, 30 });
+    revType.setTooltip ("Reverb type: A = close source, tight space; B = distant source, larger space");
+    auto* revParam = samplerProcessor.apvts.getParameter (pid::pcReverbType);
+    auto revAttachment = std::make_unique<juce::ParameterAttachment> (*revParam,
+        [&revType] (float v) { revType.setButtonText (v < 0.5f ? "A" : "B"); });
+    auto* revAtt = revAttachment.get();
+    revType.onClick = [revAtt, revParam] { revAtt->setValueAsCompleteGesture (revParam->getValue() < 0.5f ? 1.0f : 0.0f); };
+    revAttachment->sendInitialUpdate();
+    paramAttachments.push_back (std::move (revAttachment));
+
+    // Sample view
+    waveform.setBounds (7, 255, 544, 127);
+    sheet.addAndMakeVisible (waveform);
+}
+
+juce::Component& ChanSamplerEditor::buildTargetPage (const char* prefix, bool hasAmount)
+{
+    auto& page = group (insSheet, 0, 0, 452, 240);
+    auto id = [prefix] (const char* s) { return pid::env (prefix, s); };
+
+    // Envelope panel (EnvPanel); the header LED is "Use envelope".
+    auto& env = panel (page, "Envelope", 7, 42, 285, 195, 18);
+    led (env, id ("EnvOn"), {}, 2, 1, 17, 17).setTooltip ("Use envelope");
+    own (std::make_unique<EnvelopeDisplay> (samplerProcessor.apvts, prefix), env, { 6, 26, 273, 83 });
+    knob (env, id ("Del"),  6,   115, 30);  caption (env, "DELAY", 7,   148, 28, 7);
+    knob (env, id ("Att"),  40,  115, 30);  caption (env, "ATT",   41,  148, 28, 7);
+    knob (env, id ("Hold"), 74,  115, 30);  caption (env, "HOLD",  75,  148, 28, 7);
+    knob (env, id ("Dec"),  108, 115, 30);  caption (env, "DEC",   109, 148, 28, 7);
+    knob (env, id ("Sus"),  142, 115, 30);  caption (env, "SUS",   143, 148, 28, 7);
+    knob (env, id ("Rel"),  176, 115, 30);  caption (env, "REL",   177, 148, 28, 7);
+    knob (env, id ("AttT"), 44,  158, 22);
+    knob (env, id ("DecT"), 112, 158, 22);
+    knob (env, id ("RelT"), 180, 158, 22);
+    caption (env, "TENSION", 67, 166, 44, 7);
+    caption (env, "TENSION", 135, 166, 44, 7);
+    if (hasAmount)
+    {
+        knob (env, id ("EnvAmt"), 245, 115, 34);
+        caption (env, "AMT", 248, 152, 28, 7);
+    }
+
+    // LFO panel; the header holds the shape selector.
+    auto& lfo = panel (page, "LFO", 300, 42, 144, 195, 69);
+    auto& shapes = own (std::make_unique<fl::IconTabs> (std::vector<fl::Icon> { fl::Icon::sine, fl::Icon::triangle, fl::Icon::square }, false),
+                        lfo, { 0, 0, 69, 19 });
+    shapes.setTooltip ("LFO shape");
+    auto* shapeParam = samplerProcessor.apvts.getParameter (id ("LfoShape"));
+    auto shapeAttachment = std::make_unique<juce::ParameterAttachment> (*shapeParam,
+        [&shapes] (float v) { shapes.setSelected (juce::roundToInt (v), false); });
+    auto* shapeAtt = shapeAttachment.get();
+    shapes.onChange = [shapeAtt] (int i) { shapeAtt->setValueAsCompleteGesture ((float) i); };
+    shapeAttachment->sendInitialUpdate();
+    paramAttachments.push_back (std::move (shapeAttachment));
+
+    own (std::make_unique<LfoDisplay> (samplerProcessor.apvts, prefix), lfo, { 6, 26, 132, 83 });
+    knob (lfo, id ("LfoDel"),   6,   125, 30);  caption (lfo, "DELAY", 7,   158, 28, 7);
+    knob (lfo, id ("LfoAtt"),   40,  125, 30);  caption (lfo, "ATT",   41,  158, 28, 7);
+    knob (lfo, id ("LfoAmt"),   74,  125, 30);  caption (lfo, "AMT",   75,  158, 28, 7);
+    knob (lfo, id ("LfoSpeed"), 108, 125, 30);  caption (lfo, "SPEED", 109, 158, 28, 7);
+
+    return page;
+}
+
+void ChanSamplerEditor::buildInsSheet()
+{
+    // Target selector: Panning, Volume, Mod X, Mod Y, Pitch
+    auto& targets = own (std::make_unique<fl::TextTabs> (juce::StringArray { "Panning", "Volume", "Mod X", "Mod Y", "Pitch" }, 12.5f, false),
+                         insSheet, { 6, 6, 260, 29 });
+
+    std::array<juce::Component*, 5> pages {
+        &buildTargetPage (pid::panPrefix,   true),
+        &buildTargetPage (pid::volPrefix,   false),
+        &buildTargetPage (pid::modXPrefix,  true),
+        &buildTargetPage (pid::modYPrefix,  true),
+        &buildTargetPage (pid::pitchPrefix, true) };
+
+    targets.onChange = [pages] (int i)
+    {
+        for (size_t k = 0; k < pages.size(); ++k)
+            pages[k]->setVisible ((int) k == i);
+    };
+    targets.setSelected (1, false);
+    for (size_t k = 0; k < pages.size(); ++k)
+        pages[k]->setVisible (k == 1);
+
+    // Filter panel (shared by all targets)
+    auto& filter = panel (insSheet, "Filter", 452, 42, 99, 195);
+    caption (filter, "MOD X", 47, 13, 37, 9);
+    knob (filter, pid::cutoff, 3, 22, 66);
+    knob (filter, pid::resonance, 30, 87, 66);
+    caption (filter, "MOD Y", 0, 145, 37, 9);
+    combo (filter, pid::filterType, 5, 167, 89, 23);
+
+    own (std::make_unique<RootNotePanel> (samplerProcessor.apvts, samplerProcessor.keyboardState), insSheet, { 7, 245, 544, 137 });
+}
+
+void ChanSamplerEditor::buildFuncSheet()
+{
+    auto& sheet = funcSheet;
+
+    auto& levels = panel (sheet, "Levels adjustment", 7, 7, 176, 100);
+    knob (levels, pid::pan,    6,   26, 38);  caption (levels, "PAN",   6,   69, 38, 9);
+    knob (levels, pid::volume, 48,  26, 38);  caption (levels, "VOL",   48,  69, 38, 9);
+    knob (levels, pid::xOfs,   90,  26, 38);  caption (levels, "MOD X", 90,  69, 38, 9);
+    knob (levels, pid::yOfs,   132, 26, 38);  caption (levels, "MOD Y", 132, 69, 38, 9);
+
+    auto& poly = panel (sheet, "Polyphony", 191, 7, 176, 100);
+    text (poly, "Max", 7, 30, 26, 23, 12.0f);
+    digi (poly, pid::maxPoly, 34, 30, 32, 23, false);
+    knob (poly, pid::slide, 82, 26, 30);
+    caption (poly, "SLIDE", 83, 59, 28, 7);
+    led (poly, pid::porta, "Porta", 3, 74, 56, 19);
+    led (poly, pid::mono,  "Mono",  59, 74, 56, 19);
+    auto& cutSelf = own (std::make_unique<juce::TextButton> ("Cut self"), poly, { 120, 30, 50, 52 });
+    cutSelf.setClickingTogglesState (true);
+    cutSelf.setTooltip ("Cut itself when retriggered");
+    buttonAttachments.push_back (std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (samplerProcessor.apvts, pid::cutItself, cutSelf));
+
+    // Tracking: Vol (velocity) / Key pages
+    auto& tracking = panel (sheet, "Tracking", 375, 7, 176, 100, 52);
+    auto& velPage = group (tracking, 0, 0, 176, 100);
+    auto& keyPage = group (tracking, 0, 0, 176, 100);
+    keyPage.setVisible (false);
+    for (auto [page, ids] : { std::pair<juce::Component*, std::array<const char*, 4>> { &velPage, { pid::velPan, pid::velX, pid::velY, pid::velMid } },
+                              std::pair<juce::Component*, std::array<const char*, 4>> { &keyPage, { pid::keyPan, pid::keyX, pid::keyY, pid::keyMid } } })
+    {
+        knob (*page, ids[0], 14, 26, 30);   caption (*page, "PAN",   15,  59, 28, 7);
+        knob (*page, ids[1], 72, 26, 30);   caption (*page, "MOD X", 73,  59, 28, 7);
+        knob (*page, ids[2], 130, 26, 30);  caption (*page, "MOD Y", 131, 59, 28, 7);
+        text (*page, "Mid", 9, 76, 28, 14, 11.5f);
+        hslider (*page, ids[3], 37, 74, 132, 22);
+    }
+    auto& trackTabs = own (std::make_unique<fl::TextTabs> (juce::StringArray { "Vol", "Key" }, 11.0f, true), tracking, { 0, 0, 52, 19 });
+    trackTabs.setTooltip ("Velocity / keyboard tracking");
+    trackTabs.onChange = [&velPage, &keyPage] (int i)
+    {
+        velPage.setVisible (i == 0);
+        keyPage.setVisible (i == 1);
+    };
+
+    // Arpeggiator: the direction selector sits in the header, as in FL.
+    auto& arpPanel = panel (sheet, "Arpeggiator", 7, 115, 268, 122, 150);
+    auto& arpDir = own (std::make_unique<fl::TextTabs> (juce::StringArray { "Off", "Up", "Dn", "U/D", "U/D+", "Rnd" }, 10.5f, false),
+                        arpPanel, { 0, 0, 150, 19 });
+    arpDir.setTooltip ("Arpeggio direction: off, up, down, up/down, up/down (ends twice), random");
+    auto* dirParam = samplerProcessor.apvts.getParameter (pid::arpDir);
+    auto dirAttachment = std::make_unique<juce::ParameterAttachment> (*dirParam,
+        [&arpDir] (float v) { arpDir.setSelected (juce::roundToInt (v), false); });
+    auto* dirAtt = dirAttachment.get();
+    arpDir.onChange = [dirAtt] (int i) { dirAtt->setValueAsCompleteGesture ((float) i); };
+    dirAttachment->sendInitialUpdate();
+    paramAttachments.push_back (std::move (dirAttachment));
+
+    knob (arpPanel, pid::arpTime, 8,  28, 32);  caption (arpPanel, "TIME", 10, 63, 28, 7);
+    knob (arpPanel, pid::arpGate, 48, 28, 32);  caption (arpPanel, "GATE", 50, 63, 28, 7);
+    text (arpPanel, "Range", 96, 30, 42, 23, 12.0f);
+    digi (arpPanel, pid::arpRange, 140, 30, 32, 23, false);
+    text (arpPanel, "Repeat", 180, 30, 46, 23, 12.0f);
+    digi (arpPanel, pid::arpRepeat, 228, 30, 32, 23, false);
+    led (arpPanel, pid::arpSlide, "Slide", 6, 88, 66, 21);
+    text (arpPanel, "Chord", 96, 87, 42, 23, 12.0f);
+    combo (arpPanel, pid::arpChord, 140, 87, 120, 23);
+
+    // Echo delay / fat mode
+    auto& echoPanel = panel (sheet, "Echo delay / fat mode", 283, 115, 268, 122);
+    const std::pair<const char*, const char*> echoKnobs[] = { { pid::echoFeed, "FEED" }, { pid::echoPan, "PAN" }, { pid::echoX, "MOD X" },
+                                                              { pid::echoY, "MOD Y" }, { pid::echoPitch, "PITCH" }, { pid::echoTime, "TIME" } };
+    int kx = 8;
+    for (auto [pidName, label] : echoKnobs)
+    {
+        knob (echoPanel, pidName, kx, 28, 30);
+        caption (echoPanel, label, kx + 1, 61, 28, 7);
+        kx += 43;
+    }
+    text (echoPanel, "Echoes", 8, 86, 48, 23, 12.0f);
+    digi (echoPanel, pid::echoCount, 58, 86, 32, 23, false);
+    led (echoPanel, pid::echoPing, "Ping pong", 108, 86, 76, 23);
+    led (echoPanel, pid::echoFat,  "Fat mode",  186, 86, 76, 23);
+
+    own (std::make_unique<RootNotePanel> (samplerProcessor.apvts, samplerProcessor.keyboardState), sheet, { 7, 245, 544, 137 });
+}
+

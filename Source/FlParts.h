@@ -1,0 +1,164 @@
+#pragma once
+
+#include <juce_audio_utils/juce_audio_utils.h>
+
+#include "FlStyle.h"
+#include <map>
+
+// Live drawing of one INS target's envelope (DAHDSR with tension), using the
+// same curve formula as the engine.
+class EnvelopeDisplay : public juce::Component, private juce::Timer
+{
+public:
+    EnvelopeDisplay (juce::AudioProcessorValueTreeState&, const char* prefix);
+    void paint (juce::Graphics&) override;
+
+    // As in FL, with the envelope on its points are bigger and can be dragged:
+    // delay / attack / hold / release sideways, the decay point also up and
+    // down (sustain).
+    void mouseMove (const juce::MouseEvent&) override;
+    void mouseExit (const juce::MouseEvent&) override;
+    void mouseDown (const juce::MouseEvent&) override;
+    void mouseDrag (const juce::MouseEvent&) override;
+    void mouseUp (const juce::MouseEvent&) override;
+
+private:
+    struct Geometry { juce::Rectangle<float> r; float unit, xd, xa, xh, xs, xe, sus; };
+    Geometry geometry() const;
+    std::array<juce::Point<float>, 5> points (const Geometry&) const;
+    int pointAt (juce::Point<float>) const;
+    void set (const char* suffix, float value);
+    void timerCallback() override;
+    float get (const char* suffix) const;
+
+    int hovered = -1, dragging = -1;
+    float dragStartValue = 0.0f, dragStartSus = 0.0f;
+    juce::Point<float> dragStart;
+
+    juce::AudioProcessorValueTreeState& apvts;
+    juce::String prefix;
+    float lastHash = -1.0f;
+};
+
+// Live drawing of one INS target's LFO.
+class LfoDisplay : public juce::Component, private juce::Timer
+{
+public:
+    LfoDisplay (juce::AudioProcessorValueTreeState&, const char* prefix);
+    void paint (juce::Graphics&) override;
+
+private:
+    void timerCallback() override;
+    float get (const char* suffix) const;
+
+    juce::AudioProcessorValueTreeState& apvts;
+    juce::String prefix;
+    float lastHash = -1.0f;
+};
+
+// FL's right-click menu for a parameter control: Reset, Copy value, Paste
+// value (xx%), Type in value... and optional value presets. "Copy value" puts
+// the 0..1 position on the clipboard as plain text, exactly like FL, so values
+// copied from FL's Sampler paste here (and back) to the same setting.
+class ParamMenu
+{
+public:
+    ParamMenu (juce::Component& owner, juce::RangedAudioParameter&);
+    ~ParamMenu();
+
+    // Extra menu entries: text and the parameter value they set.
+    std::vector<std::pair<juce::String, float>> presets;
+    // Called before / after any edit from the menu (e.g. turns an envelope on).
+    std::function<void()> beforeEdit, afterEdit;
+    // No "Type in value" entry (FL's TIME knob has none).
+    bool noTypeIn = false;
+    // Presets whose value is computed when the menu opens (a negative value
+    // greys the entry out), e.g. TIME's "Project tempo".
+    std::map<juce::String, std::function<float()>> computedPresets;
+
+    void show();
+
+private:
+    void setPosition (float normalised);
+    void typeIn();
+
+    juce::Component& owner;
+    juce::RangedAudioParameter& param;
+    std::unique_ptr<juce::TextEditor> editor;
+    std::shared_ptr<bool> alive = std::make_shared<bool> (true);
+};
+
+// A knob or slider with FL's right-click menu.
+class ParamKnob : public juce::Slider
+{
+public:
+    ParamKnob (juce::RangedAudioParameter&, SliderStyle);
+
+    ParamMenu menu;
+    // Kept for existing callers: extra menu entries.
+    std::vector<std::pair<juce::String, float>>& presets = menu.presets;
+
+    // Called after the user changes the value (drag, wheel or the menu), not
+    // when the host or automation moves it.
+    std::function<void()> onUserChange;
+
+    void mouseDown (const juce::MouseEvent&) override;
+    void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
+
+private:
+    bool wheelActive = false;
+};
+
+// FL's digital value box (pitch range, echoes, polyphony...) with the menu.
+class ParamDigiBox : public fl::DigiBox
+{
+public:
+    ParamDigiBox (juce::RangedAudioParameter&, bool redStyle);
+
+    ParamMenu menu;
+    void mouseDown (const juce::MouseEvent&) override;
+};
+
+// Preview keyboard: left-click plays, right-click sets the root note (blue).
+class RootKeyboard : public juce::Component, private juce::Timer
+{
+public:
+    RootKeyboard (juce::AudioProcessorValueTreeState&, juce::MidiKeyboardState&);
+
+    void paint (juce::Graphics&) override;
+    void mouseDown (const juce::MouseEvent&) override;
+    void mouseDrag (const juce::MouseEvent&) override;
+    void mouseUp (const juce::MouseEvent&) override;
+
+private:
+    static constexpr int lowNote = 24, numWhite = 49, labelH = 13;   // C2 .. B8
+
+    void timerCallback() override;
+    int noteAt (juce::Point<float>) const;
+    juce::Rectangle<float> keyBounds (int note) const;
+    static bool isBlack (int note) { const int n = note % 12; return n == 1 || n == 3 || n == 6 || n == 8 || n == 10; }
+
+    juce::AudioProcessorValueTreeState& apvts;
+    juce::MidiKeyboardState& state;
+    int playing = -1;
+    int lastRoot = -1;
+    std::array<bool, 128> lastOn {};
+};
+
+// "Root note" panel shared by the INS and FUNC sheets.
+class RootNotePanel : public fl::Panel, private juce::Timer
+{
+public:
+    RootNotePanel (juce::AudioProcessorValueTreeState&, juce::MidiKeyboardState&);
+
+private:
+    void timerCallback() override;
+
+    juce::AudioProcessorValueTreeState& apvts;
+    juce::TextButton resetButton { "Reset" };
+    juce::Label fineLabel { {}, "Fine tune" }, hint { {}, "Right-click a key to set the root note" };
+    ParamKnob fine;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> fineAttachment;
+    RootKeyboard keyboard;
+    int shownRoot = -1;
+};

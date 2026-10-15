@@ -1,0 +1,20 @@
+# Build output (rebuild with CMake)
+build/
+out/
+.vs/
+*.user
+
+# Generated test renders (re-render with FL Studio, see nulltest/README.md)
+nulltest/renders/
+nulltest/renders_fl/
+nulltest/ours/
+nulltest/probe/
+__pycache__/
+*.pyc
+
+# Leftovers
+old-stray-install/
+
+# OS files
+.DS_Store
+Thumbs.db
