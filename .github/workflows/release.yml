@@ -1,0 +1,99 @@
+# Builds Chan Sampler for Windows (VST3 + Standalone) and macOS (universal
+# AU + VST3 + Standalone app). Run it by hand from the Actions tab to get the
+# builds as downloadable artifacts, or push a version tag (git tag v0.1.0 &&
+# git push origin v0.1.0) to also publish them as a GitHub Release.
+name: Build and release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -B build -G "Visual Studio 17 2022" -A x64
+
+      - name: Build
+        run: cmake --build build --config Release --target ChanSampler_VST3 ChanSampler_Standalone --parallel
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $dist = "Chan Sampler (Windows)"
+          New-Item -ItemType Directory $dist | Out-Null
+          Copy-Item -Recurse "build/ChanSampler_artefacts/Release/VST3/Chan Sampler.vst3" $dist
+          Copy-Item "build/ChanSampler_artefacts/Release/Standalone/Chan Sampler.exe" $dist
+          Copy-Item "packaging/INSTALL-Windows.txt" "$dist/INSTALL.txt"
+          Compress-Archive -Path $dist -DestinationPath ChanSampler-Windows.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ChanSampler-Windows
+          path: ChanSampler-Windows.zip
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure (universal: Apple Silicon + Intel)
+        run: cmake -B build -G Xcode -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET=10.13
+
+      - name: Build
+        run: cmake --build build --config Release --target ChanSampler_AU ChanSampler_VST3 ChanSampler_Standalone -- -quiet
+
+      - name: Check universal binaries and sign (ad hoc)
+        run: |
+          set -e
+          A=build/ChanSampler_artefacts/Release
+          lipo -info "$A/AU/Chan Sampler.component/Contents/MacOS/Chan Sampler"
+          lipo -info "$A/VST3/Chan Sampler.vst3/Contents/MacOS/Chan Sampler"
+          # An ad hoc signature (no Apple developer account) is enough for
+          # Apple Silicon to load the plugin once the download quarantine is removed.
+          for b in "$A/AU/Chan Sampler.component" "$A/VST3/Chan Sampler.vst3" "$A/Standalone/Chan Sampler.app"; do
+            codesign --force --deep --sign - "$b"
+          done
+
+      - name: Validate the AU
+        run: |
+          mkdir -p ~/Library/Audio/Plug-Ins/Components
+          cp -R "build/ChanSampler_artefacts/Release/AU/Chan Sampler.component" ~/Library/Audio/Plug-Ins/Components/
+          killall -9 AudioComponentRegistrar || true
+          auval -v aumu Csm1 Chsm
+
+      - name: Package
+        run: |
+          A=build/ChanSampler_artefacts/Release
+          D="Chan Sampler (macOS)"
+          mkdir "$D"
+          cp -R "$A/AU/Chan Sampler.component" "$A/VST3/Chan Sampler.vst3" "$A/Standalone/Chan Sampler.app" "$D/"
+          cp packaging/INSTALL-macOS.txt "$D/INSTALL.txt"
+          ditto -c -k --keepParent "$D" ChanSampler-macOS.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ChanSampler-macOS
+          path: ChanSampler-macOS.zip
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [windows, macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" ChanSampler-Windows.zip ChanSampler-macOS.zip \
+            --repo "${GITHUB_REPOSITORY}" --title "Chan Sampler ${GITHUB_REF_NAME}" --generate-notes

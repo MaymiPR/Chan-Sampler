@@ -31,12 +31,44 @@ Then rescan plugins in FL Studio (Options → Manage plugins) or Reaper
 
 ## Build (macOS, AU)
 
+Requirements: Xcode (or its command-line tools), CMake ≥ 3.22, Git.
+
 ```
-cmake -B build -G Xcode
-cmake --build build --config Release
+cmake -B build -G Xcode -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET=10.13
+cmake --build build --config Release --target ChanSampler_AU ChanSampler_VST3 ChanSampler_Standalone
 ```
 
-Copy `Chan Sampler.component` to `~/Library/Audio/Plug-Ins/Components/`.
+Copy `Chan Sampler.component` to `~/Library/Audio/Plug-Ins/Components/` and
+`Chan Sampler.vst3` to `~/Library/Audio/Plug-Ins/VST3/`.
+
+## Releases (downloads for Windows and macOS)
+
+GitHub builds both platforms (`.github/workflows/release.yml`):
+
+- **Test build:** GitHub → Actions → *Build and release* → *Run workflow*. The
+  zips appear under the run's *Artifacts*.
+- **Release:** tag a version and push the tag; the zips are attached to a new
+  GitHub Release:
+
+  ```
+  git tag v0.1.0
+  git push origin v0.1.0
+  ```
+
+Each zip contains the plugins, the standalone app and an `INSTALL.txt`
+(drag-and-drop install; on macOS one Terminal command clears the download
+quarantine, since the plugins are not notarized by Apple).
+
+## Working on another computer
+
+```
+git clone https://github.com/MaymiPR/ChanSampler.git
+```
+
+Then build as above. Before switching computers, commit and `git push`; on the
+other one, `git pull`. Generated files (`build/`, the FL test renders in
+`nulltest/renders*`) are not in the repository: rebuild, and re-render the null
+tests with FL Studio when needed.
 
 ## Using it
 

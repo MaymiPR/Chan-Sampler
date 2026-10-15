@@ -1,0 +1,14 @@
+Chan Sampler for Windows (64-bit)
+=================================
+
+Plugin (VST3)
+1. Copy the whole "Chan Sampler.vst3" folder to:
+       C:\Program Files\Common Files\VST3\
+   (Windows asks for administrator permission.)
+2. Rescan plugins in your DAW:
+   - FL Studio: Options > Manage plugins > Find more plugins
+   - Reaper: Preferences > Plug-ins > VST > Re-scan
+
+Standalone
+- "Chan Sampler.exe" runs without a DAW. Windows SmartScreen may warn the
+  first time because the app is not code-signed: click "More info" > "Run anyway".

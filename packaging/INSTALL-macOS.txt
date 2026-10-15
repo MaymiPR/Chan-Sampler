@@ -1,0 +1,20 @@
+Chan Sampler for macOS (universal: Apple Silicon and Intel, macOS 10.13 or later)
+==================================================================================
+
+1. Drag the plugins into your plugin folders (in Finder: Go > Go to Folder...):
+   - AU   (Logic, GarageBand, Ableton Live, FL Studio...):
+         "Chan Sampler.component"  ->  ~/Library/Audio/Plug-Ins/Components/
+   - VST3 (Ableton Live, FL Studio, Reaper, Cubase...):
+         "Chan Sampler.vst3"       ->  ~/Library/Audio/Plug-Ins/VST3/
+   - Standalone: drag "Chan Sampler.app" to Applications.
+
+2. Allow them to run. The plugins are not notarized by Apple, so macOS blocks
+   downloaded copies until the download "quarantine" flag is removed. Open
+   Terminal and paste:
+
+     xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/Components/"Chan Sampler.component"
+     xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/"Chan Sampler.vst3"
+     xattr -dr com.apple.quarantine /Applications/"Chan Sampler.app"
+
+3. Restart your DAW (Logic rescans AUs at launch; in Ableton use
+   Settings > Plug-ins > Rescan).
