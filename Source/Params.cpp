@@ -230,10 +230,19 @@ int flLfoDelayTicks (float delayKnob)
     return (int) juce::jmax (0.0, lfoTicksForRaw (100.0 + juce::jlimit (0.0f, 1.0f, delayKnob) * 65436.0));
 }
 
+int flSlideTicks (float knob)
+{
+    // Glide length in ticks, measured in FL renders at 17 raw values
+    // (nulltest/untested_cases.py): raw 0 -> 1, 500 -> 4, 820 -> 13,
+    // 1000 -> 23, 1660 -> 193 (raw = knob * 1660). FL shows one tick less.
+    const auto raw = juce::jlimit (0.0, 1660.0, (double) knob * 1660.0);
+    return juce::jmax (1, (int) std::lround (0.92049 * std::pow (209.414, raw / 1660.0) - 0.15));
+}
+
 double flSlideSteps (float knob)
 {
-    // FL shows 0:12 at raw 820, 0:22 at 1000 and 8:00 at 1660 (raw = knob * 1660).
-    return std::pow (2.0, ((double) knob * 1660.0 - 1030.0) / 210.0);
+    // What FL shows (steps:ticks): 0:12 at raw 820, 0:22 at 1000, 8:00 at 1660.
+    return (flSlideTicks (knob) - 1) / 24.0;
 }
 
 double flArpSteps (float knob)
@@ -421,8 +430,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
               attr ([] (float v, int) { return stepsTicks (flSlideSteps (v)); },
                     [] (const juce::String& t)
                     {
-                        const auto s = juce::jmax (1.0e-3, parseStepsTicks (t));
-                        return (float) juce::jlimit (0.0, 1.0, (std::log2 (s) * 210.0 + 1030.0) / 1660.0);
+                        const auto ticks = juce::jmax (0.0, parseStepsTicks (t)) * 24.0 + 1.0;
+                        return (float) juce::jlimit (0.0, 1.0, std::log ((ticks + 0.15) / 0.92049) / std::log (209.414));
                     }));
     addBool  (l, pid::cutItself, "Cut itself", false);
     // Group (FL's Cut / By), shared between Chan Sampler instances (CutGroups.h); 0 = none ("--").

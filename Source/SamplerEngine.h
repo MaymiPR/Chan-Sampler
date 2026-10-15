@@ -54,7 +54,7 @@ struct EngineParams
     int keyMid = 60;
 
     // Polyphony
-    float slide = 0.1f;
+    int slideTicks = 4;   // portamento / mono glide length in song ticks (FL: N steps)
     int maxPoly = 0;
     bool mono = false, porta = false, cutItself = false;
 
@@ -113,7 +113,15 @@ private:
     {
         bool active = false, released = false, killing = false, inLoop = false;
         int note = 0, dir = 1;
-        float velocity = 1, currentNote = 0, targetNote = 0;
+        float velocity = 1, targetNote = 0;
+        // Glide (measured in FL): the pitch moves from its note to targetNote in
+        // glideTicks equal steps on the song's tick grid (each at the sample
+        // nearest the tick), the first at the event's tick. FL adds the steps to
+        // a float in cents, so long glides end a little flat (kept: it nulls).
+        float glideCents = 0, glideStep = 0;  // running pitch and step, cents
+        double blockNote = 0;                 // note used for the block's increment
+        int glideTicks = 0, glideDone = 0;
+        double glideTick0 = 0;                // song tick of the first step
         double pos = 0;
         uint64_t age = 0;
 
@@ -188,6 +196,12 @@ private:
     uint64_t ageCounter = 0;
     float bend = 0;
     float lastNote = -1;
+    std::array<int, 128> monoKeys {};       // mono: earlier keys to return to (FL's key stack)
+    int numMonoKeys = 0;
+    void eraseMonoKey (int key);
+    void startGlide (Voice& v, int note, const EngineParams& p);
+    double soundingNote (Voice& v, const EngineParams& p, double songSeconds) const;
+    void beginGlide (Voice& v, float fromCents, int note, const EngineParams& p) const;
     const SampleData* currentSample = nullptr;
 
     int64_t now = 0;                        // absolute sample clock

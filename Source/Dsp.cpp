@@ -21,7 +21,12 @@ namespace
 
 double flOnePoleF (double u)
 {
-    return (std::pow (601.0, juce::jlimit (1.0 / 64.0, 1.0, u)) - 1.0) / 600.0;
+    // Below Mod X 1/64 FL goes linearly to 0 (silence at 0, measured).
+    constexpr double knee = 1.0 / 64.0;
+    const auto atKnee = (std::pow (601.0, knee) - 1.0) / 600.0;
+    if (u < knee)
+        return juce::jmax (0.0, u) / knee * atKnee;
+    return (std::pow (601.0, juce::jmin (1.0, u)) - 1.0) / 600.0;
 }
 
 double flResonance (double res)

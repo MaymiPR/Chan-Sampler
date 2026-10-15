@@ -41,6 +41,10 @@ private:
     ChanSamplerProcessor& processor;
     SampleData::Ptr sample;
     float viewStart = 0.0f, viewEnd = 1.0f;
+    // Trackpad zoom: scroll gathered before zooming starts, and timing guards
+    float smoothScroll = 0.0f;
+    bool smoothZooming = false;
+    double lastSmoothMs = 0.0, lastPressMs = -1.0e9;
     Marker dragging = Marker::none;
     float dragOffset = 0.0f;
     int previewNote = -1;

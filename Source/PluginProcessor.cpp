@@ -268,7 +268,7 @@ EngineParams ChanSamplerProcessor::readEngineParams() const
     p.keyY   = param (pid::keyY);
     p.keyMid = (int) param (pid::keyMid);
 
-    p.slide     = (float) flSlideSteps (param (pid::slide));   // steps
+    p.slideTicks = flSlideTicks (param (pid::slide));
     p.maxPoly   = (int) param (pid::maxPoly);
     p.mono      = param (pid::mono) > 0.5f;
     p.porta     = param (pid::porta) > 0.5f;
@@ -429,7 +429,7 @@ bool ChanSamplerProcessor::loadSample (const juce::File& file)
     {
         set (pid::startOffset, 0.0f);
         set (pid::loopStart, (float) loaded->embeddedLoopStart / (float) length);
-        set (pid::loopEnd,   (float) (loaded->embeddedLoopEnd + 1) / (float) length);
+        set (pid::loopEnd,   (float) loaded->embeddedLoopEnd / (float) length);   // END is inclusive, as in the file
         set (pid::useLoop,   1.0f);
     }
     else

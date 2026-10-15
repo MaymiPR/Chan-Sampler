@@ -184,6 +184,7 @@ inline float flLfoHz (float knob, double bpm = 130.0) { return (float) (bpm / 60
 
 // Portamento slide knob (raw = pos * 1660) to steps (16ths).
 double flSlideSteps (float knob);
+int flSlideTicks (float knob);
 
 // Arpeggio time knob to steps; 0 means Hold.
 double flArpSteps (float knob);

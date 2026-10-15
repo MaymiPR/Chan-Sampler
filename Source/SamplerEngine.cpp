@@ -118,9 +118,15 @@ namespace
         if (s.autoLoop)
             return { s.autoLoopStart, s.playEnd, s.playEnd - s.autoLoopStart >= 2 };
         // FL: END = 0 (the default) means no loop; END never sits before START.
-        const int ls = (int) (juce::jlimit (0.0f, 1.0f, p.loopStart) * s.playEnd);
-        const int le = (int) (juce::jlimit (0.0f, 1.0f, juce::jmax (p.loopStart, p.loopEnd)) * s.playEnd);
-        return { ls, le, p.useLoop && le - ls >= 2 };
+        // The END frame is inclusive in FL: a forward loop plays it and then
+        // jumps to START (measured: one frame per pass otherwise); ping pong
+        // turns at END itself.
+        const int ls = (int) std::lround (juce::jlimit (0.0f, 1.0f, p.loopStart) * s.playEnd);
+        int le = (int) std::lround (juce::jlimit (0.0f, 1.0f, juce::jmax (p.loopStart, p.loopEnd)) * s.playEnd);
+        if (! p.pingPong)
+            le = juce::jmin (s.playEnd, le + 1);
+        const int shift = p.pingPong ? 0 : s.loopStartShift;   // the crossfade's loop restart
+        return { juce::jmin (le - 1, ls + shift), le, p.useLoop && le - ls >= 2 };
     }
 }
 
@@ -513,36 +519,53 @@ void SamplerEngine::advanceArp (int64_t until, const EngineParams& p)
 
 void SamplerEngine::playNoteOn (int64_t time, int note, float velocity, NoteMods mods, const EngineParams& p)
 {
-    schedule ({ time, true, note, velocity, mods });
-
     if (mods.echo != 0 || p.echoFeed <= 0.0f)
+    {
+        schedule ({ time, true, note, velocity, mods });
         return;
+    }
 
     // Echoes: each is a later voice with accumulated level, pan, Mod X/Y and
     // pitch offsets (FEED centre = same level as the original).
-    const auto period = samplesPerStep (p) * (double) p.echoTime / (p.echoFat ? 16.0 : 1.0);
+    // Fat mode (measured in FL): every echo gets the same level
+    // 2 G / (3 count + 2) and the original 1.5 - count * that; pan only lowers
+    // an echo's level on both sides, by cos (pi/4 min (1, k |pan|)), and ping
+    // pong does nothing.
+    const auto feedGain = 2.0f * p.echoFeed;
+    const auto fatGain = 2.0f * feedGain / (3.0f * (float) p.echoCount + 2.0f);
+    const auto echoBase = mods;
+    if (p.echoFat)
+        mods.gain *= 1.5f - (float) p.echoCount * fatGain;
+    schedule ({ time, true, note, velocity, mods });
+
+    const auto period = samplesPerStep (p) * (double) p.echoTime;
     for (int k = 1; k <= p.echoCount; ++k)
     {
-        NoteMods e = mods;
+        NoteMods e = echoBase;
         e.echo = k;
-        e.gain = std::pow (2.0f * p.echoFeed, (float) k);
-        if (e.gain < 1.0e-3f)
-            break;
-
         auto pan = p.echoPan * (float) k;
-        if (p.echoPing)   // bounce between hard left and right
+        if (p.echoFat)
         {
-            pan = std::fmod (pan + 1.0f, 4.0f);
-            if (pan < 0.0f)
-                pan += 4.0f;
-            pan = pan <= 2.0f ? pan - 1.0f : 3.0f - pan;
+            e.gain = fatGain * std::cos (juce::MathConstants<float>::pi * 0.25f * juce::jmin (1.0f, std::abs (pan)));
+            pan = 0.0f;
         }
-        if (p.echoFat)    // subtle echoes alternating sides
-            pan = (k % 2 == 0 ? -1.0f : 1.0f) * juce::jmax (std::abs (p.echoPan), 0.25f);
+        else
+        {
+            e.gain = std::pow (feedGain, (float) k);
+            if (e.gain < 1.0e-3f)
+                break;
+            if (p.echoPing)   // bounce between hard left and right
+            {
+                pan = std::fmod (pan + 1.0f, 4.0f);
+                if (pan < 0.0f)
+                    pan += 4.0f;
+                pan = pan <= 2.0f ? pan - 1.0f : 3.0f - pan;
+            }
+        }
 
         e.pan = juce::jlimit (-1.0f, 1.0f, pan);
-        e.cut = p.echoX * 0.5f * (float) k;
-        e.res = p.echoY * 0.5f * (float) k;
+        e.cut = p.echoX;   // applied k times in refreshControls (echoMod)
+        e.res = p.echoY;
         e.pitch = p.echoPitch * (float) k;
         schedule ({ time + (int64_t) std::round (period * k), true, note, velocity, e });
     }
@@ -554,7 +577,7 @@ void SamplerEngine::playNoteOff (int64_t time, int note, int echo, const EngineP
     if (echo != 0 || p.echoFeed <= 0.0f)
         return;
 
-    const auto period = samplesPerStep (p) * (double) p.echoTime / (p.echoFat ? 16.0 : 1.0);
+    const auto period = samplesPerStep (p) * (double) p.echoTime;
     for (int k = 1; k <= p.echoCount; ++k)
     {
         NoteMods e;
@@ -637,7 +660,8 @@ void SamplerEngine::noteOn (int note, float velocity, NoteMods mods, const Sampl
             if (v.active && ! v.released && ! v.killing && v.mods.arp)
             {
                 v.note = note;
-                v.targetNote = v.currentNote = (float) note;
+                v.targetNote = (float) note;
+                v.glideTicks = 0;
                 lastNote = (float) note;
                 return;
             }
@@ -647,15 +671,21 @@ void SamplerEngine::noteOn (int note, float velocity, NoteMods mods, const Sampl
 
     if (p.mono && mods.echo == 0)
     {
-        // Overlapping notes in mono mode slide to the new pitch without retriggering.
+        // Overlapping notes in mono mode slide to the new pitch without
+        // retriggering; the earlier key goes on the stack to return to.
         for (auto& v : voices)
             if (v.active && ! v.released && ! v.killing && v.mods.echo == 0)
             {
+                eraseMonoKey (note);
+                eraseMonoKey (v.note);
+                if (numMonoKeys < (int) monoKeys.size())
+                    monoKeys[(size_t) numMonoKeys++] = v.note;
                 v.note = note;
-                v.targetNote = (float) note;
+                startGlide (v, note, p);
                 lastNote = (float) note;
                 return;
             }
+        numMonoKeys = 0;
     }
 
     auto& v = allocateVoice (p);
@@ -682,7 +712,9 @@ void SamplerEngine::noteOn (int note, float velocity, NoteMods mods, const Sampl
         ++v.onsetIdx;
     v.slicePos = v.pos;
     v.targetNote = (float) note;
-    v.currentNote = ((p.porta || mods.slide) && lastNote >= 0) ? lastNote : (float) note;
+    v.glideTicks = 0;
+    if ((p.porta || mods.slide) && lastNote >= 0)
+        beginGlide (v, lastNote * 100.0f, note, p);   // portamento: from the previous note
 
     for (int i = 0; i < 5; ++i)
     {
@@ -707,12 +739,98 @@ void SamplerEngine::noteOn (int note, float velocity, NoteMods mods, const Sampl
         lastNote = (float) note;
 }
 
+void SamplerEngine::eraseMonoKey (int key)
+{
+    for (int i = 0; i < numMonoKeys; ++i)
+        if (monoKeys[(size_t) i] == key)
+        {
+            for (int j = i + 1; j < numMonoKeys; ++j)
+                monoKeys[(size_t) j - 1] = monoKeys[(size_t) j];
+            --numMonoKeys;
+            return;
+        }
+}
+
+void SamplerEngine::startGlide (Voice& v, int note, const EngineParams& p)
+{
+    beginGlide (v, v.glideTicks > 0 ? v.glideCents : v.targetNote * 100.0f, note, p);
+}
+
+void SamplerEngine::beginGlide (Voice& v, float fromCents, int note, const EngineParams& p) const
+{
+    v.targetNote = (float) note;
+    v.glideCents = fromCents;
+    v.glideTicks = juce::jmax (1, p.slideTicks);
+    v.glideStep = (float) (((double) note * 100.0 - (double) fromCents) / v.glideTicks);
+    v.glideDone = 0;
+
+    // The event's tick: host events arrive at the sample before a tick that
+    // falls between samples, so a tick within a sample counts as this one;
+    // off-grid events step at once.
+    const auto ticks = songTimeAt (p, blockPos) * juce::jmax (1.0, p.bpm) * 1.6;
+    const auto tickSamples = sampleRate * 60.0 / (juce::jmax (1.0, p.bpm) * 96.0);
+    const auto nearest = std::round (ticks);
+    v.glideTick0 = std::abs (ticks - nearest) * tickSamples <= 1.0 ? nearest : std::floor (ticks);
+}
+
+double SamplerEngine::soundingNote (Voice& v, const EngineParams& p, double songSeconds) const
+{
+    if (v.glideTicks <= 0)
+        return v.targetNote;
+    if (v.glideDone < v.glideTicks)
+    {
+        // A step lands on the sample nearest its tick (measured: FL steps half
+        // a sample early against the exact tick time).
+        const auto tickSamples = sampleRate * 60.0 / (juce::jmax (1.0, p.bpm) * 96.0);
+        const auto ticks = songSeconds * juce::jmax (1.0, p.bpm) * 1.6 + 0.5 / tickSamples;
+        const auto due = juce::jmin (v.glideTicks, (int) std::floor (ticks - v.glideTick0) + 1);
+        while (v.glideDone < due)
+        {
+            v.glideCents += v.glideStep;
+            ++v.glideDone;
+        }
+    }
+    return (double) v.glideCents / 100.0;
+}
+
 void SamplerEngine::noteOff (int note, int echo, const EngineParams& p)
 {
     ++eventSerial;
+
+    // Mono (measured in FL): releasing the sounding key glides back to the
+    // previous key on the stack and keeps the note going; with none left the
+    // note is released. Releasing another key takes it off the stack, but only
+    // with the volume envelope on: without it FL keeps the key and still
+    // returns to it later.
+    if (p.mono && echo == 0)
+        for (auto& v : voices)
+            if (v.active && ! v.released && ! v.killing && v.mods.echo == 0)
+            {
+                if (v.note != note)
+                {
+                    if (p.volT.envOn)
+                        eraseMonoKey (note);
+                    return;
+                }
+                if (numMonoKeys > 0)
+                {
+                    const int back = monoKeys[(size_t) --numMonoKeys];
+                    v.note = back;
+                    startGlide (v, back, p);
+                    lastNote = (float) back;
+                    return;
+                }
+                releaseVoice (v, p);
+                return;
+            }
+
+    // Overlapping notes on one key: a note-off ends the oldest (measured in FL).
+    Voice* oldest = nullptr;
     for (auto& v : voices)
-        if (v.active && ! v.released && v.note == note && v.mods.echo == echo)
-            releaseVoice (v, p);
+        if (v.active && ! v.released && v.note == note && v.mods.echo == echo && (oldest == nullptr || v.age < oldest->age))
+            oldest = &v;
+    if (oldest != nullptr)
+        releaseVoice (*oldest, p);
 }
 
 void SamplerEngine::releaseVoice (Voice& v, const EngineParams& p)
@@ -776,27 +894,20 @@ void SamplerEngine::updateControls (Voice& v, int numSamples, const SampleData& 
     if (p.volT.envOn && v.env[1].isIdle() && v.envStarted)
         v.active = false;
 
-    // Portamento / mono slide
-    if (v.currentNote != v.targetNote)
-    {
-        if (p.slide <= 0.0f)
-            v.currentNote = v.targetNote;
-        else
-        {
-            const auto slideSeconds = (float) (p.slide * 15.0 / juce::jmax (1.0, p.bpm));   // steps -> seconds
-            const auto coeff = 1.0f - std::exp (-dt / (slideSeconds * 0.25f));
-            v.currentNote += (v.targetNote - v.currentNote) * coeff;
-            if (std::abs (v.targetNote - v.currentNote) < 0.001f)
-                v.currentNote = v.targetNote;
-        }
-    }
+    // Portamento / mono glide: the block's note (Resample steps per sample in renderRange)
+    v.blockNote = soundingNote (v, p, v.songLfoStart);
 
     // Velocity and keyboard tracking offsets around their middle values
-    const auto dv = v.velocity - p.velMid;
-    const auto dk = ((float) v.note - (float) p.keyMid) / 48.0f;
+    // (measured in FL; a tracking knob at 50% is FL's raw 128): velocity goes
+    // through the velocity-to-gain curve, the middle value through
+    // (6.5^(m/100) - 1) / 5.5 with m = 0..128, scaled so a middle value of 128
+    // is 1; a key knob at 50% moves 0.5 per octave.
+    auto midCurve = [] (float m) { return (std::pow (6.5f, m / 100.0f) - 1.0f) / 5.5f; };
+    const auto dv = 2.0f * (velocityGain (v.velocity) - midCurve (p.velMid * 128.0f)) / midCurve (128.0f);
+    const auto dk = ((float) v.note - (float) p.keyMid) / 12.0f;
 
     // Pitch: semitones relative to the root key; MIDI pitch bend spans +/- range.
-    const auto semis = v.currentNote - (float) p.rootNote + p.pitch + p.fineTune * 0.01f
+    const auto semis = (v.blockNote - (double) p.rootNote) + p.pitch + p.fineTune * 0.01f
                      + bend * (float) p.pitchRange + v.mods.pitch
                      // FL: the pitch envelope and LFO amounts are in cents, raw
                      // -128..128 (measured: full amount = +/-128 cents).
@@ -822,9 +933,16 @@ void SamplerEngine::updateControls (Voice& v, int numSamples, const SampleData& 
     }
 
     // Filter: Mod X = cutoff, Mod Y = resonance
-    const auto cut = p.cutoff + p.xOfs + p.xT.envAmt * env[2] + lfo[2] + p.velX * dv + p.keyX * dk + v.mods.cut;
-    const auto res = juce::jlimit (0.0f, 1.0f, p.resonance + p.yOfs + p.yT.envAmt * env[3] + lfo[3]
-                                               + p.velY * dv + p.keyY * dk + v.mods.res);
+    // Echo Mod X / Y (measured in FL): echo k shifts the value by
+    // 1 - (1 - |m|)^k towards the knob's side (Mod X 50%: +0.5, +0.75, ...).
+    auto echoMod = [k = v.mods.echo] (float value, float m)
+    {
+        if (k > 0 && m != 0.0f)
+            value += std::copysign (1.0f - std::pow (1.0f - std::abs (m), (float) k), m);
+        return juce::jlimit (0.0f, 1.0f, value);
+    };
+    const auto cut = echoMod (p.cutoff + p.xOfs + p.xT.envAmt * env[2] + lfo[2] + p.velX * dv + p.keyX * dk, v.mods.cut);
+    const auto res = echoMod (p.resonance + p.yOfs + p.yT.envAmt * env[3] + lfo[3] + p.velY * dv + p.keyY * dk, v.mods.res);
     // Fast LP with Mod X fully open and no resonance is an identity; skip it,
     // unless Mod X / Y move (the filter state must carry on as in FL).
     const bool modulated = p.xT.lfo.amount != 0.0f || p.yT.lfo.amount != 0.0f
@@ -926,6 +1044,16 @@ void SamplerEngine::renderRange (juce::AudioBuffer<float>& out, int start, int n
                                                                           v.songLfoStart + (double) (base + i) / sampleRate + lead) * 1.28 / 12.0);
                     incNow *= v.pitchMul;
                     rateNow *= v.pitchMul;
+                }
+                if (v.glideTicks > 0)
+                {
+                    // Glide steps land on exact ticks (measured), not on control blocks.
+                    if (p.stretchMode == StretchMode::resample)
+                    {
+                        const auto glideMul = std::exp2 ((soundingNote (v, p, v.songLfoStart + (double) (base + i) / sampleRate) - v.blockNote) / 12.0);
+                        incNow *= glideMul;
+                        rateNow *= glideMul;
+                    }
                 }
 
                 float l, r;

@@ -333,9 +333,43 @@ void WaveformView::mouseMove (const juce::MouseEvent& e)
 
 void WaveformView::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& w)
 {
-    // Zoom around the mouse position
+    // Zoom around the mouse position. A mouse wheel zooms one step per notch.
+    // A trackpad (smooth scrolling, as on a Mac) sends a stream of small
+    // deltas plus momentum, which made clicks zoom by accident: it zooms in
+    // proportion to the finger travel, only once a deliberate gesture has
+    // built up, and never during or right after a click.
+    const auto nowMs = juce::Time::getMillisecondCounterHiRes();
+    if (e.mods.isAnyMouseButtonDown() || nowMs - lastPressMs < 400.0)
+        return;
+
+    float factor;
+    if (w.isSmooth)
+    {
+        if (w.isInertial || std::abs (w.deltaX) > std::abs (w.deltaY))
+            return;
+        if (nowMs - lastSmoothMs > 250.0)   // a new gesture
+        {
+            smoothScroll = 0.0f;
+            smoothZooming = false;
+        }
+        lastSmoothMs = nowMs;
+        if (! smoothZooming)
+        {
+            smoothScroll += w.deltaY;
+            if (std::abs (smoothScroll) < 0.15f)
+                return;
+            smoothZooming = true;
+        }
+        factor = std::exp2 (-1.5f * w.deltaY);   // a full two-finger swipe zooms a few times
+    }
+    else
+    {
+        if (w.deltaY == 0.0f)
+            return;
+        factor = w.deltaY > 0 ? 0.8f : 1.25f;
+    }
+
     const auto anchor = xToFrac (e.position.x);
-    const auto factor = w.deltaY > 0 ? 0.8f : 1.25f;
     // Zoom down to about 16 samples across the view, as FL does.
     const auto minLen = sample != nullptr && sample->getTotalFrames() > 0 ? juce::jmin (1.0f, 16.0f / (float) sample->getTotalFrames()) : 0.002f;
     const auto newLen = juce::jlimit (minLen, 1.0f, (viewEnd - viewStart) * factor);
@@ -347,6 +381,9 @@ void WaveformView::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseW
 
 void WaveformView::mouseDown (const juce::MouseEvent& e)
 {
+    lastPressMs = juce::Time::getMillisecondCounterHiRes();
+    smoothZooming = false;
+    smoothScroll = 0.0f;
     dragging = markerAt (e.position);
     if (dragging == Marker::scrollThumb)
     {
@@ -398,6 +435,7 @@ void WaveformView::mouseDrag (const juce::MouseEvent& e)
 
 void WaveformView::mouseUp (const juce::MouseEvent&)
 {
+    lastPressMs = juce::Time::getMillisecondCounterHiRes();   // no zoom from scroll right after a click
     if (dragging != Marker::none && dragging != Marker::scrollThumb)
         for (auto id : { pid::startOffset, pid::loopStart, pid::loopEnd })
             processor.apvts.getParameter (id)->endChangeGesture();

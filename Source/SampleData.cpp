@@ -130,7 +130,7 @@ namespace
     // interpolated from the measured resonance points.
     void lowpass (juce::AudioBuffer<float>& b, float cutKnob, float resKnob)
     {
-        const auto f = dsp::flOnePoleF (cutKnob);
+        const auto f = dsp::flOnePoleF (juce::jmax (1.0f / 64.0f, cutKnob));
         const auto r = dsp::flResonance (resKnob);
         if (f >= 1.0 && r <= 0.0)
             return;
@@ -335,10 +335,18 @@ namespace
         if (s.crossfade <= 0.0f || n < 8)
             return;
 
-        int ls = (int) (s.loopStart * n), le = (int) (juce::jmax (s.loopStart, s.loopEnd) * n), len;
+        int ls = (int) std::lround (s.loopStart * n), le = (int) std::lround (juce::jmax (s.loopStart, s.loopEnd) * n), len;
         if (s.useLoop && le - ls >= 4)   // loop points set and in use
         {
-            len = juce::jmin ((int) (s.crossfade / 2.0 * n), ls, le - ls);
+            // Measured in FL: the fade is CROSSFADE x length / 4 long and ends at
+            // the (inclusive) END; it blends in the audio from START, and the
+            // loop then restarts that far after START (each pass is shorter).
+            le = juce::jmin (n, le + 1);
+            len = juce::jmin ((int) (s.crossfade / 4.0 * n), le - ls - 2);
+            if (len < 1)
+                return;
+            out.loopStartShift = len;
+            ls += len;
         }
         else
         {

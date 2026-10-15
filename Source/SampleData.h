@@ -18,6 +18,8 @@ struct SampleData : juce::ReferenceCountedObject
     // [autoLoopStart, playEnd) with a crossfade baked into its end (measured).
     bool autoLoop = false;
     int autoLoopStart = 0;
+    // With loop points and a crossfade, the loop restarts this far after START.
+    int loopStartShift = 0;
 
     // Detected transients (frames), used by the slice stretch modes.
     std::vector<int> onsets;
