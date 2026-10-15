@@ -93,6 +93,8 @@ void WaveformView::timerCallback()
     if (std::memcmp (now, lastMarkers, sizeof (now)) != 0 || ph != playhead)
     {
         std::memcpy (lastMarkers, now, sizeof (now));
+        if (ph >= 0.0f && playhead >= 0.0f && ph != playhead)
+            playDirection = ph > playhead ? 1.0f : -1.0f;
         playhead = ph;
         repaint();
     }
@@ -273,19 +275,26 @@ void WaveformView::paint (juce::Graphics& g)
         }
     }
 
-    // Playback bar (FL: an orange line with a soft glow while a note plays)
+    // Playback bar (sampled from FL): a 1 px line of #eb6d2e with an 11 px
+    // trail behind it, 35% next to the line and fading by 0.71 per pixel.
     if (playhead >= 0.0f)
     {
-        const auto px = fracToX (playhead);
+        const auto px = std::floor (fracToX (playhead));
         if (px >= wave.getX() && px <= wave.getRight())
         {
-            for (int k = 3; k >= 1; --k)
+            const juce::Colour line (0xffeb6d2e);
+            float alpha = 0.351f;
+            for (int k = 1; k <= 11; ++k, alpha *= 0.71f)
             {
-                g.setColour (fl::colour::playOrange.withAlpha (0.12f * (float) (4 - k)));
-                g.fillRect (px - (float) k * 1.5f, wave.getY(), (float) k * 3.0f, wave.getHeight());
+                const auto x = px - playDirection * (float) k;
+                if (x >= wave.getX() && x < wave.getRight())
+                {
+                    g.setColour (line.withAlpha (alpha));
+                    g.fillRect (x, wave.getY(), 1.0f, wave.getHeight());
+                }
             }
-            g.setColour (fl::colour::playOrange);
-            g.fillRect (px - 0.75f, wave.getY(), 1.5f, wave.getHeight());
+            g.setColour (line);
+            g.fillRect (px, wave.getY(), 1.0f, wave.getHeight());
         }
     }
 

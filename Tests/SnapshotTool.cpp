@@ -13,12 +13,21 @@
 
 int main (int argc, char** argv)
 {
-    if (argc < 5)
+    if (argc < 5 && ! (argc >= 2 && juce::String (argv[1]) == "fontwidth"))
     {
         std::cerr << "usage: ChanSamplerSnapshot sample.wav out.png params.txt sheet [playMs] [page]\n";
         return 2;
     }
     juce::ScopedJuceInitialiser_GUI init;
+
+    // "fontwidth" mode: width of fl::font's reference text per unit height
+    // (used to size the macOS font like Segoe UI).
+    if (juce::String (argv[1]) == "fontwidth")
+    {
+        for (bool bold : { false, true })
+            std::cout << (bold ? "bold " : "plain ") << juce::GlyphArrangement::getStringWidth (fl::font (100.0f, bold), fl::fontReferenceText) / 100.0f << "\n";
+        return 0;
+    }
 
     // "menus" mode: draws both FL menu styles with the plugin's look-and-feel.
     if (juce::String (argv[1]) == "menus")

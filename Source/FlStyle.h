@@ -52,6 +52,8 @@ namespace fl
     }
 
     juce::Font font (float height, bool bold = false);
+    // Text used to match the macOS font's width to Segoe UI's.
+    inline constexpr const char* fontReferenceText = "Remove DC offset Normalize Reverse polarity Fade stereo 0123456789 START OFFSET";
 
     class LookAndFeel : public juce::LookAndFeel_V4
     {

@@ -7,7 +7,23 @@ juce::Font font (float height, bool bold)
     // FL draws its UI with Segoe UI on Windows.
     // Heights here are JUCE font heights (ascent + descent); FL's sizes are
     // em sizes, about 1.2 times smaller, so scale up to match.
-    return juce::Font (juce::FontOptions ("Segoe UI", height * 1.2f, bold ? juce::Font::bold : juce::Font::plain));
+    const auto style = bold ? juce::Font::bold : juce::Font::plain;
+   #if JUCE_WINDOWS
+    return juce::Font (juce::FontOptions ("Segoe UI", height * 1.2f, style));
+   #else
+    // Segoe UI is Windows-only. Elsewhere use the system sans font, narrowed
+    // to Segoe UI's width so every label fits as designed (measured on
+    // Windows with ChanSamplerSnapshot fontwidth: the reference text is 33.87
+    // / 36.17 font heights wide, plain / bold).
+    auto widthScale = [] (bool b)
+    {
+        const juce::Font ref (juce::FontOptions (120.0f, b ? juce::Font::bold : juce::Font::plain));
+        const auto w = juce::GlyphArrangement::getStringWidth (ref, fontReferenceText) / 100.0f;
+        return w > 0.0f ? juce::jmin (1.0f, (b ? 36.17f : 33.87f) / w) : 1.0f;
+    };
+    static const float plainScale = widthScale (false), boldScale = widthScale (true);
+    return juce::Font (juce::FontOptions (height * 1.2f, style)).withHorizontalScale (bold ? boldScale : plainScale);
+   #endif
 }
 
 namespace
@@ -63,13 +79,15 @@ LookAndFeel::LookAndFeel()
 
 juce::Typeface::Ptr LookAndFeel::getTypefaceForFont (const juce::Font& f)
 {
+   #if JUCE_WINDOWS
     if (f.getTypefaceName() == juce::Font::getDefaultSansSerifFontName())
     {
         auto copy = f;
         copy.setTypefaceName ("Segoe UI");
         return juce::Typeface::createSystemTypefaceFor (copy);
     }
-    return juce::LookAndFeel_V4::getTypefaceForFont (f);
+   #endif
+    return juce::LookAndFeel_V4::getTypefaceForFont (f);   // elsewhere fl::font sizes the system font
 }
 
 namespace

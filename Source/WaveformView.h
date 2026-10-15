@@ -46,4 +46,5 @@ private:
     int previewNote = -1;
     float lastMarkers[4] {};
     float playhead = -1.0f;   // fraction of the sample, -1 when not playing
+    float playDirection = 1.0f;   // +1 forwards, -1 backwards (the trail is drawn behind)
 };
