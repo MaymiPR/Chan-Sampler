@@ -29,7 +29,7 @@ void WaveformView::setValue (const char* id, float value)
     p->setValueNotifyingHost (p->convertTo0to1 (juce::jlimit (0.0f, 1.0f, value)));
 }
 
-juce::Rectangle<float> WaveformView::waveArea() const   { return getLocalBounds().toFloat().withTrimmedBottom (scrollH); }
+juce::Rectangle<float> WaveformView::waveArea() const   { return getLocalBounds().toFloat().withTrimmedTop (topH).withTrimmedBottom (scrollH); }
 juce::Rectangle<float> WaveformView::scrollArea() const { return getLocalBounds().toFloat().removeFromBottom (scrollH); }
 
 float WaveformView::fracToX (float frac) const
@@ -100,17 +100,42 @@ void WaveformView::timerCallback()
     }
 }
 
-void WaveformView::drawLanes (juce::Graphics& g, juce::Rectangle<float> area, float from, float to, float alpha) const
+// FL 2026's sample view colours (sampled from FL screenshots).
+namespace flview
 {
-    // FL draws one lane: the peaks of both channels together, with a
-    // brighter core and pink edges.
+    const juce::Colour frame      { 0xff202324 };   // strip above the view, around the bar
+    const juce::Colour bg         { 0xff1b1d1e };
+    const juce::Colour grid       { 0xff131516 };   // 0.1 s (or 10x finer / coarser) and the +/-50% lines
+    const juce::Colour gridMajor  { 0xff090b0c };   // whole seconds (10x the fine grid)
+    const juce::Colour waveMono   { 0xfff6feff };
+    const juce::Colour waveStereo { 0xfff2eded };
+    const juce::Colour watermark  { 0xff41464b };
+    const juce::Colour barDark    { 0xff101213 };
+    const juce::Colour barLight   { 0xff313334 };
+    const juce::Colour track      { 0xff282a2b };
+    const juce::Colour overview   { 0xffa3a5a6 };
+    const juce::Colour arrow      { 0xff6a6d6f };
+}
+
+juce::Colour WaveformView::waveColour() const
+{
+    return sample != nullptr && sample->mono ? flview::waveMono : flview::waveStereo;
+}
+
+void WaveformView::drawLanes (juce::Graphics& g, juce::Rectangle<float> area, float from, float to, juce::Colour colour) const
+{
+    // FL draws one lane, full height: per pixel column the peaks of both
+    // channels together, at least one pixel (silence is a line at the centre).
     const auto halfH = area.getHeight() * 0.5f;
     const auto mid = area.getCentreY();
     const int buckets = SampleData::numPeakBuckets;
+    g.setColour (colour);
     for (int x = 0; x < (int) area.getWidth(); ++x)
     {
         const auto f0 = from + (to - from) * (float) x / area.getWidth();
         const auto f1 = from + (to - from) * (float) (x + 1) / area.getWidth();
+        if (f0 >= 1.0f)
+            break;
         const auto b0 = juce::jlimit (0, buckets - 1, (int) (f0 * buckets));
         const auto b1 = juce::jlimit (b0 + 1, buckets, (int) (f1 * buckets));
         float lo = 0, hi = 0;
@@ -123,14 +148,9 @@ void WaveformView::drawLanes (juce::Graphics& g, juce::Rectangle<float> area, fl
         // Like FL, a boosted sample is drawn clipped at full scale.
         lo = juce::jmax (lo, -1.0f);
         hi = juce::jmin (hi, 1.0f);
-        const auto px = area.getX() + (float) x;
-        // FL: a thin, light waveform on the dark red view.
-        g.setColour (fl::colour::waveCream.withAlpha (alpha * 0.85f));
-        g.drawVerticalLine ((int) px, mid - hi * halfH * 0.95f, mid - lo * halfH * 0.95f + 1.0f);
+        const auto top = std::floor (mid - hi * halfH), bottom = juce::jmax (top + 1.0f, std::ceil (mid - lo * halfH));
+        g.fillRect (area.getX() + (float) x, top, 1.0f, bottom - top);
     }
-    // Centre line
-    g.setColour (fl::colour::waveCream.withAlpha (alpha * 0.9f));
-    g.drawHorizontalLine ((int) mid, area.getX(), area.getRight());
 }
 
 void WaveformView::drawSamples (juce::Graphics& g, juce::Rectangle<float> area, float from, float to) const
@@ -147,12 +167,12 @@ void WaveformView::drawSamples (juce::Graphics& g, juce::Rectangle<float> area, 
     auto pt = [&] (int i)
     {
         const auto x = area.getX() + ((float) i / (float) total - from) / (to - from) * area.getWidth();
-        return juce::Point<float> (x, mid - juce::jlimit (-1.0f, 1.0f, 0.5f * (l[i] + r[i])) * halfH * 0.95f);
+        return juce::Point<float> (x, mid - juce::jlimit (-1.0f, 1.0f, 0.5f * (l[i] + r[i])) * halfH);
     };
     juce::Path line;
     for (int i = first; i <= last; ++i)
         i == first ? line.startNewSubPath (pt (i)) : line.lineTo (pt (i));
-    g.setColour (fl::colour::waveCream);
+    g.setColour (waveColour());
     g.strokePath (line, juce::PathStrokeType (1.0f));
     const auto spacing = area.getWidth() / juce::jmax (1.0f, (to - from) * (float) total);
     if (spacing >= 6.0f)
@@ -161,7 +181,7 @@ void WaveformView::drawSamples (juce::Graphics& g, juce::Rectangle<float> area, 
             const auto p = pt (i);
             g.setColour (fl::colour::well);
             g.fillEllipse (p.x - 2.5f, p.y - 2.5f, 5.0f, 5.0f);
-            g.setColour (fl::colour::waveCream);
+            g.setColour (waveColour());
             g.drawEllipse (p.x - 2.5f, p.y - 2.5f, 5.0f, 5.0f, 1.0f);
         }
 }
@@ -169,23 +189,44 @@ void WaveformView::drawSamples (juce::Graphics& g, juce::Rectangle<float> area, 
 void WaveformView::paint (juce::Graphics& g)
 {
     const auto wave = waveArea();
-    g.setColour (fl::colour::waveBg);
-    g.fillRect (getLocalBounds());
+    g.fillAll (flview::frame);
+    g.setColour (flview::bg);
+    g.fillRect (wave);
 
-    // Faint grid
-    g.setColour (fl::colour::waveGrid);
-    for (int i = 1; i < 16; ++i)
-        g.drawVerticalLine ((int) (wave.getX() + wave.getWidth() * (float) i / 16.0f), wave.getY(), wave.getBottom());
+    // FL's grid (measured): dark lines every 0.1 s of the sample, every second
+    // darker still (the step grows or shrinks 10x to keep the lines at least
+    // 20 px apart), and two lines at +/-50% of full scale.
+    auto drawGrid = [&]
+    {
+        g.setColour (flview::grid);
+        g.fillRect (wave.getX(), std::floor (wave.getCentreY() - wave.getHeight() * 0.25f), wave.getWidth(), 1.0f);
+        g.fillRect (wave.getX(), std::floor (wave.getCentreY() + wave.getHeight() * 0.25f), wave.getWidth(), 1.0f);
+        const double seconds = sample != nullptr && sample->getTotalFrames() > 0 ? sample->getTotalFrames() / sample->sourceRate : 1.0;
+        const double t0 = viewStart * seconds, t1 = viewEnd * seconds;
+        const double pps = wave.getWidth() / juce::jmax (1.0e-9, t1 - t0);
+        double step = 0.0001;
+        while (step * pps < 20.0)
+            step *= 10.0;
+        for (auto k = (long long) std::ceil (t0 / step - 1.0e-6); (double) k * step <= t1 + 1.0e-9; ++k)
+        {
+            const auto x = (float) std::floor (wave.getX() + ((double) k * step - t0) * pps);
+            if (x >= wave.getRight())
+                break;
+            g.setColour (k % 10 == 0 ? flview::gridMajor : flview::grid);
+            g.fillRect (x, wave.getY(), 1.0f, wave.getHeight());
+        }
+    };
 
     auto drawWatermark = [&g, wave]
     {
-        g.setColour (fl::colour::watermark);
+        g.setColour (flview::watermark);
         g.setFont (fl::font (22.0f));
         g.drawText ("Sampler", wave.reduced (8.0f, 4.0f), juce::Justification::topRight, false);
     };
 
     if (sample == nullptr || sample->playEnd <= 0)
     {
+        drawGrid();
         drawWatermark();
         g.setColour (fl::colour::dim);
         g.setFont (fl::font (12.0f));
@@ -217,6 +258,7 @@ void WaveformView::paint (juce::Graphics& g)
         g.setColour (looping ? juce::Colour (0xff2e1011) : juce::Colour (0xff2c2f31));
         g.fillRect (juce::Rectangle<float>::leftTopRightBottom (ls, wave.getY(), juce::jmax (ls + 1.0f, le), wave.getBottom()));
     }
+    drawGrid();
     drawWatermark();
 
     {
@@ -228,7 +270,7 @@ void WaveformView::paint (juce::Graphics& g)
         if (visibleFrames < wave.getWidth() / 2.0f)
             drawSamples (g, wave, viewStart, viewEnd);
         else
-            drawLanes (g, wave, viewStart, viewEnd, 1.0f);
+            drawLanes (g, wave, viewStart, viewEnd, waveColour());
     }
     if (startShown)
     {
@@ -298,29 +340,51 @@ void WaveformView::paint (juce::Graphics& g)
         }
     }
 
-    // Zoom / scroll bar: whole-sample overview with the visible window outlined
+    // Zoom / scroll bar (FL's look): dark and light edges, the whole sample's
+    // overview in grey, arrow buttons; the visible window between two bright edges.
     const auto sb = scrollArea();
-    g.setColour (juce::Colour (0xff282a2b));
-    g.fillRect (sb);
+    g.setColour (flview::barDark);
+    g.fillRect (sb.getX(), sb.getY(), sb.getWidth(), 1.0f);
+    g.setColour (flview::barLight);
+    g.fillRect (sb.getX(), sb.getY() + 1.0f, sb.getWidth(), 1.0f);
+    g.fillRect (sb.getX(), sb.getBottom() - 1.0f, sb.getWidth(), 1.0f);
+    const auto trackArea = sb.withTrimmedTop (2.0f).withTrimmedBottom (1.0f);
+    g.setColour (flview::track);
+    g.fillRect (trackArea);
+    const auto inner = trackArea.reduced (buttonW, 0.0f);
     {
         juce::Graphics::ScopedSaveState s (g);
-        g.reduceClipRegion (sb.reduced (12.0f, 1.0f).toNearestInt());
-        drawLanes (g, sb.reduced (12.0f, 1.0f), 0.0f, 1.0f, 0.6f);
+        g.reduceClipRegion (inner.toNearestInt());
+        drawLanes (g, inner.reduced (0.0f, 1.0f), 0.0f, 1.0f, flview::overview);
+        if (viewStart > 0.0f || viewEnd < 1.0f)
+        {
+            const auto t0 = inner.getX() + viewStart * inner.getWidth(), t1 = inner.getX() + viewEnd * inner.getWidth();
+            g.setColour (flview::track.withAlpha (0.6f));
+            g.fillRect (juce::Rectangle<float>::leftTopRightBottom (inner.getX(), inner.getY(), t0, inner.getBottom()));
+            g.fillRect (juce::Rectangle<float>::leftTopRightBottom (t1, inner.getY(), inner.getRight(), inner.getBottom()));
+            g.setColour (flview::overview);
+            g.fillRect (std::floor (t0), inner.getY(), 1.0f, inner.getHeight());
+            g.fillRect (std::floor (t1) - 1.0f, inner.getY(), 1.0f, inner.getHeight());
+        }
     }
-    const auto inner = sb.reduced (12.0f, 0.5f);
-    const auto thumb = juce::Rectangle<float>::leftTopRightBottom (inner.getX() + viewStart * inner.getWidth(), inner.getY(),
-                                                                   inner.getX() + viewEnd * inner.getWidth(), inner.getBottom());
-    g.setColour (juce::Colours::white.withAlpha (0.45f));
-    g.drawRect (thumb, 1.0f);
     if (playhead >= 0.0f)
     {
         g.setColour (fl::colour::playOrange);
         g.fillRect (inner.getX() + playhead * inner.getWidth() - 1.0f, inner.getY(), 2.0f, inner.getHeight());
     }
-    g.setColour (fl::colour::dim);
-    g.setFont (fl::font (10.0f));
-    g.drawText ("<", sb.withWidth (12.0f), juce::Justification::centred, false);
-    g.drawText (">", sb.withTrimmedLeft (sb.getWidth() - 12.0f), juce::Justification::centred, false);
+    // Arrow buttons: small chevrons
+    g.setColour (flview::arrow);
+    for (int side = 0; side < 2; ++side)
+    {
+        const auto cx = side == 0 ? trackArea.getX() + buttonW * 0.5f : trackArea.getRight() - buttonW * 0.5f;
+        const auto cy = trackArea.getCentreY();
+        const auto d = side == 0 ? 1.0f : -1.0f;
+        juce::Path chevron;
+        chevron.startNewSubPath (cx + d * 1.5f, cy - 3.5f);
+        chevron.lineTo (cx - d * 1.5f, cy);
+        chevron.lineTo (cx + d * 1.5f, cy + 3.5f);
+        g.strokePath (chevron, juce::PathStrokeType (1.2f));
+    }
 }
 
 void WaveformView::mouseMove (const juce::MouseEvent& e)
@@ -387,7 +451,7 @@ void WaveformView::mouseDown (const juce::MouseEvent& e)
     dragging = markerAt (e.position);
     if (dragging == Marker::scrollThumb)
     {
-        const auto inner = scrollArea().reduced (12.0f, 0.0f);
+        const auto inner = scrollArea().reduced (buttonW, 0.0f);
         dragOffset = (e.position.x - inner.getX()) / inner.getWidth() - viewStart;
         if (dragOffset < 0.0f || dragOffset > viewEnd - viewStart)
             dragOffset = (viewEnd - viewStart) * 0.5f;   // clicked outside the thumb: centre it
@@ -417,7 +481,7 @@ void WaveformView::mouseDrag (const juce::MouseEvent& e)
 
     if (dragging == Marker::scrollThumb)
     {
-        const auto inner = scrollArea().reduced (12.0f, 0.0f);
+        const auto inner = scrollArea().reduced (buttonW, 0.0f);
         const auto len = viewEnd - viewStart;
         viewStart = juce::jlimit (0.0f, 1.0f - len, (e.position.x - inner.getX()) / inner.getWidth() - dragOffset);
         viewEnd = viewStart + len;

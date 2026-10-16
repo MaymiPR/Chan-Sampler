@@ -363,7 +363,7 @@ flpreset::Result flpreset::import (ChanSamplerProcessor& processor, const juce::
         const auto* e = tracking[i];
         const bool vel = i == 0;
         if (vel) set (pid::velMid, (float) e->i32 (0, 100) / 128.0f);
-        else     set (pid::keyMid, (float) e->i32 (0, 60));
+        else     set (pid::keyMid, (float) juce::jlimit (0, 120, e->i32 (0, 60)));
         set (vel ? pid::velPan : pid::keyPan, (float) e->i32 (4) / 256.0f);
         set (vel ? pid::velX   : pid::keyX,   (float) e->i32 (8) / 256.0f);
         set (vel ? pid::velY   : pid::keyY,   (float) e->i32 (12) / 256.0f);

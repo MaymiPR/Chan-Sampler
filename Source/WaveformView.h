@@ -24,7 +24,9 @@ public:
 
 private:
     enum class Marker { none, start, loopStart, loopEnd, scrollThumb };
-    static constexpr float scrollH = 13.0f;
+    // FL's sample view (measured from FL 2026): an 8 px strip, the view, then an
+    // 18 px zoom / scroll bar with 14 px arrow buttons.
+    static constexpr float topH = 8.0f, scrollH = 18.0f, buttonW = 14.0f;
 
     void timerCallback() override;
     float getValue (const char* id) const;
@@ -35,7 +37,8 @@ private:
     float xToFrac (float x) const;
     Marker markerAt (juce::Point<float>) const;
     const char* markerParam (Marker m) const;
-    void drawLanes (juce::Graphics&, juce::Rectangle<float> area, float from, float to, float alpha) const;
+    void drawLanes (juce::Graphics&, juce::Rectangle<float> area, float from, float to, juce::Colour colour) const;
+    juce::Colour waveColour() const;
     void drawSamples (juce::Graphics&, juce::Rectangle<float> area, float from, float to) const;
 
     ChanSamplerProcessor& processor;

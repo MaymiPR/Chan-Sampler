@@ -245,14 +245,12 @@ void ChanSamplerEditor::buildSampleSheet()
     remove.setTooltip ("Remove sample");
     remove.onClick = [this] { samplerProcessor.removeSample(); };
 
-    // Content (FL's WavePanel). Keep on disk and Resample only change how FL
-    // holds the file in memory; a plugin always holds the sample, so they are
-    // shown as FL has them. Regions / slice markers feed the slice methods.
+    // Content (FL's WavePanel). FL's Keep on disk and Resample only change how
+    // FL holds the file in memory, so they are left out. Regions / slice
+    // markers feed the slice methods.
     auto& content = panel (sheet, "Content", 7, 50, 268, 110);
-    deadLed (content, "Keep on disk", 3, 26, 128, 21, "a plugin always holds the sample in memory");
-    deadLed (content, "Resample", 3, 46, 128, 21, "files are converted to the host rate on load").setToggleState (true, juce::dontSendNotification);
-    led (content, pid::loadRegions, "Load regions", 131, 26, 128, 21);
-    led (content, pid::loadSlices, "Load slice markers", 131, 46, 128, 21);
+    led (content, pid::loadRegions, "Load regions", 3, 26, 128, 21);
+    led (content, pid::loadSlices, "Load slice markers", 3, 46, 128, 21);
     text (content, "Declicking mode", 9, 76, 98, 23, 12.0f);
     combo (content, pid::declick, 111, 76, 148, 23);
 
@@ -413,7 +411,7 @@ void ChanSamplerEditor::buildSampleSheet()
     paramAttachments.push_back (std::move (revAttachment));
 
     // Sample view
-    waveform.setBounds (7, 255, 544, 127);
+    waveform.setBounds (7, 255, 544, 134);   // FL 2026's view and bar (measured)
     sheet.addAndMakeVisible (waveform);
 }
 
@@ -585,6 +583,7 @@ void ChanSamplerEditor::buildFuncSheet()
         velPage.setVisible (i == 0);
         keyPage.setVisible (i == 1);
     };
+    trackTabs.setSelected (1, true);   // FL opens on Key
 
     // Group (FL 2026 layout): Cut / By group numbers, shared with other Chan
     // Sampler instances in the host (CutGroups.h), and Cut self.

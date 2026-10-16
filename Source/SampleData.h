@@ -24,6 +24,7 @@ struct SampleData : juce::ReferenceCountedObject
     // Detected transients (frames), used by the slice stretch modes.
     std::vector<int> onsets;
     double sourceRate = 44100.0;
+    bool mono = false;                // a mono file (FL draws it in a cooler white)
 
     // Min/max overview for the waveform view (per channel, per bucket).
     static constexpr int numPeakBuckets = 2048;

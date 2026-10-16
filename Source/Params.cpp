@@ -452,7 +452,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     addFloat (l, pid::keyPan, "Key to panning",      bipolar, 0.0f, percentAttr());
     addFloat (l, pid::keyX,   "Key to modulation X", bipolar, 0.0f, percentAttr());
     addFloat (l, pid::keyY,   "Key to modulation Y", bipolar, 0.0f, percentAttr());
-    l.add (std::make_unique<juce::AudioParameterInt> (id (pid::keyMid), "Middle value", 0, 127, 60,
+    // FL's key range is C0..C10 (note 0..120; C5 = 0.5, measured with Copy value).
+    l.add (std::make_unique<juce::AudioParameterInt> (id (pid::keyMid), "Middle value", 0, 120, 60,
                juce::AudioParameterIntAttributes()
                    .withStringFromValueFunction ([] (int v, int) { return flNoteName (v); })
                    .withValueFromStringFunction ([] (const juce::String& t) { return parseNoteName (t); })));
