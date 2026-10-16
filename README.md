@@ -181,7 +181,8 @@ their owners and are used only to describe compatibility.
 
 ## How it was made
 
-Chan Sampler was created entirely with Claude (Anthropic's AI) and REA: every
+Chan Sampler was created entirely with Claude (Anthropic's AI) and
+[REA](https://github.com/morluto/rea): every
 line of code, the measurements behind it and this documentation. FL Studio
 itself was the reference: its behaviour was measured from its renders and its
 interface, as described in [docs/EVIDENCE.md](docs/EVIDENCE.md).
