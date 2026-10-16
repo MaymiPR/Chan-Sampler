@@ -43,6 +43,7 @@ public:
 
     // Message thread API
     bool loadSample (const juce::File& file);
+    bool reloadSample();   // the same file again from disk, settings kept
     void rebuildNow() { rebuildSample(); }
     float getPlayhead() const noexcept { return engine.getPlayhead(); }
 

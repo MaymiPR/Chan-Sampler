@@ -589,6 +589,9 @@ SampleData::Ptr buildProcessedSample (const RawSample& raw, const PrecomputeSett
     if (s.loadSlices)  addMarks (raw.sliceMarkers);
     if (! marks.empty())
     {
+        std::sort (marks.begin(), marks.end());
+        marks.erase (std::unique (marks.begin(), marks.end()), marks.end());
+        out->fileMarkers = marks;
         marks.push_back (0);
         std::sort (marks.begin(), marks.end());
         marks.erase (std::unique (marks.begin(), marks.end()), marks.end());

@@ -22,6 +22,10 @@ public:
     void mouseMove (const juce::MouseEvent&) override;
     void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
 
+    // FL's view options (right-click menu), kept with the plugin state
+    bool spectrumView() const;
+    bool multichannelView() const;
+
     // Shows frac0..frac1 of the sample (tests / snapshots).
     void setView (float frac0, float frac1) { viewStart = frac0; viewEnd = frac1; repaint(); }
 
@@ -42,6 +46,14 @@ private:
     const char* markerParam (Marker m) const;
     void drawLanes (juce::Graphics&, juce::Rectangle<float> area, float from, float to, juce::Colour colour) const;
     juce::Colour waveColour() const;
+    void showMenu();
+    void saveAs();
+    void showProperties();
+    void drawSpectrum (juce::Graphics&, juce::Rectangle<float> area);
+    juce::Image spectrumImage;
+    int laneChannel = -1;   // drawLanes: one channel only (multichannel view), -1 both
+    juce::String spectrumKey;
+    std::unique_ptr<juce::FileChooser> chooser;
     void drawSamples (juce::Graphics&, juce::Rectangle<float> area, float from, float to) const;
 
     ChanSamplerProcessor& processor;

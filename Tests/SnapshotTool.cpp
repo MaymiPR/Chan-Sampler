@@ -108,6 +108,10 @@ int main (int argc, char** argv)
         }
     }
 
+    // SNAPSHOT_PROPS="name=value ...": plugin state properties (e.g. viewSpectrum=1)
+    if (auto* props = std::getenv ("SNAPSHOT_PROPS"))
+        for (auto& kv : juce::StringArray::fromTokens (props, " ", {}))
+            proc.apvts.state.setProperty (kv.upToFirstOccurrenceOf ("=", false, false), kv.fromFirstOccurrenceOf ("=", false, false).getIntValue(), nullptr);
     std::unique_ptr<juce::AudioProcessorEditor> ed (proc.createEditor());
     auto* editor = dynamic_cast<ChanSamplerEditor*> (ed.get());
     editor->showSheetForTesting (juce::String (argv[4]).getIntValue(), argc > 6 ? juce::String (argv[6]).getIntValue() : -1);
@@ -127,7 +131,7 @@ int main (int argc, char** argv)
     for (int i = 0; i < 20; ++i)   // let timers update the views
         juce::MessageManager::getInstance()->runDispatchLoopUntil (20);
 
-    const auto img = ed->createComponentSnapshot (ed->getLocalBounds(), true, 1.0f);
+    const auto img = ed->createComponentSnapshot (ed->getLocalBounds(), true, std::getenv ("SNAPSHOT_SCALE") ? juce::String (std::getenv ("SNAPSHOT_SCALE")).getFloatValue() : 1.0f);   // SNAPSHOT_SCALE: e.g. 2 for Retina
     juce::File out { juce::String (argv[2]) };
     out.deleteFile();
     juce::FileOutputStream os (out);

@@ -23,6 +23,7 @@ struct SampleData : juce::ReferenceCountedObject
 
     // Detected transients (frames), used by the slice stretch modes.
     std::vector<int> onsets;
+    std::vector<int> fileMarkers;     // the file's loaded region / slice markers, as FL shows them (frames)
     double sourceRate = 44100.0;
     bool mono = false;                // a mono file (FL draws it in a cooler white)
     int fileBits = 32;                // the file's bit depth (FL's badge: 16, else 32 = float)

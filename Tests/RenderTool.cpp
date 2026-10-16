@@ -11,6 +11,7 @@
 
 #include "../Source/PluginProcessor.h"
 #include "../Source/FlPreset.h"
+#include "../Source/Params.h"
 
 // Group test: two instances in one process. A (Cut 1) plays a note at 1 s
 // while B (By 1) holds a long note; reports where B goes silent, with A
@@ -154,6 +155,63 @@ int main (int argc, char** argv)
     {
         juce::ScopedJuceInitialiser_GUI init;
         return cutTest (juce::File (juce::String (argv[2])));
+    }
+
+    // "bench <sample>": CPU load (one core, % of real time) for 32 / 64 looping
+    // voices per stretch method, and for heavy automation.
+    if (argc >= 3 && juce::String (argv[1]) == "bench")
+    {
+        juce::ScopedJuceInitialiser_GUI init;
+        constexpr double rate = 44100.0;
+        constexpr int block = 256, seconds = 10;
+        auto run = [&] (int stretchMode, int voices, bool automate) -> double
+        {
+            ChanSamplerProcessor proc;
+            if (! proc.loadSample (juce::File (juce::String (argv[2]))))
+                return -1.0;
+            auto set = [&proc] (const char* id, float v) { auto* p = proc.apvts.getParameter (id); p->setValueNotifyingHost (p->convertTo0to1 (v)); };
+            set (pid::stretchMode, (float) stretchMode);
+            set (pid::useLoop, 1.0f); set (pid::loopStart, 0.1f); set (pid::loopEnd, 0.9f);
+            if (stretchMode != 0) set (pid::stretchMul, 1.3f);
+            proc.waitForPendingRebuilds();
+            proc.rebuildNow();
+            proc.setPlayConfigDetails (0, 2, rate, block);
+            proc.prepareToPlay (rate, block);
+            juce::AudioBuffer<float> buf (2, block);
+            const auto t0 = juce::Time::getMillisecondCounterHiRes();
+            for (int pos = 0, b = 0; pos < (int) (seconds * rate); pos += block, ++b)
+            {
+                juce::MidiBuffer midi;
+                if (pos == 0)
+                    for (int v = 0; v < voices; ++v)
+                        midi.addEvent (juce::MidiMessage::noteOn (1 + v / 32, 36 + v % 48, (juce::uint8) 100), 0);
+                if (automate)
+                {
+                    const auto ph = (float) b * 0.05f;
+                    if (auto* only = std::getenv ("BENCH_PARAM"))   // one parameter only (profiling)
+                    {
+                        set (only, (float) (0.5 + 0.3 * std::sin (ph)) * (juce::String (only) == "fineTune" ? 50.0f : 1.0f));
+                        goto automated;
+                    }
+                    set (pid::cutoff, 0.5f + 0.4f * std::sin (ph));
+                    set (pid::pan, 0.8f * std::sin (ph * 1.3f));
+                    set (pid::volume, 1.0f + 0.3f * std::sin (ph * 0.7f));
+                    set (pid::fineTune, 50.0f * std::sin (ph * 0.9f));
+                    set (pid::resonance, 0.3f + 0.2f * std::sin (ph * 1.1f));
+                }
+                automated:
+                buf.clear();
+                proc.processBlock (buf, midi);
+            }
+            return (juce::Time::getMillisecondCounterHiRes() - t0) / (seconds * 10.0);   // % of real time
+        };
+        const char* names[] = { "Resample", "Stretch", "Stretch Pro", "e3 generic", "e3 mono", "Slice stretch", "Slice map",
+                                "Auto", "e2 generic", "e2 transient", "e2 mono", "e2 speech" };
+        for (int m = 0; m < (std::getenv ("BENCH_AUTOMATION_ONLY") ? 0 : 12); ++m)
+            std::cout << names[m] << ": 32 voices " << juce::String (run (m, 32, false), 1) << "%, 64 voices " << juce::String (run (m, 64, false), 1) << "%\n";
+        std::cout << "Resample, 16 voices: " << juce::String (run (0, 16, false), 1) << "%, with heavy automation " << juce::String (run (0, 16, true), 1) << "%\n";
+        std::cout << "Stretch Pro, 16 voices: " << juce::String (run (2, 16, false), 1) << "%, with heavy automation " << juce::String (run (2, 16, true), 1) << "%\n";
+        return 0;
     }
 
     // "decode": writes what every registered format that reads the file

@@ -438,6 +438,19 @@ namespace
     }
 }
 
+bool ChanSamplerProcessor::reloadSample()
+{
+    const auto file = getSampleFile();
+    if (! file.existsAsFile())
+        return false;
+    const auto saved = apvts.copyState();
+    if (! loadSample (file))
+        return false;
+    apvts.replaceState (saved);
+    rebuildSample();
+    return true;
+}
+
 bool ChanSamplerProcessor::loadSample (const juce::File& file)
 {
     std::unique_ptr<juce::AudioFormatReader> reader (formatManager.createReaderFor (file));

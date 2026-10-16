@@ -48,6 +48,7 @@ target_sources(ChanSampler PRIVATE
     Source/PluginProcessor.cpp
     Source/CutGroups.cpp
     Source/FlPreset.cpp
+    Source/PresetBar.cpp
     Source/PluginEditor.cpp
     Source/FlStyle.cpp
     Source/FlParts.cpp
@@ -87,6 +88,7 @@ target_sources(ChanSamplerRender PRIVATE
     Source/PluginProcessor.cpp
     Source/CutGroups.cpp
     Source/FlPreset.cpp
+    Source/PresetBar.cpp
     Source/PluginEditor.cpp
     Source/FlStyle.cpp
     Source/FlParts.cpp
@@ -112,6 +114,7 @@ target_sources(ChanSamplerSnapshot PRIVATE
     Source/PluginProcessor.cpp
     Source/CutGroups.cpp
     Source/FlPreset.cpp
+    Source/PresetBar.cpp
     Source/PluginEditor.cpp
     Source/FlStyle.cpp
     Source/FlParts.cpp

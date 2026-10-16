@@ -132,28 +132,37 @@ void WaveformView::drawLanes (juce::Graphics& g, juce::Rectangle<float> area, fl
     const auto halfH = area.getHeight() * 0.5f - 1.0f;
     const auto mid = area.getCentreY();
     const int total = sample->getTotalFrames();
-    const int width = (int) area.getWidth();
+    // Work in physical pixels, so a Retina / high-DPI screen gets full detail.
+    const auto scale = juce::jmax (1.0f, g.getInternalContext().getPhysicalPixelScaleFactor());
+    const int width = (int) std::ceil (area.getWidth() * scale);
     if (total <= 0 || width <= 0)
         return;
-    const auto framesPerColumn = (double) (to - from) * total / width;
-    const auto* l0 = sample->audio.getReadPointer (0);
-    const auto* r0 = sample->audio.getReadPointer (juce::jmin (1, sample->audio.getNumChannels() - 1));
+    const auto framesPerColumn = (double) (to - from) * total / area.getWidth();
+    const int chL = laneChannel >= 0 ? laneChannel : 0, chR = laneChannel >= 0 ? laneChannel : juce::jmin (1, sample->audio.getNumChannels() - 1);
+    const auto* l0 = sample->audio.getReadPointer (chL);
+    const auto* r0 = sample->audio.getReadPointer (chR);
 
-    // Zoomed in (under 100 frames per pixel) FL shows a clean line through the
+    // Zoomed in (under 32 frames per pixel) FL shows a clean line through the
     // wave, not its peaks: a 1.5 px anti-aliased line through points every half
-    // pixel (both channels averaged).
-    if (framesPerColumn < 100.0)
+    // pixel, each the average over its span (so fast detail does not alias).
+    if (framesPerColumn < 32.0)
     {
         juce::Path line;
-        const auto step = 0.5f;
+        const auto step = 0.5f / scale;
         bool started = false;
-        for (float px = 0.0f; px <= (float) width; px += step)
+        for (float px = 0.0f; px <= area.getWidth(); px += step)
         {
             const auto f = from + (to - from) * px / area.getWidth();
             if (f > 1.0f)
                 break;
             const int i = juce::jlimit (0, total - 1, (int) std::lround (f * total));
-            const auto pt = juce::Point<float> (area.getX() + px, mid - juce::jlimit (-1.0f, 1.0f, 0.5f * (l0[i] + r0[i])) * halfH);
+            const int span = juce::jmax (1, (int) std::lround (framesPerColumn * step));
+            float sum = 0.0f;
+            int used = 0;
+            for (int k = juce::jmax (0, i - span / 2); k < juce::jmin (total, i - span / 2 + span); ++k, ++used)
+                sum += 0.5f * (l0[k] + r0[k]);
+            const auto v = used > 0 ? sum / (float) used : 0.5f * (l0[i] + r0[i]);
+            const auto pt = juce::Point<float> (area.getX() + px, mid - juce::jlimit (-1.0f, 1.0f, v) * halfH);
             if (! started) { line.startNewSubPath (pt); started = true; }
             else           line.lineTo (pt);
         }
@@ -162,8 +171,8 @@ void WaveformView::drawLanes (juce::Graphics& g, juce::Rectangle<float> area, fl
         return;
     }
     const int buckets = SampleData::numPeakBuckets;
-    const auto* l = sample->audio.getReadPointer (0);
-    const auto* r = sample->audio.getReadPointer (juce::jmin (1, sample->audio.getNumChannels() - 1));
+    const auto* l = l0;
+    const auto* r = r0;
     auto y = [&] (float v) { return mid - juce::jlimit (-1.0f, 1.0f, v) * halfH; };
 
     std::vector<juce::Point<float>> upper, lower;
@@ -171,8 +180,8 @@ void WaveformView::drawLanes (juce::Graphics& g, juce::Rectangle<float> area, fl
     lower.reserve ((size_t) width);
     for (int x = 0; x < width; ++x)
     {
-        const auto f0 = from + (to - from) * (float) x / area.getWidth();
-        const auto f1 = from + (to - from) * (float) (x + 1) / area.getWidth();
+        const auto f0 = from + (to - from) * (float) x / (float) width;
+        const auto f1 = from + (to - from) * (float) (x + 1) / (float) width;
         if (f0 >= 1.0f)
             break;
         float lo = 0, hi = 0;
@@ -192,14 +201,14 @@ void WaveformView::drawLanes (juce::Graphics& g, juce::Rectangle<float> area, fl
         {
             const auto b0 = juce::jlimit (0, buckets - 1, (int) (f0 * buckets));
             const auto b1 = juce::jlimit (b0 + 1, buckets, (int) (f1 * buckets));
-            for (int ch = 0; ch < 2; ++ch)
+            for (int ch : { chL, chR })
                 for (int b = b0; b < b1; ++b)
                 {
                     lo = juce::jmin (lo, sample->peakMin[ch][(size_t) b]);
                     hi = juce::jmax (hi, sample->peakMax[ch][(size_t) b]);
                 }
         }
-        const auto px = area.getX() + (float) x + 0.5f;
+        const auto px = area.getX() + ((float) x + 0.5f) / scale;
         const auto yHi = y (hi), yLo = y (lo);
         const auto centre = 0.5f * (yHi + yLo), half = juce::jmax (0.75f, 0.5f * (yLo - yHi) + 0.5f);
         upper.push_back ({ px, centre - half });
@@ -335,10 +344,41 @@ void WaveformView::paint (juce::Graphics& g)
         // Zoomed in to single samples (or a very short sample), FL draws
         // each sample as a dot joined by lines instead of the peak overview.
         const auto visibleFrames = (viewEnd - viewStart) * (float) sample->getTotalFrames();
-        if (visibleFrames < wave.getWidth() / 2.0f)
+        if (spectrumView())
+            drawSpectrum (g, wave);
+        else if (multichannelView() && ! sample->mono)
+        {
+            // Multichannel view: left above, right below, one lane each.
+            auto top = wave.withHeight (wave.getHeight() * 0.5f), bottom = wave.withTrimmedTop (wave.getHeight() * 0.5f);
+            for (int ch = 0; ch < 2; ++ch)
+            {
+                laneChannel = ch;
+                drawLanes (g, ch == 0 ? top : bottom, viewStart, viewEnd, waveColour());
+            }
+            laneChannel = -1;
+            g.setColour (flview::grid);
+            g.fillRect (wave.getX(), std::floor (wave.getCentreY()), wave.getWidth(), 1.0f);
+        }
+        else if (visibleFrames < wave.getWidth() / 2.0f)
             drawSamples (g, wave, viewStart, viewEnd);
         else
             drawLanes (g, wave, viewStart, viewEnd, waveColour());
+    }
+
+    // The file's region / slice markers (when loaded): small orange tabs
+    // hanging from the top of the view (FL's look, measured).
+    if (! sample->fileMarkers.empty())
+    {
+        g.setColour (juce::Colour (0xffffb871));
+        for (auto m : sample->fileMarkers)
+        {
+            const auto x = std::floor (fracToX ((float) m / (float) sample->getTotalFrames()));
+            if (x < wave.getX() - 4.0f || x > wave.getRight())
+                continue;
+            juce::Path tab;
+            tab.addTriangle (x, wave.getY(), x + 4.0f, wave.getY(), x, wave.getY() + 4.0f);
+            g.fillPath (tab);
+        }
     }
 
     // FL's format badge (bottom right): the bit depth it holds the sample at
@@ -538,6 +578,11 @@ void WaveformView::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseW
 
 void WaveformView::mouseDown (const juce::MouseEvent& e)
 {
+    if (e.mods.isPopupMenu())
+    {
+        showMenu();
+        return;
+    }
     lastPressMs = juce::Time::getMillisecondCounterHiRes();
     smoothZooming = false;
     smoothScroll = 0.0f;
@@ -603,4 +648,139 @@ void WaveformView::mouseUp (const juce::MouseEvent&)
         processor.requestPreview (previewNote, false);
         previewNote = -1;
     }
+}
+
+//==============================================================================
+bool WaveformView::spectrumView() const     { return (bool) processor.apvts.state.getProperty ("viewSpectrum", false); }
+bool WaveformView::multichannelView() const { return (bool) processor.apvts.state.getProperty ("viewMultichannel", false); }
+
+void WaveformView::showMenu()
+{
+    const bool hasFile = processor.getSampleFile().existsAsFile();
+    const bool hasAudio = sample != nullptr && sample->getTotalFrames() > 0;
+    juce::PopupMenu menu;
+    menu.addItem ("Reload", hasFile, false, [this] { processor.reloadSample(); });
+    menu.addItem ("Save as...", hasAudio, false, [this] { saveAs(); });
+    menu.addItem ("Locate file", hasFile, false, [this] { processor.getSampleFile().revealToUser(); });
+    menu.addSeparator();
+    menu.addItem ("Get properties", hasAudio, false, [this] { showProperties(); });
+    menu.addSeparator();
+    menu.addItem ("Spectrum view", true, spectrumView(), [this]
+    {
+        processor.apvts.state.setProperty ("viewSpectrum", ! spectrumView(), nullptr);
+        repaint();
+    });
+    menu.addItem ("Multichannel waveform view", ! spectrumView() && hasAudio && ! sample->mono, multichannelView(), [this]
+    {
+        processor.apvts.state.setProperty ("viewMultichannel", ! multichannelView(), nullptr);
+        repaint();
+    });
+    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this).withMousePosition());
+}
+
+void WaveformView::saveAs()
+{
+    // The sample as Chan Sampler plays it (precomputed effects applied), 24-bit WAV.
+    const auto source = processor.getSampleFile();
+    const auto start = source.existsAsFile() ? source.getSiblingFile (source.getFileNameWithoutExtension() + " (processed).wav")
+                                             : juce::File::getSpecialLocation (juce::File::userDocumentsDirectory).getChildFile ("Sample.wav");
+    chooser = std::make_unique<juce::FileChooser> ("Save sample as", start, "*.wav");
+    auto keep = sample;
+    chooser->launchAsync (juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles
+                              | juce::FileBrowserComponent::warnAboutOverwriting,
+                          [keep] (const juce::FileChooser& fc)
+                          {
+                              auto file = fc.getResult();
+                              if (file == juce::File() || keep == nullptr)
+                                  return;
+                              file = file.withFileExtension (".wav");
+                              file.deleteFile();
+                              juce::WavAudioFormat wav;
+                              const int channels = keep->mono ? 1 : 2;
+                              JUCE_BEGIN_IGNORE_WARNINGS_MSVC (4996)
+                              if (auto out = std::unique_ptr<juce::AudioFormatWriter> (wav.createWriterFor (new juce::FileOutputStream (file), keep->sourceRate,
+                                                                                                             (unsigned) channels, 24, {}, 0)))
+                                  out->writeFromAudioSampleBuffer (keep->audio, 0, keep->playEnd);
+                              JUCE_END_IGNORE_WARNINGS_MSVC
+                          });
+}
+
+void WaveformView::showProperties()
+{
+    const auto file = processor.getSampleFile();
+    juce::String text;
+    text << "File: " << (file.existsAsFile() ? file.getFullPathName() : juce::String ("(none)")) << "\n"
+         << processor.getSampleInfo() << "\n"
+         << "Frames: " << sample->getTotalFrames() << "\n"
+         << "Held as: " << (sample->fileBits <= 16 ? "16-bit" : "32-bit float") << "\n"
+         << "Markers in use: " << (int) sample->fileMarkers.size();
+    if (file.existsAsFile())
+        text << "\nFile size: " << juce::File::descriptionOfSizeInBytes (file.getSize());
+    juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::InfoIcon, "Sample properties", text);
+}
+
+void WaveformView::drawSpectrum (juce::Graphics& g, juce::Rectangle<float> area)
+{
+    // FL's spectrum view: a spectrogram on black, frequency linear from 0 at the
+    // bottom to half the sample rate at the top, heat colours (FL's palette,
+    // sampled). Rebuilt only when the sample, zoom or size change.
+    const auto scale = juce::jmax (1.0f, g.getInternalContext().getPhysicalPixelScaleFactor());
+    const int w = juce::jmax (1, (int) std::ceil (area.getWidth() * scale)), h = juce::jmax (1, (int) std::ceil (area.getHeight() * scale));
+    const auto key = juce::String::toHexString ((juce::pointer_sized_int) sample.get()) + " " + juce::String (viewStart) + " " + juce::String (viewEnd)
+                   + " " + juce::String (w) + "x" + juce::String (h);
+    if (key != spectrumKey)
+    {
+        spectrumKey = key;
+        spectrumImage = juce::Image (juce::Image::RGB, w, h, true);
+        constexpr int order = 10, size = 1 << order;
+        juce::dsp::FFT fft (order);
+        std::vector<float> buf (2 * size), window (size);
+        for (int i = 0; i < size; ++i)
+            window[(size_t) i] = 0.5f - 0.5f * std::cos (juce::MathConstants<float>::twoPi * (float) i / (float) (size - 1));
+        const int total = sample->getTotalFrames();
+        const auto* l = sample->audio.getReadPointer (0);
+        const auto* r = sample->audio.getReadPointer (juce::jmin (1, sample->audio.getNumChannels() - 1));
+        static const juce::Colour stops[] = { juce::Colour (0, 0, 0), juce::Colour (18, 29, 43), juce::Colour (34, 42, 62), juce::Colour (46, 44, 66),
+                                              juce::Colour (165, 44, 66), juce::Colour (204, 85, 66), juce::Colour (225, 144, 66), juce::Colour (246, 225, 66) };
+        static const float at[] = { 0.0f, 0.15f, 0.3f, 0.4f, 0.6f, 0.7f, 0.85f, 1.0f };
+        auto colourFor = [] (float v)
+        {
+            v = juce::jlimit (0.0f, 1.0f, v);
+            int i = 0;
+            while (i < 6 && v > at[i + 1]) ++i;
+            return stops[i].interpolatedWith (stops[i + 1], (v - at[i]) / (at[i + 1] - at[i]));
+        };
+        juce::Image::BitmapData px (spectrumImage, juce::Image::BitmapData::writeOnly);
+        for (int x = 0; x < w; ++x)
+        {
+            const auto f = viewStart + (viewEnd - viewStart) * ((float) x + 0.5f) / (float) w;
+            const int centre = (int) (f * (float) total);
+            std::fill (buf.begin(), buf.end(), 0.0f);
+            for (int i = 0; i < size; ++i)
+            {
+                const int k = centre - size / 2 + i;
+                if (k >= 0 && k < total)
+                    buf[(size_t) i] = 0.5f * (l[k] + r[k]) * window[(size_t) i];
+            }
+            fft.performFrequencyOnlyForwardTransform (buf.data());
+            for (int y = 0; y < h; ++y)
+            {
+                const int b0 = (int) ((float) (h - 1 - y) / (float) h * (size / 2));
+                const int b1 = juce::jmax (b0 + 1, (int) ((float) (h - y) / (float) h * (size / 2)));
+                float m = 0.0f;
+                for (int b = b0; b < b1 && b < size / 2; ++b)
+                    m = juce::jmax (m, buf[(size_t) b]);
+                // FL's level -> colour scale (matched against FL's capture of the same sample)
+                static const float dbs[] = { -112.0f, -104.0f, -98.0f, -94.0f, -80.0f, -56.0f, -39.0f, -22.0f };
+                static const float pos[] = { 0.0f, 0.12f, 0.23f, 0.34f, 0.44f, 0.60f, 0.74f, 1.0f };
+                const auto db = juce::Decibels::gainToDecibels (m / (size * 0.25f), -140.0f);
+                float v = db >= dbs[7] ? 1.0f : 0.0f;
+                for (int i = 0; i < 7; ++i)
+                    if (db >= dbs[i] && db < dbs[i + 1])
+                        v = pos[i] + (pos[i + 1] - pos[i]) * (db - dbs[i]) / (dbs[i + 1] - dbs[i]);
+                px.setPixelColour (x, y, colourFor (v));
+            }
+        }
+    }
+    g.drawImage (spectrumImage, area);
 }

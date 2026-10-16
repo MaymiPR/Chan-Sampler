@@ -1,5 +1,6 @@
 #include "PluginEditor.h"
 #include "FlPreset.h"
+#include "PresetBar.h"
 #include "Chords.h"
 
 namespace
@@ -219,7 +220,14 @@ void ChanSamplerEditor::buildTopBar()
     // RANGE / TRACK belong to the host channel and are left to the host).
     auto& name = text (bar, "CHAN SAMPLER", 230, 6, 270, 16, 12.5f, true, juce::Justification::centredRight);
     name.setColour (juce::Label::textColourId, fl::colour::tabIcon);
-    sampleInfo = &text (bar, {}, 180, 23, 320, 14, 10.5f, false, juce::Justification::centredRight);
+    sampleInfo = &text (bar, {}, 320, 23, 180, 14, 10.5f, false, juce::Justification::centredRight);
+
+    // The plugin's own presets (FL's wrapper has its preset menu here too)
+    auto& presets = own (std::make_unique<PresetBar> (samplerProcessor), bar, { 146, 11, 168, 23 });
+    presets.onMessage = [] (const juce::String& message, bool ok)
+    {
+        juce::AlertWindow::showMessageBoxAsync (ok ? juce::MessageBoxIconType::InfoIcon : juce::MessageBoxIconType::WarningIcon, "Chan Sampler", message);
+    };
 
     knob (bar, pid::output, 517, 3, 30, fl::colour::green);
     caption (bar, "OUT", 518, 35, 28, 7);
