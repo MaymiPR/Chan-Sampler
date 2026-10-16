@@ -14,6 +14,7 @@ class WaveformView : public juce::Component,
 {
 public:
     explicit WaveformView (ChanSamplerProcessor&);
+    ~WaveformView() override;
 
     void setSample (SampleData::Ptr newSample);
 
@@ -83,7 +84,29 @@ private:
     void drawSamples (juce::Graphics&, juce::Rectangle<float> area, float from, float to) const;
 
     ChanSamplerProcessor& processor;
-    SampleData::Ptr sample;
+    SampleData::Ptr sample;       // what the view draws: the file's sample, or its stretched copy
+    SampleData::Ptr fileSample;   // the processor's sample
+
+    // FL draws the sample as the stretch settings play it (PITCH, MUL, TIME,
+    // the method; measured in FL 2026): a copy rendered in the background a
+    // moment after they change.
+    struct StretchKey
+    {
+        const SampleData* source = nullptr;
+        int mode = 0;
+        float cents = 0, mul = 1, time = 0, formant = 0;
+        double bpm = 0;
+        bool operator== (const StretchKey& o) const
+        {
+            return source == o.source && mode == o.mode && cents == o.cents && mul == o.mul && time == o.time && formant == o.formant && bpm == o.bpm;
+        }
+    };
+    StretchKey stretchKey() const;
+    void updateStretchPreview();
+    StretchKey shownKey, pendingKey, requestedKey;
+    int settleFrames = -1;                  // timer frames until a pending render starts
+    std::atomic<int> renderGeneration { 0 };
+    juce::ThreadPool renderPool { juce::ThreadPoolOptions{}.withNumberOfThreads (1) };
     bool draggingOut = false;
     int fileCheckCountdown = 0;   // timer frames until the next check for an edited file
     float viewStart = 0.0f, viewEnd = 1.0f;

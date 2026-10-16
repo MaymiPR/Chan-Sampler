@@ -7,6 +7,11 @@
   later).
 - The root note keyboard is FL's: all 128 notes behind a scroll bar (arrows,
   thumb, mouse wheel), FL's key colours and size, opening on FL's view.
+- Knobs and sliders feel like FL's: FL's drag distance for each control,
+  the hold at a two-sided control's centre (and PITCH's semitones), and a
+  hidden cursor that drags past the screen's edges.
+- The sample view draws the sample as PITCH, MUL and TIME play it, as FL does;
+  PITCH switches Resample to Auto when let go, and Auto reads e3 generic.
 - Releases list SHA-256 checksums; the install notes explain the security
   warnings for the unsigned downloads (SmartScreen, macOS's Open Anyway).
 

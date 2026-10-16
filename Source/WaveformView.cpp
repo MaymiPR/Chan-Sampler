@@ -2,6 +2,7 @@
 #include "FlStyle.h"
 #include "SampleExchange.h"
 #include "TempoDetect.h"
+#include "TimeStretch.h"
 #include <thread>
 
 namespace
@@ -15,10 +16,158 @@ WaveformView::WaveformView (ChanSamplerProcessor& p) : processor (p)
     startTimerHz (60);
 }
 
+WaveformView::~WaveformView()
+{
+    ++renderGeneration;   // a running render stops at its next check
+    renderPool.removeAllJobs (true, 10000);
+}
+
 void WaveformView::setSample (SampleData::Ptr newSample)
 {
-    sample = std::move (newSample);
+    fileSample = std::move (newSample);
+    sample = fileSample;
+    shownKey = {};
+    requestedKey = {};
+    ++renderGeneration;
+    updateStretchPreview();
     repaint();
+}
+
+//==============================================================================
+namespace
+{
+    // The sample as a note at the root key plays it with these stretch
+    // settings, at the sample's own rate (the engine's own maths: pitch ratio
+    // from PITCH, speed from TIME / MUL; Resample changes both together).
+    SampleData::Ptr renderStretched (const SampleData& s, StretchMode mode, double cents, double speed, float formant,
+                                     const std::atomic<int>& generation, int myGeneration)
+    {
+        const int inFrames = juce::jmax (1, s.playEnd);
+        const double ratio = std::pow (2.0, cents / 1200.0);
+        const bool resample = mode == StretchMode::resample || mode == StretchMode::sliceMap;
+        const double sourceStep = resample ? speed * ratio : speed;   // source frames per output frame
+        const auto outFrames = (int) juce::jlimit (1.0, 30.0 * 60.0 * s.sourceRate, std::round ((double) inFrames / sourceStep));
+
+        SampleData::Ptr out = new SampleData();
+        out->sourceRate = s.sourceRate;
+        out->mono = s.mono;
+        out->fileBits = s.fileBits;
+        out->lengthTrimmed = s.lengthTrimmed;
+        out->audio.setSize (2, outFrames);
+        out->playEnd = outFrames;
+        const double scale = (double) outFrames / (double) inFrames;
+        auto scaled = [scale] (int frame) { return (int) std::round (frame * scale); };
+        out->autoLoop = s.autoLoop;
+        out->autoLoopStart = scaled (s.autoLoopStart);
+        out->loopStartShift = scaled (s.loopStartShift);
+        for (auto f : s.onsets)      out->onsets.push_back (scaled (f));
+        for (auto f : s.fileMarkers) out->fileMarkers.push_back (scaled (f));
+
+        const auto* srcL = s.audio.getReadPointer (0);
+        const auto* srcR = s.audio.getReadPointer (s.audio.getNumChannels() > 1 ? 1 : 0);
+        auto* l = out->audio.getWritePointer (0);
+        auto* r = out->audio.getWritePointer (1);
+        if (resample)
+        {
+            for (int i = 0; i < outFrames; ++i)
+            {
+                const auto pos = i * sourceStep;
+                const int k = (int) pos;
+                const auto f = (float) (pos - k);
+                const int a = juce::jmin (k, inFrames - 1), b = juce::jmin (k + 1, inFrames - 1);
+                l[i] = srcL[a] + f * (srcL[b] - srcL[a]);
+                r[i] = srcR[a] + f * (srcR[b] - srcR[a]);
+            }
+        }
+        else
+        {
+            TimeStretcher stretcher;
+            stretcher.configure (mode, s.sourceRate);
+            stretcher.reset (0.0);
+            auto read = [&] (int k, float& sl, float& sr)
+            {
+                if (k < 0 || k >= inFrames) { sl = sr = 0.0f; return; }
+                sl = srcL[k];
+                sr = srcR[k];
+            };
+            for (int i = 0; i < outFrames; ++i)
+            {
+                if ((i & 4095) == 0 && generation.load() != myGeneration)
+                    return nullptr;   // the settings changed again
+                stretcher.next (read, ratio, speed, formant, l[i], r[i]);
+            }
+        }
+        out->computePeaks();
+        return out;
+    }
+}
+
+WaveformView::StretchKey WaveformView::stretchKey() const
+{
+    StretchKey k;
+    k.source = fileSample.get();
+    auto get = [this] (const char* id) { return getValue (id); };
+    k.cents = get (pid::pitch);
+    k.mul = get (pid::stretchMul);
+    k.time = get (pid::stretchTime);
+    k.formant = get (pid::formant);
+    k.bpm = k.time > 0.01f ? displayBpm.load() : 0.0;
+    k.mode = (int) resolveStretchMode ((StretchMode) juce::roundToInt (get (pid::stretchMode)), k.cents, k.mul, k.time);
+    return k;
+}
+
+void WaveformView::updateStretchPreview()
+{
+    const auto key = stretchKey();
+    if (key == shownKey || key == requestedKey || fileSample == nullptr || fileSample->playEnd <= 0)
+        return;
+    const bool plain = std::abs (key.cents) < 0.5f && std::abs (key.mul - 1.0f) < 1.0e-4f && key.time <= 0.01f;
+    if (plain)
+    {
+        // Nothing stretched: the file's sample as it is.
+        ++renderGeneration;
+        shownKey = key;
+        requestedKey = {};
+        settleFrames = -1;
+        if (sample != fileSample)
+        {
+            sample = fileSample;
+            repaint();
+        }
+        return;
+    }
+    if (! (key == pendingKey) || settleFrames < 0)
+    {
+        pendingKey = key;
+        settleFrames = 6;   // about 0.1 s after the last change
+        return;
+    }
+    if (--settleFrames > 0)
+        return;
+    settleFrames = -1;
+
+    const auto generation = ++renderGeneration;
+    requestedKey = key;
+    SampleData::Ptr source = fileSample;
+    const auto mode = (StretchMode) key.mode;
+    const auto srcSeconds = (double) source->playEnd / source->sourceRate;
+    const auto mul = std::abs (key.mul - 1.0f) < 1.0e-4f ? 1.0 : (double) key.mul;
+    const auto speed = (key.time > 0.01f ? srcSeconds / ((double) key.time * 60.0 / juce::jmax (1.0, key.bpm)) : 1.0) / mul;
+    juce::Component::SafePointer<WaveformView> safe (this);
+    renderPool.addJob ([this, safe, source, mode, key, speed, generation]
+    {
+        auto rendered = renderStretched (*source, mode, key.cents, speed, key.formant, renderGeneration, generation);
+        if (rendered == nullptr)
+            return;
+        juce::MessageManager::callAsync ([safe, rendered, key, generation]
+        {
+            if (safe == nullptr || safe->renderGeneration.load() != generation)
+                return;
+            safe->sample = rendered;
+            safe->shownKey = key;
+            safe->repaint();
+        });
+    });
 }
 
 float WaveformView::getValue (const char* id) const
@@ -90,6 +239,8 @@ WaveformView::Marker WaveformView::markerAt (juce::Point<float> p) const
 
 void WaveformView::timerCallback()
 {
+    updateStretchPreview();
+
     // Twice a second: reload the sample when its file was changed (saved from
     // an audio editor it was dragged into).
     if (--fileCheckCountdown <= 0)
