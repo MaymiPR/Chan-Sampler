@@ -465,15 +465,32 @@ bool ChanSamplerProcessor::reloadSample()
 bool ChanSamplerProcessor::loadSample (const juce::File& file)
 {
     std::unique_ptr<juce::AudioFormatReader> reader (formatManager.createReaderFor (file));
-    if (reader == nullptr || reader->lengthInSamples <= 0 || reader->lengthInSamples > std::numeric_limits<int>::max())
+    if (reader == nullptr)
+        return false;
+
+    // Broken or hostile headers: refuse what no real file has, never trust a
+    // length the file cannot hold (an uncompressed WAV / AIFF stores every
+    // frame), and refuse what would need more memory than a sample can use,
+    // also once converted to the playback rate (checked with
+    // nulltest/corrupt_files.py).
+    const auto rate = reader->sampleRate;
+    if (reader->numChannels < 1 || reader->numChannels > 64 || ! (rate >= 1000.0 && rate <= 768000.0) || reader->bitsPerSample > 64)
+        return false;
+    juce::int64 frames = reader->lengthInSamples;
+    const auto formatName = reader->getFormatName();
+    if ((formatName.containsIgnoreCase ("WAV") || formatName.containsIgnoreCase ("AIFF")) && reader->bitsPerSample >= 8)
+        frames = juce::jmin (frames, file.getSize() / ((juce::int64) reader->numChannels * (reader->bitsPerSample / 8)));
+    const auto playRate = hostRate.load() > 0.0 ? hostRate.load() : rate;
+    constexpr double maxSamples = 1 << 28;   // 1 GB of float audio per copy
+    if (frames <= 0 || (double) frames * juce::jmax (1.0, playRate / rate) * juce::jmin (2, (int) reader->numChannels) > maxSamples)
         return false;
 
     RawSample r;
     r.file = file;
-    r.sampleRate = reader->sampleRate;
+    r.sampleRate = rate;
     r.bitsPerSample = (int) reader->bitsPerSample;
     const int numChannels = juce::jlimit (1, 2, (int) reader->numChannels);
-    const int length = (int) reader->lengthInSamples;
+    const int length = (int) frames;
     r.audio.setSize (numChannels, length);
     reader->read (&r.audio, 0, length, 0, true, numChannels > 1);
 
