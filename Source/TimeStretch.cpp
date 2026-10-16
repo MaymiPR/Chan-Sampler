@@ -31,6 +31,7 @@ TimeStretcher::TimeStretcher()
     olaL.resize (maxFrame);
     olaR.resize (maxFrame);
     target.resize (maxFrame);
+    power.resize (maxFrame);
     spec.resize (maxFrame);
     work.resize (maxFrame);
     for (int c = 0; c < 2; ++c)
@@ -98,6 +99,7 @@ void TimeStretcher::reset (double sourcePos)
 {
     apos = idealPos = startPos = sourcePos;
     lockFrames = 0;
+    synthOffset = 0.0;
     framesDone = 0;
     aligned = false;
     prevPos = (int) std::floor (sourcePos);

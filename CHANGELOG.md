@@ -16,6 +16,12 @@
   attack are rebuilt 1:1, on time), and pitched notes are no longer early or
   late: the stretcher's output lines up with the source at any pitch (it ran
   up to 23 ms off). The sample view redraws once a knob is let go.
+- e3 / e2 attacks land where FL's do, to the sample: each attack is found to
+  the sample (not a 128-sample block), its 1:1 frames start on the frame that
+  finds it (no faint copy before or after it), and a note's own start plays
+  at full level instead of fading in over the first frame. Against FL's e3
+  renders of clicks the attacks null at -22 to -43 dB (they were uncorrelated,
+  up to 60 samples off); sustained tones still differ (elastique).
 - Releases list SHA-256 checksums; the install notes explain the security
   warnings for the unsigned downloads (SmartScreen, macOS's Open Anyway).
 

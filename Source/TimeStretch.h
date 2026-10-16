@@ -136,26 +136,85 @@ private:
         // Both channels go through one complex FFT each way: left as the real
         // part, right as the imaginary part (both are real signals).
         const int n = frame;
-        const auto pos = (int) std::floor (apos);
-        // Attack detection on the way: block energies, a jump far above the
-        // blocks just before it.
+        auto pos = (int) std::floor (apos);
         constexpr int block = 128;
         float blockEnergy[64] = {};
-        for (int i = 0; i < n; ++i)
+        auto readWindow = [&]
         {
-            float l, r;
-            read (pos + i, l, r);
-            blockEnergy[juce::jmin (63, i / block)] += l * l + r * r;
-            spec[(size_t) i] = { l * window[(size_t) i], r * window[(size_t) i] };
-        }
-        int attackAt = -1;   // the first attack's block in this window
-        for (int b = 4; b < juce::jmin (64, n / block) && attackAt < 0; ++b)
+            std::fill (std::begin (blockEnergy), std::end (blockEnergy), 0.0f);
+            for (int i = 0; i < n; ++i)
+            {
+                float l, r;
+                read (pos + i, l, r);
+                power[(size_t) i] = l * l + r * r;
+                blockEnergy[juce::jmin (63, i / block)] += power[(size_t) i];
+                spec[(size_t) i] = { l * window[(size_t) i], r * window[(size_t) i] };
+            }
+        };
+        readWindow();
+
+        bool locked = lockFrames > 0;
+        if (! locked && framesDone == 0)
         {
-            const auto before = 0.25f * (blockEnergy[b - 1] + blockEnergy[b - 2] + blockEnergy[b - 3] + blockEnergy[b - 4]);
-            if (blockEnergy[b] > 8.0f * before + 1.0e-4f * block)
-                attackAt = b;
+            // The note's start is an attack when it isn't silent (FL's e3
+            // starts a note at full level, not faded in): the frames start a
+            // frame less a hop before it, so the start already has every
+            // overlapping frame (1:1), and the output starts at it.
+            const auto at = (int) std::ceil (startPos) - pos;
+            float energy = 0.0f;
+            for (int i = juce::jmax (0, at); i < juce::jmin (n, at + block); ++i)
+                energy += power[(size_t) i];
+            if (at >= 0 && at < n - block && energy > 1.0e-4f * block)
+            {
+                synthOffset = (double) (frame - hop) - attackShift (std::log2 (pitchRatio)) * pitchRatio;
+                readPos = synthOffset;
+                apos = idealPos = (double) (pos + at - (frame - hop));
+                lockFrames = frame / hop + frame / hop / 2;
+                locked = true;
+                pos = (int) std::floor (apos);
+                readWindow();
+            }
         }
-        const bool locked = lockFrames > 0;
+        if (! locked)
+        {
+            // Attack detection: a block's energy far above the blocks just
+            // before it, then the attack to the sample (FL's e3 puts each
+            // one at the same place, measured with clicks): the first sample
+            // over a tenth of the attack block's peak level.
+            int attackAt = -1;
+            for (int b = 4; b < juce::jmin (64, n / block) && attackAt < 0; ++b)
+            {
+                const auto before = 0.25f * (blockEnergy[b - 1] + blockEnergy[b - 2] + blockEnergy[b - 3] + blockEnergy[b - 4]);
+                if (blockEnergy[b] > 8.0f * before + 1.0e-4f * block)
+                    attackAt = b;
+            }
+            if (attackAt >= 0)
+            {
+                float peak = 0.0f;
+                for (int i = attackAt * block; i < (attackAt + 1) * block; ++i)
+                    peak = juce::jmax (peak, power[(size_t) i]);
+                int attackSample = attackAt * block;
+                for (int i = (attackAt - 1) * block; i < (attackAt + 1) * block; ++i)
+                    if (power[(size_t) i] > 0.01f * peak) { attackSample = i; break; }
+
+                // The frames over it go 1:1 (the attack is rebuilt as it is),
+                // starting with this one, placed so that the frame with the
+                // attack at its centre is where the stretch puts it (on
+                // time). Frame k's sample i lands at output (k hop + i - hop)
+                // / pitch ratio (measured); the attack should sound at its
+                // own time (source distance / timeRate), shifted like FL's.
+                const double attackPos = pos + attackSample;
+                const double alphaNow = (double) hop / ha;
+                const double stretched = (attackPos - startPos) * alphaNow + attackShift (std::log2 (pitchRatio)) * pitchRatio + synthOffset;
+                const int centreFrame = juce::jmax (framesDone, (int) std::round ((stretched - 0.5 * frame) / hop));
+                const double centreStart = attackPos + (double) centreFrame * hop - stretched;
+                apos = juce::jmax ((double) (pos - frame), centreStart - (double) (centreFrame - framesDone) * hop);   // may step back: the source is read by position
+                lockFrames = centreFrame - framesDone + 1 + frame / hop / 2;
+                locked = true;
+                pos = (int) std::floor (apos);
+                readWindow();
+            }
+        }
 
         fft->perform (spec.data(), work.data(), false);   // JUCE's FFT is not in-place
         processSpectrum (pos, pitchRatio, formantCents, locked);  // work -> spec
@@ -168,36 +227,31 @@ private:
         }
         prevPos = pos;
         first = false;
-        // An attack on the way: the frames over it go 1:1 (the attack is
-        // rebuilt as it is), placed so that the frame with the attack at its
-        // centre is where the stretch puts it (on time). Afterwards the
-        // analysis catches up, a quarter of the gap per frame.
+        // Locked frames step 1:1; afterwards the analysis catches up, a
+        // quarter of the gap per frame.
         idealPos += ha;
-        ++framesDone;   // the next frame's index
+        ++framesDone;
         if (locked)
         {
             apos += hop;
             --lockFrames;
-        }
-        else if (attackAt >= 0)
-        {
-            // Frame k's sample i lands at output (k hop + i - hop) / pitch
-            // ratio (measured); the attack should sound at its own time
-            // (source distance / timeRate). Find the frame that has it near
-            // its centre there and step 1:1 up to it.
-            const double attackPos = pos + (attackAt + 0.5) * block;
-            const double alphaNow = (double) hop / ha;
-            const double stretched = (attackPos - startPos) * alphaNow;   // where it belongs, in synthesis samples
-            const int centreFrame = juce::jmax (framesDone, (int) std::round ((stretched - 0.5 * frame) / hop));
-            const double centreStart = attackPos + (double) centreFrame * hop - stretched;
-            apos = juce::jmax ((double) (pos - frame), centreStart - (double) (centreFrame - framesDone) * hop);   // may step back: the source is read by position
-            lockFrames = centreFrame - framesDone + 1 + frame / hop / 2;
         }
         else
         {
             apos += juce::jlimit (0.25 * ha, 4.0 * ha, ha + 0.25 * (idealPos - apos));
         }
         emit (1.0f);
+    }
+
+    // Where FL's e3 sounds an attack against the source, in output samples,
+    // by the pitch shift in octaves (measured with clicks at -1200, -600,
+    // +600, +1200 cents: down puts it earlier, up later).
+    static double attackShift (double octaves)
+    {
+        static constexpr double at[] = { -8.3, -2.9, 0.0, 2.05, 3.35 };   // -1, -0.5, 0, 0.5, 1 octaves
+        const auto x = juce::jlimit (-2.0, 2.0, octaves) * 2.0 + 2.0;
+        const int i = juce::jlimit (0, 3, (int) std::floor (x));
+        return at[i] + (x - i) * (at[i + 1] - at[i]);
     }
 
     void processSpectrum (int pos, double pitchRatio, float formantCents, bool attack);
@@ -214,11 +268,12 @@ private:
     double apos = 0.0, idealPos = 0.0;
     int prevPos = 0, lockFrames = 0, framesDone = 0;
     double startPos = 0.0;
+    double synthOffset = 0.0;   // where the output starts in the synthesised stream
     bool first = true, aligned = false;
 
     std::unique_ptr<juce::dsp::FFT> ffts[6];   // orders 8..13 (the envelope uses a quarter size)
     juce::dsp::FFT* fft = nullptr;
-    std::vector<float> window, olaL, olaR, target;
+    std::vector<float> window, olaL, olaR, target, power;
     std::vector<std::complex<float>> spec, work;
     // Per channel: this frame's and the last frame's analysis spectra, the
     // synthesis phase as a unit phasor, magnitudes and the formant envelope.
