@@ -54,6 +54,7 @@ private:
     {
         SampleData::Ptr owner;
         std::vector<float> level[2][3];
+        int group[2] { 8, 1 };   // 64-frame blocks per level block
     };
     mutable BandEnergy bands[3];
     const BandEnergy& bandEnergy (int source) const;

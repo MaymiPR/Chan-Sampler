@@ -905,8 +905,13 @@ const WaveformView::BandEnergy& WaveformView::bandEnergy (int source) const
             e64[2][(size_t) k] += h * weight;
         }
     }
-    follow (e64, 8, 700.0, b.level[0]);   // Multiband
-    follow (e64, 1, 100.0, b.level[1]);   // Color map
+    // Measured at 44.1 kHz; at other rates the blocks and time constants keep
+    // their length in time.
+    const auto rateScale = sr / 44100.0;
+    b.group[0] = juce::jmax (1, (int) std::lround (8.0 * rateScale));
+    b.group[1] = juce::jmax (1, (int) std::lround (rateScale));
+    follow (e64, b.group[0], 700.0 * rateScale, b.level[0]);   // Multiband
+    follow (e64, b.group[1], 100.0 * rateScale, b.level[1]);   // Color map
     return b;
 }
 
@@ -922,7 +927,7 @@ std::vector<juce::Colour> WaveformView::columnColours (float from, float to, int
     const int n = (int) level[0].size();
     if (n < 2)
         return out;
-    const double blockFrames = mode == 2 ? 8.0 * bandBlock : (double) bandBlock;
+    const double blockFrames = (double) b.group[mode == 2 ? 0 : 1] * bandBlock;
     const float gain = sample->mono ? 1.05f : 1.0f;
     juce::Colour last = waveColour();
     bool any = false;
@@ -985,7 +990,6 @@ void WaveformView::setColourFill (juce::Graphics& g, juce::Rectangle<float> area
 // within about 1 dB on average.
 namespace
 {
-    constexpr int specOrder = 11, specSize = 1 << specOrder, shortLen = 328, longSigma = 152, longLen = 8 * longSigma, peakSpan = 32;
 
     juce::Colour spectrumColour (float db)
     {
@@ -1020,7 +1024,18 @@ void WaveformView::drawSpectrum (juce::Graphics& g, juce::Rectangle<float> area)
         const auto* l = sample->audio.getReadPointer (0);
         const auto* r = sample->audio.getReadPointer (juce::jmin (1, sample->audio.getNumChannels() - 1));
         const auto sr = sample->sourceRate > 0 ? sample->sourceRate : 44100.0;
-        constexpr int bins = specSize / 2;
+        // Measured at 44.1 kHz; at other rates the windows keep their length
+        // in time (and the local-peak span its width in Hz).
+        const double rateScale = sr / 44100.0;
+        const int shortLen = juce::jmax (16, (int) std::lround (328.0 * rateScale));
+        const double longSigma = 152.0 * rateScale;
+        const int longLen = (int) std::lround (8.0 * longSigma);
+        int specOrder = 11;   // 2048 points at 44.1 / 48 kHz
+        while ((1 << specOrder) < longLen)
+            ++specOrder;
+        const int specSize = 1 << specOrder;
+        const int peakSpan = juce::jmax (1, (int) std::lround (32.0 * (44100.0 / 2048.0) / (sr / specSize)));
+        const int bins = specSize / 2;
 
         std::vector<float> shortWin (shortLen), longWin (longLen);
         double shortSum = 0;
@@ -1080,7 +1095,7 @@ void WaveformView::drawSpectrum (juce::Graphics& g, juce::Rectangle<float> area)
                 fft.performFrequencyOnlyForwardTransform (b.data(), true);
                 // Local peak of the long spectrum over +/-peakSpan bins (prefix /
                 // suffix maxima per block).
-                constexpr int span = 2 * peakSpan + 1;
+                const int span = 2 * peakSpan + 1;
                 for (int k = 0; k < bins; ++k)
                     pre[(size_t) k] = (k % span == 0) ? b[(size_t) k] : juce::jmax (pre[(size_t) k - 1], b[(size_t) k]);
                 for (int k = bins - 1; k >= 0; --k)

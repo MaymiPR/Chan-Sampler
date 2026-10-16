@@ -108,7 +108,7 @@ int main (int argc, char** argv)
     proc.waitForPendingRebuilds();
     proc.rebuildNow();
 
-    constexpr double rate = 44100.0;
+    const double rate = std::getenv ("SNAPSHOT_SR") ? juce::String (std::getenv ("SNAPSHOT_SR")).getDoubleValue() : 44100.0;   // host rate
     constexpr int block = 512;
     proc.setPlayConfigDetails (0, 2, rate, block);
     proc.prepareToPlay (rate, block);
