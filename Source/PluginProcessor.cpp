@@ -475,7 +475,17 @@ bool ChanSamplerProcessor::loadSample (const juce::File& file)
         const auto name = reader->getFormatName();
         const bool pcmContainer = name.containsIgnoreCase ("WAV") || name.containsIgnoreCase ("AIFF") || name.containsIgnoreCase ("FLAC");
         bool compressedWav = false;
-        if (name.containsIgnoreCase ("WAV"))
+        juce::uint16 wavTag = 1;
+        // A RIFF / WAVE file, whichever reader decodes it (FL's compressed
+        // WAVs hold Ogg Vorbis, which the Ogg reader reads)
+        bool riffWave = false;
+        if (juce::FileInputStream head (file); head.openedOk())
+        {
+            const auto riff = head.readInt();
+            head.readInt();
+            riffWave = riff == (int) juce::ByteOrder::littleEndianInt ("RIFF") && head.readInt() == (int) juce::ByteOrder::littleEndianInt ("WAVE");
+        }
+        if (riffWave)
             if (juce::FileInputStream in (file); in.openedOk())
             {
                 in.setPosition (12);
@@ -487,6 +497,7 @@ bool ChanSamplerProcessor::loadSample (const juce::File& file)
                     {
                         const auto tag = (juce::uint16) in.readShort();
                         compressedWav = tag != 1 && tag != 3 && tag != 0xfffe;
+                        wavTag = tag;
                         break;
                     }
                     if (! in.setPosition (in.getPosition() + size + (size & 1)))
@@ -494,6 +505,16 @@ bool ChanSamplerProcessor::loadSample (const juce::File& file)
                 }
             }
         r.heldBits = pcmContainer && ! compressedWav && ! reader->usesFloatingPointData && reader->bitsPerSample <= 16 ? 16 : 32;
+        // For the properties window
+        auto container = riffWave ? juce::String ("WAV") : name.upToFirstOccurrenceOf (" file", false, true).trim();
+        if (compressedWav)
+            r.format = container + ", compressed (" + (wavTag == 0x674f || wavTag == 0x6750 || wavTag == 0x6751 ? juce::String ("Ogg Vorbis")
+                                                       : wavTag == 0x55 ? juce::String ("MP3")
+                                                       : "format 0x" + juce::String::toHexString ((int) wavTag)) + ")";
+        else if (pcmContainer)
+            r.format = container + ", " + juce::String (reader->bitsPerSample) + "-bit " + (reader->usesFloatingPointData ? "float" : "PCM");
+        else
+            r.format = container;
     }
 
     // Embedded loop points (WAV "smpl" chunk) auto-populate the loop controls.

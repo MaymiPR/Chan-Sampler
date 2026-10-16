@@ -1,6 +1,5 @@
 #include "WaveformView.h"
 #include "FlStyle.h"
-#include "OsFile.h"
 #include <thread>
 
 namespace
@@ -745,30 +744,64 @@ void WaveformView::saveAs()
 
 void WaveformView::showProperties()
 {
-    // FL opens the system's own properties window for the file (Explorer's
-    // Properties on Windows); the same here (Finder's Get Info on macOS).
-    const auto file = processor.getSampleFile();
-    if (osfile::showProperties (file))
-        return;
-    juce::String text;
-    text << (file.existsAsFile() ? file.getFullPathName() : juce::String ("The sample has no file on disk.")) << "\n\n"
-         << processor.getSampleInfo() << ", " << sample->getTotalFrames() << " frames, held as "
-         << (sample->fileBits <= 16 ? "16-bit" : "32-bit float");
-    fl::showDialog (*this, "Properties", text);
+    // The sample's file and audio facts in an FL-styled sheet (FL itself opens
+    // the system's file properties; this keeps FL's look).
+    const auto raw = processor.getRaw();
+    const auto& file = raw->file;
+    auto number = [] (juce::int64 v)
+    {
+        auto t = juce::String (v);
+        for (int i = t.length() - 3; i > (v < 0 ? 1 : 0); i -= 3)
+            t = t.substring (0, i) + "," + t.substring (i);
+        return t;
+    };
+    const int frames = raw->audio.getNumSamples();
+    const auto seconds = raw->sampleRate > 0 ? frames / raw->sampleRate : 0.0;
+    fl::InfoRows rows;
+    rows.push_back ({ "Name", file.getFileName().isNotEmpty() ? file.getFileName() : juce::String ("(no file)") });
+    if (file != juce::File())
+        rows.push_back ({ "Location", file.getParentDirectory().getFullPathName() });
+    rows.push_back ({ "Format", raw->format.isNotEmpty() ? raw->format : juce::String ("-") });
+    if (file.existsAsFile())
+    {
+        rows.push_back ({ "Size", juce::File::descriptionOfSizeInBytes (file.getSize()) + " (" + number (file.getSize()) + " bytes)" });
+        rows.push_back ({ "Modified", file.getLastModificationTime().toString (true, true, false, true) });
+    }
+    rows.push_back ({ {}, {} });
+    rows.push_back ({ "Sample rate", number (juce::roundToInt (raw->sampleRate)) + " Hz" });
+    rows.push_back ({ "Channels", raw->audio.getNumChannels() > 1 ? "Stereo" : "Mono" });
+    rows.push_back ({ "Length", juce::String (seconds, 3) + " s (" + number (frames) + " samples)" });
+    rows.push_back ({ "Held as", raw->heldBits <= 16 ? "16-bit" : "32-bit float" });
+    if (raw->embeddedLoopStart >= 0 && raw->embeddedLoopEnd > raw->embeddedLoopStart)
+        rows.push_back ({ "Loop points", number (raw->embeddedLoopStart) + " - " + number (raw->embeddedLoopEnd) });
+    if (! raw->regionMarkers.empty() || ! raw->sliceMarkers.empty())
+        rows.push_back ({ "Markers", juce::String ((int) raw->regionMarkers.size()) + " regions, " + juce::String ((int) raw->sliceMarkers.size()) + " slice markers" });
+    fl::showInfo (*this, (file.getFileName().isNotEmpty() ? file.getFileName() : juce::String ("Sample")) + " properties", rows);
 }
 
 //==============================================================================
-// Colorful waveforms (FL's Options > General settings, measured with tone
-// sweeps): the sample is split into three bands by first-order filters (low:
-// low-pass at 162 Hz, mid: high-pass 162 Hz into low-pass 1312 Hz, high:
-// high-pass at 1312 Hz); each column's colour comes from the RMS of the three
-// bands over its samples (level does not change it). Multiband is red / green /
-// blue in proportion to the bands, R + G + B = 245; Color map places the
-// balance (mid counting half, high full) on FL's palette, red through cream to
-// blue-violet. Matches FL within 2-4 RGB steps on tones and mixtures.
+// Colorful waveforms (FL's Options > General settings), measured in FL with
+// tone sweeps, two-tone mixtures, tone switches, decays, silences and FL's
+// own drum, loop and vocal samples:
+// - Three bands from first-order filters in a tree: low = low-pass 168 Hz;
+//   the rest (high-pass 152 Hz) splits at 1284 Hz into mid and high.
+// - Each band's energy is taken in blocks and follows rises at once and falls
+//   smoothly: Multiband 512-frame blocks falling with a 700-frame time
+//   constant, Color map 64-frame blocks and 100 frames (so FL's Color map
+//   flickers on low notes, Multiband does not). Each pixel column reads the
+//   level at its centre (a quarter block late), interpolated between blocks.
+//   Stereo samples use the mean of both channels' energies.
+// - Multiband: red / green / blue in proportion to the band RMS, R + G + B =
+//   245 (stereo) or 257 (mono samples are drawn 5% brighter, as FL's mono
+//   wave colour is). Color map: (0.4 mid + high) / (low + mid + high) placed
+//   on FL's palette (red-pink, orange, cream, green, teal, blue, violet), also
+//   5% brighter for mono.
+// The level does not change the colour; silence keeps the last colour.
+// Mean error against FL's captures: 1-2.5 RGB steps for Multiband (3.8 on a
+// stereo drum loop), the Color map's flicker follows FL's in character.
 namespace
 {
-    constexpr int bandBlock = 64;   // frames per stored band-energy block
+    constexpr int bandBlock = 64;   // frames per band-energy block
 
     struct OnePole
     {
@@ -777,10 +810,8 @@ namespace
         OnePole (double fc, double sr, bool hp) : high (hp)
         {
             const auto k = std::tan (juce::MathConstants<double>::pi * juce::jmin (fc, sr * 0.49) / sr);
-            b = (float) (1.0 / (1.0 + k));
+            b = (float) (hp ? 1.0 / (1.0 + k) : k / (1.0 + k));
             a = (float) ((k - 1.0) / (1.0 + k));
-            if (! hp)
-                b = (float) (k / (1.0 + k));
         }
         float process (float x)
         {
@@ -791,23 +822,44 @@ namespace
         }
     };
 
-    juce::Colour colourMapAt (float t)
+    juce::Colour colourMapAt (float t, float gain)
     {
-        // FL's Color map (sampled from tones placed by the same band balance)
-        static const float at[] = { 0.096f, 0.144f, 0.184f, 0.233f, 0.285f, 0.345f, 0.406f, 0.473f, 0.537f, 0.603f,
-                                    0.661f, 0.724f, 0.773f, 0.825f, 0.866f, 0.902f, 0.931f, 0.953f, 0.974f, 0.992f };
-        static const juce::uint8 rgb[][3] = { { 151, 66, 83 }, { 160, 72, 89 }, { 172, 86, 94 }, { 182, 99, 98 }, { 194, 117, 99 },
-                                              { 203, 141, 108 }, { 211, 169, 125 }, { 221, 205, 159 }, { 225, 220, 178 }, { 217, 222, 177 },
-                                              { 195, 210, 164 }, { 167, 196, 167 }, { 128, 175, 154 }, { 96, 147, 147 }, { 81, 131, 151 },
-                                              { 78, 119, 151 }, { 85, 110, 147 }, { 90, 104, 145 }, { 96, 99, 143 }, { 98, 94, 140 } };
+        // FL's Color map: the colours of tones from 30 Hz to 20 kHz, placed by
+        // the same band balance (the first entry extends the low end).
+        static const float at[] = { 0.0294f, 0.0694f, 0.1070f, 0.1394f, 0.1808f, 0.2264f, 0.2817f, 0.3401f, 0.4076f, 0.4747f, 0.5472f,
+                                    0.6109f, 0.6825f, 0.7388f, 0.7983f, 0.8454f, 0.8869f, 0.9211f, 0.9465f, 0.9706f, 0.9903f };
+        static const float rgb[][3] = { { 146, 60, 80 }, { 151, 66, 83 }, { 158, 71, 88 }, { 169, 83, 93 }, { 181, 97, 98 }, { 194, 117, 99 },
+                                        { 203, 141, 108 }, { 211, 169, 125 }, { 221, 205, 159 }, { 225, 220, 178 }, { 217, 222, 177 },
+                                        { 195, 210, 164 }, { 167, 196, 167 }, { 128, 175, 154 }, { 96, 147, 147 }, { 81, 131, 151 },
+                                        { 78, 119, 151 }, { 85, 110, 147 }, { 90, 104, 145 }, { 96, 99, 143 }, { 98, 94, 140 } };
         constexpr int n = (int) std::size (at);
-        if (t <= at[0])     return juce::Colour (rgb[0][0], rgb[0][1], rgb[0][2]);
-        if (t >= at[n - 1]) return juce::Colour (rgb[n - 1][0], rgb[n - 1][1], rgb[n - 1][2]);
         int i = 0;
-        while (t > at[i + 1]) ++i;
-        const auto u = (t - at[i]) / (at[i + 1] - at[i]);
-        auto mix = [&] (int c) { return (juce::uint8) juce::roundToInt ((float) rgb[i][c] + u * (float) (rgb[i + 1][c] - rgb[i][c])); };
+        while (i < n - 2 && t > at[i + 1]) ++i;
+        const auto u = juce::jlimit (0.0f, 1.0f, (t - at[i]) / (at[i + 1] - at[i]));
+        auto mix = [&] (int c) { return (juce::uint8) juce::jlimit (0, 255, juce::roundToInt (gain * (rgb[i][c] + u * (rgb[i + 1][c] - rgb[i][c])))); };
         return juce::Colour (mix (0), mix (1), mix (2));
+    }
+
+    // Band-energy followers (see above), one value per block
+    void follow (const std::vector<float>* blocks64, int group, double timeConstant, std::vector<float>* out)
+    {
+        const int n64 = (int) blocks64[0].size();
+        const int n = n64 / group + 1;
+        const auto release = (float) std::exp (-(double) (group * bandBlock) / timeConstant);
+        for (int b = 0; b < 3; ++b)
+        {
+            out[b].assign ((size_t) n, 0.0f);
+            float acc = 0.0f;
+            for (int k = 0; k < n; ++k)
+            {
+                float e = 0.0f;
+                for (int j = k * group; j < juce::jmin (n64, (k + 1) * group); ++j)
+                    e += blocks64[b][(size_t) j];
+                e /= (float) group;
+                acc = (k == 0 || e > acc) ? e : release * acc + (1.0f - release) * e;
+                out[b][(size_t) k] = acc;
+            }
+        }
     }
 }
 
@@ -817,34 +869,44 @@ const WaveformView::BandEnergy& WaveformView::bandEnergy (int source) const
     if (b.owner == sample)
         return b;
     b.owner = sample;
-    for (auto& e : b.energy)
-        e.clear();
+    for (auto& mode : b.level)
+        for (auto& e : mode)
+            e.clear();
     const int total = sample->getTotalFrames();
     if (total <= 0)
         return b;
-    const int chans = sample->audio.getNumChannels();
-    const auto* l = sample->audio.getReadPointer (source == 2 ? juce::jmin (1, chans - 1) : 0);
-    const auto* r = sample->audio.getReadPointer (source == 1 ? 0 : juce::jmin (1, chans - 1));
+    const int chans = juce::jmin (2, sample->audio.getNumChannels());
     const auto sr = sample->sourceRate > 0 ? sample->sourceRate : 44100.0;
-    OnePole low (162.26, sr, false), midHp (162.26, sr, true), midLp (1312.5, sr, false), high (1312.5, sr, true);
     const int blocks = (total + bandBlock - 1) / bandBlock;
-    for (auto& e : b.energy)
+    std::vector<float> e64[3];
+    for (auto& e : e64)
         e.assign ((size_t) blocks, 0.0f);
-    for (int k = 0; k < blocks; ++k)
+    // Source 0: both channels (their energies averaged), 1 left, 2 right.
+    const int first = source == 2 ? chans - 1 : 0, last = source == 1 ? 0 : chans - 1;
+    const auto weight = 1.0f / (float) ((last - first + 1) * bandBlock);
+    for (int ch = first; ch <= last; ++ch)
     {
-        float e0 = 0, e1 = 0, e2 = 0;
-        for (int i = k * bandBlock; i < juce::jmin (total, (k + 1) * bandBlock); ++i)
+        const auto* x = sample->audio.getReadPointer (ch);
+        OnePole low (167.68, sr, false), rest (151.66, sr, true), mid (1284.15, sr, false), high (1284.15, sr, true);
+        for (int k = 0; k < blocks; ++k)
         {
-            const auto x = 0.5f * (l[i] + r[i]);
-            const auto lo = low.process (x), mid = midLp.process (midHp.process (x)), hi = high.process (x);
-            e0 += lo * lo;
-            e1 += mid * mid;
-            e2 += hi * hi;
+            float a = 0, m = 0, h = 0;
+            for (int i = k * bandBlock; i < juce::jmin (total, (k + 1) * bandBlock); ++i)
+            {
+                const auto lo = low.process (x[i]);
+                const auto r = rest.process (x[i]);
+                const auto mi = mid.process (r), hi = high.process (r);
+                a += lo * lo;
+                m += mi * mi;
+                h += hi * hi;
+            }
+            e64[0][(size_t) k] += a * weight;
+            e64[1][(size_t) k] += m * weight;
+            e64[2][(size_t) k] += h * weight;
         }
-        b.energy[0][(size_t) k] = e0;
-        b.energy[1][(size_t) k] = e1;
-        b.energy[2][(size_t) k] = e2;
     }
+    follow (e64, 8, 700.0, b.level[0]);   // Multiband
+    follow (e64, 1, 100.0, b.level[1]);   // Color map
     return b;
 }
 
@@ -856,28 +918,34 @@ std::vector<juce::Colour> WaveformView::columnColours (float from, float to, int
     if (mode == 0 || total <= 0 || width <= 0)
         return out;
     const auto& b = bandEnergy (laneChannel >= 0 && ! sample->mono ? laneChannel + 1 : 0);
-    const int blocks = (int) b.energy[0].size();
+    const auto& level = b.level[mode == 2 ? 0 : 1];
+    const int n = (int) level[0].size();
+    if (n < 2)
+        return out;
+    const double blockFrames = mode == 2 ? 8.0 * bandBlock : (double) bandBlock;
+    const float gain = sample->mono ? 1.05f : 1.0f;
     juce::Colour last = waveColour();
     bool any = false;
     for (int x = 0; x < width; ++x)
     {
-        const auto f0 = from + (to - from) * (float) x / (float) width;
-        const auto f1 = from + (to - from) * (float) (x + 1) / (float) width;
-        const int k0 = juce::jlimit (0, blocks - 1, (int) std::floor (f0 * (float) total / (float) bandBlock));
-        const int k1 = juce::jlimit (k0 + 1, blocks, (int) std::ceil (f1 * (float) total / (float) bandBlock));
-        double e[3] {};
+        const auto centre = (double) (from + (to - from) * ((float) x + 0.5f) / (float) width) * total;
+        const auto pos = centre / blockFrames - 0.25;
+        const int k = juce::jlimit (0, n - 2, (int) std::floor (pos));
+        const auto u = (float) juce::jlimit (0.0, 1.0, pos - k);
+        float r[3];
         for (int c = 0; c < 3; ++c)
-            for (int k = k0; k < k1; ++k)
-                e[c] += b.energy[(size_t) c][(size_t) k];
-        const auto lo = std::sqrt (e[0]), mid = std::sqrt (e[1]), hi = std::sqrt (e[2]);
-        const auto sum = lo + mid + hi;
-        if (sum > 1.0e-9)
+            r[c] = std::sqrt (juce::jmax (0.0f, level[c][(size_t) k] + u * (level[c][(size_t) k + 1] - level[c][(size_t) k])));
+        const auto sum = r[0] + r[1] + r[2];
+        if (sum > 1.0e-7f)
         {
             if (mode == 2)
-                last = juce::Colour ((juce::uint8) juce::roundToInt (245.0 * lo / sum), (juce::uint8) juce::roundToInt (245.0 * mid / sum),
-                                     (juce::uint8) juce::roundToInt (245.0 * hi / sum));
+            {
+                const auto s = 245.0f * gain / sum;
+                last = juce::Colour ((juce::uint8) juce::jmin (255, juce::roundToInt (r[0] * s)), (juce::uint8) juce::jmin (255, juce::roundToInt (r[1] * s)),
+                                     (juce::uint8) juce::jmin (255, juce::roundToInt (r[2] * s)));
+            }
             else
-                last = colourMapAt ((float) ((0.5 * mid + hi) / sum));
+                last = colourMapAt ((0.4f * r[1] + r[2]) / sum, gain);
             if (! any)   // silence before the first sound takes the first colour
                 std::fill (out.begin(), out.begin() + x, last);
             any = true;

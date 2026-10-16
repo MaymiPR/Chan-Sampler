@@ -61,6 +61,12 @@ public:
     // FL's linked loop START / END, for the user's edits (message thread).
     void applyLoopLink (const juce::String& changedId);
     juce::String getSampleInfo() const;
+    // The loaded file as read (before precomputed effects)
+    std::shared_ptr<const RawSample> getRaw() const
+    {
+        const juce::ScopedLock sl (poolLock);
+        return raw;
+    }
     juce::AudioFormatManager& getFormatManager() { return formatManager; }
 
     juce::AudioProcessorValueTreeState apvts;
@@ -81,11 +87,6 @@ private:
     float param (const char* id) const { return apvts.getRawParameterValue (id)->load(); }
     float param (const juce::String& id) const { return apvts.getRawParameterValue (id)->load(); }
 
-    std::shared_ptr<const RawSample> getRaw() const
-    {
-        const juce::ScopedLock sl (poolLock);
-        return raw;
-    }
 
     // Rebuilds the precomputed sample off the message thread whenever a
     // precomputed setting changes, so the waveform follows knobs live.

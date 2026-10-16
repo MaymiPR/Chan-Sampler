@@ -29,6 +29,7 @@ public:
 
     // Shows frac0..frac1 of the sample (tests / snapshots).
     void setView (float frac0, float frac1) { viewStart = frac0; viewEnd = frac1; repaint(); }
+    void showPropertiesForTesting() { showProperties(); }
 
 private:
     enum class Marker { none, start, loopStart, loopEnd, scrollThumb };
@@ -46,12 +47,13 @@ private:
     Marker markerAt (juce::Point<float>) const;
     const char* markerParam (Marker m) const;
     void drawLanes (juce::Graphics&, juce::Rectangle<float> area, float from, float to, juce::Colour colour, bool colourful) const;
-    // Colorful waveforms: per-band energy of 64-frame blocks (source 0 both
-    // channels, 1 left, 2 right), made when first drawn.
+    // Colorful waveforms: smoothed per-band energies (level[0] Multiband,
+    // level[1] Color map; source 0 both channels, 1 left, 2 right), made when
+    // first drawn.
     struct BandEnergy
     {
         SampleData::Ptr owner;
-        std::vector<float> energy[3];
+        std::vector<float> level[2][3];
     };
     mutable BandEnergy bands[3];
     const BandEnergy& bandEnergy (int source) const;

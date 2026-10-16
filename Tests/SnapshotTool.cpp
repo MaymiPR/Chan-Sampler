@@ -148,6 +148,18 @@ int main (int argc, char** argv)
     // SNAPSHOT_DIALOG="message": an FL-style message dialog over the editor
     if (auto* d = std::getenv ("SNAPSHOT_DIALOG"))
         fl::showDialog (*ed->getChildComponent (0), "Chan Sampler", d, false);
+    // SNAPSHOT_PROPERTIES=1: the sample view's Get properties window
+    if (std::getenv ("SNAPSHOT_PROPERTIES"))
+    {
+        std::function<void (juce::Component&)> find = [&] (juce::Component& c)
+        {
+            if (auto* w = dynamic_cast<WaveformView*> (&c))
+                w->showPropertiesForTesting();
+            for (auto* ch : c.getChildren())
+                find (*ch);
+        };
+        find (*ed);
+    }
     for (int i = 0; i < 20; ++i)   // let timers update the views
         juce::MessageManager::getInstance()->runDispatchLoopUntil (20);
 

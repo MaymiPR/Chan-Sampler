@@ -63,6 +63,7 @@ struct RawSample
     int bitsPerSample = 16;
     int heldBits = 32;                // what FL holds it at: 16 for 16-bit PCM, else 32 (float)
     juce::File file;
+    juce::String format;              // e.g. "WAV, 16-bit PCM", "WAV, compressed (Ogg Vorbis)", "FLAC"
     // Loop points embedded in the file (WAV "smpl" chunk), in frames.
     int embeddedLoopStart = -1, embeddedLoopEnd = -1;
     // Markers in the file, in frames: cue points (FL's regions) and ACID

@@ -726,13 +726,19 @@ namespace
     class Dialog : public juce::Component
     {
     public:
-        Dialog (const juce::String& t, const juce::String& m, bool w) : title (t), message (m), warning (w)
+        Dialog (const juce::String& t, const juce::String& m, bool w, InfoRows r = {})
+            : title (t), message (m), warning (w), rows (std::move (r))
         {
             setWantsKeyboardFocus (true);
         }
 
         void resized() override
         {
+            if (! rows.empty())
+            {
+                layoutTable();
+                return;
+            }
             constexpr int titleH = 25, signW = 46, buttonH = 31;
             const int boxW = juce::jmin (380, getWidth() - 24);
             juce::AttributedString as;
@@ -770,10 +776,15 @@ namespace
             g.fillRect (panel);
             g.setColour (dlgPanel);
             g.fillRect (panel.reduced (1));
-            g.setColour (dlgSign);
-            g.setFont (font (40.0f));
-            g.drawText (warning ? "!" : "i", panel.withWidth (46).withTrimmedTop (8).withHeight (56), juce::Justification::centred, false);
-            text.draw (g, textArea);
+            if (rows.empty())
+            {
+                g.setColour (dlgSign);
+                g.setFont (font (40.0f));
+                g.drawText (warning ? "!" : "i", panel.withWidth (46).withTrimmedTop (8).withHeight (56), juce::Justification::centred, false);
+                text.draw (g, textArea);
+            }
+            else
+                paintTable (g);
 
             // FL's dialog button: dark frame, lighter top edge, darkening fill
             const auto b = button.toFloat();
@@ -825,6 +836,63 @@ namespace
         }
 
     private:
+        static constexpr int labelW = 104, ruleH = 13;
+
+        void layoutTable()
+        {
+            constexpr int titleH = 25, buttonH = 31;
+            const int boxW = juce::jmin (440, getWidth() - 24);
+            const auto valueW = (float) (boxW - 8 - 16 - labelW - 12);
+            layouts.clear();
+            int panelH = 12;
+            for (auto& [label, value] : rows)
+            {
+                juce::TextLayout tl;
+                if (label.isNotEmpty() || value.isNotEmpty())
+                {
+                    juce::AttributedString as;
+                    as.append (value, font (12.0f), dlgText);
+                    as.setWordWrap (juce::AttributedString::byChar);
+                    tl.createLayout (as, valueW);
+                    panelH += juce::jmax (20, (int) std::ceil (tl.getHeight()) + 5);
+                }
+                else
+                    panelH += ruleH;
+                layouts.push_back (std::move (tl));
+            }
+            panelH += 10;
+            const int boxH = titleH + 1 + panelH + 12 + buttonH + 12;
+            box = juce::Rectangle<int> (boxW, juce::jmin (boxH, getHeight() - 12)).withCentre (getLocalBounds().getCentre());
+            panel = juce::Rectangle<int> (box.getX() + 4, box.getY() + titleH + 1, boxW - 8, juce::jmin (panelH, box.getHeight() - titleH - buttonH - 26));
+            button = juce::Rectangle<int> (116, buttonH).withCentre ({ box.getCentreX(), panel.getBottom() + 12 + buttonH / 2 });
+            closeBox = juce::Rectangle<int> (box.getRight() - 22, box.getY() + 4, 17, 17);
+        }
+
+        void paintTable (juce::Graphics& g)
+        {
+            juce::Graphics::ScopedSaveState s (g);
+            g.reduceClipRegion (panel.reduced (1));
+            int y = panel.getY() + 12;
+            const int x0 = panel.getX() + 12, xv = x0 + labelW;
+            for (size_t i = 0; i < rows.size(); ++i)
+            {
+                const auto& [label, value] = rows[i];
+                if (label.isEmpty() && value.isEmpty())
+                {
+                    g.setColour (dlgPanelEdge);
+                    g.fillRect (x0, y + ruleH / 2, panel.getRight() - 12 - x0, 1);
+                    y += ruleH;
+                    continue;
+                }
+                const int h = juce::jmax (20, (int) std::ceil (layouts[i].getHeight()) + 5);
+                g.setColour (dlgSign);
+                g.setFont (font (12.0f));
+                g.drawText (label, x0, y, labelW - 8, 20, juce::Justification::centredLeft, true);
+                layouts[i].draw (g, juce::Rectangle<float> ((float) xv, (float) y + 2.5f, (float) (panel.getRight() - 12 - xv), (float) h));
+                y += h;
+            }
+        }
+
         void close()
         {
             setVisible (false);
@@ -834,6 +902,8 @@ namespace
 
         juce::String title, message;
         bool warning;
+        InfoRows rows;
+        std::vector<juce::TextLayout> layouts;
         juce::TextLayout text;
         juce::Rectangle<int> box, panel, button, closeBox;
         juce::Rectangle<float> textArea;
@@ -841,21 +911,33 @@ namespace
     };
 }
 
+namespace
+{
+    void present (juce::Component& owner, Dialog* d)
+    {
+        // Shown on the editor's scaled canvas (the editor's child that holds
+        // owner), so it grows with the window.
+        juce::Component* top = owner.getTopLevelComponent();
+        if (auto* editor = owner.findParentComponentOfClass<juce::AudioProcessorEditor>())
+        {
+            top = &owner;
+            while (top->getParentComponent() != editor)
+                top = top->getParentComponent();
+        }
+        top->addAndMakeVisible (d);   // the window owns it; it deletes itself when closed
+        d->setBounds (top->getLocalBounds());
+        d->grabKeyboardFocus();
+    }
+}
+
+void showInfo (juce::Component& owner, const juce::String& title, const InfoRows& rows)
+{
+    present (owner, new Dialog (title, {}, false, rows));
+}
+
 void showDialog (juce::Component& owner, const juce::String& title, const juce::String& message, bool warning)
 {
-    // Shown on the editor's scaled canvas (the editor's child that holds
-    // owner), so it grows with the window.
-    juce::Component* top = owner.getTopLevelComponent();
-    if (auto* editor = owner.findParentComponentOfClass<juce::AudioProcessorEditor>())
-    {
-        top = &owner;
-        while (top->getParentComponent() != editor)
-            top = top->getParentComponent();
-    }
-    auto* d = new Dialog (title, message, warning);
-    top->addAndMakeVisible (d);   // the window owns it; it deletes itself when closed
-    d->setBounds (top->getLocalBounds());
-    d->grabKeyboardFocus();
+    present (owner, new Dialog (title, message, warning));
 }
 
 //==============================================================================

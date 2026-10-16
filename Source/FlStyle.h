@@ -132,6 +132,11 @@ namespace fl
     // plugin window that holds owner; closes with OK, the cross, Return or Esc.
     void showDialog (juce::Component& owner, const juce::String& title, const juce::String& message, bool warning = false);
 
+    // The same dialog as a properties sheet: label / value rows (an empty
+    // label and value draws a rule between groups).
+    using InfoRows = std::vector<std::pair<juce::String, juce::String>>;
+    void showInfo (juce::Component& owner, const juce::String& title, const InfoRows& rows);
+
     enum class Icon { sampler, envelope, wrench, valve, sine, triangle, square, folder, locate, close };
     void drawIcon (juce::Graphics&, Icon, juce::Rectangle<float> area, juce::Colour);
 
