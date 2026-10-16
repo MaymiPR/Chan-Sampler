@@ -2,6 +2,7 @@
 
 #include "CutGroups.h"
 #include <array>
+#include <mutex>
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_audio_formats/juce_audio_formats.h>
 
@@ -115,6 +116,11 @@ private:
 
     juce::AudioFormatManager formatManager;
     std::shared_ptr<const RawSample> raw = std::make_shared<RawSample>();
+    // Rebuilds run one at a time; one with the same file and settings as the
+    // sample in use is skipped (a new sample restarts the playing voices).
+    std::mutex rebuildMutex;
+    std::shared_ptr<const RawSample> builtFrom;
+    PrecomputeSettings builtWith;
     SamplerEngine engine;
     const uint32_t instanceId = cutgroups::newInstanceId();
     cutgroups::Reader cutReader { instanceId };

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <juce_audio_basics/juce_audio_basics.h>
+#include <tuple>
 
 // The "precomputed" sample: the loaded file with every Tools/Effects process
 // baked in. The manual describes these as processes that replace the sample
@@ -53,6 +54,14 @@ struct PrecomputeSettings
     // Playback rate. FL converts a file at another rate to this rate when
     // loading it (0 = keep the file's rate).
     double targetRate = 0.0;
+
+    auto key() const
+    {
+        return std::tie (removeDC, reversePolarity, normalize, fadeStereo, reverse, swapStereo, start, length, fadeIn, fadeOut,
+                         crossfade, trim, boost, eq, rmMix, rmFreq, boostClip, cut, res, stereoDelay, pogo, reverbType, reverb,
+                         useLoop, loopStart, loopEnd, loadRegions, loadSlices, targetRate);
+    }
+    bool operator== (const PrecomputeSettings& o) const { return key() == o.key(); }
 };
 
 // The raw file as loaded, before any precomputed process.

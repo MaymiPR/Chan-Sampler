@@ -50,6 +50,11 @@ void ChanSamplerProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     juce::ScopedNoDenormals noDenormals;
     buffer.clear();
 
+    // Offline (bounce / export): never start on a sample whose rebuild is
+    // still running; waiting is fine when not in real time.
+    if (isNonRealtime() && (rebuildPending.load() || building.load()))
+        waitForPendingRebuilds();
+
     // Notes from the on-screen keyboard (preview) join the host's MIDI.
     keyboardState.processNextMidiBuffer (midi, 0, buffer.getNumSamples(), true);
 
@@ -368,9 +373,15 @@ void ChanSamplerProcessor::timerCallback()
 
 void ChanSamplerProcessor::rebuildSample()
 {
-    // Build from a snapshot of the raw sample without holding the lock.
+    // Build from a snapshot of the raw sample without holding the pool lock.
+    const std::lock_guard<std::mutex> one (rebuildMutex);
     const auto source = getRaw();
-    publish (buildProcessedSample (*source, readPrecomputeSettings()));
+    const auto settings = readPrecomputeSettings();
+    if (source == builtFrom && settings == builtWith)
+        return;
+    publish (buildProcessedSample (*source, settings));
+    builtFrom = source;
+    builtWith = settings;
     sendChangeMessage();
 }
 

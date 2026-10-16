@@ -1,6 +1,7 @@
 // Hosts the built Chan Sampler.vst3 the way a DAW does (JUCE's VST3 hosting)
 // and checks host features: parameter list, automation, MIDI (pitch bend,
-// CCs), save / reload across instances and the editor size.
+// CCs), save / reload across instances, the editor size, the host changing
+// its sample rate mid-session and offline (non-realtime) rendering.
 //
 //   ChanSamplerHostTest <Chan Sampler.vst3> <sample.wav>
 
@@ -96,13 +97,21 @@ namespace
     }
 
     // Zero-crossing frequency estimate
-    float freq (const std::vector<float>& x, int from, int to)
+    float freq (const std::vector<float>& x, int from, int to, double rate = sr)
     {
         int crossings = 0;
         for (int i = from + 1; i < to; ++i)
             if (x[(size_t) i - 1] < 0.0f && x[(size_t) i] >= 0.0f)
                 ++crossings;
-        return (float) (crossings * sr / (to - from));
+        return (float) (crossings * rate / (to - from));
+    }
+
+    float maxDiff (const std::vector<float>& a, const std::vector<float>& b)
+    {
+        float d = 0;
+        for (size_t i = 0; i < juce::jmin (a.size(), b.size()); ++i)
+            d = juce::jmax (d, std::abs (a[i] - b[i]));
+        return d;
     }
 }
 
@@ -246,6 +255,60 @@ int main (int argc, char** argv)
     std::unique_ptr<juce::AudioProcessorEditor> ed (d->createEditorAndMakeActive());
     check (ed != nullptr && ed->getWidth() == 700, "editor opens at the saved size (" + juce::String (ed != nullptr ? ed->getWidth() : 0) + " wide)");
     if (ed != nullptr) { d->editorBeingDeleted (ed.get()); ed.reset(); }
+
+    // 4. The host changes its sample rate mid-session: the sample keeps its
+    //    pitch and plays (the file is converted to each new rate).
+    {
+        auto e = load (pluginPath);
+        setStateAttribute (*e, "samplePath", samplePath);
+        auto note = [] (int i, juce::MidiBuffer& m) { if (i == 0) m.addEvent (juce::MidiMessage::noteOn (1, 60, (juce::uint8) 100), 0); };
+        auto off = [] (int i, juce::MidiBuffer& m) { if (i == 0) m.addEvent (juce::MidiMessage::allNotesOff (1), 0); };
+        const auto y44 = render (*e, 40, note);
+        render (*e, 20, off);
+        const auto f44 = freq (y44, 1000, 18000, 44100.0);
+        for (double rate : { 96000.0, 48000.0 })
+        {
+            e->releaseResources();
+            e->setPlayConfigDetails (0, 2, rate, bs);
+            e->prepareToPlay (rate, bs);
+            const int blocksAtRate = (int) (40 * rate / 44100.0);
+            const auto y = render (*e, blocksAtRate, note);
+            render (*e, 20, off);
+            const auto f = freq (y, (int) (1000 * rate / 44100.0), (int) (18000 * rate / 44100.0), rate);
+            check (f44 > 20.0f && std::abs (f / f44 - 1.0f) < 0.01f,
+                   "host rate 44.1 -> " + juce::String (rate / 1000.0, 1) + " kHz keeps the pitch (" + juce::String (f44, 1) + " -> " + juce::String (f, 1) + " Hz)");
+        }
+    }
+
+    // 5. Offline rendering (export / bounce) right after a change: the first
+    //    block already uses the rebuilt sample (here Reverse, a precomputed
+    //    effect rebuilt in the background).
+    {
+        auto note = [] (int i, juce::MidiBuffer& m) { if (i == 0) m.addEvent (juce::MidiMessage::noteOn (1, 60, (juce::uint8) 100), 0); };
+        auto ref = load (pluginPath);
+        setStateAttribute (*ref, "samplePath", samplePath);
+        if (auto* rev = findParam (*ref, "Reverse")) rev->setValueNotifyingHost (1.0f);
+        juce::Thread::sleep (500);   // the realtime reference: the rebuild has finished
+        const auto yRef = render (*ref, 60, note);
+
+        auto off = load (pluginPath);
+        setStateAttribute (*off, "samplePath", samplePath);
+        auto* rev = findParam (*off, "Reverse");
+        off->setNonRealtime (true);
+        if (rev != nullptr) rev->setValueNotifyingHost (1.0f);
+        const auto yOff = render (*off, 60, note);   // straight away
+        check (rev != nullptr && maxDiff (yRef, yOff) < 1.0e-6f && rms (yOff, 0, (int) yOff.size()) > 1.0e-3f,
+               "offline render right after a precomputed change uses the new sample (max diff " + juce::String (maxDiff (yRef, yOff)) + ")");
+
+        // ... and right after a project is loaded
+        juce::MemoryBlock project;
+        ref->getStateInformation (project);
+        auto fresh = load (pluginPath);
+        fresh->setNonRealtime (true);
+        fresh->setStateInformation (project.getData(), (int) project.getSize());
+        const auto yFresh = render (*fresh, 60, note);
+        check (maxDiff (yRef, yFresh) < 1.0e-6f, "offline render right after loading a project matches (max diff " + juce::String (maxDiff (yRef, yFresh)) + ")");
+    }
 
     std::cout << (failures == 0 ? "ALL PASSED\n" : juce::String (failures) + " FAILED\n");
     return failures;
