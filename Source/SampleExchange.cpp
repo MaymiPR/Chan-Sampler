@@ -181,8 +181,7 @@ namespace
 {
     juce::File clipboardFile()
     {
-        auto text = juce::SystemClipboard::getTextFromClipboard().trim().upToFirstOccurrenceOf ("
-", false, false).trim();
+        auto text = juce::SystemClipboard::getTextFromClipboard().trim().upToFirstOccurrenceOf ("\n", false, false).trim();
         if (text.startsWith ("file://"))
             text = juce::URL::removeEscapeChars (text.fromFirstOccurrenceOf ("file://", false, false));
         return juce::File::isAbsolutePath (text) && juce::File (text).existsAsFile() ? juce::File (text) : juce::File();
