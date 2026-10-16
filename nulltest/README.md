@@ -54,7 +54,28 @@ to MIDI round(v·127/128), so trust the in-FL tests for final numbers.
   `flrender.py` and `vstchannel.py` build test projects (FL's Sampler patched
   per case, Chan Sampler's state from the case's parameters).
 - `wavio.py` reads and writes WAV files.
-- The `.wav` files are test signals (tones, clicks, noise, decays; `cue_tone`,
-  `strc_*` carry region / slice markers, `smpl_loop` a loop).
-- The other scripts are the measurements behind specific models cited in
-  docs/EVIDENCE.md (interpolation kernel, reverb, trim tail, stretch timing).
+
+## Measurement scripts
+
+How each model in the plugin was found, kept for re-measuring when FL changes
+and for working on the known gaps. They run from this folder (they share the
+helpers above and the test signals here); most render through FL, so close it
+first. `.npy` / `.json` files are their saved measurements.
+
+| Topic | Scripts and data |
+|---|---|
+| Interpolation and sample-rate conversion | `kernel_extract.py`, `kernel_table.py`, `window_fit.py`, `interp_fit.py`, `src_extract.py`; `fl_kernel.npy`, `fl_window.npy`; signals `imp*.wav`, `impulse*.wav`, `impw*.wav` |
+| SMP START fade and trim tail | `head_measure.py`, `tail_measure.py`, `tail_short.py`, `trim_probe.py`; `head_matrix.npy`, `tail_matrix*.npy`, `jump_*.npy`; signals `noise_q*.wav` |
+| Envelopes, tempo switches | `tempo_probe.py`; `attack_times.json`, `env_time_table.json`; signals `step*.wav`, `stairs*.wav`, `dc*.wav` |
+| LFOs | `lfo_probe.py`, `lfo_speed_probe.py`; `lfo_periods.json`, `lfo_speed.json`, `lfo_pulse_ramp.npy` |
+| Arpeggiator timing | `arp_probe.py`, `arp_time.py`, `arp_period.py`; `arp_ticks_dense.txt` |
+| Filters | `filt.py` (biquads), `lf.py` (one-pole), `cascade.py`, `analysis.py` (transfer functions); `res_r.npy`, `svf_map.json` |
+| Precomputed reverb | `rvb/` (impulse response decomposed into pulses, combs and allpasses) |
+| Stretch modes | `stretch_check.py` (offline sanity check, no FL), `stretch_vs_fl.py` (spectral distance to FL) |
+| Robustness | `robust_check.py` (host rates, mono / 16 / 24-bit / 48 kHz and very long files); `loud*.wav` |
+| FL project format | `scanflp.py`, `scanev.py`, `flpdiff.py` (find where FL stores a setting by diffing saved projects); `t_base.flp`, `t_base.wav` |
+| Sample view and formats | `freqsteps.wav`, `freqsweep.wav`, `view_tom.wav` (spectrum and colourful-waveform captures), `bits16_1ch.wav`, `bits24_2ch.wav` (format badge), `cue_tone.wav`, `strc_*.wav` (region / slice markers), `smpl_loop.wav` (embedded loop) |
+| Results | `results.json`, `results_table.md` (offline null results) |
+
+The other `.wav` files are the test signals of the null-test cases (tones,
+clicks, noise, decays).
