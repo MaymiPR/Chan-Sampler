@@ -55,7 +55,6 @@ struct EngineParams
 
     // Polyphony
     int slideTicks = 4;   // portamento / mono glide length in song ticks (FL: N steps)
-    int maxPoly = 0;
     bool mono = false, porta = false, cutItself = false;
 
     // Arpeggiator: direction 0 = off, 1 up, 2 down, 3 up/down, 4 up/down sticky, 5 random
@@ -151,6 +150,22 @@ private:
         double increment = 1;     // source frames per output sample for pitch
         double timeRate = 1;      // source frames per output sample for the play head (stretch modes)
 
+        // Mod X / Y envelopes as FL runs them for the filter: evaluated once per
+        // tick from the note start and interpolated linearly, the first tick
+        // holding the second knot (measured). A copy of the envelope runs to
+        // the knots.
+        struct ModKnots
+        {
+            dsp::Envelope env;
+            double envTime = 0, nextKnot = 0;   // note seconds
+            float prev = 0, next = 0;
+        };
+        ModKnots knots[2];                // Mod X, Mod Y
+        bool filterPerSample = false;     // filter modulated: coefficients per sample
+        dsp::VoiceFilter coefPrev, coefNext;   // coefficients at the tick knots around now
+        double filterKnot = -1;           // note seconds of coefNext (-1: recompute)
+        float cutBase = 1, resBase = 0;   // unmodulated cutoff / resonance
+
         int onsetIdx = 0;         // next transient for the slice modes
         double slicePos = -1;     // slice map: read head inside the current slice
         int sliceFade = 0;
@@ -188,6 +203,10 @@ private:
     void renderRange (juce::AudioBuffer<float>& out, int start, int num, const SampleData& s, const EngineParams& p);
     void updateControls (Voice& v, int numSamples, const SampleData& s, const EngineParams& p);
     void refreshControls (Voice& v, const SampleData& s, const EngineParams& p);
+    void startModKnots (Voice& v, const EngineParams& p);
+    float modEnvelopeAt (Voice& v, int xy, double noteSeconds, const EngineParams& p);
+    void releaseModKnots (Voice& v, double noteSeconds, const EngineParams& p);
+    void setupFilterAt (Voice& v, double noteSeconds, double songSeconds, const EngineParams& p);
 
     std::array<Voice, maxVoices> voices;
     std::array<TimeStretcher, maxVoices> stretchers;   // one per voice, allocated up front

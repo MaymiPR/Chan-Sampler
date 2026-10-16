@@ -269,7 +269,6 @@ EngineParams ChanSamplerProcessor::readEngineParams() const
     p.keyMid = (int) param (pid::keyMid);
 
     p.slideTicks = flSlideTicks (param (pid::slide));
-    p.maxPoly   = (int) param (pid::maxPoly);
     p.mono      = param (pid::mono) > 0.5f;
     p.porta     = param (pid::porta) > 0.5f;
     p.cutItself = param (pid::cutItself) > 0.5f;

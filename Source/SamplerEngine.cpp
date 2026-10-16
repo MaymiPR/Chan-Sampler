@@ -106,6 +106,15 @@ namespace
         return (std::pow (11.0f, v / 100.0f) - 1.0f) / 10.0f;
     }
 
+    // Echo Mod X / Y (measured in FL): echo k shifts the value by
+    // 1 - (1 - |m|)^k towards the knob's side (Mod X 50%: +0.5, +0.75, ...).
+    float echoShift (float value, float m, int echo)
+    {
+        if (echo > 0 && m != 0.0f)
+            return juce::jlimit (0.0f, 1.0f, value + std::copysign (1.0f - std::pow (1.0f - std::abs (m), (float) echo), m));
+        return value;   // the filter clamps (the biquads allow modulation past the knob's end)
+    }
+
     struct LoopFrames { int start, end; bool valid; };
 
     bool isGranular (StretchMode m) { return m != StretchMode::resample && m != StretchMode::sliceMap; }
@@ -588,10 +597,11 @@ void SamplerEngine::playNoteOff (int64_t time, int note, int echo, const EngineP
 
 SamplerEngine::Voice& SamplerEngine::allocateVoice (const EngineParams& p)
 {
-    const int limit = p.maxPoly > 0 ? juce::jmin (p.maxPoly, maxVoices) : maxVoices;
-
-    // Max polyphony ends the oldest notes immediately (with declick),
-    // unlike Mono, which lets them release (manual, MISC tab).
+    // FL's Max polyphony has no effect on what it renders (measured: 1 and 2
+    // voices, same and different keys, with and without the volume envelope),
+    // so the knob is kept for the look and ignored here. Only the engine's own
+    // voice count limits: the oldest note fades out with the declick.
+    const int limit = maxVoices;
     for (;;)
     {
         int sounding = 0;
@@ -721,6 +731,7 @@ void SamplerEngine::noteOn (int note, float velocity, NoteMods mods, const Sampl
         v.env[i].noteOn();
         v.lfo[i].noteOn();
     }
+    startModKnots (v, p);
     v.pitchMul = 1;
     // FL's pitch modulation runs half a tick ahead of the note (measured for
     // the LFO and the envelope); the envelope starts that much early (less
@@ -839,6 +850,8 @@ void SamplerEngine::releaseVoice (Voice& v, const EngineParams& p)
     v.released = true;
     for (auto& e : v.env)
         e.noteOff();
+    releaseModKnots (v, v.lfo[1].getTime() - v.ctlLeft / sampleRate, p);
+    v.filterKnot = -1;
 
     if (! p.volT.envOn && v.inLoop)
         startKill (v, p);   // a looping sample without an envelope would never end
@@ -855,6 +868,96 @@ void SamplerEngine::startKill (Voice& v, const EngineParams& p)
     v.killLen = (int) std::round (declickSpec (p.declick).outMs * 0.001 * sampleRate);
     if (v.killLen <= 0)
         v.active = false;
+}
+
+void SamplerEngine::startModKnots (Voice& v, const EngineParams& p)
+{
+    const auto tick = 60.0 / (juce::jmax (1.0, p.bpm) * 96.0);
+    for (int xy = 0; xy < 2; ++xy)
+    {
+        auto& k = v.knots[xy];
+        const auto& ep = (xy == 0 ? p.xT : p.yT).env;
+        k.env = v.env[2 + xy];
+        k.envTime = 0;
+        k.nextKnot = tick;
+        auto ahead = k.env;
+        k.next = k.prev = ahead.advance (ep, (float) tick);   // the first tick holds the second knot
+    }
+}
+
+float SamplerEngine::modEnvelopeAt (Voice& v, int xy, double t, const EngineParams& p)
+{
+    const auto tick = 60.0 / (juce::jmax (1.0, p.bpm) * 96.0);
+    const auto& ep = (xy == 0 ? p.xT : p.yT).env;
+    auto& k = v.knots[xy];
+    for (int guard = 0; t >= k.nextKnot && guard < 64; ++guard)
+    {
+        k.env.advance (ep, (float) (k.nextKnot - k.envTime));
+        k.envTime = k.nextKnot;
+        k.prev = k.next;
+        k.nextKnot += tick;
+        auto ahead = k.env;
+        k.next = ahead.advance (ep, (float) (k.nextKnot - k.envTime));
+    }
+    const auto frac = juce::jlimit (0.0, 1.0, (t - (k.nextKnot - tick)) / tick);
+    return k.prev + (k.next - k.prev) * (float) frac;
+}
+
+void SamplerEngine::releaseModKnots (Voice& v, double t, const EngineParams& p)
+{
+    for (int xy = 0; xy < 2; ++xy)
+    {
+        auto& k = v.knots[xy];
+        const auto& ep = (xy == 0 ? p.xT : p.yT).env;
+        if (t > k.envTime)
+        {
+            k.env.advance (ep, (float) (t - k.envTime));
+            k.envTime = t;
+        }
+        k.env.noteOff();
+        auto ahead = k.env;
+        k.next = ahead.advance (ep, (float) (k.nextKnot - k.envTime));
+    }
+}
+
+void SamplerEngine::setupFilterAt (Voice& v, double t, double songT, const EngineParams& p)
+{
+    // FL (measured): Mod X / Y are worked out at each tick of the note (the
+    // first tick holding the second knot) and the filter's coefficients move
+    // linearly from one tick's to the next.
+    const auto tick = 60.0 / (juce::jmax (1.0, p.bpm) * 96.0);
+    if (p.filterType != FilterType::fastLP)
+    {
+        t += 0.5 / sampleRate;   // these switch on the sample nearest each tick (measured; the Fast LP does not)
+        songT += 0.5 / sampleRate;
+    }
+    if (v.filterKnot < 0.0 || t >= v.filterKnot)
+    {
+        const auto knot = (std::floor (t / tick) + 1.0) * tick;
+        float envPrev[2] = { 0, 0 }, envNext[2] = { 0, 0 };
+        for (int xy = 0; xy < 2; ++xy)
+            if ((xy == 0 ? p.xT : p.yT).envOn)
+            {
+                modEnvelopeAt (v, xy, t, p);
+                envPrev[xy] = v.knots[xy].prev;
+                envNext[xy] = v.knots[xy].next;
+            }
+        auto setAt = [&] (dsp::VoiceFilter& c, double at, const float* env)
+        {
+            at = juce::jmax (at, tick);   // the first tick holds the second knot
+            const auto songAt = songT + (at - t);
+            float x = v.cutBase + p.xT.envAmt * env[0], y = v.resBase + p.yT.envAmt * env[1];
+            if (p.xT.lfo.amount != 0.0f)
+                x += dsp::Lfo::at (p.xT.lfo, at, p.bpm, songAt);
+            if (p.yT.lfo.amount != 0.0f)
+                y += dsp::Lfo::at (p.yT.lfo, at, p.bpm, songAt);
+            c.setup (p.filterType, echoShift (x, v.mods.cut, v.mods.echo), echoShift (y, v.mods.res, v.mods.echo), sampleRate);
+        };
+        setAt (v.coefPrev, knot - tick, envPrev);
+        setAt (v.coefNext, knot, envNext);
+        v.filterKnot = knot;
+    }
+    v.filter.setBetween (v.coefPrev, v.coefNext, juce::jlimit (0.0, 1.0, (t - (v.filterKnot - tick)) / tick));
 }
 
 void SamplerEngine::refreshControls (Voice& v, const SampleData& s, const EngineParams& p)
@@ -932,26 +1035,26 @@ void SamplerEngine::updateControls (Voice& v, int numSamples, const SampleData& 
         v.timeRate = (s.sourceRate / sampleRate) * speed;
     }
 
-    // Filter: Mod X = cutoff, Mod Y = resonance
-    // Echo Mod X / Y (measured in FL): echo k shifts the value by
-    // 1 - (1 - |m|)^k towards the knob's side (Mod X 50%: +0.5, +0.75, ...).
-    auto echoMod = [k = v.mods.echo] (float value, float m)
-    {
-        if (k > 0 && m != 0.0f)
-            value += std::copysign (1.0f - std::pow (1.0f - std::abs (m), (float) k), m);
-        return juce::jlimit (0.0f, 1.0f, value);
-    };
-    const auto cut = echoMod (p.cutoff + p.xOfs + p.xT.envAmt * env[2] + lfo[2] + p.velX * dv + p.keyX * dk, v.mods.cut);
-    const auto res = echoMod (p.resonance + p.yOfs + p.yT.envAmt * env[3] + lfo[3] + p.velY * dv + p.keyY * dk, v.mods.res);
+    // Filter: Mod X = cutoff, Mod Y = resonance. With an envelope or LFO on
+    // them the coefficients follow per sample (setupFilterAt).
+    v.cutBase = p.cutoff + p.xOfs + p.velX * dv + p.keyX * dk;
+    v.resBase = p.resonance + p.yOfs + p.velY * dv + p.keyY * dk;
+    v.filterPerSample = p.xT.lfo.amount != 0.0f || p.yT.lfo.amount != 0.0f
+                     || (p.xT.envOn && p.xT.envAmt != 0.0f) || (p.yT.envOn && p.yT.envAmt != 0.0f);
+    const auto cut = echoShift (v.cutBase, v.mods.cut, v.mods.echo);
+    const auto res = echoShift (v.resBase, v.mods.res, v.mods.echo);
     // Fast LP with Mod X fully open and no resonance is an identity; skip it,
     // unless Mod X / Y move (the filter state must carry on as in FL).
-    const bool modulated = p.xT.lfo.amount != 0.0f || p.yT.lfo.amount != 0.0f
-                        || (p.xT.envOn && p.xT.envAmt != 0.0f) || (p.yT.envOn && p.yT.envAmt != 0.0f);
-    const bool filterOn = modulated || ! (p.filterType == FilterType::fastLP && cut >= 1.0f && res <= 0.0f);
+    const bool filterOn = v.filterPerSample || ! (p.filterType == FilterType::fastLP && cut >= 1.0f && res <= 0.0f);
     if (filterOn && ! v.filterOn)
         v.filter.reset();
     v.filterOn = filterOn;
-    if (filterOn)
+    if (v.filterPerSample)
+    {
+        v.filterKnot = -1;   // parameters may have changed
+        setupFilterAt (v, v.volLfoStart, v.songLfoStart, p);
+    }
+    else if (filterOn)
         v.filter.setup (p.filterType, cut, res, sampleRate);
 
     // Gain: volume multiplier, velocity, envelope and a tremolo of 1 + lfo
@@ -1165,6 +1268,9 @@ void SamplerEngine::renderRange (juce::AudioBuffer<float>& out, int start, int n
 
                 if (v.filterOn)
                 {
+                    if (v.filterPerSample)
+                        setupFilterAt (v, v.volLfoStart + (double) (base + i) / sampleRate,
+                                       v.songLfoStart + (double) (base + i) / sampleRate, p);
                     l = v.filter.process (l, 0);
                     r = v.filter.process (r, 1);
                 }

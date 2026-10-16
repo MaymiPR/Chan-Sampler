@@ -62,7 +62,7 @@ Current suite: **82 cases: 62 NULL, 14 close, 6 diff** (full table at the end).
 | Precomputed reverb | Event 139 = type·65536 + mix (0–256). Identified from impulse responses (nulltest/rvb): Schroeder reverb per channel. Parallel combs with feedback g = 10^(−3D/T60), T60 = mix/256 s, then allpasses (g 0.7), then a smoothing filter; dry 0.7. **A:** combs 1777/1847/1993/2137 × 0.15, allpasses 43/127/389, output w/2 + w[−1] + w[−2]/2. **B:** combs 2467/2767/3217/3533/3877/4127 × 0.027, allpasses 67/97 (R: 79)/101/197/599, output one-pole y = w + 0.7y[−1]. The tail is then trimmed after the last sample ≥ 65/32768. Default type B | Model matches FL's IR to 0.29 LSB; NULL −60…−95 dB (14 cases, in FL; the impulse residual is 1 LSB) |
 | Knob mapping | Every knob's 0..1 position equals FL's "Copy value" text, collected per knob in FL's GUI (e.g. PITCH ±1200 cents, MUL 2^(4p−2), TIME beats/192, LFO speed raw = 200 + p·65336, slide raw/1660 (glide ticks below), arp time table, echo time p·8 steps, echo pan ±2). Right-click menu: Reset / Copy value / Paste value (xx%) / Type in value… | unit tests + in-FL nulls |
 | Filter: Fast LP | Same recursion as the precomputed filter (Mod X/256 = u, Mod Y/256 = res). Below u = 1/64 the coefficient falls linearly to 0, so Mod X 0 is silence (the precomputed filter keeps its 1/64 floor) | NULL/close; cutoff 0 and 2/256 in FL: silent / 16-bit floor |
-| Filter: LP/BP/HP/BS | RBJ biquads; f0 and Q from measured tables (Q 0.1 … 4.37) | NULL/close −57…−74 dB |
+| Filter: LP/BP/HP/BS | RBJ biquads (direct form I); f0 and Q from tables every 8 raw, traced tick by tick with Mod X / Mod Y LFOs (agree with the static points). Above raw 240 f0 = 16412·e^(3.99(u − 0.9375)), and modulation can push it past the knob's end up to FL's cap of 3.0 rad/sample (21056 Hz at 44.1 kHz, reached at Mod X 100%; the old 20058 Hz top point was wrong) | NULL −65…−77 dB static |
 | Filter: SVF LP | Chamberlin SVF, f = (26^u − 1)/25, q = 1 − 0.8·res | NULL −65 dB |
 
 ## Tempo / Global switches, LFO graph, Levels VOL (measured in FL)
@@ -90,12 +90,20 @@ Event 209 = 5 × u32: feedback (raw / 25600), pan (centre 6400; ours (raw − 64
 - **Fat mode:** echoes keep the normal timing, are all the same level 2G/(3·count + 2) (G = feed gain 2·feed) and the original note becomes 1.5 − count·that (the levels always sum to 1.5). Pan lowers an echo on both channels by cos(π/4 · min(1, k·|pan|)); Ping pong has no effect. NULL −97…−107 dB (5 cases).
 - **Ping pong:** NULL −102 dB. The in-FL test projects now end with a placeholder note so FL renders the whole second half (it stops a fixed tail after the last note, which cut long echo trails).
 
+## Filter modulation (in FL, nulltest/lfo_cases.py)
+
+Read from FL's output by fitting the filter coefficients in short windows against the known noise input. With an envelope or LFO on Mod X / Y, FL works the values out once per tick of the note (the first tick holds the second knot, as for the LFOs) and then:
+- **Fast LP:** the cutoff coefficient f moves linearly between the tick values (in coefficient terms, not knob terms: the mid-tick bump is the proof); the resonance term holds the end-of-tick value.
+- **LP / BP / HP / BS and SVF:** all coefficients hold the end-of-tick value for the whole tick, switching on the sample nearest the tick.
+- Biquads behave as direct form I when the coefficients change.
+NULL −59…−72 dB for LFO / envelope on Mod X and Mod Y with Fast LP, LP, HP and SVF (was −14…−52 dB).
+
 ## Tracking, root note, polyphony (in FL, nulltest/untested_cases.py)
 
 - **Tracking** (event 228 ×2, velocity then key: mid, pan, mod X, mod Y as int32; knob = raw/256): velocity offset = (raw/128)·(f(vel) − M(mid))/M(128), with f FL's velocity-to-gain curve (11^(v/100) − 1)/10 and M(m) = (6.5^(m/100) − 1)/5.5 for the middle value 0..128. Key offset = (raw/128)·(key − mid)/24 (50% = 0.5 per octave). Pan, Mod X and Mod Y alike. NULL −62…−76 dB (17 cases).
 - **Root note:** its own event 135 (u32), written only when not C5 (60); fine tune = Levels pitch (cents). NULL −77…−80 dB.
 - **Mono / porta glide:** the pitch moves in N equal steps on the song's tick grid (each on the sample nearest its tick, the first at the event's tick); FL adds the steps to a float32 in cents from note·100, so long glides end a little flat (−0.00012 semitones after 83 steps; reproduced). N = round(0.92049·209.414^(raw/1660) − 0.15), 17 slide values measured (raw 0 → 1, 500 → 4, 820 → 13, 1000 → 23, 1660 → 193); FL's Slide readout shows N − 1 ticks. Mono with or without Porta is identical. Mono keeps a key stack: releasing the sounding key glides back to the previous key and keeps the note going; with none left the note is released (with the volume envelope off the sample plays on). Releasing another key removes it from the stack only with the volume envelope on. Porta (poly) glides each new voice from the last note. NULL −70…−82 dB (21 cases).
-- **Max polyphony:** loaded by FL (shown in its GUI) but no effect in its renders (1 and 2 voices, different and same keys, envelope on and off): every voice plays. Chan Sampler still enforces it (FL-exact would ignore it).
+- **Max polyphony:** loaded by FL (shown in its GUI) but no effect in its renders (1 and 2 voices, different and same keys, envelope on and off): every voice plays. Chan Sampler shows the knob and ignores it too.
 - **Overlapping notes on one key:** a note-off ends the oldest voice only. NULL −76 dB.
 - **Test harness:** a tick at 130 BPM is 11025/52 samples, so the two halves of an in-FL render share sub-sample note and tick positions only when the gap is a multiple of 13 beats; multi-note cases use 26 (a 16-beat gap moves later notes by a sample, which ruins a noise null).
 
@@ -120,7 +128,7 @@ FL's channel Group is a host feature; Chan Sampler rebuilds it across its own in
 - **Crossfade declick mode, and Transient (no bleeding) fade-out:** curve shapes not matched (−23 to −38 dB).
 - **LPx2, and SVF LPx2 with resonance:** the 4th-order structure is not identified (possibly 2× oversampling). Approximated with two stages.
 - **Positive decay tension** and the attack/note-off timing quirk (FL processes some envelope events once per tick, 212 samples at 130 BPM): −24 to −38 dB in those cases.
-- **LFO:** see the LFO row above (in-FL nulls, nulltest/lfo_cases.py). Mod X / Y LFO and Mod X envelope close (−40…−48 dB: FL's filter takes the first tick's value from the note start). FL's pan envelope had no audible effect in CLI renders (amount ±128, sustain 128), so it is left as implemented. Arp TIME "Hold" is approximated as one bar.
+- **LFO:** see the LFO row above (in-FL nulls, nulltest/lfo_cases.py). Mod X / Y modulation now nulls (see Filter modulation). FL's pan envelope had no audible effect in CLI renders (amount ±128, sustain 128), so it is left as implemented. Arp TIME "Hold" is approximated as one bar.
 - **Time stretching (superseded):** see the Stretch modes row. Earlier note: our own: tape-style Resample, plus a granular stretcher (Hann grains, 50% overlap) for Stretch / Pro / e3 / e2 / Auto, and transient resets for the slice modes. FL's Elastique is proprietary, so these won't null; engine tests verify duration and pitch behaviour.
 - **Channel envelope and echo preset menus:** FL compiles them in and doesn't store them as data; not reproduced.
 - **Not implemented** (FL-only or proprietary): keep-on-disk, resample-to-mix-rate, region / slice markers, cut groups across channels, gate / shift / swing, channel VOL/PAN/PITCH/RANGE/TRACK (host-side).

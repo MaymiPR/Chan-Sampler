@@ -296,7 +296,9 @@ namespace dsp
         void setup (FilterType t, double u, double res, double sampleRate)
         {
             type = t;
-            u = juce::jlimit (0.0, 1.0, u);
+            // Modulation can push the biquads' cutoff past the knob's end (measured).
+            const bool biquad = t != FilterType::fastLP && t != FilterType::svfLP && t != FilterType::svfLPx2;
+            u = juce::jlimit (0.0, biquad ? 2.0 : 1.0, u);
             res = juce::jlimit (0.0, 1.0, res);
             switch (type)
             {
@@ -311,7 +313,7 @@ namespace dsp
                     break;
                 default:
                 {
-                    const auto w = juce::MathConstants<double>::twoPi * juce::jmin (flBiquadF0 (u, sampleRate), sampleRate * 0.49) / sampleRate;
+                    const auto w = juce::jmin (3.0, juce::MathConstants<double>::twoPi * flBiquadF0 (u, sampleRate) / sampleRate);   // FL caps at 3.0 rad (measured)
                     const auto Q = type == FilterType::lpx2 ? juce::jmax (0.5, flBiquadQ (res)) : flBiquadQ (res);
                     const auto alpha = std::sin (w) / (2.0 * Q), c = std::cos (w), a0 = 1.0 + alpha;
                     a1 = -2.0 * c / a0;
@@ -326,6 +328,20 @@ namespace dsp
                     break;
                 }
             }
+        }
+
+        // Coefficients a fraction w of the way from a to b (FL moves a modulated
+        // filter this way between ticks; measured). The Fast LP's resonance
+        // term instead holds b's value for the whole tick (measured). The state is kept.
+        void setBetween (const VoiceFilter& a, const VoiceFilter& b, double w)
+        {
+            type = a.type;
+            if (type != FilterType::fastLP)
+                w = 1.0;   // biquads and SVFs: the end-of-tick coefficients for the whole tick (measured)
+            auto mix = [w] (double x, double y) { return x + (y - x) * w; };
+            f = mix (a.f, b.f);   r = b.r;   q = mix (a.q, b.q);
+            b0 = mix (a.b0, b.b0); b1 = mix (a.b1, b.b1); b2 = mix (a.b2, b.b2);
+            a1 = mix (a.a1, b.a1); a2 = mix (a.a2, b.a2);
         }
 
         float process (float x, int ch)
@@ -358,11 +374,11 @@ namespace dsp
             return s.a;
         }
 
-        double biquad (State& s, double x) const  // transposed direct form II
+        double biquad (State& s, double x) const  // direct form I: how FL's filter reacts when the coefficients move (measured)
         {
-            const auto y = b0 * x + s.a;
-            s.a = b1 * x - a1 * y + s.b;
-            s.b = b2 * x - a2 * y;
+            const auto y = b0 * x + b1 * s.a + b2 * s.b - a1 * s.c - a2 * s.d;
+            s.b = s.a; s.a = x;
+            s.d = s.c; s.c = y;
             return y;
         }
 

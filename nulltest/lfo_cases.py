@@ -33,5 +33,15 @@ def envamt(name, target, sample, amount):
     return dict(name=name, sample=sample, fl=[F.env(target, k, v) for k, v in raw.items()], ours=ours, beats=8)
 CASES += [envamt('e_pitch64', 'pitch', 'sine.wav', 64), envamt('e_modx-128', 'x', 'noise.wav', -128)]   # FL has no panning envelope
 
+# Filter modulation on the other filter types (FL: Levels type 0 Fast LP, 1 LP, 2 BP,
+# 3 HP, 4 BS, 5 LPx2, 6 SVF LP, 7 SVF LPx2), cutoff / resonance part way
+def ftype(t, modx=160, mody=96):
+    return [F.levels('type', t), F.levels('mod_x', modx), F.levels('mod_y', mody)], {'filterType': t, 'cutoff': modx / 256, 'resonance': mody / 256}
+for t in (1, 3, 6):
+    fl, ours = ftype(t)
+    CASES.append(lfo(f'l_modx_t{t}', 'x', sample='noise.wav', amount=-64, extra_fl=fl, extra_ours=ours))
+    CASES.append(lfo(f'l_mody_t{t}', 'y', sample='noise.wav', amount=64, extra_fl=fl, extra_ours=ours))
+CASES += [envamt('e_mody128', 'y', 'noise.wav', 128)]
+
 if __name__ == '__main__':
     nullfl.run(CASES, [a for a in sys.argv[1:] if a != '-f'] or None, force='-f' in sys.argv)

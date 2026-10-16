@@ -59,17 +59,23 @@ double flResonance (double res)
 
 double flBiquadF0 (double u, double)
 {
-    // LP/BP/HP/BS centre frequency (Hz) at Mod X raw 16, 32, ..., 256.
-    static const double mx[] = { 16, 32, 64, 96, 128, 160, 192, 224, 240, 256 };
-    static const double hz[] = { 260.5, 408.2, 840.9, 1550.3, 2710.1, 4605.8, 7703.5, 12759.2, 16373.4, 20058.3 };
+    // LP/BP/HP/BS centre frequency (Hz) at Mod X raw 8, 16, ..., 240: FL's curve
+    // traced tick by tick with a Mod X LFO (nulltest/lfo_cases.py l_modx_t1;
+    // agrees with the earlier static points). Above that FL keeps rising
+    // exponentially, past the knob's end under modulation, until the 3.0 rad
+    // cap in VoiceFilter::setup (21056 Hz at 44.1 kHz, reached at Mod X 100%).
+    static const double mx[] = { 8, 16, 24, 32, 40, 48, 56, 64, 72, 80, 88, 96, 104, 112, 120, 128, 136, 144, 152, 160, 168, 176, 184, 192, 200, 208, 216, 224, 232, 240 };
+    static const double hz[] = { 202.3, 260.4, 328.2, 406.2, 495.2, 596.3, 710.8, 840.3, 986.5, 1151.6, 1338.3, 1549.4, 1788.1, 2058.1, 2363.6, 2709.2, 3100.0, 3542.0, 4041.8, 4606.6, 5245.0, 5966.5, 6782.1, 7704.2, 8747.1, 9927.0, 11262.1, 12772.8, 14481.6, 16412.3 };
+    if (u > 240.0 / 256.0)
+        return 16412.3 * std::exp (3.99 * (u - 240.0 / 256.0));
     return interpolateLog (mx, hz, u * 256.0);
 }
 
 double flBiquadQ (double res)
 {
-    // Q at Mod Y raw 0, 32, ..., 256.
-    static const double my[] = { 0, 32, 64, 96, 128, 160, 192, 224, 256 };
-    static const double qs[] = { 0.1, 0.2438, 0.4394, 0.7052, 1.067, 1.5581, 2.2263, 3.1347, 4.3697 };
+    // Q at Mod Y raw 0, 8, ..., 224 (traced with a Mod Y LFO, l_mody_t1), 256 (static).
+    static const double my[] = { 0, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80, 88, 96, 104, 112, 120, 128, 136, 144, 152, 160, 168, 176, 184, 192, 200, 208, 216, 224, 256 };
+    static const double qs[] = { 0.1000, 0.1319, 0.1660, 0.2035, 0.2440, 0.2876, 0.3345, 0.3850, 0.4393, 0.4980, 0.5615, 0.6302, 0.7046, 0.7851, 0.8722, 0.9662, 1.0676, 1.1769, 1.2946, 1.4213, 1.5580, 1.7056, 1.8651, 2.0380, 2.2253, 2.4283, 2.6475, 2.8827, 3.1322, 4.3697 };
     return interpolateLog (my, qs, res * 256.0);
 }
 }
