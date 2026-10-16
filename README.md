@@ -1,13 +1,29 @@
-# Chan Sampler
+<p align="center">
+  <img src="docs/banner.svg" alt="Chan Sampler: FL Studio's Channel Sampler, in any DAW" width="100%">
+</p>
 
-A free, open-source recreation of the Channel Sampler from FL Studio 2026 as a
-**VST3**, **AU** (macOS) and **Standalone** plugin, for FL Studio, Reaper,
-Ableton Live, Logic and other hosts. Its sound, controls and look are measured
-against FL itself: most of the engine renders sample-identically to FL (see
-[How close is it to FL?](#how-close-is-it-to-fl)).
+<p align="center">
+  <a href="https://github.com/MaymiPR/ChanSampler/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/MaymiPR/ChanSampler?color=4df1b1&label=release"></a>
+  <a href="https://github.com/MaymiPR/ChanSampler/actions/workflows/release.yml"><img alt="Build" src="https://github.com/MaymiPR/ChanSampler/actions/workflows/release.yml/badge.svg"></a>
+  <img alt="Formats" src="https://img.shields.io/badge/formats-VST3%20%7C%20AU%20%7C%20Standalone-2d3133">
+  <img alt="Platforms" src="https://img.shields.io/badge/platforms-Windows%20%7C%20macOS-2d3133">
+  <a href="LICENSE"><img alt="License: AGPL v3" src="https://img.shields.io/badge/license-AGPL--3.0-ffa830"></a>
+</p>
 
-Chan Sampler is an independent project. It is not made, endorsed or supported
-by Image-Line, and it contains no Image-Line code, samples or presets.
+Ever wanted FL Studio's Sampler in Ableton Live, Logic, Reaper or Cubase? The
+one with the declicking modes, the precomputed effects, the arpeggiator and the
+echo fat mode, that you know by heart?
+
+**Chan Sampler** brings it to every DAW. It is a free, open-source recreation of
+the Channel Sampler from FL Studio 2026 as a **VST3**, **AU** and
+**Standalone** plugin for Windows and macOS. It isn't a lookalike: every knob
+uses FL's units, and the engine was measured against FL itself. Most of it
+renders sample-identically to FL (see
+[How close is it to FL?](#how-close-is-it-to-fl)). Your FL Sampler presets
+(`.fst`) come along: drop one on the window and it loads with its sample.
+
+> Chan Sampler is an independent project. It is not made, endorsed or supported
+> by Image-Line, and it contains no Image-Line code, samples or presets.
 
 ![Sample page](docs/screenshots/sampler.png)
 
