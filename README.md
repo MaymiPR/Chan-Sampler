@@ -72,7 +72,8 @@ tests with FL Studio when needed.
 
 ## Using it
 
-- Drop an audio file on the window or click **Load**. Click the waveform to preview.
+- Drop an audio file (WAV, AIFF, FLAC, Ogg, MP3) on the window or click **Load**. Click the waveform to preview.
+- Drop or **Load** an FL Studio Sampler preset (`.fst`, from *Save channel state as…*) to get its sample and every setting. FL's own folders in the sample path are found automatically; otherwise the sample is looked for next to the preset.
 - Drag the **S** marker (start offset) and the **L** markers (loop, when *Use Loop* is on). Shift-drag moves the loop as a whole.
 - **Precomputed** settings rebuild the sample data. They are not automatable, matching FL.
 - Without the volume envelope enabled, notes play to the end of the sample, as in FL.

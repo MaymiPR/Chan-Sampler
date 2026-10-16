@@ -1,4 +1,5 @@
 #include "PluginEditor.h"
+#include "FlPreset.h"
 #include "Chords.h"
 
 namespace
@@ -692,7 +693,7 @@ void ChanSamplerEditor::refreshSample()
 void ChanSamplerEditor::chooseFile()
 {
     chooser = std::make_unique<juce::FileChooser> ("Load sample", samplerProcessor.getSampleFile(),
-                                                   samplerProcessor.getFormatManager().getWildcardForAllFormats());
+                                                   samplerProcessor.getFormatManager().getWildcardForAllFormats() + ";*.fst");
     chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
                           [this] (const juce::FileChooser& fc)
                           {
@@ -703,6 +704,15 @@ void ChanSamplerEditor::chooseFile()
 
 void ChanSamplerEditor::loadFile (const juce::File& file)
 {
+    // An FL Studio Sampler preset brings its sample and settings.
+    if (flpreset::isPresetFile (file))
+    {
+        const auto r = flpreset::import (samplerProcessor, file);
+        if (! r.ok || r.message.isNotEmpty())
+            juce::AlertWindow::showMessageBoxAsync (r.ok ? juce::MessageBoxIconType::InfoIcon : juce::MessageBoxIconType::WarningIcon,
+                                                    "Chan Sampler", r.message);
+        return;
+    }
     if (! samplerProcessor.loadSample (file))
         juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon, "Chan Sampler",
                                                 "Could not read " + file.getFileName());
@@ -711,7 +721,8 @@ void ChanSamplerEditor::loadFile (const juce::File& file)
 bool ChanSamplerEditor::isInterestedInFileDrag (const juce::StringArray& files)
 {
     for (auto& f : files)
-        if (samplerProcessor.getFormatManager().findFormatForFileExtension (juce::File (f).getFileExtension()) != nullptr)
+        if (flpreset::isPresetFile (juce::File (f))
+             || samplerProcessor.getFormatManager().findFormatForFileExtension (juce::File (f).getFileExtension()) != nullptr)
             return true;
     return false;
 }
@@ -719,7 +730,8 @@ bool ChanSamplerEditor::isInterestedInFileDrag (const juce::StringArray& files)
 void ChanSamplerEditor::filesDropped (const juce::StringArray& files, int, int)
 {
     for (auto& f : files)
-        if (samplerProcessor.getFormatManager().findFormatForFileExtension (juce::File (f).getFileExtension()) != nullptr)
+        if (flpreset::isPresetFile (juce::File (f))
+             || samplerProcessor.getFormatManager().findFormatForFileExtension (juce::File (f).getFileExtension()) != nullptr)
         {
             loadFile (juce::File (f));
             return;

@@ -107,6 +107,10 @@ NULL −59…−72 dB for LFO / envelope on Mod X and Mod Y with Fast LP, LP, HP
 - **Overlapping notes on one key:** a note-off ends the oldest voice only. NULL −76 dB.
 - **Test harness:** a tick at 130 BPM is 11025/52 samples, so the two halves of an in-FL render share sub-sample note and tick positions only when the gap is a multiple of 13 beats; multi-note cases use 26 (a 16-beat gap moves later notes by a sample, which ruins a noise null).
 
+## FL Sampler presets (.fst)
+
+A channel preset is the project event stream of one channel (FLhd / FLdt, the same events as a project). Source/FlPreset.cpp reads the Sampler's fields with the scales above; event 21 (channel type 0, or 4 without a plugin name) tells a Sampler preset from a generator's. The preset's own channel pan / volume (219) are folded into Levels, as a plugin channel applies its own. FL 4 and earlier store pans and volumes at 1/100 of today's scale (echo pan centre 64, not 6400; FL 9 onwards are current, measured across FL's preset library). Checked by writing each in-FL null case's Sampler channel out as a preset (nulltest/fst_cases.py): the import renders bit-identically to the parameter settings that null in FL, in all 177 cases. The FL trial cannot save presets, so FL-written files are untested here.
+
 ## Loop points (in FL)
 
 Event 251 (43 bytes, present once set): int 2, start, 0, end, 0, double −1.0, int −1, byte 0, int 0x7fffffff ×2, 0, 1. Use loop points = event 143 bit 8, Ping pong loop = event 20. The END frame is part of a forward loop; with loop points the crossfade length is crossfade/4 × the sample and moves the loop start that far in. Forward, short, ping-pong, crossfade and off: NULL −79…−83 dB.

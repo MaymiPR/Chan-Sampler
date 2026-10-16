@@ -47,6 +47,7 @@ target_sources(ChanSampler PRIVATE
     Source/TimeStretch.cpp
     Source/PluginProcessor.cpp
     Source/CutGroups.cpp
+    Source/FlPreset.cpp
     Source/PluginEditor.cpp
     Source/FlStyle.cpp
     Source/FlParts.cpp
@@ -85,6 +86,7 @@ target_sources(ChanSamplerRender PRIVATE
     Source/TimeStretch.cpp
     Source/PluginProcessor.cpp
     Source/CutGroups.cpp
+    Source/FlPreset.cpp
     Source/PluginEditor.cpp
     Source/FlStyle.cpp
     Source/FlParts.cpp
@@ -109,6 +111,7 @@ target_sources(ChanSamplerSnapshot PRIVATE
     Source/TimeStretch.cpp
     Source/PluginProcessor.cpp
     Source/CutGroups.cpp
+    Source/FlPreset.cpp
     Source/PluginEditor.cpp
     Source/FlStyle.cpp
     Source/FlParts.cpp

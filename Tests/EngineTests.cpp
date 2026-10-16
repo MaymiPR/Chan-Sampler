@@ -138,10 +138,9 @@ int main()
         check (rms (v, 9600 + fade + 64, 9600 + fade + 2000) < 1.0e-4f, "declick: silent after 10 ms");
     }
 
-    // Max polyphony 1 ends the previous note.
+    // Overlapping notes keep both voices (FL's Max polyphony has no effect, measured).
     {
         auto p = params();
-        p.maxPoly = 1;
         SamplerEngine engine;
         engine.prepare (rate);
         juce::AudioBuffer<float> block (2, 4096);
@@ -149,14 +148,14 @@ int main()
         midi.addEvent (on (60), 0);
         midi.addEvent (on (64), 100);
         engine.render (block, midi, oneSec.get(), p);
-        check (engine.getNumActiveVoices() == 1, "max poly 1 keeps one voice", juce::String (engine.getNumActiveVoices()));
+        check (engine.getNumActiveVoices() == 2, "two overlapping notes keep two voices", juce::String (engine.getNumActiveVoices()));
     }
 
     // Mono slide: a second overlapping note glides instead of retriggering.
     {
         auto p = params();
         p.mono = true;
-        p.slide = 0.05f;
+        p.slideTicks = 4;
         auto v = render (*oneSec, p, sec / 2, { { 0, on (60) }, { 4800, on (72) } });
         const auto f = frequency (v, sec / 4, sec / 2);
         check (std::abs (f - 880) < 10, "mono slides to new pitch", juce::String (f, 1) + " Hz");

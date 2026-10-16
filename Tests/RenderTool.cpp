@@ -10,6 +10,7 @@
 #include <iostream>
 
 #include "../Source/PluginProcessor.h"
+#include "../Source/FlPreset.h"
 
 // Group test: two instances in one process. A (Cut 1) plays a note at 1 s
 // while B (By 1) holds a long note; reports where B goes silent, with A
@@ -199,7 +200,16 @@ int main (int argc, char** argv)
     ChanSamplerProcessor proc;
 
     // Load first so embedded loop points cannot override explicit settings.
-    if (! proc.loadSample (sampleFile))
+    // An FL Sampler preset (.fst) brings its own sample and settings.
+    if (flpreset::isPresetFile (sampleFile))
+    {
+        const auto r = flpreset::import (proc, sampleFile);
+        if (! r.ok || r.message.isNotEmpty())
+            std::cerr << r.message << "\n";
+        if (! r.ok)
+            return 1;
+    }
+    else if (! proc.loadSample (sampleFile))
     {
         std::cerr << "cannot load " << sampleFile.getFullPathName() << "\n";
         return 1;
