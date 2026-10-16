@@ -1,5 +1,9 @@
 #include "SampleExchange.h"
 
+#if ! JUCE_WINDOWS && ! JUCE_MAC
+ #include <juce_gui_basics/juce_gui_basics.h>   // SystemClipboard
+#endif
+
 #if JUCE_WINDOWS
  #ifndef NOMINMAX
   #define NOMINMAX
@@ -170,8 +174,31 @@ juce::File pasteFromClipboard (const juce::File& folder)
 }
 
 #else
-bool copyToClipboard (const juce::File&, const juce::MemoryBlock&, void*) { return false; }
-bool clipboardHasAudio() { return false; }
-juce::File pasteFromClipboard (const juce::File&) { return {}; }
+// Linux: no clipboard format for files that all programs share, so the
+// sample's path goes on the clipboard as text, and a copied path (or file://
+// address, as file managers copy) pastes.
+namespace
+{
+    juce::File clipboardFile()
+    {
+        auto text = juce::SystemClipboard::getTextFromClipboard().trim().upToFirstOccurrenceOf ("
+", false, false).trim();
+        if (text.startsWith ("file://"))
+            text = juce::URL::removeEscapeChars (text.fromFirstOccurrenceOf ("file://", false, false));
+        return juce::File::isAbsolutePath (text) && juce::File (text).existsAsFile() ? juce::File (text) : juce::File();
+    }
+}
+
+bool copyToClipboard (const juce::File& file, const juce::MemoryBlock&, void*)
+{
+    if (! file.existsAsFile())
+        return false;
+    juce::SystemClipboard::copyTextToClipboard (file.getFullPathName());
+    return true;
+}
+
+bool clipboardHasAudio() { return clipboardFile() != juce::File(); }
+
+juce::File pasteFromClipboard (const juce::File&) { return clipboardFile(); }
 #endif
 }

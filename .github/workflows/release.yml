@@ -1,9 +1,10 @@
-﻿# Builds Chan Sampler for Windows (VST3 + Standalone) and macOS (universal
-# AU + VST3 + Standalone app), validates the plugins, and makes installers
-# (Windows setup .exe, macOS .pkg) and zips. Run it by hand from the Actions
-# tab to get them as downloadable artifacts, or push a version tag
-# (git tag v1.0.0 && git push origin v1.0.0) to also publish them as a GitHub
-# Release with that version's notes from CHANGELOG.md.
+﻿# Builds Chan Sampler for Windows (VST3 + CLAP + Standalone), macOS (universal
+# AU + VST3 + CLAP + Standalone app) and Linux (VST3 + CLAP + Standalone),
+# validates the plugins, and makes installers (Windows setup .exe, macOS .pkg)
+# and zips / a tarball. Run it by hand from the Actions tab to get them as
+# downloadable artifacts, or push a version tag (git tag v1.0.0 && git push
+# origin v1.0.0) to also publish them as a GitHub Release with that version's
+# notes from CHANGELOG.md and their SHA-256 checksums.
 name: Build and release
 
 on:
@@ -24,7 +25,7 @@ jobs:
         run: cmake -B build -A x64   # the newest Visual Studio on the runner
 
       - name: Build
-        run: cmake --build build --config Release --target ChanSampler_VST3 ChanSampler_Standalone --parallel
+        run: cmake --build build --config Release --target ChanSampler_VST3 ChanSampler_CLAP ChanSampler_Standalone --parallel
 
       - name: Validate the VST3 (pluginval, strictest level)
         shell: pwsh
@@ -44,6 +45,7 @@ jobs:
           $dist = "Chan Sampler (Windows)"
           New-Item -ItemType Directory $dist | Out-Null
           Copy-Item -Recurse "build/ChanSampler_artefacts/Release/VST3/Chan Sampler.vst3" $dist
+          Copy-Item "build/ChanSampler_artefacts/Release/CLAP/Chan Sampler.clap" $dist
           Copy-Item "build/ChanSampler_artefacts/Release/Standalone/Chan Sampler.exe" $dist
           Copy-Item "packaging/INSTALL-Windows.txt" "$dist/INSTALL.txt"
           Copy-Item "LICENSE" "$dist/LICENSE.txt"
@@ -74,7 +76,7 @@ jobs:
         run: cmake -B build -G Xcode -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET=10.13
 
       - name: Build
-        run: cmake --build build --config Release --target ChanSampler_AU ChanSampler_VST3 ChanSampler_Standalone -- -quiet
+        run: cmake --build build --config Release --target ChanSampler_AU ChanSampler_VST3 ChanSampler_CLAP ChanSampler_Standalone -- -quiet
 
       - name: Check universal binaries and sign (ad hoc)
         run: |
@@ -82,9 +84,10 @@ jobs:
           A=build/ChanSampler_artefacts/Release
           lipo -info "$A/AU/Chan Sampler.component/Contents/MacOS/Chan Sampler"
           lipo -info "$A/VST3/Chan Sampler.vst3/Contents/MacOS/Chan Sampler"
+          lipo -info "$A/CLAP/Chan Sampler.clap/Contents/MacOS/Chan Sampler"
           # An ad hoc signature (no Apple developer account) is enough for
           # Apple Silicon to load the plugin once the download quarantine is removed.
-          for b in "$A/AU/Chan Sampler.component" "$A/VST3/Chan Sampler.vst3" "$A/Standalone/Chan Sampler.app"; do
+          for b in "$A/AU/Chan Sampler.component" "$A/VST3/Chan Sampler.vst3" "$A/CLAP/Chan Sampler.clap" "$A/Standalone/Chan Sampler.app"; do
             codesign --force --deep --sign - "$b"
           done
 
@@ -108,7 +111,7 @@ jobs:
           A=build/ChanSampler_artefacts/Release
           D="Chan Sampler (macOS)"
           mkdir "$D"
-          cp -R "$A/AU/Chan Sampler.component" "$A/VST3/Chan Sampler.vst3" "$A/Standalone/Chan Sampler.app" "$D/"
+          cp -R "$A/AU/Chan Sampler.component" "$A/VST3/Chan Sampler.vst3" "$A/CLAP/Chan Sampler.clap" "$A/Standalone/Chan Sampler.app" "$D/"
           cp packaging/INSTALL-macOS.txt "$D/INSTALL.txt"
           cp LICENSE "$D/LICENSE.txt"
           ditto -c -k --keepParent "$D" ChanSampler-macOS.zip
@@ -118,19 +121,21 @@ jobs:
           set -e
           V=$(sed -n 's/^project(ChanSampler VERSION \([0-9.]*\)).*/\1/p' CMakeLists.txt)
           A=build/ChanSampler_artefacts/Release
-          mkdir -p pkg/au pkg/vst3 pkg/app pkg/res dist
+          mkdir -p pkg/au pkg/vst3 pkg/clap pkg/app pkg/res dist
           cp -R "$A/AU/Chan Sampler.component" pkg/au/
           cp -R "$A/VST3/Chan Sampler.vst3" pkg/vst3/
+          cp -R "$A/CLAP/Chan Sampler.clap" pkg/clap/
           cp -R "$A/Standalone/Chan Sampler.app" pkg/app/
           # Install exactly where stated (pkgbuild would otherwise follow a copy
           # of the bundle found elsewhere on the disk).
-          for c in au vst3 app; do
+          for c in au vst3 clap app; do
             pkgbuild --analyze --root pkg/$c pkg/$c.plist
             n=$(plutil -extract @count raw pkg/$c.plist 2>/dev/null || echo 1)
             for ((i = 0; i < n; i++)); do plutil -replace $i.BundleIsRelocatable -bool NO pkg/$c.plist; done
           done
           pkgbuild --root pkg/au   --component-plist pkg/au.plist   --install-location "/Library/Audio/Plug-Ins/Components" --identifier com.chansampler.au   --version "$V" pkg/ChanSampler-AU.pkg
           pkgbuild --root pkg/vst3 --component-plist pkg/vst3.plist --install-location "/Library/Audio/Plug-Ins/VST3"       --identifier com.chansampler.vst3 --version "$V" pkg/ChanSampler-VST3.pkg
+          pkgbuild --root pkg/clap --component-plist pkg/clap.plist --install-location "/Library/Audio/Plug-Ins/CLAP"       --identifier com.chansampler.clap --version "$V" pkg/ChanSampler-CLAP.pkg
           pkgbuild --root pkg/app  --component-plist pkg/app.plist  --install-location "/Applications"                       --identifier com.chansampler.app  --version "$V" pkg/ChanSampler-App.pkg
           cp LICENSE pkg/res/LICENSE.txt
           sed "s/VERSION/$V/g" packaging/distribution.xml > pkg/distribution.xml
@@ -144,9 +149,49 @@ jobs:
             ChanSampler-macOS.zip
             dist/*.pkg
 
+  linux:
+    runs-on: ubuntu-22.04   # the oldest glibc we support (2.35), so the build runs on newer systems too
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ninja-build libasound2-dev libjack-jackd2-dev libfreetype6-dev libfontconfig1-dev \
+            libx11-dev libxcomposite-dev libxcursor-dev libxext-dev libxinerama-dev libxrandr-dev libxrender-dev \
+            libglu1-mesa-dev mesa-common-dev xvfb
+
+      - name: Configure
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --target ChanSampler_VST3 ChanSampler_CLAP ChanSampler_Standalone
+
+      - name: Validate the VST3 (pluginval, strictest level)
+        run: |
+          curl -sL -o pluginval.zip https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_Linux.zip
+          unzip -q pluginval.zip
+          xvfb-run -a ./pluginval --strictness-level 10 --skip-gui-tests --timeout-ms 900000 --validate "build/ChanSampler_artefacts/Release/VST3/Chan Sampler.vst3"
+
+      - name: Package
+        run: |
+          set -e
+          A=build/ChanSampler_artefacts/Release
+          D="Chan Sampler (Linux)"
+          mkdir "$D"
+          cp -R "$A/VST3/Chan Sampler.vst3" "$A/CLAP/Chan Sampler.clap" "$A/Standalone/Chan Sampler" "$D/"
+          cp packaging/INSTALL-Linux.txt "$D/INSTALL.txt"
+          cp LICENSE "$D/LICENSE.txt"
+          tar -czf ChanSampler-Linux.tar.gz "$D"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ChanSampler-Linux
+          path: ChanSampler-Linux.tar.gz
+
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [windows, macos]
+    needs: [windows, macos, linux]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -162,5 +207,9 @@ jobs:
           # This version's section of CHANGELOG.md (stored with CRLF line endings)
           tr -d '\r' < CHANGELOG.md | awk -v v="## $VERSION" '$0 == v {on = 1; next} /^## / {on = 0} on' > notes.md
           [ -s notes.md ] || echo "Chan Sampler $VERSION" > notes.md
-          gh release create "${GITHUB_REF_NAME}" $(find artifacts -type f \( -name '*.zip' -o -name '*.exe' -o -name '*.pkg' \)) \
+          FILES=$(find artifacts -type f \( -name '*.zip' -o -name '*.exe' -o -name '*.pkg' -o -name '*.tar.gz' \))
+          # Checksums, so downloads of these unsigned files can be checked
+          (cd artifacts && find . -type f \( -name '*.zip' -o -name '*.exe' -o -name '*.pkg' -o -name '*.tar.gz' \) -exec sha256sum {} + | sed 's|  .*/|  |') > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+          gh release create "${GITHUB_REF_NAME}" $FILES SHA256SUMS.txt \
             --repo "${GITHUB_REPOSITORY}" --title "Chan Sampler ${VERSION}" --notes-file notes.md

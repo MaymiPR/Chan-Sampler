@@ -57,6 +57,19 @@ target_sources(ChanSampler PRIVATE
     Source/TempoDetect.cpp
     Source/WaveformView.cpp)
 
+# CLAP, through clap-juce-extensions (MIT; it brings the CLAP SDK).
+option(CHANSAMPLER_CLAP "Build the CLAP plugin" ON)
+if(CHANSAMPLER_CLAP)
+    FetchContent_Declare(clap_juce_extensions
+        GIT_REPOSITORY https://github.com/free-audio/clap-juce-extensions.git
+        GIT_TAG 7adee3a1bd4684d4caa5601100e364abccff4b4d   # main, 2026-10
+        GIT_SUBMODULES_RECURSE ON)
+    FetchContent_MakeAvailable(clap_juce_extensions)
+    clap_juce_extensions_plugin(TARGET ChanSampler
+        CLAP_ID "com.chansampler.chansampler"
+        CLAP_FEATURES instrument sampler stereo)
+endif()
+
 target_compile_definitions(ChanSampler PUBLIC
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0

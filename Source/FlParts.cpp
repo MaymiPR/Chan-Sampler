@@ -274,32 +274,62 @@ RootKeyboard::RootKeyboard (juce::AudioProcessorValueTreeState& s, juce::MidiKey
     startTimerHz (30);
 }
 
-juce::Rectangle<float> RootKeyboard::keyBounds (int note) const
+float RootKeyboard::noteX (int note) const
 {
-    const auto kw = (float) getWidth() / (float) numWhite;
-    const auto top = (float) labelH;
-    const auto h = (float) getHeight() - top;
+    // White keys every 90/7 px; black keys at FL's own offsets in the octave.
+    static const float whiteIndex[12] = { 0, 0, 1, 1, 2, 3, 3, 4, 4, 5, 5, 6 };
+    static const float blackX[12]     = { 0, 7, 0, 22, 0, 0, 46, 0, 60, 0, 74, 0 };
+    const float octave = (float) (note / 12) * octaveW;
+    const int n = note % 12;
+    return octave + (isBlack (note) ? blackX[n] : whiteIndex[n] * whiteW);
+}
 
-    // Index of the white key at or below this note
-    int whites = 0;
-    for (int n = lowNote; n < note; ++n)
-        whites += isBlack (n) ? 0 : 1;
+float RootKeyboard::maxScroll() const
+{
+    return juce::jmax (0.0f, noteX (127) + whiteW - (float) getWidth());
+}
 
-    if (! isBlack (note))
-        return { (float) whites * kw, top, kw, h };
+void RootKeyboard::setScroll (float px)
+{
+    const auto s = juce::jlimit (0.0f, maxScroll(), px);
+    if (s != scroll)
+    {
+        scroll = s;
+        repaint();
+    }
+}
 
-    const auto bw = kw * 0.62f;
-    return { (float) whites * kw - bw * 0.5f, top, bw, h * 0.62f };
+void RootKeyboard::resized()
+{
+    // FL opens with the root note at the same place: C5 at 267 px (C2 just
+    // off the left edge).
+    if (! placed && getWidth() > 0)
+    {
+        placed = true;
+        const int root = (int) apvts.getRawParameterValue (pid::rootNote)->load();
+        scroll = -1.0f;
+        setScroll (noteX (root - root % 12) - 267.0f);
+    }
+}
+
+juce::Rectangle<float> RootKeyboard::thumbBounds() const
+{
+    const auto track = (float) getWidth() - 2.0f * arrowW - thumbW;
+    const auto f = maxScroll() > 0.0f ? scroll / maxScroll() : 0.0f;
+    return { arrowW + f * track, keysBottom + 5.0f, thumbW, 5.0f };
 }
 
 int RootKeyboard::noteAt (juce::Point<float> p) const
 {
-    const int high = lowNote + numWhite / 7 * 12;
-    for (int n = lowNote; n < high; ++n)
-        if (isBlack (n) && keyBounds (n).contains (p))
-            return n;
-    for (int n = lowNote; n < high; ++n)
-        if (! isBlack (n) && keyBounds (n).withTop (0.0f).contains (p))
+    if (p.y >= keysBottom)
+        return -1;
+    const auto x = p.x + scroll;
+    if (p.y >= labelH && p.y < labelH + blackH)
+        for (int n = 0; n < 128; ++n)
+            if (isBlack (n) && x >= noteX (n) && x < noteX (n) + blackW)
+                return n;
+    for (int n = 0; n < 128; ++n)
+        if (! isBlack (n) && x >= noteX (n) && x < noteX (n) + whiteW)
             return n;
     return -1;
 }
@@ -307,53 +337,99 @@ int RootKeyboard::noteAt (juce::Point<float> p) const
 void RootKeyboard::paint (juce::Graphics& g)
 {
     const int root = (int) apvts.getRawParameterValue (pid::rootNote)->load();
-    const int high = lowNote + numWhite / 7 * 12;
-    const auto kw = (float) getWidth() / (float) numWhite;
+    const auto w = (float) getWidth();
+    const juce::Colour strip { 0xffbabec5 }, rule { 0xffa3a7ae }, whiteTop { 0xffbabec5 }, whiteBottom { 0xffcfd3da },
+                       cKey { 0xffbabec5 }, rootBlue { 0xff77a9e6 }, labelText { 0xff26292c }, rootText { 0xff1f4f9e };
 
-    // Label strip with octave names
-    g.setColour (juce::Colour (0xffc3cad3));
-    g.fillRect (0, 0, getWidth(), labelH);
-    g.setFont (fl::font (9.5f, true));
-    for (int n = lowNote; n < high; n += 12)
-    {
-        const auto kb = keyBounds (n);
-        g.setColour (fl::colour::well);
-        g.drawText (flNoteName (n), juce::Rectangle<float> (kb.getX() + 2.0f, 0.0f, kw * 3.0f, (float) labelH),
-                    juce::Justification::centredLeft, false);
-    }
-    if (root >= lowNote && root < high)
-    {
-        g.setColour (fl::colour::keyRoot);
-        const auto kb = keyBounds (root);
-        g.fillRect (kb.getX(), 0.0f, kb.getWidth(), (float) labelH);
-        g.setColour (fl::colour::well);
-        g.drawText (flNoteName (root), juce::Rectangle<float> (kb.getX() + 2.0f, 0.0f, kw * 3.0f, (float) labelH),
-                    juce::Justification::centredLeft, false);
-    }
+    // Label strip, rule, white keys (no borders between them in FL; C keys are flat and darker)
+    g.setColour (strip);
+    g.fillRect (0.0f, 0.0f, w, labelH);
+    g.setColour (rule);
+    g.fillRect (0.0f, labelH, w, 1.0f);
+    g.setGradientFill (juce::ColourGradient (whiteTop, 0.0f, keysTop, whiteBottom, 0.0f, keysBottom, false));
+    g.fillRect (0.0f, keysTop, w, keysBottom - keysTop);
 
-    for (int pass = 0; pass < 2; ++pass)
+    auto pressed = [this] (int n, juce::Colour c) { return state.isNoteOn (1, n) ? c.interpolatedWith (fl::colour::amber, 0.55f) : c; };
+    for (int n = 0; n < 128; ++n)
     {
-        for (int n = lowNote; n < high; ++n)
+        if (isBlack (n))
+            continue;
+        const auto x = noteX (n) - scroll;
+        if (x + whiteW < 0.0f || x > w)
+            continue;
+        if (n == root)
         {
-            if (isBlack (n) != (pass == 1))
-                continue;
-            const auto kb = keyBounds (n);
-            auto c = isBlack (n) ? fl::colour::keyBlack : fl::colour::keyWhite;
-            if (n == root)            c = fl::colour::keyRoot;
-            if (state.isNoteOn (1, n)) c = c.interpolatedWith (fl::colour::amber, 0.55f);
-            g.setColour (c);
-            g.fillRect (isBlack (n) ? kb : kb.reduced (0.5f, 0.0f));
-            if (! isBlack (n))
-            {
-                g.setColour (juce::Colour (0xffaab2bc));
-                g.drawVerticalLine ((int) kb.getRight(), kb.getY(), kb.getBottom());
-            }
+            g.setColour (pressed (n, rootBlue));
+            g.fillRect (x, 0.0f, whiteW, keysBottom);
+        }
+        else if (n % 12 == 0 || state.isNoteOn (1, n))
+        {
+            g.setColour (pressed (n, cKey));
+            g.fillRect (x, keysTop, whiteW, keysBottom - keysTop);
+        }
+        if (n % 12 == 0 || n == root)
+        {
+            g.setColour (n == root ? rootText : labelText);
+            g.setFont (fl::font (11.0f));
+            g.drawText (flNoteName (n), juce::Rectangle<float> (x + 1.0f, 0.0f, octaveW, labelH), juce::Justification::centredLeft, false);
         }
     }
+
+    // Black keys: outlined, a lighter left edge, darkest at the top, with FL's
+    // bevelled lip and a thin shadow below.
+    for (int n = 0; n < 128; ++n)
+    {
+        if (! isBlack (n))
+            continue;
+        const auto x = noteX (n) - scroll;
+        if (x + blackW < 0.0f || x > w)
+            continue;
+        const auto top = labelH;
+        auto body = n == root ? rootBlue : juce::Colour (0xff3a3b3c);
+        g.setColour (juce::Colour (0xffa2a5ab));
+        g.fillRect (x, top + blackH, blackW, 1.0f);
+        g.setColour (juce::Colour (0xff2f3031));
+        g.fillRect (x, top, blackW, blackH);
+        g.setGradientFill (juce::ColourGradient (pressed (n, body), 0.0f, top, pressed (n, n == root ? rootBlue : juce::Colour (0xff575859)), 0.0f, top + 28.0f, false));
+        g.fillRect (x + 1.0f, top + 1.0f, blackW - 2.0f, 28.0f);
+        g.setColour (juce::Colour (0xff575859));
+        g.fillRect (x + 1.0f, top + 1.0f, 1.0f, 28.0f);
+        g.setColour (juce::Colour (0xff545556));
+        g.fillRect (x + 1.0f, top + 29.0f, blackW - 2.0f, 2.0f);
+        g.setColour (juce::Colour (0xff575859));
+        g.fillRect (x + 1.0f, top + 36.0f, blackW - 2.0f, 1.0f);
+    }
+
+    // Scroll bar: arrows at the ends and FL's short grip.
+    const auto barH = (float) getHeight() - keysBottom;
+    g.setColour (juce::Colour (0xff3f4042));
+    g.fillRect (0.0f, keysBottom, w, barH);
+    g.setColour (juce::Colour (0xff2b2c2e));
+    const auto cy = keysBottom + barH * 0.5f;
+    juce::Path arrows;
+    arrows.startNewSubPath (11.0f, cy - 3.0f);  arrows.lineTo (8.0f, cy);  arrows.lineTo (11.0f, cy + 3.0f);
+    arrows.startNewSubPath (w - 11.0f, cy - 3.0f);  arrows.lineTo (w - 8.0f, cy);  arrows.lineTo (w - 11.0f, cy + 3.0f);
+    g.strokePath (arrows, juce::PathStrokeType (1.2f));
+    const auto t = thumbBounds();
+    g.setColour (juce::Colour (0xff252628));
+    g.fillRoundedRectangle (t.withSizeKeepingCentre (t.getWidth(), 3.0f), 1.5f);
+    g.setColour (juce::Colour (0xff202123));
+    g.fillRect (t.withSizeKeepingCentre (t.getWidth() - 2.0f, 1.0f));
 }
 
 void RootKeyboard::mouseDown (const juce::MouseEvent& e)
 {
+    if (e.position.y >= keysBottom)
+    {
+        // Scroll bar: arrows step an octave, the thumb drags, the track pages.
+        const auto t = thumbBounds().withY (keysBottom).withHeight ((float) getHeight() - keysBottom);
+        if (e.position.x < arrowW)                     setScroll (scroll - octaveW);
+        else if (e.position.x > getWidth() - arrowW)   setScroll (scroll + octaveW);
+        else if (t.contains (e.position))              { dragFrom = e.position.x; scrollFrom = scroll; }
+        else                                           setScroll (scroll + (e.position.x < t.getX() ? -1.0f : 1.0f) * (float) getWidth() * 0.8f);
+        return;
+    }
+
     const int n = noteAt (e.position);
     if (n < 0)
         return;
@@ -374,6 +450,13 @@ void RootKeyboard::mouseDown (const juce::MouseEvent& e)
 
 void RootKeyboard::mouseDrag (const juce::MouseEvent& e)
 {
+    if (dragFrom >= 0.0f)
+    {
+        const auto track = (float) getWidth() - 2.0f * arrowW - thumbW;
+        if (track > 0.0f)
+            setScroll (scrollFrom + (e.position.x - dragFrom) / track * maxScroll());
+        return;
+    }
     if (playing < 0)
         return;
     const int n = noteAt (e.position);
@@ -387,9 +470,16 @@ void RootKeyboard::mouseDrag (const juce::MouseEvent& e)
 
 void RootKeyboard::mouseUp (const juce::MouseEvent&)
 {
+    dragFrom = -1.0f;
     if (playing >= 0)
         state.noteOff (1, playing, 0.0f);
     playing = -1;
+}
+
+void RootKeyboard::mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails& wheel)
+{
+    const auto d = std::abs (wheel.deltaX) > std::abs (wheel.deltaY) ? wheel.deltaX : wheel.deltaY;
+    setScroll (scroll - d * octaveW * 2.0f);
 }
 
 void RootKeyboard::timerCallback()

@@ -1,0 +1,25 @@
+Chan Sampler for Linux (64-bit x86, built on Ubuntu 22.04)
+==========================================================
+
+Plugins: copy them to your plugin folders (create them if they don't exist):
+  - VST3: the whole "Chan Sampler.vst3" folder  ->  ~/.vst3/
+  - CLAP: "Chan Sampler.clap"                   ->  ~/.clap/
+Then rescan plugins in your DAW (Reaper, Bitwig, Ardour...).
+
+From a terminal, in this folder:
+
+  mkdir -p ~/.vst3 ~/.clap
+  cp -r "Chan Sampler.vst3" ~/.vst3/
+  cp "Chan Sampler.clap" ~/.clap/
+
+Standalone: run "Chan Sampler" (make it executable first if needed:
+chmod +x "Chan Sampler"). It uses ALSA or JACK.
+
+Needs: glibc 2.35 or later, X11 (XWayland works), libasound2, libfreetype6,
+and zenity or kdialog for file dialogs.
+
+Copy / Paste in the sample menu use the clipboard as text: Copy puts the
+sample's file path there, Paste loads a copied file path.
+
+To check that your download is the one published, compare its SHA-256 with
+SHA256SUMS.txt on the Releases page:  sha256sum <file>

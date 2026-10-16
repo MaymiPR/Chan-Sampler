@@ -121,27 +121,39 @@ public:
     void mouseDown (const juce::MouseEvent&) override;
 };
 
-// Preview keyboard: left-click plays, right-click sets the root note (blue).
+// FL's root note keyboard (KeybPanel, measured from FL 2026): all 128 notes on
+// 90 px octaves behind a scroll bar; left-click plays, right-click sets the
+// root note (blue).
 class RootKeyboard : public juce::Component, private juce::Timer
 {
 public:
     RootKeyboard (juce::AudioProcessorValueTreeState&, juce::MidiKeyboardState&);
 
     void paint (juce::Graphics&) override;
+    void resized() override;
     void mouseDown (const juce::MouseEvent&) override;
     void mouseDrag (const juce::MouseEvent&) override;
     void mouseUp (const juce::MouseEvent&) override;
+    void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
 
 private:
-    static constexpr int lowNote = 24, numWhite = 49, labelH = 13;   // C2 .. B8
+    // FL's layout: 14 px label strip, a 1 px rule, 59 px keys, a 15 px scroll bar.
+    static constexpr float octaveW = 90.0f, whiteW = octaveW / 7.0f, labelH = 14.0f, keysTop = 15.0f,
+                           keysBottom = 74.0f, blackW = 7.0f, blackH = 40.0f, arrowW = 13.0f, thumbW = 57.0f;
 
     void timerCallback() override;
     int noteAt (juce::Point<float>) const;
-    juce::Rectangle<float> keyBounds (int note) const;
+    float noteX (int note) const;           // left edge in keyboard pixels (before scrolling)
+    float maxScroll() const;
+    void setScroll (float px);
+    juce::Rectangle<float> thumbBounds() const;
     static bool isBlack (int note) { const int n = note % 12; return n == 1 || n == 3 || n == 6 || n == 8 || n == 10; }
 
     juce::AudioProcessorValueTreeState& apvts;
     juce::MidiKeyboardState& state;
+    float scroll = 0.0f;
+    bool placed = false;
+    float dragFrom = -1.0f, scrollFrom = 0.0f;   // dragging the scroll thumb
     int playing = -1;
     int lastRoot = -1;
     std::array<bool, 128> lastOn {};
