@@ -46,6 +46,7 @@ struct PrecomputeSettings
     float reverb = 0.0f;
     bool useLoop = false;
     float loopStart = 0.0f, loopEnd = 1.0f;
+    bool loadRegions = true, loadSlices = false;
     // Playback rate. FL converts a file at another rate to this rate when
     // loading it (0 = keep the file's rate).
     double targetRate = 0.0;
@@ -60,6 +61,9 @@ struct RawSample
     juce::File file;
     // Loop points embedded in the file (WAV "smpl" chunk), in frames.
     int embeddedLoopStart = -1, embeddedLoopEnd = -1;
+    // Markers in the file, in frames: cue points (FL's regions) and ACID
+    // slice markers ("strc" chunk).
+    std::vector<int> regionMarkers, sliceMarkers;
 };
 
 SampleData::Ptr buildProcessedSample (const RawSample& raw, const PrecomputeSettings& settings);

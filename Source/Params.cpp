@@ -296,7 +296,7 @@ const juce::StringArray& precomputeParamIDs()
         pid::pcReverse, pid::pcSwapStereo, pid::pcStart, pid::pcLength, pid::pcFadeIn,
         pid::pcFadeOut, pid::pcCrossfade, pid::pcTrim, pid::pcBoost, pid::pcBoostClip, pid::pcEq,
         pid::pcRmMix, pid::pcRmFreq, pid::pcCut, pid::pcRes, pid::pcReverbType, pid::pcReverb,
-        pid::pcStereoDelay, pid::pcPogo,
+        pid::pcStereoDelay, pid::pcPogo, pid::loadRegions, pid::loadSlices,
         // The loop crossfade is baked into the data, so it depends on the loop points.
         pid::useLoop, pid::loopStart, pid::loopEnd
     };
@@ -316,6 +316,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     addChoice (l, pid::declick, "Declicking mode",
                { "Out only (no bleeding)", "Transient (no bleeding)", "Transient (bleeding)",
                  "Generic (bleeding)", "Smooth (bleeding)", "Crossfade (bleeding)" }, 0);
+    // Markers stored in the file replace the detected transients of the slice
+    // methods (measured in FL): regions = WAV cue points, slice markers = the
+    // ACID "strc" chunk. FL's defaults: regions on, slice markers off.
+    addBool  (l, pid::loadRegions, "Load regions", true);
+    addBool  (l, pid::loadSlices,  "Load slice markers", false);
     addFloat (l, pid::startOffset, "Sample start offset", unit, 0.0f, percentAttr());
     // FL Sampler defaults: Use loop points off, START = END = 0 (no loop set).
     addBool  (l, pid::useLoop,   "Use loop points", false);

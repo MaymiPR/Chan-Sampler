@@ -245,23 +245,29 @@ void ChanSamplerEditor::buildSampleSheet()
     remove.setTooltip ("Remove sample");
     remove.onClick = [this] { samplerProcessor.removeSample(); };
 
-    // Declicking (FL's Content panel without the disk / region options)
-    auto& declick = panel (sheet, "Declicking", 7, 50, 268, 56);
-    text (declick, "Mode", 9, 26, 50, 23, 12.0f);
-    combo (declick, pid::declick, 62, 26, 197, 23);
+    // Content (FL's WavePanel). Keep on disk and Resample only change how FL
+    // holds the file in memory; a plugin always holds the sample, so they are
+    // shown as FL has them. Regions / slice markers feed the slice methods.
+    auto& content = panel (sheet, "Content", 7, 50, 268, 110);
+    deadLed (content, "Keep on disk", 3, 26, 128, 21, "a plugin always holds the sample in memory");
+    deadLed (content, "Resample", 3, 46, 128, 21, "files are converted to the host rate on load").setToggleState (true, juce::dontSendNotification);
+    led (content, pid::loadRegions, "Load regions", 131, 26, 128, 21);
+    led (content, pid::loadSlices, "Load slice markers", 131, 46, 128, 21);
+    text (content, "Declicking mode", 9, 76, 98, 23, 12.0f);
+    combo (content, pid::declick, 111, 76, 148, 23);
 
-    // Playback
-    auto& playback = panel (sheet, "Playback", 7, 114, 268, 133);
-    knob (playback, pid::startOffset, 21, 30, 34);
-    caption (playback, "START OFFSET", 8, 67, 60, 9);
-    static_cast<ParamKnob&> (knob (playback, pid::loopStart, 116, 30, 34)).onUserChange = [this] { samplerProcessor.applyLoopLink (pid::loopStart); };
-    caption (playback, "START", 103, 67, 60, 9);
+    // Playback (FL's LoopPanel: knobs left, switches right)
+    auto& playback = panel (sheet, "Playback", 7, 168, 268, 79);
+    knob (playback, pid::startOffset, 21, 26, 34);
+    caption (playback, "START OFFSET", 8, 63, 60, 9);
+    static_cast<ParamKnob&> (knob (playback, pid::loopStart, 70, 26, 34)).onUserChange = [this] { samplerProcessor.applyLoopLink (pid::loopStart); };
+    caption (playback, "START", 57, 63, 60, 9);
     // FL: the link symbol sits between START and END (START carries END along).
-    text (playback, juce::String::charToString ((juce::juce_wchar) 0x21bb), 163, 35, 24, 24, 18.0f, false, juce::Justification::centred);
-    static_cast<ParamKnob&> (knob (playback, pid::loopEnd, 200, 30, 34)).onUserChange = [this] { samplerProcessor.applyLoopLink (pid::loopEnd); };
-    caption (playback, "END", 187, 67, 60, 9);
-    led (playback, pid::useLoop, "Use loop points", 12, 92, 124, 21);
-    led (playback, pid::pingPong, "Ping pong loop", 140, 92, 120, 21);
+    text (playback, juce::String::charToString ((juce::juce_wchar) 0x21bb), 103, 31, 24, 24, 18.0f, false, juce::Justification::centred);
+    static_cast<ParamKnob&> (knob (playback, pid::loopEnd, 126, 26, 34)).onUserChange = [this] { samplerProcessor.applyLoopLink (pid::loopEnd); };
+    caption (playback, "END", 113, 63, 60, 9);
+    led (playback, pid::useLoop, "Use loop points", 165, 26, 100, 21);
+    led (playback, pid::pingPong, "Ping pong loop", 165, 46, 100, 21);
 
     // Time stretching (FL's StretchPanel layout)
     auto& stretch = panel (sheet, "Time stretching", 283, 7, 268, 76);

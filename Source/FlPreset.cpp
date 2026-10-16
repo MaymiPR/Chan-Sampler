@@ -317,8 +317,14 @@ flpreset::Result flpreset::import (ChanSamplerProcessor& processor, const juce::
     // Root note (only stored when not C5)
     if (auto* e = get (135)) set (pid::rootNote, (float) juce::jlimit (0, 127, (int) e->value()));
 
-    // Loop: points (251), Use loop points (sample flags 143, bit 8), ping pong (20)
-    if (auto* e = get (143)) set (pid::useLoop, (e->value() & 8) ? 1.0f : 0.0f);
+    // Sample flags (143): 2 load regions, 4 load slice markers, 8 use loop points
+    if (auto* e = get (143))
+    {
+        set (pid::loadRegions, (e->value() & 2) ? 1.0f : 0.0f);
+        set (pid::loadSlices,  (e->value() & 4) ? 1.0f : 0.0f);
+        set (pid::useLoop,     (e->value() & 8) ? 1.0f : 0.0f);
+    }
+    // Loop points (251), ping pong (20)
     if (auto* e = get (20)) set (pid::pingPong, e->value() ? 1.0f : 0.0f);
     if (auto* e = get (251); e != nullptr && e->has (20) && e->i32 (0) >= 2)
         if (const int length = processor.getSampleLength(); length > 0)

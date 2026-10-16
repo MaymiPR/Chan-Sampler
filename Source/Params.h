@@ -11,6 +11,8 @@ namespace pid
 
     // SMP > Content / Playback
     inline constexpr auto declick     = "declick";
+    inline constexpr auto loadRegions = "loadRegions";   // slice at the file's cue markers
+    inline constexpr auto loadSlices  = "loadSlices";    // slice at its ACID markers
     inline constexpr auto startOffset = "startOffset";
     inline constexpr auto useLoop     = "useLoop";
     inline constexpr auto loopStart   = "loopStart";

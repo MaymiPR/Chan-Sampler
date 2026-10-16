@@ -2,6 +2,7 @@
 #include "TrimTail.h"
 #include "Dsp.h"
 
+#include <algorithm>
 #include <cmath>
 
 // Every process here was measured against FL Studio's Sampler by rendering
@@ -566,7 +567,37 @@ SampleData::Ptr buildProcessedSample (const RawSample& raw, const PrecomputeSett
     loopCrossfade (main, s, *out);
 
     out->playEnd = main.getNumSamples();
-    out->onsets = detectOnsets (main);
+
+    // Slice points: the file's own markers when loaded (they replace the
+    // detected transients, measured in FL), carried through the rate
+    // conversion, Sample Start and Reverse.
+    std::vector<int> marks;
+    auto addMarks = [&] (const std::vector<int>& src)
+    {
+        const double ratio = (double) converted / (double) n;
+        for (auto m : src)
+        {
+            int p = (int) std::lround (m * ratio) - start;
+            if (p < 0 || p >= len)
+                continue;
+            marks.push_back (s.reverse ? len - p : p);
+        }
+    };
+    if (s.loadRegions) addMarks (raw.regionMarkers);
+    if (s.loadSlices)  addMarks (raw.sliceMarkers);
+    if (! marks.empty())
+    {
+        marks.push_back (0);
+        std::sort (marks.begin(), marks.end());
+        marks.erase (std::unique (marks.begin(), marks.end()), marks.end());
+        while (! marks.empty() && marks.back() >= out->playEnd)
+            marks.pop_back();
+        out->onsets = std::move (marks);
+    }
+    else
+    {
+        out->onsets = detectOnsets (main);
+    }
     out->audio = std::move (main);
     out->computePeaks();
     return out;

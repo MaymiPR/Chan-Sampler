@@ -163,6 +163,8 @@ PrecomputeSettings ChanSamplerProcessor::readPrecomputeSettings() const
     s.loopStart   = param (pid::loopStart);
     s.loopEnd     = param (pid::loopEnd);
     s.targetRate  = hostRate.load();
+    s.loadRegions = param (pid::loadRegions) > 0.5f;
+    s.loadSlices  = param (pid::loadSlices) > 0.5f;
     return s;
 }
 
@@ -389,6 +391,53 @@ SampleData::Ptr ChanSamplerProcessor::getSampleForDisplay() const
 }
 
 //==============================================================================
+namespace
+{
+    // Markers in a WAV file: cue points (FL's "regions") and the ACID "strc"
+    // chunk (FL's "slice markers": a 28-byte header with the entry count, then
+    // 24-byte entries whose second field is the position in frames).
+    void readWavMarkers (const juce::File& file, std::vector<int>& regions, std::vector<int>& slices)
+    {
+        juce::FileInputStream in (file);
+        if (! in.openedOk() || in.readInt() != (int) juce::ByteOrder::littleEndianInt ("RIFF"))
+            return;
+        in.readInt();
+        if (in.readInt() != (int) juce::ByteOrder::littleEndianInt ("WAVE"))
+            return;
+        while (! in.isExhausted())
+        {
+            const auto id = in.readInt();
+            const auto size = (juce::uint32) in.readInt();
+            const auto next = in.getPosition() + size + (size & 1);
+            if (id == (int) juce::ByteOrder::littleEndianInt ("cue ") && size >= 4)
+            {
+                const int count = in.readInt();
+                for (int i = 0; i < count && (juce::uint32) (4 + 24 * (i + 1)) <= size; ++i)
+                {
+                    juce::uint32 f[6];
+                    for (auto& v : f) v = (juce::uint32) in.readInt();
+                    regions.push_back ((int) f[5]);   // sample offset
+                }
+            }
+            else if (id == (int) juce::ByteOrder::littleEndianInt ("strc") && size >= 28)
+            {
+                const auto header = (juce::uint32) in.readInt();
+                const int count = in.readInt();
+                in.setPosition (next - size - (size & 1) + header);
+                for (int i = 0; i < count && header + (juce::uint32) (24 * (i + 1)) <= size; ++i)
+                {
+                    juce::uint32 f[6];
+                    for (auto& v : f) v = (juce::uint32) in.readInt();
+                    if (f[0] != 2)   // the first entry is a header entry
+                        slices.push_back ((int) f[1]);
+                }
+            }
+            if (! in.setPosition (next))
+                break;
+        }
+    }
+}
+
 bool ChanSamplerProcessor::loadSample (const juce::File& file)
 {
     std::unique_ptr<juce::AudioFormatReader> reader (formatManager.createReaderFor (file));
@@ -403,6 +452,9 @@ bool ChanSamplerProcessor::loadSample (const juce::File& file)
     const int length = (int) reader->lengthInSamples;
     r.audio.setSize (numChannels, length);
     reader->read (&r.audio, 0, length, 0, true, numChannels > 1);
+
+    if (file.hasFileExtension (".wav;.wave"))
+        readWavMarkers (file, r.regionMarkers, r.sliceMarkers);
 
     // Embedded loop points (WAV "smpl" chunk) auto-populate the loop controls.
     const auto& md = reader->metadataValues;
