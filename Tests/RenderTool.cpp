@@ -10,6 +10,7 @@
 #include <iostream>
 
 #include "../Source/PluginProcessor.h"
+#include "../Source/SampleExchange.h"
 #include "../Source/FlPreset.h"
 #include "../Source/Params.h"
 #include "../Source/FactoryPresets.h"
@@ -205,6 +206,55 @@ int main (int argc, char** argv)
         std::cout << "useLoop " << use->getCurrentValueAsText() << ", loopStart " << p.apvts.getParameter (pid::loopStart)->getCurrentValueAsText()
                   << ", loopEnd " << p.apvts.getParameter (pid::loopEnd)->getCurrentValueAsText() << "\n";
         return use->getValue() < 0.5f ? 0 : 2;
+    }
+    if (argc >= 5 && juce::String (argv[1]) == "reloadtest")
+    {
+        // Loads a copy of sample A, overwrites the copy with sample B (as an
+        // audio editor saving it would) and checks the plugin picks it up with
+        // its settings kept.
+        juce::ScopedJuceInitialiser_GUI init;
+        const juce::File a { juce::String (argv[2]) }, b { juce::String (argv[3]) }, copy { juce::String (argv[4]) };
+        a.copyFileTo (copy);
+        ChanSamplerProcessor p;
+        if (! p.loadSample (copy))
+            return 1;
+        auto* vol = p.apvts.getParameter (pid::startOffset);
+        vol->setValueNotifyingHost (0.3f);
+        const int before = p.getSampleLength();
+        p.reloadIfFileChanged();
+        juce::Thread::sleep (1100);   // a newer modification time
+        b.copyFileTo (copy);
+        copy.setLastModificationTime (juce::Time::getCurrentTime());
+        p.reloadIfFileChanged();      // sees the change, waits for it to settle
+        const int waiting = p.getSampleLength();
+        p.reloadIfFileChanged();      // reloads
+        std::cout << "frames " << before << " -> " << waiting << " -> " << p.getSampleLength() << ", start offset " << vol->getValue() << "\n";
+        return before != p.getSampleLength() && waiting == before && std::abs (vol->getValue() - 0.3f) < 1.0e-6f ? 0 : 2;
+    }
+    if (argc >= 4 && juce::String (argv[1]) == "cliptest")
+    {
+        // Copies the sample to the system clipboard (file + WAV data), pastes it
+        // back into a second instance and checks the audio came through.
+        juce::ScopedJuceInitialiser_GUI init;
+        ChanSamplerProcessor a, b;
+        if (! a.loadSample (juce::File (juce::String (argv[2]))))
+            return 1;
+        juce::Component owner;
+        owner.addToDesktop (0);
+        const auto wav = a.getSampleAsWav();
+        const bool copied = exchange::copyToClipboard (juce::SystemStats::getEnvironmentVariable ("CLIP_DATA_ONLY", {}).isNotEmpty() ? juce::File() : a.getSampleFile(), wav, owner.getPeer()->getNativeHandle());
+        std::cout << "copied " << copied << " (" << wav.getSize() << " bytes of WAV), clipboard has audio " << exchange::clipboardHasAudio() << "\n";
+        const auto pasted = exchange::pasteFromClipboard (juce::File (juce::String (argv[3])));
+        std::cout << "pasted " << pasted.getFullPathName() << "\n";
+        if (! b.loadSample (pasted))
+            return 2;
+        const auto ra = a.getRaw(), rb = b.getRaw();
+        float diff = 0;
+        for (int c = 0; c < ra->audio.getNumChannels(); ++c)
+            for (int i = 0; i < ra->audio.getNumSamples(); ++i)
+                diff = juce::jmax (diff, std::abs (ra->audio.getSample (c, i) - rb->audio.getSample (c, i)));
+        std::cout << "frames " << ra->audio.getNumSamples() << " / " << rb->audio.getNumSamples() << ", max difference " << diff << "\n";
+        return ra->audio.getNumSamples() == rb->audio.getNumSamples() && diff == 0 ? 0 : 3;
     }
     if (argc >= 3 && juce::String (argv[1]) == "compatstate")
     {

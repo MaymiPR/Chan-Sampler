@@ -12,6 +12,9 @@ Sound (all null-tested against FL Studio 2026):
   SVF LPx2.
 - All six declicking modes match FL, including Crossfade's fades and
   Transient (no bleeding)'s fade-out (a sweeping high-pass, not a volume fade).
+- Envelopes match FL at any tempo, not only 130 BPM: they run on the song's
+  ticks as FL's do, with FL's own stage times (re-measured at six tempos), and
+  positive decay tension has FL's shape.
 - Loops, echo Mod X / Y and fat mode, velocity / key tracking, mono / porta
   glide match FL. Max polyphony is ignored, as in FL's renders.
 - FLAC, Ogg and MP3 samples match FL's decoding.
@@ -26,8 +29,12 @@ New:
 - Factory presets (settings only, keep the loaded sample): Chop, Pluck, Swell,
   Filter sweep, Wobble 1/8, Tremolo, Vibrato, 808 glide, Echo ping-pong 1/8,
   Reverse. A saved preset without a sample also keeps the loaded one.
-- Sample view right-click menu: Reload, Save as, Locate file, Get properties,
-  Spectrum view, Multichannel waveform view, Colorful waveforms (Multiband /
+- The sample in and out of other programs: drag the waveform out of the view
+  into a DAW, an audio editor or Explorer / Finder; Copy / Paste through the
+  system clipboard (the file and its audio); Edit in audio editor, after which
+  saving the file there reloads it in Chan Sampler with the settings kept.
+- Sample view right-click menu: Reload, Edit in audio editor, Save as, Locate
+  file, Copy, Paste, Get properties, Spectrum view, Multichannel waveform view, Colorful waveforms (Multiband /
   Color map).
 - Resizable window, sharp on Retina / high-DPI screens.
 

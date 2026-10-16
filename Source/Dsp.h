@@ -31,12 +31,15 @@ namespace dsp
         return 0.5f - 0.5f * std::cos (juce::MathConstants<float>::pi * juce::jlimit (0.0f, 1.0f, x));
     }
 
-    // DAHDSR envelope from the INS tab, advanced at control rate. Measured
-    // FL behaviour: decay is rate-based (its time is a full 1 -> 0 travel),
-    // a release joins its curve at the current level, and decay/release
-    // curves are the attack curve reversed. Any jump (a stage with no time)
-    // is smoothed by a fixed 9.6 ms ramp (measured shape), which delay and hold start 4.76 ms
-    // early so that it is centred on the nominal time.
+    // DAHDSR envelope from the INS tab, as FL works it out (measured,
+    // nulltest/env_tick_probe.py, env_time_probe.py, tempo_env_cases.py): once
+    // per song tick (96 per beat) from the note start, interpolated linearly in
+    // between. Every stage lasts a whole number of ticks, N = ceil (time / tick
+    // + 1/2), none for no time. From one tick to the next the level moves at
+    // most the full range per 8.83 ms, which is what smooths a jump (a stage
+    // with no time). The decay runs the whole curve from 1 to 0 and stops at the
+    // sustain level; the release joins its curve at the current level; decay
+    // and release curves are the attack curve reversed.
     class Envelope
     {
     public:
@@ -44,121 +47,149 @@ namespace dsp
         {
             float delay = 0, attack = 0, hold = 0, decay = 0.5f, sustain = 1, release = 0.2f;   // seconds / level
             float attackK = 0, decayK = 0, releaseK = 0;                                     // curve exponents
-            // FL's jump ramps are counted in song ticks: the measured lengths are
-            // for 130 BPM, and this is 130 / tempo.
-            float tickScale = 1.0f;
+            double tick = 60.0 / (130.0 * 96.0);                                             // song tick, seconds
         };
 
-        // FL's jump ramp (measured, identical after delay, hold and release):
-        // 0.5398 of the way in 4.762 ms, then linear to the end at 9.592 ms.
-        // Shapes measured in FL (nulltest/jump_down.npy, jump_up.npy): progress
-        // every 8 samples at 44.1 kHz over 424 samples; falls and rises differ.
-        static constexpr float jumpLead = 0.004762f, jumpTotal = 424.0f / 44100.0f;
-        // Falls inside the envelope (hold end -> instant decay) keep FL's
-        // two-slope ramp: 0.5398 of the way at 4.76 ms, then linear.
-        static float jumpShapeHold (float seconds)
+        static constexpr double fullRangeSeconds = 389.5 / 44100.0;   // the fastest move, 0 to 1
+
+        void noteOn()  { stage = Stage::delay; ticks = 0; phase = 0; from = to = out = 0; segment = 0; pending = true; releaseNext = false; ended = false; }
+        void reset()   { stage = Stage::idle; from = to = out = 0; pending = false; }
+        bool isIdle() const noexcept     { return stage == Stage::idle && ! pending && from == 0.0f && to == 0.0f; }
+        bool isReleased() const noexcept { return stage == Stage::release || stage == Stage::idle || releaseNext; }
+        // The release has reached the tick where it is silent (the level may
+        // still be moving there). FL ends the voice there with its declick fade.
+        bool hasEnded() const noexcept   { return ended; }
+
+        // The release starts now: the next tick already moves along its curve.
+        // FL's notes end on a tick, which comes first there; a note-off less
+        // than nearTick seconds before a tick is taken as on it.
+        void noteOff (const Params& p, double nearTick = 0)
         {
-            constexpr float mid = 0.5398f, total = 0.009592f;   // (at 130 BPM; callers scale the time)
-            return seconds < jumpLead ? mid * seconds / jumpLead
-                                      : juce::jmin (1.0f, mid + (1 - mid) * (seconds - jumpLead) / (total - jumpLead));
+            if (stage == Stage::idle || stage == Stage::release || releaseNext)
+                return;
+            start (p);
+            if (p.tick - phase <= nearTick)
+            {
+                releaseNext = true;   // from the tick on (advance)
+                return;
+            }
+            beginRelease (p, out, (p.tick - phase) / p.tick);
+            // Go on from the level heard now to the release's next tick.
+            from = out;
+            segment = phase;
+            to = limit (p, from, level (p));
         }
 
-        static float jumpShape (float seconds, bool rising)
+        // The level now, without moving on.
+        float current (const Params& p)
         {
-            static const float down[] = { 0.0000f, 0.0207f, 0.0410f, 0.0617f, 0.0821f, 0.1028f, 0.1234f, 0.1438f, 0.1645f, 0.1848f, 0.2055f, 0.2259f, 0.2466f, 0.2669f, 0.2876f, 0.3080f, 0.3286f, 0.3490f, 0.3697f, 0.3900f, 0.4107f, 0.4314f, 0.4518f, 0.4724f, 0.4928f, 0.5135f, 0.5338f, 0.5529f, 0.5708f, 0.5896f, 0.6087f, 0.6281f, 0.6479f, 0.6679f, 0.6883f, 0.7086f, 0.7290f, 0.7491f, 0.7691f, 0.7888f, 0.8083f, 0.8274f, 0.8459f, 0.8637f, 0.8810f, 0.8976f, 0.9132f, 0.9283f, 0.9427f, 0.9558f, 0.9684f, 0.9799f, 0.9903f, 1.0000f };
-            static const float up[]   = { 0.0000f, 0.0207f, 0.0410f, 0.0617f, 0.0821f, 0.1028f, 0.1231f, 0.1438f, 0.1642f, 0.1848f, 0.2052f, 0.2259f, 0.2462f, 0.2669f, 0.2873f, 0.3080f, 0.3286f, 0.3490f, 0.3697f, 0.3900f, 0.4107f, 0.4311f, 0.4518f, 0.4721f, 0.4928f, 0.5132f, 0.5338f, 0.5526f, 0.5699f, 0.5871f, 0.6043f, 0.6216f, 0.6388f, 0.6560f, 0.6729f, 0.6902f, 0.7074f, 0.7246f, 0.7419f, 0.7591f, 0.7763f, 0.7935f, 0.8108f, 0.8280f, 0.8452f, 0.8622f, 0.8794f, 0.8966f, 0.9138f, 0.9311f, 0.9483f, 0.9655f, 0.9828f, 1.0000f };
-            const float* t = rising ? up : down;
-            constexpr int count = (int) (sizeof (down) / sizeof (down[0]));
-            const auto x = juce::jlimit (0.0f, 424.0f, seconds * 44100.0f) / 8.0f;
-            const int i = juce::jmin (count - 2, (int) x);
-            const auto f = juce::jmin (1.0f, x - (float) i);
-            // the last entry sits at sample 424, 8 samples apart except the final step
-            return t[i] + (t[i + 1] - t[i]) * f;
+            start (p);
+            const auto span = p.tick - segment;
+            return out = from + (to - from) * (float) (span > 0 ? (phase - segment) / span : 1.0);
         }
 
-        void noteOn()  { stage = Stage::delay; time = 0; value = out = 0; started = false; jumpTime = -1; }
-        void noteOff() { if (stage != Stage::idle && stage != Stage::release) { releaseFrom = out; stage = Stage::release; time = 0; } }
-        void reset()   { stage = Stage::idle; value = out = 0; jumpTime = -1; }
-        bool isIdle() const noexcept     { return stage == Stage::idle && jumpTime < 0; }
-        bool isReleased() const noexcept { return stage == Stage::release || stage == Stage::idle; }
-
+        // Advances by seconds and returns the level there.
         float advance (const Params& p, float seconds)
         {
-            const auto previous = value;
-            compute (p, seconds);
-
-            // A change faster than the jump ramp starts a new ramp from the
-            // level heard so far (never at the very start of a note).
-            const auto sc = juce::jmax (1.0e-3f, p.tickScale);
-            if (started && std::abs (value - previous) > seconds / (jumpTotal * sc) * 1.05f + 1.0e-4f)
+            start (p);
+            phase += (double) seconds;
+            while (phase >= p.tick)
             {
-                jumpFrom = out;
-                jumpTime = 0;
-            }
-            started = true;
-
-            if (jumpTime >= 0)
-            {
-                jumpTime += seconds;
-                if (jumpTime >= jumpTotal * sc)
-                    jumpTime = -1;
-                else
+                phase -= p.tick;
+                segment = 0;
+                from = to;
+                ended = ended || stage == Stage::idle;
+                if (releaseNext)
                 {
-                    const auto shape = (value <= jumpFrom && stage != Stage::release && stage != Stage::idle)
-                                           ? jumpShapeHold (jumpTime / sc) : jumpShape (jumpTime / sc, value > jumpFrom);
-                    return out = jumpFrom + (value - jumpFrom) * shape;
+                    releaseNext = false;
+                    beginRelease (p, from, 1.0);
                 }
+                to = limit (p, from, level (p));
             }
-            return out = value;
+            const auto span = p.tick - segment;
+            return out = from + (to - from) * (float) (span > 0 ? (phase - segment) / span : 1.0);
         }
 
     private:
-        void compute (const Params& p, float seconds)
+        enum class Stage { idle, delay, attack, hold, decay, sustain, release };
+
+        void beginRelease (const Params& p, float level, double ticksAtNext)
         {
-            time += (double) seconds;
-            const auto lead = jumpLead * p.tickScale;
-            const auto delay = (double) juce::jmax (0.0f, p.delay - lead);
-            const auto hold  = (double) juce::jmax (0.0f, p.hold - lead);
-            for (;;)
-            {
-                switch (stage)
-                {
-                    case Stage::idle:    value = 0; return;
-                    case Stage::delay:   if (time >= delay)    { time -= delay;    stage = Stage::attack; continue; }
-                                         value = 0; return;
-                    case Stage::attack:  if (time >= p.attack) { time -= p.attack; stage = Stage::hold;   continue; }
-                                         value = tensionCurve ((float) (time / p.attack), p.attackK); return;
-                    case Stage::hold:    if (time >= hold)     { time -= hold;     stage = Stage::decay;  continue; }
-                                         value = 1; return;
-                    case Stage::decay:
-                    {
-                        const auto dur = p.decay * (1 - p.sustain);
-                        if (time >= dur) { stage = Stage::sustain; continue; }
-                        value = p.sustain + (1 - p.sustain) * tensionCurve ((float) (1.0 - time / dur), p.decayK);
-                        return;
-                    }
-                    case Stage::sustain: value = p.sustain; return;
-                    case Stage::release:
-                    {
-                        // Measured in FL: the release joins its curve at the point
-                        // where the curve equals the current level and runs from
-                        // there (from sustain 0.39 at tension -101 it takes 79% of
-                        // the release time).
-                        const auto x0 = tensionCurveInverse (releaseFrom, p.releaseK);
-                        if (time >= (double) (x0 * p.release)) { stage = Stage::idle; continue; }
-                        value = tensionCurve ((float) (x0 - time / p.release), p.releaseK);
-                        return;
-                    }
-                }
-            }
+            releaseFrom = tensionCurveInverse (level, p.releaseK);
+            stage = Stage::release;
+            releaseTicks = ticksAtNext;   // ticks into the release at the next tick
         }
 
-        enum class Stage { idle, delay, attack, hold, decay, sustain, release };
+        static int stageTicks (float seconds, const Params& p)
+        {
+            return seconds > 0 ? (int) std::ceil ((double) seconds / p.tick + 0.5) : 0;
+        }
+
+        static float limit (const Params& p, float now, float target)
+        {
+            const auto step = (float) (p.tick / fullRangeSeconds);
+            return now + juce::jlimit (-step, step, target - now);
+        }
+
+        // The first two ticks. With neither delay nor attack the level starts
+        // at the second tick's (no rise from silence).
+        void start (const Params& p)
+        {
+            if (! pending)
+                return;
+            pending = false;
+            from = level (p);
+            const auto second = level (p);
+            if (p.delay <= 0 && p.attack <= 0)
+                from = second;
+            to = limit (p, from, second);
+            out = from;
+        }
+
+        // The level at the next tick, then one tick on. The delay and the
+        // attack end are rounded from the note start, the hold's ticks are its
+        // own and its last tick is where the decay starts (or, with no decay
+        // time, the last tick before the fall); the decay's ticks are its own
+        // (it runs at a rate down to the sustain level). Measured over 74
+        // attack / hold / tempo combinations (nulltest/env_hold_probe.py), this
+        // gets FL's hold end exactly in 48 and within a tick in the rest.
+        float level (const Params& p)
+        {
+            if (stage == Stage::idle)
+                return 0.0f;
+            if (stage == Stage::release)
+            {
+                const int n = stageTicks (p.release, p);
+                const auto x = n > 0 ? releaseFrom - (float) (releaseTicks / n) : 0.0f;
+                releaseTicks += 1.0;
+                if (x <= 0.0f) { stage = Stage::idle; return 0.0f; }
+                return tensionCurve (x, p.releaseK);
+            }
+            const int k = ticks++;
+            const int delayEnd = stageTicks (p.delay, p);
+            const int attackEnd = p.attack > 0 ? stageTicks (p.delay + p.attack, p) : delayEnd;
+            const int holdEnd = attackEnd + stageTicks (p.hold, p);
+            if (k < delayEnd)  { stage = Stage::delay; return 0.0f; }
+            if (k < attackEnd) { stage = Stage::attack; return tensionCurve ((float) (k - delayEnd) / (float) (attackEnd - delayEnd), p.attackK); }
+            if (k < holdEnd)   { stage = Stage::hold; return 1.0f; }
+            if (stage != Stage::sustain)
+            {
+                const int n = stageTicks (p.decay, p);
+                const int j = k - holdEnd + (p.hold > 0 ? 1 : 0);   // the hold's last tick is the decay's first
+                const auto v = n > 0 ? tensionCurve (1.0f - (float) j / (float) n, p.decayK) : 0.0f;
+                if (v > p.sustain) { stage = Stage::decay; return v; }
+                stage = Stage::sustain;
+            }
+            return p.sustain;
+        }
+
         Stage stage = Stage::idle;
-        double time = 0;                   // double: the volume envelope steps per sample
-        float value = 0, out = 0, releaseFrom = 0;
-        float jumpFrom = 0, jumpTime = -1;
-        bool started = false;
+        int ticks = 0;                 // the next tick (from the note start)
+        double releaseTicks = 0;       // the same for the release (it can start between ticks)
+        double phase = 0;              // seconds since the last tick
+        double segment = 0;            // where the current line starts (a release between ticks)
+        float from = 0, to = 0, out = 0, releaseFrom = 0;
+        bool pending = false, releaseNext = false, ended = false;
     };
 
     // Per-note LFO (retriggered at note-on) with delay and fade-in.

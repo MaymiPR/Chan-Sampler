@@ -173,23 +173,20 @@ PrecomputeSettings ChanSamplerProcessor::readPrecomputeSettings() const
     return s;
 }
 
-// Tempo-dependent envelope timing (measured in FL): the jump ramps and the
-// shortest attack (4 ticks = 19.23 ms at 130 BPM) are counted in song ticks;
-// with an envelope's Tempo switch on, its times are for 120 BPM.
+// Tempo-dependent envelope timing (measured in FL): envelopes run on the song's
+// ticks; with an envelope's Tempo switch on, its times are for 120 BPM.
 void ChanSamplerProcessor::applyTempo (EngineParams& p)
 {
     const auto bpm = juce::jmax (1.0, p.bpm);
     for (auto* t : { &p.panT, &p.volT, &p.xT, &p.yT, &p.pitchT })
     {
         auto& e = t->env;
-        e.tickScale = (float) (130.0 / bpm);
+        e.tick = 60.0 / (bpm * 96.0);
         if (t->envTempo)
         {
             const auto k = (float) (120.0 / bpm);
             e.delay *= k; e.attack *= k; e.hold *= k; e.decay *= k; e.release *= k;
         }
-        if (e.attack > 0.0f)
-            e.attack = juce::jmax (flMinAttackSeconds * e.tickScale, e.attack);
     }
 }
 
@@ -210,10 +207,9 @@ EngineParams ChanSamplerProcessor::readEngineParams() const
         if (auto* amt = apvts.getRawParameterValue (pid::env (prefix, "EnvAmt")))
             t.envAmt = amt->load();
         t.env.delay    = flEnvSeconds (get ("Del"));
-        // Measured: the minimum raw attack (100, position 0) is instant; anything above it
-        // ramps over at least 19.23 ms.
+        // Measured: the minimum raw attack (100, position 0) is instant.
         const auto att = get ("Att");
-        t.env.attack   = att <= 0.5f / 65436.0f ? 0.0f : flEnvSeconds (att);   // floor applied with the tempo (applyTempo)
+        t.env.attack   = att <= 0.5f / 65436.0f ? 0.0f : flEnvSeconds (att);
         t.env.hold     = flEnvSeconds (get ("Hold"));
         t.env.decay    = flEnvSeconds (get ("Dec"));
         t.env.sustain  = get ("Sus");
@@ -464,6 +460,48 @@ bool ChanSamplerProcessor::reloadSample()
     return true;
 }
 
+void ChanSamplerProcessor::reloadIfFileChanged()
+{
+    const auto r = getRaw();
+    if (! r->file.existsAsFile())
+        return;
+    const std::pair<juce::int64, juce::int64> now { r->file.getLastModificationTime().toMilliseconds(), r->file.getSize() };
+    if (now == std::make_pair (r->fileTime, r->fileSize))
+    {
+        changedStamp = {};
+        return;
+    }
+    if (now != changedStamp)   // wait one more call: the editor may still be writing
+    {
+        changedStamp = now;
+        return;
+    }
+    if (now != failedStamp && ! reloadSample())
+        failedStamp = now;     // e.g. saved in a format we cannot read: try again on the next change
+}
+
+juce::MemoryBlock ChanSamplerProcessor::getSampleAsWav() const
+{
+    const auto r = getRaw();
+    juce::MemoryBlock block;
+    if (r->audio.getNumSamples() == 0)
+        return block;
+    const int bits = r->bitsPerSample <= 16 ? 16 : r->bitsPerSample <= 24 ? 24 : 32;   // 32 = float
+    juce::WavAudioFormat wav;
+    auto* stream = new juce::MemoryOutputStream (block, false);
+    JUCE_BEGIN_IGNORE_WARNINGS_MSVC (4996)
+    std::unique_ptr<juce::AudioFormatWriter> writer (wav.createWriterFor (stream, r->sampleRate, (unsigned) r->audio.getNumChannels(), bits, {}, 0));
+    JUCE_END_IGNORE_WARNINGS_MSVC
+    if (writer == nullptr)
+    {
+        delete stream;
+        return {};
+    }
+    writer->writeFromAudioSampleBuffer (r->audio, 0, r->audio.getNumSamples());
+    writer.reset();   // writes the header's final sizes
+    return block;
+}
+
 bool ChanSamplerProcessor::loadSample (const juce::File& file)
 {
     loadError = "Could not read " + file.getFileName() + ": not a supported audio file, or the file is damaged.";
@@ -498,6 +536,8 @@ bool ChanSamplerProcessor::loadSample (const juce::File& file)
 
     RawSample r;
     r.file = file;
+    r.fileTime = file.getLastModificationTime().toMilliseconds();
+    r.fileSize = file.getSize();
     r.sampleRate = rate;
     r.bitsPerSample = (int) reader->bitsPerSample;
     const int numChannels = juce::jlimit (1, 2, (int) reader->numChannels);

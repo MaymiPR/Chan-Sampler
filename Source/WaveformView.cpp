@@ -1,5 +1,6 @@
 #include "WaveformView.h"
 #include "FlStyle.h"
+#include "SampleExchange.h"
 #include <thread>
 
 namespace
@@ -88,6 +89,13 @@ WaveformView::Marker WaveformView::markerAt (juce::Point<float> p) const
 
 void WaveformView::timerCallback()
 {
+    // Twice a second: reload the sample when its file was saved from an audio editor.
+    if (--fileCheckCountdown <= 0)
+    {
+        fileCheckCountdown = 30;
+        processor.reloadIfFileChanged();
+    }
+
     const float now[4] = { getValue (pid::startOffset), getValue (pid::loopStart),
                            getValue (pid::loopEnd), getValue (pid::useLoop) + (sample != nullptr && sample->autoLoop ? 2.0f : 0.0f) };
     const auto ph = processor.getPlayhead();
@@ -608,6 +616,7 @@ void WaveformView::mouseDown (const juce::MouseEvent& e)
         return;
     }
     lastPressMs = juce::Time::getMillisecondCounterHiRes();
+    draggingOut = false;
     smoothZooming = false;
     smoothScroll = 0.0f;
     dragging = markerAt (e.position);
@@ -639,7 +648,23 @@ void WaveformView::mouseDown (const juce::MouseEvent& e)
 void WaveformView::mouseDrag (const juce::MouseEvent& e)
 {
     if (dragging == Marker::none)
+    {
+        // Dragging the waveform takes the sample's file out of the view.
+        const auto file = processor.getSampleFile();
+        if (previewNote >= 0 && ! draggingOut && e.getDistanceFromDragStart() > 6 && file.existsAsFile())
+        {
+            processor.requestPreview (previewNote, false);
+            previewNote = -1;
+            draggingOut = true;
+            juce::DragAndDropContainer::performExternalDragDropOfFiles ({ file.getFullPathName() }, false, this,
+                                                                         [safe = juce::Component::SafePointer<WaveformView> (this)]
+                                                                         {
+                                                                             if (safe != nullptr)
+                                                                                 safe->draggingOut = false;
+                                                                         });
+        }
         return;
+    }
 
     if (dragging == Marker::scrollThumb)
     {
@@ -685,8 +710,13 @@ void WaveformView::showMenu()
     const bool hasAudio = sample != nullptr && sample->getTotalFrames() > 0;
     juce::PopupMenu menu;
     menu.addItem ("Reload", hasFile, false, [this] { processor.reloadSample(); });
+    // Saving in the editor reloads the sample here by itself (reloadIfFileChanged).
+    menu.addItem ("Edit in audio editor", hasFile, false, [this] { exchange::openInEditor (processor.getSampleFile()); });
     menu.addItem ("Save as...", hasAudio, false, [this] { saveAs(); });
     menu.addItem ("Locate file", hasFile, false, [this] { processor.getSampleFile().revealToUser(); });
+    menu.addSeparator();
+    menu.addItem ("Copy", hasAudio, false, [this] { copySample(); });
+    menu.addItem ("Paste", exchange::clipboardHasAudio(), false, [this] { pasteSample(); });
     menu.addSeparator();
     menu.addItem ("Get properties", hasAudio, false, [this] { showProperties(); });
     menu.addSeparator();
@@ -713,6 +743,24 @@ void WaveformView::showMenu()
         });
     menu.addSubMenu ("Colorful waveforms", colours);
     fl::showContextMenu (menu, *this, true);
+}
+
+void WaveformView::copySample()
+{
+    auto* peer = getPeer();
+    exchange::copyToClipboard (processor.getSampleFile(), processor.getSampleAsWav(), peer != nullptr ? peer->getNativeHandle() : nullptr);
+}
+
+void WaveformView::pasteSample()
+{
+    // Pasted audio data (not a file) is kept as a WAV file, so projects can find it again.
+    const auto folder = juce::File::getSpecialLocation (juce::File::userDocumentsDirectory)
+                            .getChildFile ("Chan Sampler").getChildFile ("Pasted audio");
+    const auto file = exchange::pasteFromClipboard (folder);
+    if (file == juce::File())
+        fl::showDialog (*this, "Chan Sampler", "The clipboard holds no audio.", true);
+    else if (! processor.loadSample (file))
+        fl::showDialog (*this, "Chan Sampler", processor.getLoadError(), true);
 }
 
 void WaveformView::saveAs()

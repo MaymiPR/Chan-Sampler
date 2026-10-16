@@ -6,7 +6,9 @@
 
 // FL-style sample view: the precomputed waveform with a draggable Start flag,
 // Loop flags and region, a zoom/scroll bar, and mouse-wheel zoom.
-// Clicking the waveform previews the sample at the root key.
+// Clicking the waveform previews the sample at the root key; dragging it out
+// of the view drags the sample's file into another program (a DAW, an audio
+// editor, Explorer / Finder).
 class WaveformView : public juce::Component,
                      private juce::Timer
 {
@@ -30,6 +32,9 @@ public:
     // Shows frac0..frac1 of the sample (tests / snapshots).
     void setView (float frac0, float frac1) { viewStart = frac0; viewEnd = frac1; repaint(); }
     void showPropertiesForTesting() { showProperties(); }
+
+    // True while the sample is being dragged out (the editor ignores it as a drop).
+    bool isDraggingSampleOut() const noexcept { return draggingOut; }
 
 private:
     enum class Marker { none, start, loopStart, loopEnd, scrollThumb };
@@ -62,6 +67,8 @@ private:
     void setColourFill (juce::Graphics&, juce::Rectangle<float> area, float from, float to, juce::Colour plain, bool colourful) const;
     juce::Colour waveColour() const;
     void showMenu();
+    void copySample();
+    void pasteSample();
     void saveAs();
     void showProperties();
     void drawSpectrum (juce::Graphics&, juce::Rectangle<float> area);
@@ -73,6 +80,8 @@ private:
 
     ChanSamplerProcessor& processor;
     SampleData::Ptr sample;
+    bool draggingOut = false;
+    int fileCheckCountdown = 0;   // timer frames until the next check for an edited file
     float viewStart = 0.0f, viewEnd = 1.0f;
     // Trackpad zoom: scroll gathered before zooming starts, and timing guards
     float smoothScroll = 0.0f;

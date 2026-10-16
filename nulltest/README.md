@@ -34,10 +34,13 @@ Each file below defines `CASES`; FL's renders are cached in `renders_fl/`.
 | `untested_cases.py` | loops, echo Mod X / Y and fat mode, tracking, glide, polyphony, root note, FLAC / Ogg / MP3 |
 | `fst_cases.py` | FL Sampler preset (`.fst`) import |
 | `stretch_time_cases.py` | TIME with Resample |
+| `declick_cases.py` | the six declicking modes (start offset, sample end, cuts) with a constant, noise and a sine |
+| `tempo_env_cases.py` | the volume envelope at 65, 100 and 160 BPM (Tempo off and on), decay tension |
 
 Notes: cases with more than one note use a 26-beat gap between the halves (FL's
 tick is 11025 / 52 samples at 130 BPM, so only then do both sit on the same
-sub-sample positions); samples longer than the gap need the volume envelope,
+sub-sample positions; 26 beats also lines up at 65, 100, 120 and 160 BPM, set
+per case with `bpm`); samples longer than the gap need the volume envelope,
 or FL's half spills into ours.
 
 ## Offline tests (fast)
@@ -66,7 +69,7 @@ first. `.npy` / `.json` files are their saved measurements.
 |---|---|
 | Interpolation and sample-rate conversion | `kernel_extract.py`, `kernel_table.py`, `window_fit.py`, `interp_fit.py`, `src_extract.py`; `fl_kernel.npy`, `fl_window.npy`; signals `imp*.wav`, `impulse*.wav`, `impw*.wav` |
 | SMP START fade and trim tail | `head_measure.py`, `tail_measure.py`, `tail_short.py`, `trim_probe.py`; `head_matrix.npy`, `tail_matrix*.npy`, `jump_*.npy`; signals `noise_q*.wav` |
-| Envelopes, tempo switches | `tempo_probe.py`; `attack_times.json`, `env_time_table.json`; signals `step*.wav`, `stairs*.wav`, `dc*.wav` |
+| Envelopes, tempo switches | `tempo_probe.py`; `env_tick_probe.py` (FL's per-tick envelope: stage ticks, jump rate, at eight tempos), `env_time_probe.py` (the knob's real times from attacks at six tempos; `env_times.txt`); `attack_times.json`, `env_time_table.json` (the earlier 130 BPM table); signals `step*.wav`, `stairs*.wav`, `dc*.wav` |
 | LFOs | `lfo_probe.py`, `lfo_speed_probe.py`; `lfo_periods.json`, `lfo_speed.json`, `lfo_pulse_ramp.npy` |
 | Arpeggiator timing | `arp_probe.py`, `arp_time.py`, `arp_period.py`; `arp_ticks_dense.txt` |
 | Filters | `filt.py` (biquads), `lf.py` (one-pole), `cascade.py`, `analysis.py` (transfer functions); `res_r.npy`, `svf_map.json` |

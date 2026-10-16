@@ -166,8 +166,8 @@ extern std::atomic<double> displayBpm;
 // Inverse of flEnvSeconds: the knob position for a time in seconds.
 float flEnvKnobForSeconds (float seconds);
 
-// Envelope time knob (FL position, raw = 100 + pos * 65436) to seconds, from a
-// table measured in FL (linear below raw 5000, about 64 s at the maximum).
+// Envelope time knob (FL position, raw = 100 + pos * 65436) to seconds, from
+// times measured in FL (about 64 s at the maximum).
 float flEnvSeconds (float knob);
 
 // FL's LFO is tempo-synced (96 ticks per beat). Speed knob (raw = 200 + pos *
@@ -193,9 +193,6 @@ double flArpSteps (float knob);
 
 // FL's channel volume law: (11^x - 1) / 10 for x = 0..2 (1 = unity).
 float flVolumeGain (float x);
-
-// FL never ramps the attack faster than this (measured: 848 samples).
-inline constexpr float flMinAttackSeconds = 0.01923f;
 
 // Envelope tension (FL raw / 128, -1..1) to the curve exponent k of
 // (e^(kx) - 1) / (e^k - 1), interpolated from measurements.

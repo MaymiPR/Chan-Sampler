@@ -181,24 +181,30 @@ namespace
 
 float flEnvSeconds (float knob)
 {
-    // Attack times measured from FL renders at raw 2500, 5000, ..., 62500, 65536.
-    static const float ms[] = { 24.036f, 48.072f, 81.723f, 124.988f, 177.868f, 250.009f, 346.188f, 466.365f,
-                                624.989f, 831.738f, 1100.945f, 1451.91f, 1908.638f, 2504.798f, 3274.036f, 4278.807f,
-                                5591.254f, 7293.248f, 9509.471f, 12393.98f, 16149.056f, 21038.385f, 27398.73f,
-                                35683.054f, 46455.421f };
+    // FL's own times, measured at six tempos (nulltest/env_time_probe.py,
+    // env_times.txt): FL rounds every stage to whole ticks (dsp::Envelope), so
+    // a time read at one tempo is only known to a tick; the tempos together
+    // pin it down. Between the points the time follows log (t - c) linearly,
+    // c from the fit t = 0.0646133 e^(6.8996 p) - 0.0636541 (p = knob), which
+    // also gives the times below raw 1000.
+    static const float raws[] = { 1000, 1500, 2500, 5000, 7500, 10000, 12500, 15000, 17500, 20000, 22500, 25000, 27500, 30000,
+                                  32500, 35000, 37500, 40000, 42500, 45000, 47500, 50000, 52500, 55000, 57500, 60000, 62500, 65536 };
+    static const float ms[] = { 7.812f, 11.088f, 19.085f, 44.334f, 76.798f, 119.861f, 175.285f, 247.253f, 341.0f, 463.086f, 622.265f,
+                                828.828f, 1098.203f, 1448.203f, 1904.46f, 2498.024f, 3270.312f, 4276.015f, 5584.774f, 7288.515f,
+                                9504.701f, 12391.015f, 16148.047f, 21036.328f, 27396.947f, 35677.991f, 46458.69f, 63999.14f };
+    constexpr double c = -63.6541;   // ms
     // Measured: the knob's minimum (raw 100) is no time at all.
     if (knob <= 0.0f)
         return 0.0f;
     const auto raw = juce::jlimit (100.0f, 65536.0f, 100.0f + knob * 65436.0f);
-    if (raw <= 5000.0f)
-        return raw * 48.072f / 5000.0f * 0.001f;          // linear region
-    if (raw >= 62500.0f)                                   // last segment up to 64.0 s
-        return 0.001f * std::exp (std::log (46455.421f) + (std::log (64004.629f) - std::log (46455.421f)) * (raw - 62500.0f) / 3036.0f);
-
-    const auto pos = raw / 2500.0f - 1.0f;
-    const int i = juce::jlimit (0, 23, (int) pos);
-    const auto t = pos - (float) i;
-    return 0.001f * std::exp (std::log (ms[i]) + (std::log (ms[i + 1]) - std::log (ms[i])) * t);
+    if (raw < raws[0])
+        return (float) juce::jmax (0.0, 0.0646133 * std::exp (6.8996 * (double) knob) - 0.0636541);
+    int i = 0;
+    while (i < 26 && raw > raws[i + 1])
+        ++i;
+    const auto t = (raw - raws[i]) / (raws[i + 1] - raws[i]);
+    const auto l0 = std::log (ms[i] - c), l1 = std::log (ms[i + 1] - c);
+    return (float) (0.001 * (std::exp (l0 + (l1 - l0) * t) + c));
 }
 
 namespace
@@ -264,7 +270,7 @@ float flTensionToK (float tension)
     // Exponents fitted to FL renders at raw tension -128, -101 (FL's default
     // release tension), -96, -64, ..., 128.
     static const float t[] = { -128.0f, -101.0f, -96.0f, -64.0f, -32.0f, 0.0f, 32.0f, 64.0f, 96.0f, 128.0f };
-    static const float k[] = { 6.19f, 4.62f, 4.15f, 2.13f, 0.56f, 0.0f, -0.6f, -2.19f, -4.29f, -6.46f };
+    static const float k[] = { 6.19f, 4.62f, 4.15f, 2.13f, 0.56f, 0.0f, -0.58f, -2.18f, -4.29f, -6.45f };
     const auto raw = juce::jlimit (-128.0f, 128.0f, tension * 128.0f);
     int i = 0;
     while (i < 8 && raw > t[i + 1])

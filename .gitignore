@@ -9,6 +9,7 @@ nulltest/renders/
 nulltest/renders_fl/
 nulltest/ours/
 nulltest/probe/
+nulltest/dc70.wav
 __pycache__/
 *.pyc
 

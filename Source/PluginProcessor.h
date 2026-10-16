@@ -45,6 +45,11 @@ public:
     // Message thread API
     bool loadSample (const juce::File& file);
     bool reloadSample();   // the same file again from disk, settings kept
+    // Reloads the sample once its file has changed on disk (saved from an audio
+    // editor) and the change has settled; called regularly by the editor.
+    void reloadIfFileChanged();
+    // The file's audio (before precomputed effects) as a WAV file in memory.
+    juce::MemoryBlock getSampleAsWav() const;
     juce::String getLoadError() const { return loadError; }   // why the last loadSample failed
     void rebuildNow() { rebuildSample(); }
     float getPlayhead() const noexcept { return engine.getPlayhead(); }
@@ -121,6 +126,7 @@ private:
     // sample in use is skipped (a new sample restarts the playing voices).
     std::mutex rebuildMutex;
     juce::String loadError;
+    std::pair<juce::int64, juce::int64> changedStamp, failedStamp;   // reloadIfFileChanged: (time, size)
     std::shared_ptr<const RawSample> builtFrom;
     PrecomputeSettings builtWith;
     SamplerEngine engine;

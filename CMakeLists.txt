@@ -53,6 +53,7 @@ target_sources(ChanSampler PRIVATE
     Source/PluginEditor.cpp
     Source/FlStyle.cpp
     Source/FlParts.cpp
+    Source/SampleExchange.cpp
     Source/WaveformView.cpp)
 
 target_compile_definitions(ChanSampler PUBLIC
@@ -94,6 +95,7 @@ target_sources(ChanSamplerRender PRIVATE
     Source/PluginEditor.cpp
     Source/FlStyle.cpp
     Source/FlParts.cpp
+    Source/SampleExchange.cpp
     Source/WaveformView.cpp)
 target_compile_definitions(ChanSamplerRender PRIVATE
     JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0 JUCE_USE_MP3AUDIOFORMAT=1
@@ -121,6 +123,7 @@ target_sources(ChanSamplerSnapshot PRIVATE
     Source/PluginEditor.cpp
     Source/FlStyle.cpp
     Source/FlParts.cpp
+    Source/SampleExchange.cpp
     Source/WaveformView.cpp)
 target_compile_definitions(ChanSamplerSnapshot PRIVATE
     JUCE_MODAL_LOOPS_PERMITTED=1 JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0 JUCE_USE_MP3AUDIOFORMAT=1
@@ -149,3 +152,10 @@ target_link_libraries(ChanSamplerHostTest PRIVATE
     juce::juce_gui_basics
     juce::juce_recommended_config_flags
     juce::juce_recommended_warning_flags)
+
+# The macOS clipboard (Source/SampleExchange.cpp) is Objective-C++.
+if(APPLE)
+    foreach(target ChanSampler ChanSamplerRender ChanSamplerSnapshot)
+        target_sources(${target} PRIVATE Source/SampleExchangeMac.mm)
+    endforeach()
+endif()

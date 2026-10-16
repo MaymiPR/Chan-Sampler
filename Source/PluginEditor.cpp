@@ -731,6 +731,8 @@ void ChanSamplerEditor::loadFile (const juce::File& file)
 
 bool ChanSamplerEditor::isInterestedInFileDrag (const juce::StringArray& files)
 {
+    if (waveform.isDraggingSampleOut())   // our own sample on its way out
+        return false;
     for (auto& f : files)
         if (flpreset::isPresetFile (juce::File (f))
              || samplerProcessor.getFormatManager().findFormatForFileExtension (juce::File (f).getFileExtension()) != nullptr)

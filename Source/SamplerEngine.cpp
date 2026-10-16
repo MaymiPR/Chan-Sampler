@@ -851,8 +851,9 @@ void SamplerEngine::releaseVoice (Voice& v, const EngineParams& p)
 {
     ++eventSerial;
     v.released = true;
-    for (auto& e : v.env)
-        e.noteOff();
+    const EngineParams::Target* targets[] = { &p.panT, &p.volT, &p.xT, &p.yT, &p.pitchT };
+    for (int i = 0; i < 5; ++i)
+        v.env[i].noteOff (targets[i]->env, 1.0 / sampleRate);
     releaseModKnots (v, v.lfo[1].getTime() - v.ctlLeft / sampleRate, p);
     v.filterKnot = -1;
 
@@ -923,7 +924,7 @@ void SamplerEngine::releaseModKnots (Voice& v, double t, const EngineParams& p)
             k.env.advance (ep, (float) (t - k.envTime));
             k.envTime = t;
         }
-        k.env.noteOff();
+        k.env.noteOff (ep, 1.0 / sampleRate);
         auto ahead = k.env;
         k.next = ahead.advance (ep, (float) (k.nextKnot - k.envTime));
     }
@@ -1243,7 +1244,10 @@ void SamplerEngine::renderRange (juce::AudioBuffer<float>& out, int start, int n
                 auto g = v.gain;
                 if (p.volT.envOn)
                 {
-                    g *= v.env[1].advance (p.volT.env, (float) (1.0 / sampleRate));
+                    g *= v.env[1].current (p.volT.env);
+                    v.env[1].advance (p.volT.env, (float) (1.0 / sampleRate));
+                    if (v.env[1].hasEnded() && ! v.killing)
+                        startKill (v, p);   // measured: FL fades the voice out from the release's silent tick
                     v.envStarted = true;
                 }
                 if (p.volT.lfo.amount != 0.0f)

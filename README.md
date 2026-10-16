@@ -54,8 +54,8 @@ renders sample-identically to FL (see
   delay / fat mode, root note and fine tune.
 - **Sample view in FL's style:** zoom and scroll, Start / loop markers, file
   markers, spectrum view, multichannel view and colourful waveforms
-  (Multiband or Color map). Right-click for Reload, Save as, Locate file and
-  Get properties.
+  (Multiband or Color map). Right-click for Reload, Edit in audio editor,
+  Save as, Locate file, Copy / Paste and Get properties.
 - **Preset menu**, a resizable window (sharp on Retina / high-DPI screens), and
   every knob's right-click menu in FL's units (Reset, Copy value, Paste value,
   Type in value).
@@ -72,8 +72,7 @@ The sample view's colours, grid, spectrum and colourful waveforms were measured
 from FL's screen.
 
 Not identical: the time-stretch modes (FL's engine is proprietary, so they
-match in behaviour, not sample for sample), envelope timing at tempos other
-than 130 BPM, and a few edge cases.
+match in behaviour, not sample for sample) and a few edge cases.
 [docs/EVIDENCE.md](docs/EVIDENCE.md) lists every measurement and every known
 gap.
 
@@ -99,7 +98,9 @@ copying by hand (see their `INSTALL.txt`).
 - Drop an audio file or an `.fst` preset on the window, or click the folder
   button. Click the waveform to hear the sample at its root note.
 - In the sample view: drag the Start flag and the loop markers, scroll to zoom,
-  right-click for the view options.
+  right-click for the view options. Drag the waveform out of the view to take
+  the sample into your DAW, an audio editor or a folder; after *Edit in audio
+  editor*, saving there reloads the sample here (settings kept).
 - Presets: the bar at the top saves and loads `.cspreset` files in
   `Documents/Chan Sampler/Presets` (folders become submenus); the arrows step
   through them. **Factory** presets are built in and hold settings only, so
