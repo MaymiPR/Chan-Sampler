@@ -34,9 +34,8 @@ New:
   system clipboard (the file and its audio); a sample file changed on disk (say,
   saved from the audio editor it was dragged into) reloads with the settings
   kept.
-- Sample view right-click menu in FL's order and words: Reload, Save as, Locate
-  file, Copy audio to clipboard, Paste audio from clipboard, Detect tempo, Get
-  properties, Spectrum view,
+- Sample view right-click menu in FL's order: Reload, Save as, Locate file,
+  Copy, Paste, Detect tempo, Get properties, Spectrum view,
   Multichannel waveform view, Colorful waveforms (Multiband / Color map).
 - Detect tempo: FL's Tempo detection dialog (estimate, ranges, type in BPM or
   beats, project tempo, no tempo); TIME > Autodetect... sets TIME to the

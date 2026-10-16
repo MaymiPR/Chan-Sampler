@@ -716,8 +716,8 @@ void WaveformView::showMenu()
     menu.addItem ("Reload", hasFile, false, [this] { processor.reloadSample(); });
     menu.addItem ("Save as...", hasAudio, false, [this] { saveAs(); });
     menu.addItem ("Locate file", hasFile, false, [this] { processor.getSampleFile().revealToUser(); });
-    menu.addItem ("Copy audio to clipboard", hasAudio, false, [this] { copySample(); });
-    menu.addItem ("Paste audio from clipboard", exchange::clipboardHasAudio(), false, [this] { pasteSample(); });
+    menu.addItem ("Copy", hasAudio, false, [this] { copySample(); });
+    menu.addItem ("Paste", exchange::clipboardHasAudio(), false, [this] { pasteSample(); });
     menu.addSeparator();
     menu.addItem ("Detect tempo", hasAudio, false, [this] { detectTempo ({}); });
     menu.addItem ("Get properties", hasAudio, false, [this] { showProperties(); });

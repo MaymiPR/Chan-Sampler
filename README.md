@@ -55,7 +55,7 @@ renders sample-identically to FL (see
 - **Sample view in FL's style:** zoom and scroll, Start / loop markers, file
   markers, spectrum view, multichannel view and colourful waveforms
   (Multiband or Color map). Right-click for Reload, Save as, Locate file,
-  Copy / Paste audio, Detect tempo and Get properties.
+  Copy, Paste, Detect tempo and Get properties.
 - **Preset menu**, a resizable window (sharp on Retina / high-DPI screens), and
   every knob's right-click menu in FL's units (Reset, Copy value, Paste value,
   Type in value).
