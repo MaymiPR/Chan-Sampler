@@ -36,6 +36,8 @@ Look (measured from FL 2026's screen):
   something.
 
 Fixes:
+- Loading a sample with loop points sets the loop markers but no longer
+  switches Use loop points on (FL leaves the switch as it was).
 - Trackpad zoom in the sample view no longer triggers by accident when clicking
   (macOS).
 - macOS font widths match the Windows layout.

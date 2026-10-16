@@ -191,6 +191,20 @@ static int stateTest (const juce::File& sampleFile)
 
 int main (int argc, char** argv)
 {
+    // "loadcheck <sample>": Use loop points off, load, print the loop state
+    // (a file's loop points set the markers but must not switch looping on).
+    if (argc >= 3 && juce::String (argv[1]) == "loadcheck")
+    {
+        juce::ScopedJuceInitialiser_GUI init;
+        ChanSamplerProcessor p;
+        auto* use = p.apvts.getParameter (pid::useLoop);
+        use->setValueNotifyingHost (0.0f);
+        if (! p.loadSample (juce::File (juce::String (argv[2]))))
+            return 1;
+        std::cout << "useLoop " << use->getCurrentValueAsText() << ", loopStart " << p.apvts.getParameter (pid::loopStart)->getCurrentValueAsText()
+                  << ", loopEnd " << p.apvts.getParameter (pid::loopEnd)->getCurrentValueAsText() << "\n";
+        return use->getValue() < 0.5f ? 0 : 2;
+    }
     if (argc >= 3 && juce::String (argv[1]) == "compatstate")
     {
         juce::ScopedJuceInitialiser_GUI init;

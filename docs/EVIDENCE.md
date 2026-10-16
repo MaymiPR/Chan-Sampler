@@ -141,7 +141,7 @@ Envelopes / LFOs are updated in 32-sample control blocks that start at each note
 
 ## Playback markers and loop knobs (FL GUI, measured)
 
-FL defaults: Use loop points on, loop START = END = 0 (0 = no loop); the sample view shows no markers. The Start marker appears once the start offset is above 0; the loop once END is above 0 (START = END is drawn as one line). START moves alone while below END and pushes END to START + 1 sample when it reaches it; END moves alone but stops at START. FL draws the loop red even with Use loop points off (Chan Sampler draws an unused loop grey, by request). Loading a new sample resets start offset and loop points to 0 unless the file has an embedded loop.
+FL defaults: Use loop points on, loop START = END = 0 (0 = no loop); the sample view shows no markers. The Start marker appears once the start offset is above 0; the loop once END is above 0 (START = END is drawn as one line). START moves alone while below END and pushes END to START + 1 sample when it reaches it; END moves alone but stops at START. FL draws the loop red even with Use loop points off (Chan Sampler draws an unused loop grey, by request). Loading a new sample resets start offset and loop points to 0 unless the file has an embedded loop, which sets the loop markers; Use loop points is not touched (FL leaves it as it was).
 
 ## Group (Cut / By) between instances
 

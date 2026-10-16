@@ -537,12 +537,13 @@ bool ChanSamplerProcessor::loadSample (const juce::File& file)
         auto* p = apvts.getParameter (id);
         p->setValueNotifyingHost (p->convertTo0to1 (value));
     };
+    // A file's own loop points become the loop markers; Use loop points is
+    // left as the user set it (FL does not switch it on).
     if (loaded->embeddedLoopStart >= 0 && loaded->embeddedLoopEnd > loaded->embeddedLoopStart)
     {
         set (pid::startOffset, 0.0f);
         set (pid::loopStart, (float) loaded->embeddedLoopStart / (float) length);
         set (pid::loopEnd,   (float) loaded->embeddedLoopEnd / (float) length);   // END is inclusive, as in the file
-        set (pid::useLoop,   1.0f);
     }
     else
     {
