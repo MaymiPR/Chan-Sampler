@@ -789,6 +789,15 @@ void ParamKnob::mouseDown (const juce::MouseEvent& e)
     dragPos = valueToProportionOfLength (getValue());
     lastMouse = e.position;
     holding = -1;
+    // As FL: the cursor hides while dragging and the drag goes on past the
+    // screen's edges; it comes back at the control.
+    e.source.enableUnboundedMouseMovement (true);
+}
+
+void ParamKnob::mouseUp (const juce::MouseEvent& e)
+{
+    e.source.enableUnboundedMouseMovement (false);
+    juce::Slider::mouseUp (e);
 }
 
 void ParamKnob::mouseDrag (const juce::MouseEvent& e)

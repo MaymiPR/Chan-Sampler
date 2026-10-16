@@ -279,15 +279,24 @@ void ChanSamplerEditor::buildSampleSheet()
     // Time stretching (FL's StretchPanel layout)
     auto& stretch = panel (sheet, "Time stretching", 283, 7, 268, 76);
     {
-        // FL switches Resample to Auto as soon as PITCH is turned (resampling
-        // cannot shift pitch on its own).
-        auto& pk = knob (stretch, pid::pitch, 8, 26, 32);
+        // FL switches Resample to Auto when PITCH is let go away from 0
+        // (resampling cannot shift pitch on its own); the menu stays as it is
+        // while dragging (measured in FL 2026).
+        auto& pk = static_cast<ParamKnob&> (knob (stretch, pid::pitch, 8, 26, 32));
         auto* modeParam = samplerProcessor.apvts.getParameter (pid::stretchMode);
-        pk.onDragStart = [modeParam]
+        auto* pitchParam = samplerProcessor.apvts.getParameter (pid::pitch);
+        auto toAuto = [modeParam, pitchParam]
         {
-            if (juce::roundToInt (modeParam->convertFrom0to1 (modeParam->getValue())) == (int) StretchMode::resample)
+            if (juce::roundToInt (modeParam->convertFrom0to1 (modeParam->getValue())) == (int) StretchMode::resample
+                && std::abs (pitchParam->convertFrom0to1 (pitchParam->getValue())) > 0.5f)
+            {
+                modeParam->beginChangeGesture();
                 modeParam->setValueNotifyingHost (modeParam->convertTo0to1 ((float) StretchMode::autoMode));
+                modeParam->endChangeGesture();
+            }
         };
+        pk.onDragEnd = toAuto;
+        pk.onUserChange = [&pk, toAuto] { if (! pk.isMouseButtonDown()) toAuto(); };   // the wheel and the menu
     }
     caption (stretch, "PITCH", 10, 61, 28, 7);
     knob (stretch, pid::stretchMul, 52, 26, 32);   caption (stretch, "MUL", 54, 61, 28, 7);
@@ -340,21 +349,19 @@ void ChanSamplerEditor::buildSampleSheet()
         comboAttachments.push_back (std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (samplerProcessor.apvts, pid::stretchMode, mode));
     }
     {
-        // Under the menu FL names the method Auto picked.
+        // Under the menu FL names the method Auto uses: always "e3 generic"
+        // (it stays so with PITCH back at 0, measured in FL 2026).
         auto& autoText = text (stretch, {}, 205, 49, 60, 14, 10.0f);
         autoText.setColour (juce::Label::textColourId, fl::colour::dim);
         auto& apvts = samplerProcessor.apvts;
-        auto update = [&autoText, &apvts]
+        auto* choice = dynamic_cast<juce::AudioParameterChoice*> (apvts.getParameter (pid::stretchMode));
+        auto update = [&autoText, choice] (float mode)   // the new value (the stored one can lag behind)
         {
-            auto get = [&apvts] (const char* id) { return apvts.getRawParameterValue (id)->load(); };
-            const auto m = (StretchMode) juce::roundToInt (get (pid::stretchMode));
-            const auto r = resolveStretchMode (m, get (pid::pitch), get (pid::stretchMul), get (pid::stretchTime));
-            auto* choice = dynamic_cast<juce::AudioParameterChoice*> (apvts.getParameter (pid::stretchMode));
-            autoText.setText (m == StretchMode::autoMode ? choice->choices[(int) r] : juce::String(), juce::dontSendNotification);
+            autoText.setText (juce::roundToInt (mode) == (int) StretchMode::autoMode ? choice->choices[(int) StretchMode::e3Generic] : juce::String(),
+                              juce::dontSendNotification);
         };
-        for (auto* id : { pid::stretchMode, pid::pitch, pid::stretchMul, pid::stretchTime })
-            paramAttachments.push_back (std::make_unique<juce::ParameterAttachment> (*apvts.getParameter (id), [update] (float) { update(); }));
-        update();
+        paramAttachments.push_back (std::make_unique<juce::ParameterAttachment> (*choice, update));
+        update (apvts.getRawParameterValue (pid::stretchMode)->load());
     }
     {
         // FORMANT slider: FL shows it under the menu in Stretch Pro mode only.
