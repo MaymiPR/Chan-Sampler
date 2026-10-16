@@ -703,6 +703,7 @@ void SamplerEngine::noteOn (int note, float velocity, NoteMods mods, const Sampl
     const auto loop = loopFrames (s, p);
 
     v = Voice();
+    v.filter.startCompensation ((int) std::lround (sampleRate * 60.0 / (juce::jmax (1.0, p.bpm) * 96.0)));   // LPx2 (measured)
     v.active = true;
     v.note = note;
     v.velocity = velocity;

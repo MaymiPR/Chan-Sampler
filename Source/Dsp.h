@@ -284,10 +284,14 @@ namespace dsp
     double flResonance (double res);
     double flBiquadF0 (double u, double sampleRate);
     double flBiquadQ (double res);
+    double flLpx2Gain (double u, double res);   // LPx2's level compensation (measured)
 
     class VoiceFilter
     {
     public:
+        // A note starts at unity and reaches the LPx2 compensation after a tick.
+        void startCompensation (int tickSamples) { compNow = 1.0; compLeft = juce::jmax (1, tickSamples); }
+
         void reset()
         {
             for (auto& s : st) s = {};
@@ -310,11 +314,13 @@ namespace dsp
                 case FilterType::svfLPx2:
                     f = (std::pow (26.0, u) - 1.0) / 25.0;
                     q = 1.0 - 0.8 * res;
+                    q2 = 1.0 - 0.6 * res;   // SVF LPx2's second stage (measured: q1 1 - 0.8 res, q2 1 - 0.6 res)
                     break;
                 default:
                 {
                     const auto w = juce::jmin (3.0, juce::MathConstants<double>::twoPi * flBiquadF0 (u, sampleRate) / sampleRate);   // FL caps at 3.0 rad (measured)
-                    const auto Q = type == FilterType::lpx2 ? juce::jmax (0.5, flBiquadQ (res)) : flBiquadQ (res);
+                    const auto Q = flBiquadQ (res);
+                    comp = type == FilterType::lpx2 ? flLpx2Gain (u, res) : 1.0;
                     const auto alpha = std::sin (w) / (2.0 * Q), c = std::cos (w), a0 = 1.0 + alpha;
                     a1 = -2.0 * c / a0;
                     a2 = (1.0 - alpha) / a0;
@@ -339,7 +345,7 @@ namespace dsp
             if (type != FilterType::fastLP)
                 w = 1.0;   // biquads and SVFs: the end-of-tick coefficients for the whole tick (measured)
             auto mix = [w] (double x, double y) { return x + (y - x) * w; };
-            f = mix (a.f, b.f);   r = b.r;   q = mix (a.q, b.q);
+            f = mix (a.f, b.f);   r = b.r;   q = mix (a.q, b.q);   q2 = mix (a.q2, b.q2);   comp = b.comp;
             b0 = mix (a.b0, b.b0); b1 = mix (a.b1, b.b1); b2 = mix (a.b2, b.b2);
             a1 = mix (a.a1, b.a1); a2 = mix (a.a2, b.a2);
         }
@@ -356,9 +362,18 @@ namespace dsp
                     s.a = y;
                     return (float) y;
                 }
-                case FilterType::svfLP:   return (float) svf (st[ch], x);
-                case FilterType::svfLPx2: return (float) svf (st[ch + 2], svf (st[ch], x));
-                case FilterType::lpx2:    return (float) biquad (st[ch + 2], biquad (st[ch], x));
+                case FilterType::svfLP:   return (float) svf (st[ch], x, q);
+                case FilterType::svfLPx2: return (float) svf (st[ch + 2], svf (st[ch], x, q), q2);
+                case FilterType::lpx2:
+                {
+                    const auto y = biquad (st[ch + 2], biquad (st[ch], x)) * compNow;
+                    if (ch == 1)   // once per sample: glide to the compensation over the first tick
+                    {
+                        if (compLeft > 0) { compNow += (comp - compNow) / compLeft; --compLeft; }
+                        else              compNow = comp;
+                    }
+                    return (float) y;
+                }
                 default:                  return (float) biquad (st[ch], x);
             }
         }
@@ -366,10 +381,10 @@ namespace dsp
     private:
         struct State { double a = 0, b = 0, c = 0, d = 0; };
 
-        double svf (State& s, double x) const
+        double svf (State& s, double x, double damping) const
         {
             s.a += f * s.b;                       // low
-            const auto hp = x - s.a - q * s.b;
+            const auto hp = x - s.a - damping * s.b;
             s.b += f * hp;                        // band
             return s.a;
         }
@@ -383,7 +398,9 @@ namespace dsp
         }
 
         FilterType type = FilterType::fastLP;
-        double f = 1, r = 0, q = 1, b0 = 1, b1 = 0, b2 = 0, a1 = 0, a2 = 0;
+        double comp = 1, compNow = 1;   // LPx2 level compensation: target, current
+        int compLeft = 0;                // samples left in the first-tick glide
+        double f = 1, r = 0, q = 1, q2 = 1, b0 = 1, b1 = 0, b2 = 0, a1 = 0, a2 = 0;
         State st[4];   // [0..1] first stage L/R, [2..3] second stage L/R
     };
 }

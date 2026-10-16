@@ -139,7 +139,7 @@ FL's channel Group is a host feature; Chan Sampler rebuilds it across its own in
 ## Known gaps (diff / approximate)
 
 - **Crossfade declick mode, and Transient (no bleeding) fade-out:** curve shapes not matched (−23 to −38 dB).
-- **LPx2, and SVF LPx2 with resonance:** the 4th-order structure is not identified (possibly 2× oversampling). Approximated with two stages.
+- **LPx2 at maximum resonance** on very short sounds: −32 dB (the first-tick glide of its level compensation). Otherwise LPx2 −44…−63 dB and SVF LPx2 bit-exact (nulltest/filter_x2_cases.py): SVF LPx2 = two Chamberlin stages with q1 = 1 − 0.8 res, q2 = 1 − 0.6 res; LPx2 = two identical LP biquads (no Q floor) times a measured level compensation (resonance × cutoff table) that starts at unity and glides to its value over the note's first tick.
 - **Positive decay tension** and the attack/note-off timing quirk (FL processes some envelope events once per tick, 212 samples at 130 BPM): −24 to −38 dB in those cases.
 - **LFO:** see the LFO row above (in-FL nulls, nulltest/lfo_cases.py). Mod X / Y modulation now nulls (see Filter modulation). FL's pan envelope had no audible effect in CLI renders (amount ±128, sustain 128), so it is left as implemented. Arp TIME "Hold" is approximated as one bar.
 - **Time stretching (superseded):** see the Stretch modes row. Earlier note: our own: tape-style Resample, plus a granular stretcher (Hann grains, 50% overlap) for Stretch / Pro / e3 / e2 / Auto, and transient resets for the slice modes. FL's Elastique is proprietary, so these won't null; engine tests verify duration and pitch behaviour.

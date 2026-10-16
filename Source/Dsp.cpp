@@ -71,6 +71,37 @@ double flBiquadF0 (double u, double)
     return interpolateLog (mx, hz, u * 256.0);
 }
 
+double flLpx2Gain (double u, double res)
+{
+    // LPx2 = two identical LP biquads (each with the LP's Q), then a level
+    // compensation that grows with resonance and shrinks with cutoff (measured
+    // on noise against FL at Mod X 32..256 x Mod Y 0..256: -39...-78 dB after
+    // the first tick; FL glides to it from unity over the note's first tick).
+    static const double mx[] = { 32, 64, 96, 128, 160, 192, 224, 256 };
+    static const double my[] = { 0, 64, 96, 128, 160, 192, 224, 256 };
+    static const double g[8][8] = {
+        { 0.9849, 0.9352, 0.8966, 0.8418, 0.7703, 0.6722, 0.5386, 0.3561 },
+        { 0.9854, 0.9365, 0.8988, 0.8451, 0.7750, 0.6789, 0.5480, 0.3690 },
+        { 0.9862, 0.9389, 0.9024, 0.8504, 0.7826, 0.6896, 0.5629, 0.3898 },
+        { 0.9870, 0.9423, 0.9078, 0.8587, 0.7947, 0.7068, 0.5872, 0.4237 },
+        { 0.9881, 0.9477, 0.9166, 0.8721, 0.8143, 0.7350, 0.6269, 0.4790 },
+        { 0.9903, 0.9570, 0.9313, 0.8943, 0.8467, 0.7812, 0.6920, 0.5695 },
+        { 0.9936, 0.9717, 0.9550, 0.9305, 0.8994, 0.8565, 0.7981, 0.7174 },
+        { 0.9992, 0.9960, 0.9936, 0.9900, 0.9855, 0.9794, 0.9714, 0.9591 } };
+    auto locate = [] (const double* xs, int n, double x, int& i, double& f)
+    {
+        x = juce::jlimit (xs[0], xs[n - 1], x);
+        i = 0;
+        while (i < n - 2 && x > xs[i + 1]) ++i;
+        f = (x - xs[i]) / (xs[i + 1] - xs[i]);
+    };
+    int i, j; double fx, fy;
+    locate (mx, 8, u * 256.0, i, fx);
+    locate (my, 8, res * 256.0, j, fy);
+    const auto a = g[i][j] + (g[i][j + 1] - g[i][j]) * fy, b = g[i + 1][j] + (g[i + 1][j + 1] - g[i + 1][j]) * fy;
+    return a + (b - a) * fx;
+}
+
 double flBiquadQ (double res)
 {
     // Q at Mod Y raw 0, 8, ..., 224 (traced with a Mod Y LFO, l_mody_t1), 256 (static).
