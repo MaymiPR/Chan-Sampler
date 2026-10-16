@@ -18,3 +18,6 @@ old-stray-install/
 # OS files
 .DS_Store
 Thumbs.db
+
+# FL demo samples copied in by nulltest/untested_cases.py
+nulltest/fmt_test.*

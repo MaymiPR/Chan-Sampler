@@ -155,6 +155,32 @@ int main (int argc, char** argv)
         return cutTest (juce::File (juce::String (argv[2])));
     }
 
+    // "decode": writes what every registered format that reads the file
+    // decodes (out-prefix + format name + .wav), to compare decoders.
+    if (argc >= 4 && juce::String (argv[1]) == "decode")
+    {
+        juce::ScopedJuceInitialiser_GUI init;
+        juce::AudioFormatManager fm;
+        fm.registerBasicFormats();
+        const juce::File in { juce::String (argv[2]) };
+        for (int i = 0; i < fm.getNumKnownFormats(); ++i)
+        {
+            auto* fmt = fm.getKnownFormat (i);
+            std::unique_ptr<juce::AudioFormatReader> r (fmt->createReaderFor (in.createInputStream().release(), true));
+            if (r == nullptr)
+                continue;
+            juce::AudioBuffer<float> buf ((int) r->numChannels, (int) r->lengthInSamples);
+            r->read (&buf, 0, (int) r->lengthInSamples, 0, true, true);
+            const juce::File out { juce::String (argv[3]) + fmt->getFormatName().removeCharacters (" ") + ".wav" };
+            out.deleteFile();
+            juce::WavAudioFormat wav;
+            std::unique_ptr<juce::AudioFormatWriter> w (wav.createWriterFor (new juce::FileOutputStream (out), r->sampleRate, (unsigned) buf.getNumChannels(), 32, {}, 0));
+            w->writeFromAudioSampleBuffer (buf, 0, buf.getNumSamples());
+            std::cout << fmt->getFormatName() << ": " << r->lengthInSamples << " frames at " << r->sampleRate << "\n";
+        }
+        return 0;
+    }
+
     if (argc < 6)
     {
         std::cerr << "usage: ChanSamplerRender sample.wav out.wav seconds params.txt notes\n";
