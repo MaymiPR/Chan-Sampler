@@ -10,6 +10,8 @@ loading.
 Sound (all null-tested against FL Studio 2026):
 - Filter modulation (envelopes, LFOs, Mod X / Y) matches FL, including LPx2 and
   SVF LPx2.
+- All six declicking modes match FL, including Crossfade's fades and
+  Transient (no bleeding)'s fade-out (a sweeping high-pass, not a volume fade).
 - Loops, echo Mod X / Y and fat mode, velocity / key tracking, mono / porta
   glide match FL. Max polyphony is ignored, as in FL's renders.
 - FLAC, Ogg and MP3 samples match FL's decoding.

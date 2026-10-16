@@ -144,8 +144,8 @@ SamplerEngine::DeclickSpec SamplerEngine::declickSpec (DeclickMode m)
     // Measured in FL (cosine S-curves): the in-fade applies only when a note
     // starts after the sample's first frame (start offset); the out-fade
     // applies at the sample end (holding the last value) and when a note is
-    // cut. Transient (no bleeding)'s out-fade and both Crossfade fades use
-    // other curve shapes in FL; these use cosines of the measured length.
+    // cut. Transient (no bleeding)'s out-fade and both Crossfade fades have
+    // their own measured shapes (DeclickCurves.h); their times here are unused.
     switch (m)
     {
         case DeclickMode::outOnly:        return { 0,   false, 10,  false };
@@ -744,9 +744,11 @@ void SamplerEngine::noteOn (int note, float velocity, NoteMods mods, const Sampl
     // Transient modes keep the attack and only remove the step: they subtract
     // the first value with a fading weight (measured, 175 samples at 44.1 kHz).
     v.fadeInLinear = spec.transientIn;
+    v.fadeInCrossfade = p.declick == DeclickMode::crossfade;
     v.fadeInLen = v.pos <= 0.0 ? 0
                 : spec.transientIn ? (int) std::round (175.0 * sampleRate / 44100.0)
-                                   : (int) std::round (spec.inMs * 0.001 * sampleRate);
+                : v.fadeInCrossfade ? (int) std::round (declick::crossfadeInLength * sampleRate / 44100.0)
+                                    : (int) std::round (spec.inMs * 0.001 * sampleRate);
     if (mods.echo == 0)
         lastNote = (float) note;
 }
@@ -866,7 +868,13 @@ void SamplerEngine::startKill (Voice& v, const EngineParams& p)
         return;
     v.killing = true;
     v.killPos = 0;
-    v.killLen = (int) std::round (declickSpec (p.declick).outMs * 0.001 * sampleRate);
+    v.killLowL = v.killLowR = 0;
+    v.killShape = p.declick == DeclickMode::transient ? KillShape::transient
+                : p.declick == DeclickMode::crossfade ? KillShape::crossfade
+                                                      : KillShape::cosine;
+    v.killLen = v.killShape == KillShape::transient ? (int) std::round (declick::transientOutLength * sampleRate / 44100.0)
+              : v.killShape == KillShape::crossfade ? (int) std::round (declick::crossfadeOutLength * sampleRate / 44100.0)
+                                                    : (int) std::round (declickSpec (p.declick).outMs * 0.001 * sampleRate);
     if (v.killLen <= 0)
         v.active = false;
 }
@@ -1254,15 +1262,31 @@ void SamplerEngine::renderRange (juce::AudioBuffer<float>& out, int start, int n
                         l -= v.stepL * w;
                         r -= v.stepR * w;
                     }
+                    else if (v.fadeInCrossfade)
+                    {
+                        g *= declick::crossfadeIn ((double) v.fadeInPos++ / (double) v.fadeInLen);
+                    }
                     else
                     {
                         g *= dsp::sCurve ((float) v.fadeInPos++ / (float) v.fadeInLen);
                     }
                 }
 
+                float killHp = 0;   // Transient (no bleeding): the sweeping high-pass's coefficient
                 if (v.killing)
                 {
-                    g *= dsp::sCurve (1.0f - (float) v.killPos / (float) v.killLen);
+                    switch (v.killShape)
+                    {
+                        case KillShape::transient:
+                        {
+                            const auto x = v.killPos * 44100.0 / sampleRate;
+                            killHp = declick::transientCoefficient (x - 44100.0 / sampleRate, x);
+                            g *= declick::transientGain (x);
+                            break;
+                        }
+                        case KillShape::crossfade: g *= declick::crossfadeOut ((double) v.killPos / (double) v.killLen); break;
+                        case KillShape::cosine:    g *= dsp::sCurve (1.0f - (float) v.killPos / (float) v.killLen); break;
+                    }
                     if (++v.killPos >= v.killLen)
                         v.active = false;
                 }
@@ -1274,6 +1298,14 @@ void SamplerEngine::renderRange (juce::AudioBuffer<float>& out, int start, int n
                                        v.songLfoStart + (double) (base + i) / sampleRate, p);
                     l = v.filter.process (l, 0);
                     r = v.filter.process (r, 1);
+                }
+
+                if (killHp > 0)
+                {
+                    v.killLowL += killHp * (l - v.killLowL);
+                    v.killLowR += killHp * (r - v.killLowR);
+                    l -= v.killLowL;
+                    r -= v.killLowR;
                 }
 
                 const int o = start + done + i;

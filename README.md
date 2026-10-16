@@ -72,8 +72,8 @@ The sample view's colours, grid, spectrum and colourful waveforms were measured
 from FL's screen.
 
 Not identical: the time-stretch modes (FL's engine is proprietary, so they
-match in behaviour, not sample for sample), two declicking curve shapes,
-envelope timing at tempos other than 130 BPM, and a few edge cases.
+match in behaviour, not sample for sample), envelope timing at tempos other
+than 130 BPM, and a few edge cases.
 [docs/EVIDENCE.md](docs/EVIDENCE.md) lists every measurement and every known
 gap.
 

@@ -7,6 +7,7 @@
 #include <juce_audio_basics/juce_audio_basics.h>
 #include <array>
 
+#include "DeclickCurves.h"
 #include "Dsp.h"
 #include "SampleData.h"
 
@@ -108,6 +109,8 @@ public:
     void updatePlayhead (const SampleData* sample) noexcept;
 
 private:
+    enum class KillShape { cosine, transient, crossfade };   // out-fade curve
+
     struct Voice
     {
         bool active = false, released = false, killing = false, inLoop = false;
@@ -136,8 +139,11 @@ private:
 
         int fadeInPos = 0, fadeInLen = 0;
         bool fadeInLinear = false;     // true: transient step removal instead of a gain fade
+        bool fadeInCrossfade = false;  // true: the Crossfade mode's measured in-fade
         float stepL = 0, stepR = 0;
         int killPos = 0, killLen = 0;
+        KillShape killShape = KillShape::cosine;
+        float killLowL = 0, killLowR = 0;   // the transient out-fade's low-pass state
 
         float gain = 0, gainTarget = 0, panValue = 0;
         double volLfoStart = 0;   // note time at the start of the control block (per-sample LFOs)
