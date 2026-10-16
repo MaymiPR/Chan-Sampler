@@ -75,6 +75,8 @@ public:
     // Presets whose value is computed when the menu opens (a negative value
     // greys the entry out), e.g. TIME's "Project tempo".
     std::map<juce::String, std::function<float()>> computedPresets;
+    // Presets that run an action instead of setting a value (TIME's Autodetect...).
+    std::map<juce::String, std::function<void()>> actions;
 
     void show();
 

@@ -11,6 +11,7 @@
 
 #include "../Source/PluginProcessor.h"
 #include "../Source/SampleExchange.h"
+#include "../Source/TempoDetect.h"
 #include "../Source/FlPreset.h"
 #include "../Source/Params.h"
 #include "../Source/FactoryPresets.h"
@@ -206,6 +207,21 @@ int main (int argc, char** argv)
         std::cout << "useLoop " << use->getCurrentValueAsText() << ", loopStart " << p.apvts.getParameter (pid::loopStart)->getCurrentValueAsText()
                   << ", loopEnd " << p.apvts.getParameter (pid::loopEnd)->getCurrentValueAsText() << "\n";
         return use->getValue() < 0.5f ? 0 : 2;
+    }
+    if (argc >= 3 && juce::String (argv[1]) == "tempotest")
+    {
+        // Detect tempo on a file: the estimate and each of FL's ranges.
+        juce::ScopedJuceInitialiser_GUI init;
+        ChanSamplerProcessor p;
+        if (! p.loadSample (juce::File (juce::String (argv[2]))))
+            return 1;
+        const auto raw = p.getRaw();
+        const double ranges[][2] = { { 75, 150 }, { 50, 100 }, { 100, 200 }, { 150, 300 } };
+        std::cout << "file " << tempo::format (raw->fileTempo) << " | ";
+        for (auto& r : ranges)
+            std::cout << r[0] << "-" << r[1] << ": " << tempo::format (tempo::detect (raw->audio, raw->sampleRate, r[0], r[1])) << "  ";
+        std::cout << "\n";
+        return 0;
     }
     if (argc >= 5 && juce::String (argv[1]) == "reloadtest")
     {

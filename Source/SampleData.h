@@ -76,6 +76,7 @@ struct RawSample
     int heldBits = 32;                // what FL holds it at: 16 for 16-bit PCM, else 32 (float)
     juce::File file;
     juce::int64 fileTime = 0, fileSize = 0;   // the file's modification time (ms) and size when loaded
+    double fileTempo = 0;                     // a WAV's ACID tempo (BPM), 0 when it has none
     juce::String format;              // e.g. "WAV, 16-bit PCM", "WAV, compressed (Ogg Vorbis)", "FLAC"
     // Loop points embedded in the file (WAV "smpl" chunk), in frames.
     int embeddedLoopStart = -1, embeddedLoopEnd = -1;

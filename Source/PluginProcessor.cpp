@@ -603,6 +603,7 @@ bool ChanSamplerProcessor::loadSample (const juce::File& file)
         r.embeddedLoopStart = md.getValue ("Loop0Start", "-1").getIntValue();
         r.embeddedLoopEnd   = md.getValue ("Loop0End",   "-1").getIntValue();
     }
+    r.fileTempo = juce::jmax (0.0, md.getValue (juce::WavAudioFormat::acidTempo, "0").getDoubleValue());
 
     {
         const juce::ScopedLock sl (poolLock);
@@ -611,6 +612,8 @@ bool ChanSamplerProcessor::loadSample (const juce::File& file)
     displaySampleLength.store (length);   // loop knob texts are sample positions
 
     const auto loaded = getRaw();
+    // FL keeps a tempo with each sample (Detect tempo); an ACID WAV brings its own.
+    setSampleTempo (loaded->fileTempo);
     auto set = [this] (const char* id, float value)
     {
         auto* p = apvts.getParameter (id);

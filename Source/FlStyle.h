@@ -131,6 +131,13 @@ namespace fl
     // message on a panel with a large grey sign, OK below. Shown over the
     // plugin window that holds owner; closes with OK, the cross, Return or Esc.
     void showDialog (juce::Component& owner, const juce::String& title, const juce::String& message, bool warning = false);
+    // FL's question dialog with a column of choices; onChoice gets the chosen
+    // index (not called when the dialog is closed).
+    void showChoices (juce::Component& owner, const juce::String& title, const juce::String& message,
+                      const juce::StringArray& choices, std::function<void (int)> onChoice);
+    // A one-line text entry in the same style; onText is not called on cancel.
+    void askText (juce::Component& owner, const juce::String& title, const juce::String& prompt, const juce::String& initial,
+                  std::function<void (const juce::String&)> onText);
 
     // The same dialog as a properties sheet: label / value rows (an empty
     // label and value draws a rule between groups).
@@ -139,6 +146,15 @@ namespace fl
 
     enum class Icon { sampler, envelope, wrench, valve, sine, triangle, square, folder, locate, close };
     void drawIcon (juce::Graphics&, Icon, juce::Rectangle<float> area, juce::Colour);
+
+    // The small arrow in a panel header that opens the panel's menu (FL's
+    // envelope and echo presets).
+    class MenuArrow : public juce::Button
+    {
+    public:
+        MenuArrow() : juce::Button ({}) {}
+        void paintButton (juce::Graphics&, bool highlighted, bool down) override;
+    };
 
     class IconButton : public juce::Button
     {

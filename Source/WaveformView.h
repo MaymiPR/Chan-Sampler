@@ -33,6 +33,12 @@ public:
     void setView (float frac0, float frac1) { viewStart = frac0; viewEnd = frac1; repaint(); }
     void showPropertiesForTesting() { showProperties(); }
 
+    // FL's Detect tempo: the Tempo detection dialog; the chosen tempo becomes
+    // the sample's (0 = no tempo) and is passed to done (TIME > Autodetect).
+    void detectTempo (std::function<void (double bpm)> done);
+
+    bool keyPressed (const juce::KeyPress&) override;
+
     // True while the sample is being dragged out (the editor ignores it as a drop).
     bool isDraggingSampleOut() const noexcept { return draggingOut; }
 
@@ -67,6 +73,7 @@ private:
     void setColourFill (juce::Graphics&, juce::Rectangle<float> area, float from, float to, juce::Colour plain, bool colourful) const;
     juce::Colour waveColour() const;
     void showMenu();
+    static juce::String shortcutText (char key);
     void copySample();
     void pasteSample();
     void saveAs();

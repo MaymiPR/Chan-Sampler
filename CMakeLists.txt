@@ -54,6 +54,7 @@ target_sources(ChanSampler PRIVATE
     Source/FlStyle.cpp
     Source/FlParts.cpp
     Source/SampleExchange.cpp
+    Source/TempoDetect.cpp
     Source/WaveformView.cpp)
 
 target_compile_definitions(ChanSampler PUBLIC
@@ -96,6 +97,7 @@ target_sources(ChanSamplerRender PRIVATE
     Source/FlStyle.cpp
     Source/FlParts.cpp
     Source/SampleExchange.cpp
+    Source/TempoDetect.cpp
     Source/WaveformView.cpp)
 target_compile_definitions(ChanSamplerRender PRIVATE
     JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0 JUCE_USE_MP3AUDIOFORMAT=1
@@ -124,6 +126,7 @@ target_sources(ChanSamplerSnapshot PRIVATE
     Source/FlStyle.cpp
     Source/FlParts.cpp
     Source/SampleExchange.cpp
+    Source/TempoDetect.cpp
     Source/WaveformView.cpp)
 target_compile_definitions(ChanSamplerSnapshot PRIVATE
     JUCE_MODAL_LOOPS_PERMITTED=1 JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0 JUCE_USE_MP3AUDIOFORMAT=1

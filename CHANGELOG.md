@@ -33,9 +33,17 @@ New:
   into a DAW, an audio editor or Explorer / Finder; Copy / Paste through the
   system clipboard (the file and its audio); Edit in audio editor, after which
   saving the file there reloads it in Chan Sampler with the settings kept.
-- Sample view right-click menu: Reload, Edit in audio editor, Save as, Locate
-  file, Copy, Paste, Get properties, Spectrum view, Multichannel waveform view, Colorful waveforms (Multiband /
-  Color map).
+- Sample view right-click menu in FL's order and words: Reload, Save as, Locate
+  file, Copy audio to clipboard (Ctrl+C), Paste audio from clipboard (Ctrl+V),
+  Edit in audio editor (Ctrl+E), Detect tempo, Get properties, Spectrum view,
+  Multichannel waveform view, Colorful waveforms (Multiband / Color map).
+- Detect tempo: FL's Tempo detection dialog (estimate, ranges, type in BPM or
+  beats, project tempo, no tempo); TIME > Autodetect... sets TIME to the
+  sample's length in beats, so a loop plays at the project's tempo. A WAV's
+  ACID tempo is read when loaded.
+- Panel menus as in FL: the echo delay's presets (Echo - classic / ping pong,
+  Fat - detuned / more detuned / detuned + time offset / 8 voices), and the
+  envelope's presets (Save as, then pick from the list).
 - Resizable window, sharp on Retina / high-DPI screens.
 
 Look (measured from FL 2026's screen):

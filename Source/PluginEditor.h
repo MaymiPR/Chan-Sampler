@@ -67,6 +67,11 @@ private:
     void changeListenerCallback (juce::ChangeBroadcaster*) override;
     void refreshSample();
     void loadFile (const juce::File& file);
+    // The panel menus: FL's echo presets, and envelope presets (FL ships none;
+    // its menu lists the ones saved with Save as).
+    void showEchoPresets (juce::Component& anchor);
+    void showEnvelopeMenu (const juce::String& prefix, juce::Component& anchor);
+    void setParam (const juce::String& id, float value);
     void chooseFile();
 
     ChanSamplerProcessor& samplerProcessor;

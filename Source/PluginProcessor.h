@@ -48,6 +48,9 @@ public:
     // Reloads the sample once its file has changed on disk (saved from an audio
     // editor) and the change has settled; called regularly by the editor.
     void reloadIfFileChanged();
+    // The sample's tempo (FL's Detect tempo, or a WAV's ACID tempo); 0 = none.
+    double getSampleTempo() const { return (double) apvts.state.getProperty ("sampleTempo", 0.0); }
+    void setSampleTempo (double bpm) { apvts.state.setProperty ("sampleTempo", juce::jmax (0.0, bpm), nullptr); }
     // The file's audio (before precomputed effects) as a WAV file in memory.
     juce::MemoryBlock getSampleAsWav() const;
     juce::String getLoadError() const { return loadError; }   // why the last loadSample failed

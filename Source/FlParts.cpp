@@ -517,6 +517,11 @@ void ParamMenu::show()
                 m.addSeparator();
                 continue;
             }
+            if (auto a = actions.find (label); a != actions.end())
+            {
+                m.addItem (label, a->second != nullptr, false, a->second);
+                continue;
+            }
             auto v = value;
             if (auto c = computedPresets.find (label); c != computedPresets.end())
             {

@@ -1,6 +1,7 @@
 #include "WaveformView.h"
 #include "FlStyle.h"
 #include "SampleExchange.h"
+#include "TempoDetect.h"
 #include <thread>
 
 namespace
@@ -617,6 +618,7 @@ void WaveformView::mouseDown (const juce::MouseEvent& e)
     }
     lastPressMs = juce::Time::getMillisecondCounterHiRes();
     draggingOut = false;
+    grabKeyboardFocus();   // Ctrl+C / V / E as in FL's sample menu
     smoothZooming = false;
     smoothScroll = 0.0f;
     dragging = markerAt (e.position);
@@ -709,15 +711,25 @@ void WaveformView::showMenu()
     const bool hasFile = processor.getSampleFile().existsAsFile();
     const bool hasAudio = sample != nullptr && sample->getTotalFrames() > 0;
     juce::PopupMenu menu;
+    // FL's sample menu (FL 2026), without its host-only entries (pitch
+    // corrector, time warper, open in a new channel).
+    auto item = [&menu] (const juce::String& text, bool enabled, const juce::String& shortcut, std::function<void()> action)
+    {
+        juce::PopupMenu::Item i (text);
+        i.setEnabled (enabled).setAction (std::move (action));
+        i.shortcutKeyDescription = shortcut;
+        menu.addItem (std::move (i));
+    };
     menu.addItem ("Reload", hasFile, false, [this] { processor.reloadSample(); });
-    // Saving in the editor reloads the sample here by itself (reloadIfFileChanged).
-    menu.addItem ("Edit in audio editor", hasFile, false, [this] { exchange::openInEditor (processor.getSampleFile()); });
     menu.addItem ("Save as...", hasAudio, false, [this] { saveAs(); });
     menu.addItem ("Locate file", hasFile, false, [this] { processor.getSampleFile().revealToUser(); });
+    item ("Copy audio to clipboard", hasAudio, shortcutText ('C'), [this] { copySample(); });
+    item ("Paste audio from clipboard", exchange::clipboardHasAudio(), shortcutText ('V'), [this] { pasteSample(); });
     menu.addSeparator();
-    menu.addItem ("Copy", hasAudio, false, [this] { copySample(); });
-    menu.addItem ("Paste", exchange::clipboardHasAudio(), false, [this] { pasteSample(); });
+    // Saving in the editor reloads the sample here by itself (reloadIfFileChanged).
+    item ("Edit in audio editor", hasFile, shortcutText ('E'), [this] { exchange::openInEditor (processor.getSampleFile()); });
     menu.addSeparator();
+    menu.addItem ("Detect tempo", hasAudio, false, [this] { detectTempo ({}); });
     menu.addItem ("Get properties", hasAudio, false, [this] { showProperties(); });
     menu.addSeparator();
     menu.addItem ("Spectrum view", true, spectrumView(), [this]
@@ -743,6 +755,93 @@ void WaveformView::showMenu()
         });
     menu.addSubMenu ("Colorful waveforms", colours);
     fl::showContextMenu (menu, *this, true);
+}
+
+juce::String WaveformView::shortcutText (char key)
+{
+   #if JUCE_MAC
+    return juce::String ("Cmd+") + key;
+   #else
+    return juce::String ("Ctrl+") + key;
+   #endif
+}
+
+bool WaveformView::keyPressed (const juce::KeyPress& k)
+{
+    if (! k.getModifiers().isCommandDown() || k.getModifiers().isShiftDown() || k.getModifiers().isAltDown())
+        return false;
+    const auto key = juce::CharacterFunctions::toUpperCase ((juce::juce_wchar) k.getKeyCode());
+    const auto file = processor.getSampleFile();
+    if (key == 'C' && sample != nullptr && sample->getTotalFrames() > 0) { copySample(); return true; }
+    if (key == 'V') { pasteSample(); return true; }
+    if (key == 'E' && file.existsAsFile()) { exchange::openInEditor (file); return true; }
+    return false;
+}
+
+void WaveformView::detectTempo (std::function<void (double)> done)
+{
+    const auto raw = processor.getRaw();
+    const int frames = raw->audio.getNumSamples();
+    if (frames == 0)
+        return;
+    const auto rate = raw->sampleRate;
+    const auto current = processor.getSampleTempo();
+    const auto estimate = current > 0 ? current : tempo::detect (raw->audio, rate, 75.0, 150.0);
+    const auto project = displayBpm.load();
+    auto describe = [frames, rate] (double bpm)
+    {
+        return tempo::format (bpm) + " BPM, " + tempo::format (std::round (tempo::beats (frames, rate, bpm) * 1000.0) / 1000.0) + " beats";
+    };
+
+    juce::String message = "Choose the tempo range (BPM) this sample most likely falls in, or keep the tempo it has now.\n\n";
+    message << (current > 0 ? "This sample's tempo is " + describe (current) + "."
+                            : "This sample has no tempo information. If the estimate (" + describe (estimate) + ") looks wrong, choose a range.")
+            << "\n\nTo play it in step with the project, choose the project's tempo. If it should not follow any tempo, choose No tempo.";
+
+    const juce::StringArray choices { tempo::format (estimate) + (current > 0 ? " (current)" : " (estimated)"),
+                                      "50 to 100", "75 to 150", "100 to 200", "150 to 300",
+                                      "Type in (BPM)", "Type in (beats)", tempo::format (project) + " (project)", "No tempo" };
+    const auto name = raw->file.getFileNameWithoutExtension().isNotEmpty() ? raw->file.getFileNameWithoutExtension() : juce::String ("Sample");
+    juce::Component::SafePointer<WaveformView> safe (this);
+    fl::showChoices (*this, "Tempo detection - " + name, message, choices,
+                     [safe, raw, frames, rate, estimate, project, done] (int choice)
+    {
+        if (safe == nullptr)
+            return;
+        auto apply = [safe, done] (double bpm)
+        {
+            if (safe == nullptr)
+                return;
+            safe->processor.setSampleTempo (bpm);
+            if (done != nullptr)
+                done (bpm);
+        };
+        static const double ranges[][2] = { { 50, 100 }, { 75, 150 }, { 100, 200 }, { 150, 300 } };
+        switch (choice)
+        {
+            case 0: apply (estimate); break;
+            case 1: case 2: case 3: case 4:
+                apply (tempo::detect (raw->audio, rate, ranges[choice - 1][0], ranges[choice - 1][1]));
+                break;
+            case 5:
+                fl::askText (*safe, "Tempo detection", "Tempo (BPM)", tempo::format (estimate), [apply] (const juce::String& t)
+                {
+                    if (const auto bpm = t.getDoubleValue(); bpm >= 10.0 && bpm <= 999.0)
+                        apply (bpm);
+                });
+                break;
+            case 6:
+                fl::askText (*safe, "Tempo detection", "Length (beats)", tempo::format (std::round (tempo::beats (frames, rate, estimate))),
+                             [apply, frames, rate] (const juce::String& t)
+                {
+                    if (const auto n = t.getDoubleValue(); n > 0.0)
+                        apply (juce::jlimit (10.0, 999.0, n * 60.0 * rate / frames));
+                });
+                break;
+            case 7: apply (project); break;
+            default: apply (0.0); break;
+        }
+    });
 }
 
 void WaveformView::copySample()
@@ -820,6 +919,8 @@ void WaveformView::showProperties()
     rows.push_back ({ "Channels", raw->audio.getNumChannels() > 1 ? "Stereo" : "Mono" });
     rows.push_back ({ "Length", juce::String (seconds, 3) + " s (" + number (frames) + " samples)" });
     rows.push_back ({ "Held as", raw->heldBits <= 16 ? "16-bit" : "32-bit float" });
+    if (const auto bpm = processor.getSampleTempo(); bpm > 0)
+        rows.push_back ({ "Tempo", tempo::format (bpm) + " BPM (" + tempo::format (tempo::beats (frames, raw->sampleRate, bpm)) + " beats)" });
     if (raw->embeddedLoopStart >= 0 && raw->embeddedLoopEnd > raw->embeddedLoopStart)
         rows.push_back ({ "Loop points", number (raw->embeddedLoopStart) + " - " + number (raw->embeddedLoopEnd) });
     if (! raw->regionMarkers.empty() || ! raw->sliceMarkers.empty())

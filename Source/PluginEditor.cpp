@@ -2,6 +2,7 @@
 #include "FlPreset.h"
 #include "PresetBar.h"
 #include "Chords.h"
+#include "TempoDetect.h"
 
 namespace
 {
@@ -301,7 +302,18 @@ void ChanSamplerEditor::buildSampleSheet()
             if (s == nullptr || s->playEnd <= 0) return -1.0f;
             return (float) ((double) s->playEnd / s->sourceRate * displayBpm.load() / 60.0);
         };
-        t.presets = { { "(none)", 0.0f }, { "Project tempo", 0.0f }, { "-", 0.0f }, { "1 beat", 1.0f }, { "2 beats", 2.0f }, { "1 bar", 4.0f },
+        // "Autodetect...": the sample's tempo (FL's Tempo detection), then
+        // TIME = its length in beats at that tempo (FL: a 2-bar loop at 128 BPM
+        // gives 2:00:00), so it plays at the project's tempo.
+        t.menu.actions["Autodetect..."] = [this]
+        {
+            waveform.detectTempo ([this] (double bpm)
+            {
+                const auto raw = samplerProcessor.getRaw();
+                setParam (pid::stretchTime, bpm > 0 ? (float) tempo::beats (raw->audio.getNumSamples(), raw->sampleRate, bpm) : 0.0f);
+            });
+        };
+        t.presets = { { "(none)", 0.0f }, { "Autodetect...", 0.0f }, { "Project tempo", 0.0f }, { "-", 0.0f }, { "1 beat", 1.0f }, { "2 beats", 2.0f }, { "1 bar", 4.0f },
                       { "2 bars", 8.0f }, { "3 bars", 12.0f }, { "4 bars", 16.0f } };
     }
     caption (stretch, "TIME", 90, 61, 28, 7);
@@ -433,6 +445,8 @@ juce::Component& ChanSamplerEditor::buildTargetPage (const char* prefix, bool ha
     {
         // Envelope panel (EnvPanel); the header LED is "Use envelope".
         auto& env = panel (page, "Envelope", 7, 42, 285, 195, 18);
+        auto& envMenu = own (std::make_unique<fl::MenuArrow>(), env, { 285 - 16, 2, 12, 16 });
+        envMenu.onClick = [this, p = juce::String (prefix), &envMenu] { showEnvelopeMenu (p, envMenu); };
         auto* envOn = samplerProcessor.apvts.getParameter (id ("EnvOn"));
         // FL turns an envelope on as soon as one of its knobs is edited.
         auto knob = [this, envOn] (juce::Component& parent, const juce::String& paramId, int x, int y, int size) -> juce::Slider&
@@ -649,7 +663,9 @@ void ChanSamplerEditor::buildFuncSheet()
     }
 
     // Echo delay / fat mode
-    auto& echoPanel = panel (sheet, "Echo delay / fat mode", 317, 115, 234, 122);
+    auto& echoPanel = panel (sheet, "Echo delay / fat mode", 317, 115, 234, 122, 10);
+    auto& echoMenu = own (std::make_unique<fl::MenuArrow>(), echoPanel, { 2, 2, 12, 16 });
+    echoMenu.onClick = [this, &echoMenu] { showEchoPresets (echoMenu); };
     const std::pair<const char*, const char*> echoKnobs[] = { { pid::echoFeed, "FEED" }, { pid::echoPan, "PAN" }, { pid::echoX, "MOD X" },
                                                               { pid::echoY, "MOD Y" }, { pid::echoPitch, "PITCH" }, { pid::echoTime, "TIME" } };
     int kx = 6;
@@ -666,6 +682,101 @@ void ChanSamplerEditor::buildFuncSheet()
     led (echoPanel, pid::echoFat,  "Fat mode",  140, 100, 88, 18);
 
     own (std::make_unique<RootNotePanel> (samplerProcessor.apvts, samplerProcessor.keyboardState), sheet, { 7, 245, 544, 137 });
+}
+
+//==============================================================================
+void ChanSamplerEditor::setParam (const juce::String& id, float value)
+{
+    if (auto* p = samplerProcessor.apvts.getParameter (id))
+    {
+        p->beginChangeGesture();
+        p->setValueNotifyingHost (p->convertTo0to1 (value));
+        p->endChangeGesture();
+    }
+}
+
+void ChanSamplerEditor::showEchoPresets (juce::Component& anchor)
+{
+    // FL 2026's echo presets, read with Copy value: pan = (position - 0.5) * 4,
+    // pitch = (position - 0.5) * 2400 cents, time = position * 8 steps. Mod X / Y
+    // stay centred in all of them.
+    struct Echo { const char* name; float feed, pan, pitch, time; int count; bool ping, fat; };
+    static const Echo presets[] = {
+        { "Reset",                        0.0f,   0.0f,  0.0f, 3.0f,         4, false, false },
+        { "Echo - classic",               0.25f,  0.0f,  0.0f, 3.0f,         4, false, false },
+        { "Echo - ping pong",             0.25f, -2.0f,  0.0f, 3.0f,         4, true,  false },
+        { "Fat - detuned",                0.875f, 0.5f,  3.0f, 0.0f,         2, false, true  },
+        { "Fat - more detuned",           0.875f, 0.5f,  6.0f, 0.0f,         2, false, true  },
+        { "Fat - detuned + time offset",  0.875f, 0.5f,  3.0f, 1.0f / 48.0f, 2, false, true  },
+        { "Fat - 8 voices",               0.875f, 0.25f, 2.0f, 0.0f,         4, false, true  },
+    };
+    juce::PopupMenu menu;
+    for (size_t i = 0; i < std::size (presets); ++i)
+    {
+        if (i == 1 || i == 3)
+            menu.addSeparator();
+        const auto& e = presets[i];
+        menu.addItem (e.name, [this, e]
+        {
+            setParam (pid::echoFeed, e.feed);
+            setParam (pid::echoPan, e.pan);
+            setParam (pid::echoX, 0.0f);
+            setParam (pid::echoY, 0.0f);
+            setParam (pid::echoPitch, e.pitch);
+            setParam (pid::echoTime, e.time);
+            setParam (pid::echoCount, (float) e.count);
+            setParam (pid::echoPing, e.ping ? 1.0f : 0.0f);
+            setParam (pid::echoFat, e.fat ? 1.0f : 0.0f);
+        });
+    }
+    fl::showContextMenu (menu, anchor, false);
+}
+
+namespace
+{
+    // What an envelope preset holds: the target page's envelope and LFO.
+    const char* const envelopeKeys[] = { "EnvOn", "Del", "Att", "Hold", "Dec", "Sus", "Rel", "AttT", "DecT", "RelT", "EnvAmt", "EnvTempo",
+                                         "LfoShape", "LfoDel", "LfoAtt", "LfoAmt", "LfoSpeed", "LfoTempo", "LfoGlobal" };
+
+    juce::File envelopeFolder()
+    {
+        return juce::File::getSpecialLocation (juce::File::userDocumentsDirectory).getChildFile ("Chan Sampler").getChildFile ("Envelopes");
+    }
+}
+
+void ChanSamplerEditor::showEnvelopeMenu (const juce::String& prefix, juce::Component& anchor)
+{
+    juce::PopupMenu menu;
+    menu.addSectionHeader ("Presets");
+    auto files = envelopeFolder().findChildFiles (juce::File::findFiles, false, "*.csenv");
+    files.sort();
+    for (const auto& f : files)
+        menu.addItem (f.getFileNameWithoutExtension(), [this, prefix, f]
+        {
+            if (auto xml = juce::parseXML (f))
+                for (auto* key : envelopeKeys)
+                    if (xml->hasAttribute (key) && samplerProcessor.apvts.getParameter (pid::env (prefix.toRawUTF8(), key)) != nullptr)
+                        setParam (pid::env (prefix.toRawUTF8(), key), (float) xml->getDoubleAttribute (key));
+        });
+    menu.addItem ("Save as...", [this, prefix]
+    {
+        envelopeFolder().createDirectory();
+        chooser = std::make_unique<juce::FileChooser> ("Save envelope preset", envelopeFolder().getChildFile ("Envelope.csenv"), "*.csenv");
+        chooser->launchAsync (juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles
+                                  | juce::FileBrowserComponent::warnAboutOverwriting,
+                              [this, prefix] (const juce::FileChooser& fc)
+                              {
+                                  const auto file = fc.getResult();
+                                  if (file == juce::File())
+                                      return;
+                                  juce::XmlElement xml ("CHANSAMPLER_ENVELOPE");
+                                  for (auto* key : envelopeKeys)
+                                      if (auto* p = samplerProcessor.apvts.getParameter (pid::env (prefix.toRawUTF8(), key)))
+                                          xml.setAttribute (key, p->convertFrom0to1 (p->getValue()));
+                                  xml.writeTo (file.withFileExtension (".csenv"));
+                              });
+    });
+    fl::showContextMenu (menu, anchor, false);
 }
 
 //==============================================================================
