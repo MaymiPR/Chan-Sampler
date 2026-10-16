@@ -40,6 +40,7 @@ jobs:
           Copy-Item -Recurse "build/ChanSampler_artefacts/Release/VST3/Chan Sampler.vst3" $dist
           Copy-Item "build/ChanSampler_artefacts/Release/Standalone/Chan Sampler.exe" $dist
           Copy-Item "packaging/INSTALL-Windows.txt" "$dist/INSTALL.txt"
+          Copy-Item "LICENSE" "$dist/LICENSE.txt"
           Compress-Archive -Path $dist -DestinationPath ChanSampler-Windows.zip
 
       - uses: actions/upload-artifact@v4
@@ -92,6 +93,7 @@ jobs:
           mkdir "$D"
           cp -R "$A/AU/Chan Sampler.component" "$A/VST3/Chan Sampler.vst3" "$A/Standalone/Chan Sampler.app" "$D/"
           cp packaging/INSTALL-macOS.txt "$D/INSTALL.txt"
+          cp LICENSE "$D/LICENSE.txt"
           ditto -c -k --keepParent "$D" ChanSampler-macOS.zip
 
       - uses: actions/upload-artifact@v4

@@ -1,63 +1,139 @@
 # Chan Sampler
 
-A JUCE sampler plugin modelled on FL Studio's Channel Sampler, built from the
-public FL Studio manual. Builds **VST3** and **Standalone** on Windows (for FL
-Studio, Reaper and others) and also **AU** on macOS, from the same code.
+A free, open-source recreation of the Channel Sampler from FL Studio 2026 as a
+**VST3**, **AU** (macOS) and **Standalone** plugin, for FL Studio, Reaper,
+Ableton Live, Logic and other hosts. Its sound, controls and look are measured
+against FL itself: most of the engine renders sample-identically to FL (see
+[How close is it to FL?](#how-close-is-it-to-fl)).
 
-See [docs/EVIDENCE.md](docs/EVIDENCE.md) for how each feature maps to the
-documentation, which parts are design guesses, and what remains to verify.
+Chan Sampler is an independent project. It is not made, endorsed or supported
+by Image-Line, and it contains no Image-Line code, samples or presets.
 
-## Build (Windows)
+![Sample page](docs/screenshots/sampler.png)
 
-Requirements: Visual Studio 2022 or 2026 (or Build Tools) with "Desktop
-development with C++", CMake ≥ 3.22, and Git. JUCE is downloaded automatically.
+| Envelopes / LFOs / filter | Misc (levels, arpeggiator, echo) | Spectrum view |
+|---|---|---|
+| ![Envelopes](docs/screenshots/envelope.png) | ![Misc](docs/screenshots/misc.png) | ![Spectrum](docs/screenshots/spectrum.png) |
+
+## Features
+
+- **Samples:** WAV, AIFF, FLAC, Ogg Vorbis and MP3, including FL's compressed
+  WAVs; drag and drop or the folder button. Region and slice markers in WAV
+  files (cue / ACID), loop points from the file.
+- **FL Studio Sampler presets (`.fst`):** drop one on the window or import it
+  from the preset menu to get its sample and every setting.
+- **Precomputed effects:** remove DC offset, normalize, reverse, reverse
+  polarity, fade / swap stereo, sample start and length, fade in / out,
+  crossfade, trim, reverb and stereo delay (rebuilt into the sample, not
+  automatable, as in FL).
+- **Playback:** start offset, loop points, ping-pong loop, FL's six declicking
+  modes.
+- **Time stretching:** PITCH / MUL / TIME with Resample, Stretch, Stretch Pro
+  (with formant shift), the e3 / e2 modes, Auto, slice stretch and slice map.
+  These use our own algorithms (FL's Elastique engine is proprietary).
+- **Envelopes** for volume, Mod X / Mod Y and pitch and **LFOs** for those and
+  panning, with tempo sync; filters Fast LP, LP, BP, HP, BS, LPx2, SVF LP and SVF LPx2.
+- **Misc:** level adjustment, polyphony with mono / porta / slide, velocity and
+  key tracking, cut groups between instances, arpeggiator with chords, echo
+  delay / fat mode, root note and fine tune.
+- **Sample view in FL's style:** zoom and scroll, Start / loop markers, file
+  markers, spectrum view, multichannel view and colourful waveforms
+  (Multiband or Color map). Right-click for Reload, Save as, Locate file and
+  Get properties.
+- **Preset menu**, a resizable window (sharp on Retina / high-DPI screens), and
+  every knob's right-click menu in FL's units (Reset, Copy value, Paste value,
+  Type in value).
+
+## How close is it to FL?
+
+Every feature was compared with FL Studio 2026 by rendering the same notes
+through FL's Sampler and through Chan Sampler inside FL and subtracting the
+two (a "null test"; `nulltest/`). The precomputed effects, interpolation,
+envelopes, LFOs, filters (with modulation), loops, tracking, glide, echo, most
+of the arpeggiator and the compressed formats null against FL, and `.fst`
+import reproduces FL's settings.
+The sample view's colours, grid, spectrum and colourful waveforms were measured
+from FL's screen.
+
+Not identical: the time-stretch modes (FL's engine is proprietary, so they
+match in behaviour, not sample for sample), two declicking curve shapes,
+envelope timing at tempos other than 130 BPM, and a few edge cases.
+[docs/EVIDENCE.md](docs/EVIDENCE.md) lists every measurement and every known
+gap.
+
+## Install
+
+Download the zip for your system from the
+[Releases](https://github.com/MaymiPR/ChanSampler/releases) page. Each zip has
+an `INSTALL.txt`:
+
+- **Windows:** copy `Chan Sampler.vst3` to `C:\Program Files\Common Files\VST3\`
+  and rescan plugins in your DAW. `Chan Sampler.exe` runs on its own.
+- **macOS** (universal, 10.13 or later): copy `Chan Sampler.component` (AU) and
+  `Chan Sampler.vst3` to `~/Library/Audio/Plug-Ins/`. The builds are not
+  notarized by Apple, so one Terminal command (in `INSTALL.txt`) clears the
+  download quarantine.
+
+## Using it
+
+- Drop an audio file or an `.fst` preset on the window, or click the folder
+  button. Click the waveform to hear the sample at its root note.
+- In the sample view: drag the Start flag and the loop markers, scroll to zoom,
+  right-click for the view options.
+- Presets: the bar at the top saves and loads `.cspreset` files in
+  `Documents/Chan Sampler/Presets` (folders become submenus); the arrows step
+  through them.
+- Without the volume envelope, a note plays to the end of the sample, as in FL.
+
+## Build
+
+JUCE is downloaded automatically. Requirements: CMake ≥ 3.22 and Git, plus
+Visual Studio 2022 / 2026 with "Desktop development with C++" on Windows, or
+Xcode on macOS.
+
+Windows (VST3 + Standalone):
 
 ```
 cmake -B build -G "Visual Studio 18 2026" -A x64
 cmake --build build --config Release
 ```
 
-(Use `"Visual Studio 17 2022"` with VS 2022.) Engine tests:
+(`"Visual Studio 17 2022"` with VS 2022.) Engine tests:
 `build/ChanSamplerTests_artefacts/Release/ChanSamplerTests.exe`
 
-Outputs:
-- `build/ChanSampler_artefacts/Release/VST3/Chan Sampler.vst3`: copy to `C:\Program Files\Common Files\VST3\`.
-  A `.vst3` plugin is a folder (a "bundle"); copy the whole folder. Writing
-  to Program Files needs an administrator prompt.
-- `build/ChanSampler_artefacts/Release/Standalone/Chan Sampler.exe`
-
-Then rescan plugins in FL Studio (Options → Manage plugins) or Reaper
-(Preferences → Plug-ins → VST → Re-scan).
-
-## Build (macOS, AU)
-
-Requirements: Xcode (or its command-line tools), CMake ≥ 3.22, Git.
+macOS (universal AU + VST3 + Standalone):
 
 ```
 cmake -B build -G Xcode -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET=10.13
 cmake --build build --config Release --target ChanSampler_AU ChanSampler_VST3 ChanSampler_Standalone
 ```
 
-Copy `Chan Sampler.component` to `~/Library/Audio/Plug-Ins/Components/` and
-`Chan Sampler.vst3` to `~/Library/Audio/Plug-Ins/VST3/`.
+Developer tools (built with everything else):
 
-## Releases (downloads for Windows and macOS)
+- `ChanSamplerRender` renders notes offline (for the null tests), and has
+  `bench <sample>` (CPU per stretch mode, 32 / 64 voices) and
+  `compatstate <state.bin>` (checks that an older version's saved state loads
+  unchanged).
+- `ChanSamplerSnapshot` writes editor screenshots (used to compare with FL's
+  screen and for the pictures above).
 
-GitHub builds both platforms (`.github/workflows/release.yml`):
+## Releases
 
-- **Test build:** GitHub → Actions → *Build and release* → *Run workflow*. The
-  zips appear under the run's *Artifacts*.
-- **Release:** tag a version and push the tag; the zips are attached to a new
-  GitHub Release:
+GitHub Actions builds Windows and macOS (`.github/workflows/release.yml`) and
+validates the plugins with pluginval at its strictest level and, on macOS,
+Apple's `auval`:
+
+- **Test build:** Actions → *Build and release* → *Run workflow*; the zips
+  appear under the run's *Artifacts*.
+- **Release:** push a version tag; the zips are attached to a new GitHub
+  Release:
 
   ```
-  git tag v0.1.0
-  git push origin v0.1.0
+  git tag v1.0.0
+  git push origin v1.0.0
   ```
 
-Each zip contains the plugins, the standalone app and an `INSTALL.txt`
-(drag-and-drop install; on macOS one Terminal command clears the download
-quarantine, since the plugins are not notarized by Apple).
+Changes per version: [CHANGELOG.md](CHANGELOG.md).
 
 ## Working on another computer
 
@@ -65,15 +141,16 @@ quarantine, since the plugins are not notarized by Apple).
 git clone https://github.com/MaymiPR/ChanSampler.git
 ```
 
-Then build as above. Before switching computers, commit and `git push`; on the
-other one, `git pull`. Generated files (`build/`, the FL test renders in
+Build as above. Commit and push before switching computers, and pull on the
+other one. Generated files (`build/`, FL's test renders in
 `nulltest/renders*`) are not in the repository: rebuild, and re-render the null
 tests with FL Studio when needed.
 
-## Using it
+## License
 
-- Drop an audio file (WAV, AIFF, FLAC, Ogg, MP3) on the window or click **Load**. Click the waveform to preview.
-- Drop or **Load** an FL Studio Sampler preset (`.fst`, from *Save channel state as…*) to get its sample and every setting. FL's own folders in the sample path are found automatically; otherwise the sample is looked for next to the preset.
-- Drag the **S** marker (start offset) and the **L** markers (loop, when *Use Loop* is on). Shift-drag moves the loop as a whole.
-- **Precomputed** settings rebuild the sample data. They are not automatable, matching FL.
-- Without the volume envelope enabled, notes play to the end of the sample, as in FL.
+Chan Sampler is free software under the
+[GNU Affero General Public License v3](LICENSE). It is built with
+[JUCE](https://juce.com) (used under the AGPLv3) and the VST3 SDK (MIT).
+
+FL Studio is a trademark of Image-Line Software; other names are trademarks of
+their owners and are used only to describe compatibility.

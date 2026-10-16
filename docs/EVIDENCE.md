@@ -149,13 +149,18 @@ FL's channel Group is a host feature; Chan Sampler rebuilds it across its own in
 
 ## Known gaps (diff / approximate)
 
+As of 1.0:
+
+- **Time-stretch modes:** our own WSOLA and phase-vocoder algorithms (Stretch Pro with cepstral formants). FL's Elastique is proprietary, so they match FL in duration, pitch and character, not sample for sample. Resample with TIME nulls.
 - **Crossfade declick mode, and Transient (no bleeding) fade-out:** curve shapes not matched (−23 to −38 dB).
+- **Envelope timing at tempos other than 130 BPM, positive decay tension and the attack / note-off timing quirk:** FL quantises some envelope events to whole ticks (212 samples at 130 BPM) with a rounding rule not found yet: −24 to −38 dB in those cases.
 - **LPx2 at maximum resonance** on very short sounds: −32 dB (the first-tick glide of its level compensation). Otherwise LPx2 −44…−63 dB and SVF LPx2 bit-exact (nulltest/filter_x2_cases.py): SVF LPx2 = two Chamberlin stages with q1 = 1 − 0.8 res, q2 = 1 − 0.6 res; LPx2 = two identical LP biquads (no Q floor) times a measured level compensation (resonance × cutoff table) that starts at unity and glides to its value over the note's first tick.
-- **Positive decay tension** and the attack/note-off timing quirk (FL processes some envelope events once per tick, 212 samples at 130 BPM): −24 to −38 dB in those cases.
-- **LFO:** see the LFO row above (in-FL nulls, nulltest/lfo_cases.py). Mod X / Y modulation now nulls (see Filter modulation). FL's pan envelope had no audible effect in CLI renders (amount ±128, sustain 128), so it is left as implemented. Arp TIME "Hold" is approximated as one bar.
-- **Time stretching (superseded):** see the Stretch modes row. Earlier note: our own: tape-style Resample, plus a granular stretcher (Hann grains, 50% overlap) for Stretch / Pro / e3 / e2 / Auto, and transient resets for the slice modes. FL's Elastique is proprietary, so these won't null; engine tests verify duration and pitch behaviour.
+- **SMP trim tail on noise:** FL's tail depends on the content (not a linear filter), so very short trims of noisy samples differ slightly.
+- **Arpeggiator TIME "Hold":** approximated as one bar.
+- **LFO:** see the LFO row above. FL's pan envelope had no audible effect in CLI renders (amount ±128, sustain 128), so Chan Sampler has a panning LFO and no panning envelope.
+- **Sample view:** the spectrum is a model of FL's (about 1 dB mean error per pixel); colourful waveforms match within 0.4–2.5 RGB steps on solid fills (a stereo loop about 4), Color map's column-to-column flicker matches in character only.
 - **Channel envelope and echo preset menus:** FL compiles them in and doesn't store them as data; not reproduced.
-- **Not implemented** (FL-only or proprietary): keep-on-disk, resample-to-mix-rate, region / slice markers, cut groups across channels, gate / shift / swing, channel VOL/PAN/PITCH/RANGE/TRACK (host-side).
+- **Not implemented** (FL host features or FL-only storage): Keep on disk and Resample (how FL holds the file), gate / shift / swing (FL's Time panel), FL's channel VOL / PAN / PITCH / RANGE / TRACK (host-side), Detect tempo, Copy / Paste audio, Edit in audio editor / pitch corrector / time warper, Open in new channel. Max polyphony is shown but, as in FL's renders, does nothing.
 
 ## UI layout evidence (B-FORM)
 

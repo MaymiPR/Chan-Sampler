@@ -81,6 +81,51 @@ static int cutTest (const juce::File& sampleFile)
 // Save / reload test: random settings, state round trip into a new instance,
 // then the same notes through both.
 //   ChanSamplerRender statetest <sample.wav>
+// Compatibility with older saves: loads a state written by an earlier
+// version (state.bin, plus state.txt listing "id<TAB>plain value<TAB>text" as
+// that version showed them) and reports every parameter that reads back
+// differently, those that are gone, and the new ones (which keep defaults).
+//   ChanSamplerRender compatstate <state.bin>
+static int compatState (const juce::File& stateFile)
+{
+    juce::MemoryBlock block;
+    if (! stateFile.loadFileAsData (block))
+        return 1;
+    ChanSamplerProcessor p;
+    p.setStateInformation (block.getData(), (int) block.getSize());
+    juce::StringArray lines;
+    stateFile.withFileExtension (".txt").readLines (lines);
+    juce::StringArray seen;
+    int mismatches = 0, gone = 0;
+    for (auto& line : lines)
+    {
+        const auto parts = juce::StringArray::fromTokens (line, "\t", {});
+        if (parts.size() < 3)
+            continue;
+        seen.add (parts[0]);
+        auto* rp = p.apvts.getParameter (parts[0]);
+        if (rp == nullptr)
+        {
+            ++gone;
+            std::cout << "  removed: " << parts[0] << " (was " << parts[2] << ")\n";
+            continue;
+        }
+        const auto plain = rp->convertFrom0to1 (rp->getValue());
+        if (std::abs (plain - parts[1].getFloatValue()) > 1.0e-3f * juce::jmax (1.0f, std::abs (plain)) || rp->getCurrentValueAsText() != parts[2])
+        {
+            ++mismatches;
+            std::cout << "  differs: " << parts[0] << "  old " << parts[1] << " \"" << parts[2] << "\"  now " << plain << " \"" << rp->getCurrentValueAsText() << "\"\n";
+        }
+    }
+    for (auto* q : p.getParameters())
+        if (auto* rp = dynamic_cast<juce::RangedAudioParameter*> (q); rp != nullptr && ! seen.contains (rp->getParameterID()))
+            std::cout << "  new: " << rp->getParameterID() << " = \"" << rp->getCurrentValueAsText() << "\"\n";
+    std::cout << "sample: " << p.getSampleFile().getFullPathName() << " (" << p.getSampleLength() << " frames)\n"
+              << "uiWidth: " << p.apvts.state.getProperty ("uiWidth").toString() << "\n"
+              << lines.size() << " parameters saved, " << mismatches << " read differently, " << gone << " removed\n";
+    return mismatches == 0 ? 0 : 2;
+}
+
 static int stateTest (const juce::File& sampleFile)
 {
     constexpr double sr = 44100.0;
@@ -146,6 +191,11 @@ static int stateTest (const juce::File& sampleFile)
 
 int main (int argc, char** argv)
 {
+    if (argc >= 3 && juce::String (argv[1]) == "compatstate")
+    {
+        juce::ScopedJuceInitialiser_GUI init;
+        return compatState (juce::File (juce::String (argv[2])));
+    }
     if (argc >= 3 && juce::String (argv[1]) == "statetest")
     {
         juce::ScopedJuceInitialiser_GUI init;
