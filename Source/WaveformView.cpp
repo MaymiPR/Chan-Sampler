@@ -284,15 +284,17 @@ void WaveformView::paint (juce::Graphics& g)
         const double seconds = sample != nullptr && sample->getTotalFrames() > 0 ? sample->getTotalFrames() / sample->sourceRate : 1.0;
         const double t0 = viewStart * seconds, t1 = viewEnd * seconds;
         const double pps = wave.getWidth() / juce::jmax (1.0e-9, t1 - t0);
-        // Steps of 1, 2 or 5 times a power of ten, the finest at least 15 px
-        // apart (FL: 0.1 s at 27 px, 0.2 s rather than 0.1 s at 9 px); the
-        // next power of ten is drawn darker with a soft edge each side.
+        // The finest step at least 15 px apart: powers of ten, and from 0.1 s
+        // up also 2 and 5 times (FL: 0.1 s at 27 and 36 px rather than 0.05 s
+        // at 18 px; 0.2 s where 0.1 s would be 9 px). The next power of ten
+        // is drawn darker with a soft edge each side.
         double decade = 0.0001, step = decade;
         for (;;)
         {
-            if (decade * pps >= 15.0)            { step = decade;        break; }
-            if (2.0 * decade * pps >= 15.0)      { step = 2.0 * decade;  break; }
-            if (5.0 * decade * pps >= 15.0)      { step = 5.0 * decade;  break; }
+            const bool fine = decade < 0.05;
+            if (decade * pps >= 15.0)                  { step = decade;        break; }
+            if (! fine && 2.0 * decade * pps >= 15.0)  { step = 2.0 * decade;  break; }
+            if (! fine && 5.0 * decade * pps >= 15.0)  { step = 5.0 * decade;  break; }
             decade *= 10.0;
         }
         const double major = decade * 10.0;
