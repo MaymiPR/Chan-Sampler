@@ -1,0 +1,64 @@
+name: Bug report
+description: Something doesn't work, crashes, or sounds wrong.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for reporting! The details below let us reproduce it.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+      placeholder: "Loaded a 24-bit WAV with loop points, pressed a key, and..."
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Load ...
+        2. Set ...
+        3. Play ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Chan Sampler version
+      description: Shown in your DAW's plugin list, or the release you downloaded.
+      placeholder: "1.0.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: format
+    attributes:
+      label: Plugin format
+      options: [VST3, AU, Standalone]
+    validations:
+      required: true
+  - type: input
+    id: host
+    attributes:
+      label: DAW and version
+      placeholder: "FL Studio 2026, Ableton Live 12.1, Logic Pro 11..."
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: "Windows 11 / macOS 15 (Apple Silicon)"
+    validations:
+      required: true
+  - type: textarea
+    id: fl
+    attributes:
+      label: Difference from FL Studio's Sampler (if any)
+      description: If it sounds or behaves differently from FL's Sampler with the same settings, describe how. An FL preset (.fst) or the sample helps a lot.
+  - type: textarea
+    id: files
+    attributes:
+      label: Screenshots, recordings or files
+      description: Drag files here (a sample, a .cspreset or .fst preset, a screenshot).
