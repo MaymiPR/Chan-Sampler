@@ -31,11 +31,12 @@ New:
   Reverse. A saved preset without a sample also keeps the loaded one.
 - The sample in and out of other programs: drag the waveform out of the view
   into a DAW, an audio editor or Explorer / Finder; Copy / Paste through the
-  system clipboard (the file and its audio); Edit in audio editor, after which
-  saving the file there reloads it in Chan Sampler with the settings kept.
+  system clipboard (the file and its audio); a sample file changed on disk (say,
+  saved from the audio editor it was dragged into) reloads with the settings
+  kept.
 - Sample view right-click menu in FL's order and words: Reload, Save as, Locate
-  file, Copy audio to clipboard (Ctrl+C), Paste audio from clipboard (Ctrl+V),
-  Edit in audio editor (Ctrl+E), Detect tempo, Get properties, Spectrum view,
+  file, Copy audio to clipboard, Paste audio from clipboard, Detect tempo, Get
+  properties, Spectrum view,
   Multichannel waveform view, Colorful waveforms (Multiband / Color map).
 - Detect tempo: FL's Tempo detection dialog (estimate, ranges, type in BPM or
   beats, project tempo, no tempo); TIME > Autodetect... sets TIME to the

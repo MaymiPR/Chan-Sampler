@@ -144,17 +144,6 @@ juce::File pasteFromClipboard (const juce::File& folder)
     return result;
 }
 
-bool openInEditor (const juce::File& file)
-{
-    if (! file.existsAsFile())
-        return false;
-    const auto path = file.getFullPathName();
-    // The "edit" verb when the file type has an editor, else the default program.
-    if ((INT_PTR) ShellExecuteW (nullptr, L"edit", path.toWideCharPointer(), nullptr, nullptr, SW_SHOWNORMAL) > 32)
-        return true;
-    return file.startAsProcess();
-}
-
 #elif JUCE_MAC
 // SampleExchangeMac.mm
 bool macCopyToClipboard (const char* path, const void* wav, size_t size);
@@ -180,15 +169,9 @@ juce::File pasteFromClipboard (const juce::File& folder)
     return saveData (folder, data.data(), data.size(), extension);
 }
 
-bool openInEditor (const juce::File& file)
-{
-    return file.existsAsFile() && file.startAsProcess();
-}
-
 #else
 bool copyToClipboard (const juce::File&, const juce::MemoryBlock&, void*) { return false; }
 bool clipboardHasAudio() { return false; }
 juce::File pasteFromClipboard (const juce::File&) { return {}; }
-bool openInEditor (const juce::File& file) { return file.existsAsFile() && file.startAsProcess(); }
 #endif
 }

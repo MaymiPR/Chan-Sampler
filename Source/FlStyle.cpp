@@ -223,12 +223,6 @@ void LookAndFeel::drawPopupMenuItemWithOptions (juce::Graphics& g, const juce::R
     g.setFont (f);
     const auto textArea = area.withTrimmedLeft (dd ? 4 : 16).withTrimmedRight (dd ? 2 : 12);
     g.drawText (text, textArea, juce::Justification::centredLeft, true);
-    if (item.shortcutKeyDescription.isNotEmpty())   // FL: right-aligned, dimmer
-    {
-        g.setColour (col.withMultipliedAlpha (0.7f));
-        g.drawText (item.shortcutKeyDescription, textArea, juce::Justification::centredRight, true);
-        g.setColour (col);
-    }
 
     // FL underlines the shortcut letter of its knob menu entries with a dotted line.
     if (acc >= 0 && acc < text.length())

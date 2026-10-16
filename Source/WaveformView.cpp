@@ -90,7 +90,8 @@ WaveformView::Marker WaveformView::markerAt (juce::Point<float> p) const
 
 void WaveformView::timerCallback()
 {
-    // Twice a second: reload the sample when its file was saved from an audio editor.
+    // Twice a second: reload the sample when its file was changed (saved from
+    // an audio editor it was dragged into).
     if (--fileCheckCountdown <= 0)
     {
         fileCheckCountdown = 30;
@@ -618,7 +619,6 @@ void WaveformView::mouseDown (const juce::MouseEvent& e)
     }
     lastPressMs = juce::Time::getMillisecondCounterHiRes();
     draggingOut = false;
-    grabKeyboardFocus();   // Ctrl+C / V / E as in FL's sample menu
     smoothZooming = false;
     smoothScroll = 0.0f;
     dragging = markerAt (e.position);
@@ -711,23 +711,13 @@ void WaveformView::showMenu()
     const bool hasFile = processor.getSampleFile().existsAsFile();
     const bool hasAudio = sample != nullptr && sample->getTotalFrames() > 0;
     juce::PopupMenu menu;
-    // FL's sample menu (FL 2026), without its host-only entries (pitch
-    // corrector, time warper, open in a new channel).
-    auto item = [&menu] (const juce::String& text, bool enabled, const juce::String& shortcut, std::function<void()> action)
-    {
-        juce::PopupMenu::Item i (text);
-        i.setEnabled (enabled).setAction (std::move (action));
-        i.shortcutKeyDescription = shortcut;
-        menu.addItem (std::move (i));
-    };
+    // FL's sample menu (FL 2026), without its host-only entries (audio
+    // editor, pitch corrector, time warper, open in a new channel).
     menu.addItem ("Reload", hasFile, false, [this] { processor.reloadSample(); });
     menu.addItem ("Save as...", hasAudio, false, [this] { saveAs(); });
     menu.addItem ("Locate file", hasFile, false, [this] { processor.getSampleFile().revealToUser(); });
-    item ("Copy audio to clipboard", hasAudio, shortcutText ('C'), [this] { copySample(); });
-    item ("Paste audio from clipboard", exchange::clipboardHasAudio(), shortcutText ('V'), [this] { pasteSample(); });
-    menu.addSeparator();
-    // Saving in the editor reloads the sample here by itself (reloadIfFileChanged).
-    item ("Edit in audio editor", hasFile, shortcutText ('E'), [this] { exchange::openInEditor (processor.getSampleFile()); });
+    menu.addItem ("Copy audio to clipboard", hasAudio, false, [this] { copySample(); });
+    menu.addItem ("Paste audio from clipboard", exchange::clipboardHasAudio(), false, [this] { pasteSample(); });
     menu.addSeparator();
     menu.addItem ("Detect tempo", hasAudio, false, [this] { detectTempo ({}); });
     menu.addItem ("Get properties", hasAudio, false, [this] { showProperties(); });
@@ -755,27 +745,6 @@ void WaveformView::showMenu()
         });
     menu.addSubMenu ("Colorful waveforms", colours);
     fl::showContextMenu (menu, *this, true);
-}
-
-juce::String WaveformView::shortcutText (char key)
-{
-   #if JUCE_MAC
-    return juce::String ("Cmd+") + key;
-   #else
-    return juce::String ("Ctrl+") + key;
-   #endif
-}
-
-bool WaveformView::keyPressed (const juce::KeyPress& k)
-{
-    if (! k.getModifiers().isCommandDown() || k.getModifiers().isShiftDown() || k.getModifiers().isAltDown())
-        return false;
-    const auto key = juce::CharacterFunctions::toUpperCase ((juce::juce_wchar) k.getKeyCode());
-    const auto file = processor.getSampleFile();
-    if (key == 'C' && sample != nullptr && sample->getTotalFrames() > 0) { copySample(); return true; }
-    if (key == 'V') { pasteSample(); return true; }
-    if (key == 'E' && file.existsAsFile()) { exchange::openInEditor (file); return true; }
-    return false;
 }
 
 void WaveformView::detectTempo (std::function<void (double)> done)
