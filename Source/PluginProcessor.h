@@ -45,6 +45,7 @@ public:
     // Message thread API
     bool loadSample (const juce::File& file);
     bool reloadSample();   // the same file again from disk, settings kept
+    juce::String getLoadError() const { return loadError; }   // why the last loadSample failed
     void rebuildNow() { rebuildSample(); }
     float getPlayhead() const noexcept { return engine.getPlayhead(); }
 
@@ -119,6 +120,7 @@ private:
     // Rebuilds run one at a time; one with the same file and settings as the
     // sample in use is skipped (a new sample restarts the playing voices).
     std::mutex rebuildMutex;
+    juce::String loadError;
     std::shared_ptr<const RawSample> builtFrom;
     PrecomputeSettings builtWith;
     SamplerEngine engine;

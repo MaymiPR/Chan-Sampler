@@ -195,8 +195,10 @@ flpreset::Result flpreset::import (ChanSamplerProcessor& processor, const juce::
         const auto path = juce::String (juce::CharPointer_UTF16 ((const juce::CharPointer_UTF16::CharType*) e->data.getData()),
                                         e->data.getSize() / 2).trimCharactersAtEnd (juce::String::charToString (0));
         const auto file = resolveSamplePath (path, fst);
-        if (file == juce::File() || ! processor.loadSample (file))
+        if (file == juce::File())
             result.message = "Sample not found: " + path;
+        else if (! processor.loadSample (file))
+            result.message = processor.getLoadError();
     }
 
     // Levels (219): channel pan / volume (host side in FL), fine tune, Mod X / Y, filter type.

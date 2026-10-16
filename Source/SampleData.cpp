@@ -65,25 +65,6 @@ namespace
     }
 
 
-    void removeDC (juce::AudioBuffer<float>& b)
-    {
-        for (int ch = 0; ch < b.getNumChannels(); ++ch)
-        {
-            auto* d = b.getWritePointer (ch);
-            double sum = 0.0;
-            for (int i = 0; i < b.getNumSamples(); ++i) sum += d[i];
-            const auto mean = (float) (sum / juce::jmax (1, b.getNumSamples()));
-            for (int i = 0; i < b.getNumSamples(); ++i) d[i] -= mean;
-        }
-    }
-
-    void swapChannels (juce::AudioBuffer<float>& b)
-    {
-        auto* l = b.getWritePointer (0);
-        auto* r = b.getWritePointer (1);
-        for (int i = 0; i < b.getNumSamples(); ++i) std::swap (l[i], r[i]);
-    }
-
     // Measured: gain = 1 + 16 * knob; CLIP is a hard clip at +/-1.
     void boost (juce::AudioBuffer<float>& b, float knob, bool clip)
     {
@@ -129,12 +110,17 @@ namespace
     // Measured: y[n] = y[n-1] + f (x[n] - y[n-1]) + r (y[n-1] - y[n-2]),
     // f = (601^u - 1) / 600 with u = raw cutoff / 1024 (time-domain fit), r
     // interpolated from the measured resonance points.
+    bool lowpassOff (float cutKnob, float resKnob)
+    {
+        return dsp::flOnePoleF (juce::jmax (1.0f / 64.0f, cutKnob)) >= 1.0 && dsp::flResonance (resKnob) <= 0.0;
+    }
+
     void lowpass (juce::AudioBuffer<float>& b, float cutKnob, float resKnob)
     {
+        if (lowpassOff (cutKnob, resKnob))
+            return;
         const auto f = dsp::flOnePoleF (juce::jmax (1.0f / 64.0f, cutKnob));
         const auto r = dsp::flResonance (resKnob);
-        if (f >= 1.0 && r <= 0.0)
-            return;
 
         for (int ch = 0; ch < b.getNumChannels(); ++ch)
         {
@@ -427,7 +413,20 @@ void SampleData::computePeaks()
     }
 }
 
-SampleData::Ptr buildProcessedSample (const RawSample& raw, const PrecomputeSettings& s)
+namespace
+{
+    // True when every whole-sample tool and effect leaves the audio as it is
+    // (the same conditions the functions above return early on).
+    bool processingOff (const PrecomputeSettings& s)
+    {
+        return ! s.swapStereo && ! s.reversePolarity && ! s.removeDC && ! s.reverse && s.boost <= 0.0f && ! s.boostClip
+            && std::abs (s.eq) < 1.0e-6f && s.rmMix <= 0.0f && lowpassOff (s.cut, s.res) && s.reverb * 256.0f <= 0.0f
+            && (int) std::round (std::abs (s.stereoDelay) * 2048.0f) <= 0 && std::abs (s.pogo) < 1.0e-4f && ! s.normalize
+            && s.trim <= 0.0f && s.fadeIn <= 0.0f && s.fadeOut <= 0.0f && ! s.fadeStereo && s.crossfade <= 0.0f;
+    }
+}
+
+SampleData::Ptr buildProcessedSample (const RawSample& raw, const PrecomputeSettings& s, std::shared_ptr<const RawSample> owner)
 {
     SampleData::Ptr out = new SampleData();
     out->sourceRate = raw.sampleRate;
@@ -443,20 +442,33 @@ SampleData::Ptr buildProcessedSample (const RawSample& raw, const PrecomputeSett
 
     // Work in stereo throughout; mono files are duplicated. A file at another
     // rate is first converted to the playback rate, as FL does on load.
-    juce::AudioBuffer<float> b (2, n);
-    for (int ch = 0; ch < 2; ++ch)
-        b.copyFrom (ch, 0, raw.audio, juce::jmin (ch, raw.audio.getNumChannels() - 1), 0, n);
-    if (s.targetRate > 0.0 && std::abs (s.targetRate - raw.sampleRate) > 0.5)
+    // Otherwise the trimmed part is taken straight from the file (no copy of
+    // the whole sample: long files stay within memory).
+    const bool convert = s.targetRate > 0.0 && std::abs (s.targetRate - raw.sampleRate) > 0.5;
+    juce::AudioBuffer<float> b;
+    if (convert)
     {
+        b.setSize (2, n);
+        for (int ch = 0; ch < 2; ++ch)
+            b.copyFrom (ch, 0, raw.audio, juce::jmin (ch, raw.audio.getNumChannels() - 1), 0, n);
         b = convertRate (b, raw.sampleRate, s.targetRate);
         out->sourceRate = s.targetRate;
     }
-    const int converted = b.getNumSamples();
+    const juce::AudioBuffer<float>& whole = convert ? b : raw.audio;
+    const int converted = whole.getNumSamples();
+    auto wholeChannel = [&whole] (int ch) { return juce::jmin (ch, whole.getNumChannels() - 1); };
 
-    // 1. Whole-sample tools
-    if (s.swapStereo)      swapChannels (b);
-    if (s.reversePolarity) b.applyGain (-1.0f);
-    if (s.removeDC)        removeDC (b);
+    // 1. Whole-sample tools (swap, polarity and DC removal act per sample, so
+    // they run on the trimmed part below; the DC is the whole sample's mean)
+    float dc[2] {};
+    if (s.removeDC)
+        for (int ch = 0; ch < 2; ++ch)
+        {
+            const auto* d = whole.getReadPointer (wholeChannel (s.swapStereo ? 1 - ch : ch));
+            double sum = 0.0;
+            for (int i = 0; i < converted; ++i) sum += d[i];
+            dc[ch] = (float) (sum / juce::jmax (1, converted)) * (s.reversePolarity ? -1.0f : 1.0f);
+        }
 
     // 2. Sample Start / Length with FL's short trim fades (measured in FL):
     // start = round (start * (N - 1)), length = ceil (fraction * what remains), at
@@ -476,10 +488,52 @@ SampleData::Ptr buildProcessedSample (const RawSample& raw, const PrecomputeSett
     const bool atMinimum = len == minLength && len < remaining
                         && (int) std::ceil (trimKnobToFraction (s.length) * remaining) < minLength;
     const int bufLen = len + (atMinimum ? 2 : 0);
+
+    // Nothing to process (the usual case): play the file's own audio, without
+    // a second copy in memory (long samples).
+    if (owner != nullptr && owner.get() == &raw && ! convert && start == 0 && bufLen == converted && processingOff (s))
+    {
+        float* channels[2] { const_cast<float*> (raw.audio.getReadPointer (0)),
+                             const_cast<float*> (raw.audio.getReadPointer (juce::jmin (1, raw.audio.getNumChannels() - 1))) };
+        out->audio.setDataToReferTo (channels, 2, converted);   // read only from here on
+        out->sharedRaw = std::move (owner);
+        out->playEnd = converted;
+        std::vector<int> marks;
+        for (auto* src : { s.loadRegions ? &raw.regionMarkers : nullptr, s.loadSlices ? &raw.sliceMarkers : nullptr })
+            if (src != nullptr)
+                for (auto m : *src)
+                    if (m >= 0 && m < converted)
+                        marks.push_back (m);
+        if (! marks.empty())
+        {
+            std::sort (marks.begin(), marks.end());
+            marks.erase (std::unique (marks.begin(), marks.end()), marks.end());
+            out->fileMarkers = marks;
+            marks.push_back (0);
+            std::sort (marks.begin(), marks.end());
+            marks.erase (std::unique (marks.begin(), marks.end()), marks.end());
+            out->onsets = std::move (marks);
+        }
+        else
+            out->onsets = detectOnsets (out->audio);
+        out->computePeaks();
+        return out;
+    }
+
     juce::AudioBuffer<float> main (2, bufLen);
     main.clear();
     for (int ch = 0; ch < 2; ++ch)
-        main.copyFrom (ch, 0, b, ch, start, juce::jmin (len, converted - start));
+        main.copyFrom (ch, 0, whole, wholeChannel (s.swapStereo ? 1 - ch : ch), start, juce::jmin (len, converted - start));
+    b.setSize (0, 0);   // the converted copy is no longer needed
+    if (s.reversePolarity)
+        for (int ch = 0; ch < 2; ++ch)
+            main.applyGain (ch, 0, juce::jmin (len, converted - start), -1.0f);
+    if (s.removeDC)
+        for (int ch = 0; ch < 2; ++ch)
+        {
+            auto* d = main.getWritePointer (ch);
+            for (int i = 0; i < juce::jmin (len, converted - start); ++i) d[i] -= dc[ch];
+        }
     // FL's trimmed start is a short filter as well (TrimTail.h): output n mixes
     // the input from n up to about 3n.
     auto applyHead = [&] (float* d)

@@ -376,10 +376,12 @@ void ChanSamplerProcessor::rebuildSample()
     // Build from a snapshot of the raw sample without holding the pool lock.
     const std::lock_guard<std::mutex> one (rebuildMutex);
     const auto source = getRaw();
-    const auto settings = readPrecomputeSettings();
+    auto settings = readPrecomputeSettings();
+    if (std::abs (settings.targetRate - source->sampleRate) <= 0.5)
+        settings.targetRate = 0.0;   // the file is already at the playback rate: nothing to convert
     if (source == builtFrom && settings == builtWith)
         return;
-    publish (buildProcessedSample (*source, settings));
+    publish (buildProcessedSample (*source, settings, source));
     builtFrom = source;
     builtWith = settings;
     sendChangeMessage();
@@ -464,6 +466,7 @@ bool ChanSamplerProcessor::reloadSample()
 
 bool ChanSamplerProcessor::loadSample (const juce::File& file)
 {
+    loadError = "Could not read " + file.getFileName() + ": not a supported audio file, or the file is damaged.";
     std::unique_ptr<juce::AudioFormatReader> reader (formatManager.createReaderFor (file));
     if (reader == nullptr)
         return false;
@@ -482,8 +485,16 @@ bool ChanSamplerProcessor::loadSample (const juce::File& file)
         frames = juce::jmin (frames, file.getSize() / ((juce::int64) reader->numChannels * (reader->bitsPerSample / 8)));
     const auto playRate = hostRate.load() > 0.0 ? hostRate.load() : rate;
     constexpr double maxSamples = 1 << 28;   // 1 GB of float audio per copy
-    if (frames <= 0 || (double) frames * juce::jmax (1.0, playRate / rate) * juce::jmin (2, (int) reader->numChannels) > maxSamples)
+    if (frames <= 0)
         return false;
+    if ((double) frames * juce::jmax (1.0, playRate / rate) * juce::jmin (2, (int) reader->numChannels) > maxSamples)
+    {
+        loadError = file.getFileName() + " is too long to load (" + juce::String ((double) frames / rate / 60.0, 1)
+                  + " minutes). Chan Sampler holds samples in memory, up to about "
+                  + juce::String (juce::roundToInt (maxSamples / juce::jmin (2, (int) reader->numChannels) / juce::jmax (rate, playRate) / 60.0)) + " minutes at this rate.";
+        return false;
+    }
+    loadError.clear();
 
     RawSample r;
     r.file = file;

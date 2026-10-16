@@ -726,7 +726,7 @@ void ChanSamplerEditor::loadFile (const juce::File& file)
         return;
     }
     if (! samplerProcessor.loadSample (file))
-        fl::showDialog (canvas, "Chan Sampler", "Could not read " + file.getFileName(), true);
+        fl::showDialog (canvas, "Chan Sampler", samplerProcessor.getLoadError(), true);
 }
 
 bool ChanSamplerEditor::isInterestedInFileDrag (const juce::StringArray& files)

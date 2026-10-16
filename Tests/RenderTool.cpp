@@ -344,7 +344,7 @@ int main (int argc, char** argv)
     }
     else if (! proc.loadSample (sampleFile))
     {
-        std::cerr << "cannot load " << sampleFile.getFullPathName() << "\n";
+        std::cerr << proc.getLoadError() << "\n";
         return 1;
     }
 

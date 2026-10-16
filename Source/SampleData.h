@@ -7,11 +7,14 @@
 // baked in. The manual describes these as processes that replace the sample
 // data rather than realtime effects, so they run once on the message thread and
 // the audio thread only ever reads a finished SampleData.
+struct RawSample;
+
 struct SampleData : juce::ReferenceCountedObject
 {
     using Ptr = juce::ReferenceCountedObjectPtr<SampleData>;
 
     juce::AudioBuffer<float> audio;   // always 2 channels: [0, playEnd) + bleed tail
+    std::shared_ptr<const RawSample> sharedRaw;   // set when audio refers to the file's own data (read only)
     int playEnd = 0;                  // end of the playable region in frames
     bool lengthTrimmed = false;       // true when Length cut the sample short
 
@@ -80,7 +83,10 @@ struct RawSample
     std::vector<int> regionMarkers, sliceMarkers;
 };
 
-SampleData::Ptr buildProcessedSample (const RawSample& raw, const PrecomputeSettings& settings);
+// With owner (the shared RawSample raw belongs to), a sample that needs no
+// processing at all refers to the file's audio instead of copying it.
+SampleData::Ptr buildProcessedSample (const RawSample& raw, const PrecomputeSettings& settings,
+                                      std::shared_ptr<const RawSample> owner = {});
 
 // Sample Start / Length knob position (0..1) to a fraction of the sample.
 double trimKnobToFraction (float knob);
