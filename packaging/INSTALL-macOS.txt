@@ -1,6 +1,10 @@
 Chan Sampler for macOS (universal: Apple Silicon and Intel, macOS 10.13 or later)
 ==================================================================================
 
+The easiest way is the installer (ChanSampler-<version>-macOS.pkg on the
+Releases page; right-click > Open, as it is not notarized). It needs none of
+the steps below. To copy the files by hand instead:
+
 1. Drag the plugins into your plugin folders (in Finder: Go > Go to Folder...):
    - AU   (Logic, GarageBand, Ableton Live, FL Studio...):
          "Chan Sampler.component"  ->  ~/Library/Audio/Plug-Ins/Components/

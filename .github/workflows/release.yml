@@ -1,7 +1,9 @@
 ﻿# Builds Chan Sampler for Windows (VST3 + Standalone) and macOS (universal
-# AU + VST3 + Standalone app). Run it by hand from the Actions tab to get the
-# builds as downloadable artifacts, or push a version tag (git tag v1.0.0 &&
-# git push origin v1.0.0) to also publish them as a GitHub Release.
+# AU + VST3 + Standalone app), validates the plugins, and makes installers
+# (Windows setup .exe, macOS .pkg) and zips. Run it by hand from the Actions
+# tab to get them as downloadable artifacts, or push a version tag
+# (git tag v1.0.0 && git push origin v1.0.0) to also publish them as a GitHub
+# Release with that version's notes from CHANGELOG.md.
 name: Build and release
 
 on:
@@ -47,10 +49,21 @@ jobs:
           Copy-Item "LICENSE" "$dist/LICENSE.txt"
           Compress-Archive -Path $dist -DestinationPath ChanSampler-Windows.zip
 
+      - name: Installer (Inno Setup)
+        shell: pwsh
+        run: |
+          $version = (Select-String -Path CMakeLists.txt -Pattern 'project\(ChanSampler VERSION ([0-9.]+)\)').Matches[0].Groups[1].Value
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
+          & $iscc "/DAppVersion=$version" "packaging\ChanSampler.iss"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
       - uses: actions/upload-artifact@v4
         with:
           name: ChanSampler-Windows
-          path: ChanSampler-Windows.zip
+          path: |
+            ChanSampler-Windows.zip
+            dist/*.exe
 
   macos:
     runs-on: macos-latest
@@ -100,22 +113,54 @@ jobs:
           cp LICENSE "$D/LICENSE.txt"
           ditto -c -k --keepParent "$D" ChanSampler-macOS.zip
 
+      - name: Installer (.pkg)
+        run: |
+          set -e
+          V=$(sed -n 's/^project(ChanSampler VERSION \([0-9.]*\)).*/\1/p' CMakeLists.txt)
+          A=build/ChanSampler_artefacts/Release
+          mkdir -p pkg/au pkg/vst3 pkg/app pkg/res dist
+          cp -R "$A/AU/Chan Sampler.component" pkg/au/
+          cp -R "$A/VST3/Chan Sampler.vst3" pkg/vst3/
+          cp -R "$A/Standalone/Chan Sampler.app" pkg/app/
+          # Install exactly where stated (pkgbuild would otherwise follow a copy
+          # of the bundle found elsewhere on the disk).
+          for c in au vst3 app; do
+            pkgbuild --analyze --root pkg/$c pkg/$c.plist
+            n=$(plutil -extract @count raw pkg/$c.plist 2>/dev/null || echo 1)
+            for ((i = 0; i < n; i++)); do plutil -replace $i.BundleIsRelocatable -bool NO pkg/$c.plist; done
+          done
+          pkgbuild --root pkg/au   --component-plist pkg/au.plist   --install-location "/Library/Audio/Plug-Ins/Components" --identifier com.chansampler.au   --version "$V" pkg/ChanSampler-AU.pkg
+          pkgbuild --root pkg/vst3 --component-plist pkg/vst3.plist --install-location "/Library/Audio/Plug-Ins/VST3"       --identifier com.chansampler.vst3 --version "$V" pkg/ChanSampler-VST3.pkg
+          pkgbuild --root pkg/app  --component-plist pkg/app.plist  --install-location "/Applications"                       --identifier com.chansampler.app  --version "$V" pkg/ChanSampler-App.pkg
+          cp LICENSE pkg/res/LICENSE.txt
+          sed "s/VERSION/$V/g" packaging/distribution.xml > pkg/distribution.xml
+          productbuild --distribution pkg/distribution.xml --package-path pkg --resources pkg/res "dist/ChanSampler-$V-macOS.pkg"
+          pkgutil --payload-files "dist/ChanSampler-$V-macOS.pkg" | head -8
+
       - uses: actions/upload-artifact@v4
         with:
           name: ChanSampler-macOS
-          path: ChanSampler-macOS.zip
+          path: |
+            ChanSampler-macOS.zip
+            dist/*.pkg
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [windows, macos]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
+          path: artifacts
           merge-multiple: true
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" ChanSampler-Windows.zip ChanSampler-macOS.zip \
-            --repo "${GITHUB_REPOSITORY}" --title "Chan Sampler ${GITHUB_REF_NAME}" --generate-notes
+          VERSION="${GITHUB_REF_NAME#v}"
+          # This version's section of CHANGELOG.md
+          awk -v v="## $VERSION" '$0 == v {on = 1; next} /^## / {on = 0} on' CHANGELOG.md > notes.md
+          [ -s notes.md ] || echo "Chan Sampler $VERSION" > notes.md
+          gh release create "${GITHUB_REF_NAME}" $(find artifacts -type f \( -name '*.zip' -o -name '*.exe' -o -name '*.pkg' \)) \
+            --repo "${GITHUB_REPOSITORY}" --title "Chan Sampler ${VERSION}" --notes-file notes.md

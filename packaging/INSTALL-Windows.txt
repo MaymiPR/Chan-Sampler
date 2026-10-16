@@ -1,6 +1,9 @@
 Chan Sampler for Windows (64-bit)
 =================================
 
+The easiest way is the installer (ChanSampler-<version>-Windows-Setup.exe on
+the Releases page). To copy the files by hand instead:
+
 Plugin (VST3)
 1. Copy the whole "Chan Sampler.vst3" folder to:
        C:\Program Files\Common Files\VST3\

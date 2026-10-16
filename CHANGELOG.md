@@ -38,6 +38,16 @@ Look (measured from FL 2026's screen):
 - Tracking opens on the Key tab; Content shows only the options that do
   something.
 
+Robustness:
+- Offline rendering (export / bounce) never starts on an outdated sample, also
+  right after loading a project or changing a precomputed setting.
+- Changing the host's sample rate mid-session keeps every sample's pitch.
+- Damaged or hostile files can't crash or hang the plugin (1306 corrupted
+  files tested); a file that is too long or damaged gets a clear message.
+- Long samples use a third of the memory (a 30-minute stereo file: 3.1 GB to
+  0.8 GB).
+- The spectrum and colourful waveforms look the same at 96 kHz as at 44.1 kHz.
+
 Fixes:
 - Loading a sample with loop points sets the loop markers but no longer
   switches Use loop points on (FL leaves the switch as it was).
@@ -45,8 +55,9 @@ Fixes:
   (macOS).
 - macOS font widths match the Windows layout.
 
-Builds: Windows VST3 + Standalone, macOS universal AU + VST3 + Standalone,
-validated with pluginval (strictness 10) and `auval`. License: AGPLv3.
+Builds: Windows installer and macOS .pkg (plus zips) with VST3, AU (macOS) and
+the standalone app, validated with pluginval (strictness 10) and `auval`.
+License: AGPLv3.
 
 ## 0.1.0
 

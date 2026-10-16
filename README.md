@@ -79,16 +79,20 @@ gap.
 
 ## Install
 
-Download the zip for your system from the
-[Releases](https://github.com/MaymiPR/ChanSampler/releases) page. Each zip has
-an `INSTALL.txt`:
+Download from the [Releases](https://github.com/MaymiPR/ChanSampler/releases)
+page:
 
-- **Windows:** copy `Chan Sampler.vst3` to `C:\Program Files\Common Files\VST3\`
-  and rescan plugins in your DAW. `Chan Sampler.exe` runs on its own.
-- **macOS** (universal, 10.13 or later): copy `Chan Sampler.component` (AU) and
-  `Chan Sampler.vst3` to `~/Library/Audio/Plug-Ins/`. The builds are not
-  notarized by Apple, so one Terminal command (in `INSTALL.txt`) clears the
-  download quarantine.
+- **Windows:** `ChanSampler-<version>-Windows-Setup.exe` installs the VST3 to
+  `C:\Program Files\Common Files\VST3\` and the standalone app (Start menu),
+  with an uninstaller. Windows SmartScreen may warn because the installer
+  isn't code-signed: *More info* → *Run anyway*.
+- **macOS** (universal, 10.13 or later): `ChanSampler-<version>-macOS.pkg`
+  installs the AU, the VST3 and the app (you can choose which). It isn't
+  notarized by Apple, so open it with right-click → *Open* (or System Settings →
+  Privacy & Security → *Open Anyway*).
+
+Then rescan plugins in your DAW. The `.zip` files hold the same plugins for
+copying by hand (see their `INSTALL.txt`).
 
 ## Using it
 
