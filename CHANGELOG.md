@@ -21,6 +21,9 @@ New:
   setting.
 - Content panel: Load regions / Load slice markers from WAV files (cue / ACID).
 - Preset menu: save, load and browse `.cspreset` files, import `.fst`.
+- Factory presets (settings only, keep the loaded sample): Chop, Pluck, Swell,
+  Filter sweep, Wobble 1/8, Tremolo, Vibrato, 808 glide, Echo ping-pong 1/8,
+  Reverse. A saved preset without a sample also keeps the loaded one.
 - Sample view right-click menu: Reload, Save as, Locate file, Get properties,
   Spectrum view, Multichannel waveform view, Colorful waveforms (Multiband /
   Color map).

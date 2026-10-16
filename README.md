@@ -98,7 +98,10 @@ an `INSTALL.txt`:
   right-click for the view options.
 - Presets: the bar at the top saves and loads `.cspreset` files in
   `Documents/Chan Sampler/Presets` (folders become submenus); the arrows step
-  through them.
+  through them. **Factory** presets are built in and hold settings only, so
+  they keep your sample: *Chop* (the sample plays exactly as long as the note),
+  *Pluck*, *Swell*, *Filter sweep*, *Wobble 1/8*, *Tremolo*, *Vibrato*,
+  *808 glide*, *Echo ping-pong 1/8* and *Reverse*.
 - Without the volume envelope, a note plays to the end of the sample, as in FL.
 
 ## Build

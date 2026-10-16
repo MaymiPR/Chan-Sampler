@@ -2,6 +2,7 @@
 #include "PluginProcessor.h"
 #include "FlPreset.h"
 #include "FlStyle.h"
+#include "FactoryPresets.h"
 
 PresetBar::PresetBar (ChanSamplerProcessor& p) : processor (p)
 {
@@ -69,15 +70,21 @@ void PresetBar::mouseDown (const juce::MouseEvent& e)
 
 void PresetBar::step (int delta)
 {
+    // The factory presets, then the user's
+    const auto& factory = factoryPresets();
     const auto files = presetFiles();
-    if (files.isEmpty())
+    const int total = (int) factory.size() + files.size();
+    if (total == 0)
         return;
     int index = -1;
-    for (int i = 0; i < files.size(); ++i)
-        if (files[i].getFileNameWithoutExtension() == currentName())
+    for (int i = 0; i < total; ++i)
+        if ((i < (int) factory.size() ? juce::String (factory[(size_t) i].name) : files[i - (int) factory.size()].getFileNameWithoutExtension()) == currentName())
             index = i;
-    index = index < 0 ? (delta > 0 ? 0 : files.size() - 1) : (index + delta + files.size()) % files.size();
-    load (files[index]);
+    index = index < 0 ? (delta > 0 ? 0 : total - 1) : (index + delta + total) % total;
+    if (index < (int) factory.size())
+        loadFactory (index);
+    else
+        load (files[index - (int) factory.size()]);
 }
 
 void PresetBar::showMenu()
@@ -87,6 +94,24 @@ void PresetBar::showMenu()
     menu.addItem ("Import FL Sampler preset (.fst)...", [this] { importFst(); });
     menu.addItem ("Initialize", [this] { initialize(); });
     menu.addSeparator();
+
+    // Factory presets (built in, settings only)
+    {
+        juce::PopupMenu factory;
+        std::map<juce::String, juce::PopupMenu> groups;
+        const auto& list = factoryPresets();
+        juce::StringArray order;
+        for (size_t i = 0; i < list.size(); ++i)
+        {
+            const juce::String folder (list[i].folder);
+            order.addIfNotAlreadyThere (folder);
+            groups[folder].addItem (list[i].name, true, currentName() == list[i].name, [this, i] { loadFactory ((int) i); });
+        }
+        for (auto& folder : order)
+            factory.addSubMenu (folder, groups[folder]);
+        menu.addSubMenu ("Factory", factory);
+        menu.addSeparator();
+    }
 
     // Presets, with one submenu per folder
     const auto files = presetFiles();
@@ -116,10 +141,20 @@ void PresetBar::load (const juce::File& file)
         if (onMessage) onMessage ("Could not read " + file.getFileName(), false);
         return;
     }
+    // A preset without a sample (settings only) keeps the loaded one.
+    if (! xml->hasAttribute ("samplePath"))
+        xml->setAttribute ("samplePath", processor.getSampleFile().getFullPathName());
     juce::MemoryBlock state;
     juce::AudioProcessor::copyXmlToBinary (*xml, state);
     processor.setStateInformation (state.getData(), (int) state.getSize());
     setCurrentName (file.getFileNameWithoutExtension());
+}
+
+void PresetBar::loadFactory (int index)
+{
+    const auto& preset = factoryPresets()[(size_t) index];
+    applyFactoryPreset (processor, preset);
+    setCurrentName (preset.name);
 }
 
 void PresetBar::saveAs()

@@ -6,9 +6,11 @@ class ChanSamplerProcessor;
 
 // The plugin's own preset menu (top bar): the current preset's name with
 // previous / next arrows; a click opens Save preset as..., Import FL Sampler
-// preset..., the presets in Documents/Chan Sampler/Presets (folders as
-// submenus), Initialize and Open presets folder. A preset is the plugin state
-// as XML (every parameter and the sample path), the same as a host save.
+// preset..., the factory presets (built in, settings only), the presets in
+// Documents/Chan Sampler/Presets (folders as submenus), Initialize and Open
+// presets folder. A saved preset is the plugin state as XML (every parameter
+// and the sample path), the same as a host save; one without a sample path
+// keeps the loaded sample.
 class PresetBar : public juce::Component,
                   public juce::SettableTooltipClient,
                   private juce::Timer
@@ -33,6 +35,7 @@ private:
     void showMenu();
     void step (int delta);
     void load (const juce::File&);
+    void loadFactory (int index);
     void saveAs();
     void importFst();
     void initialize();

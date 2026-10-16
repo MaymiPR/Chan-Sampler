@@ -12,6 +12,7 @@
 #include "../Source/PluginProcessor.h"
 #include "../Source/FlPreset.h"
 #include "../Source/Params.h"
+#include "../Source/FactoryPresets.h"
 
 // Group test: two instances in one process. A (Cut 1) plays a note at 1 s
 // while B (By 1) holds a long note; reports where B goes silent, with A
@@ -361,6 +362,14 @@ int main (int argc, char** argv)
             return 1;
         }
         p->setValueNotifyingHost (p->convertTo0to1 (line.fromFirstOccurrenceOf (" ", false, false).getFloatValue()));
+    }
+    // RENDER_FACTORY="name": a factory preset (on top of the params file)
+    if (auto* f = std::getenv ("RENDER_FACTORY"))
+    {
+        bool found = false;
+        for (auto& fp : factoryPresets())
+            if (juce::String (fp.name) == f) { applyFactoryPreset (proc, fp); found = true; }
+        if (! found) { std::cerr << "no factory preset " << f << "\n"; return 1; }
     }
     proc.waitForPendingRebuilds();
     proc.rebuildNow();
