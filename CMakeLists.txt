@@ -52,7 +52,8 @@ target_sources(ChanSampler PRIVATE
     Source/PluginEditor.cpp
     Source/FlStyle.cpp
     Source/FlParts.cpp
-    Source/WaveformView.cpp)
+    Source/WaveformView.cpp
+    Source/OsFile.cpp)
 
 target_compile_definitions(ChanSampler PUBLIC
     JUCE_WEB_BROWSER=0
@@ -92,7 +93,8 @@ target_sources(ChanSamplerRender PRIVATE
     Source/PluginEditor.cpp
     Source/FlStyle.cpp
     Source/FlParts.cpp
-    Source/WaveformView.cpp)
+    Source/WaveformView.cpp
+    Source/OsFile.cpp)
 target_compile_definitions(ChanSamplerRender PRIVATE
     JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0 JUCE_USE_MP3AUDIOFORMAT=1
     JucePlugin_Name="Chan Sampler" JucePlugin_IsSynth=1 JucePlugin_WantsMidiInput=1
@@ -118,7 +120,8 @@ target_sources(ChanSamplerSnapshot PRIVATE
     Source/PluginEditor.cpp
     Source/FlStyle.cpp
     Source/FlParts.cpp
-    Source/WaveformView.cpp)
+    Source/WaveformView.cpp
+    Source/OsFile.cpp)
 target_compile_definitions(ChanSamplerSnapshot PRIVATE
     JUCE_MODAL_LOOPS_PERMITTED=1 JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0 JUCE_USE_MP3AUDIOFORMAT=1
     JucePlugin_Name="Chan Sampler" JucePlugin_IsSynth=1 JucePlugin_WantsMidiInput=1

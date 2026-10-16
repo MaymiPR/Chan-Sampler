@@ -224,9 +224,9 @@ void ChanSamplerEditor::buildTopBar()
 
     // The plugin's own presets (FL's wrapper has its preset menu here too)
     auto& presets = own (std::make_unique<PresetBar> (samplerProcessor), bar, { 146, 11, 168, 23 });
-    presets.onMessage = [] (const juce::String& message, bool ok)
+    presets.onMessage = [&presets] (const juce::String& message, bool ok)
     {
-        juce::AlertWindow::showMessageBoxAsync (ok ? juce::MessageBoxIconType::InfoIcon : juce::MessageBoxIconType::WarningIcon, "Chan Sampler", message);
+        fl::showDialog (presets, "Chan Sampler", message, ! ok);
     };
 
     knob (bar, pid::output, 517, 3, 30, fl::colour::green);
@@ -243,13 +243,13 @@ void ChanSamplerEditor::buildSampleSheet()
     text (file, "File", 7, 10, 24, 15, 12.5f, true);
     fileName = &text (file, {}, 33, 10, 159, 15, 12.5f);
     fileName->setColour (juce::Label::textColourId, fl::colour::title);
-    auto& open = own (std::make_unique<fl::IconButton> (fl::Icon::folder), file, { 192, 6, 32, 23 });
+    auto& open = own (std::make_unique<fl::IconButton> (fl::Icon::folder), file, { 192, 7, 32, 23 });
     open.setTooltip ("Load sample file");
     open.onClick = [this] { chooseFile(); };
-    auto& locate = own (std::make_unique<fl::IconButton> (fl::Icon::locate), file, { 224, 6, 19, 23 });
+    auto& locate = own (std::make_unique<fl::IconButton> (fl::Icon::locate), file, { 224, 7, 19, 23 });
     locate.setTooltip ("Show sample file in Explorer");
     locate.onClick = [this] { if (samplerProcessor.getSampleFile().existsAsFile()) samplerProcessor.getSampleFile().revealToUser(); };
-    auto& remove = own (std::make_unique<fl::IconButton> (fl::Icon::close), file, { 243, 6, 19, 23 });
+    auto& remove = own (std::make_unique<fl::IconButton> (fl::Icon::close), file, { 243, 7, 19, 23 });
     remove.setTooltip ("Remove sample");
     remove.onClick = [this] { samplerProcessor.removeSample(); };
 
@@ -722,13 +722,11 @@ void ChanSamplerEditor::loadFile (const juce::File& file)
     {
         const auto r = flpreset::import (samplerProcessor, file);
         if (! r.ok || r.message.isNotEmpty())
-            juce::AlertWindow::showMessageBoxAsync (r.ok ? juce::MessageBoxIconType::InfoIcon : juce::MessageBoxIconType::WarningIcon,
-                                                    "Chan Sampler", r.message);
+            fl::showDialog (canvas, "Chan Sampler", r.message, ! r.ok);
         return;
     }
     if (! samplerProcessor.loadSample (file))
-        juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon, "Chan Sampler",
-                                                "Could not read " + file.getFileName());
+        fl::showDialog (canvas, "Chan Sampler", "Could not read " + file.getFileName(), true);
 }
 
 bool ChanSamplerEditor::isInterestedInFileDrag (const juce::StringArray& files)

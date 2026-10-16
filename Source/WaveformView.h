@@ -25,6 +25,7 @@ public:
     // FL's view options (right-click menu), kept with the plugin state
     bool spectrumView() const;
     bool multichannelView() const;
+    int colourMode() const;   // FL's Colorful waveforms: 0 off, 1 color map, 2 multiband (default)
 
     // Shows frac0..frac1 of the sample (tests / snapshots).
     void setView (float frac0, float frac1) { viewStart = frac0; viewEnd = frac1; repaint(); }
@@ -44,7 +45,18 @@ private:
     float xToFrac (float x) const;
     Marker markerAt (juce::Point<float>) const;
     const char* markerParam (Marker m) const;
-    void drawLanes (juce::Graphics&, juce::Rectangle<float> area, float from, float to, juce::Colour colour) const;
+    void drawLanes (juce::Graphics&, juce::Rectangle<float> area, float from, float to, juce::Colour colour, bool colourful) const;
+    // Colorful waveforms: per-band energy of 64-frame blocks (source 0 both
+    // channels, 1 left, 2 right), made when first drawn.
+    struct BandEnergy
+    {
+        SampleData::Ptr owner;
+        std::vector<float> energy[3];
+    };
+    mutable BandEnergy bands[3];
+    const BandEnergy& bandEnergy (int source) const;
+    std::vector<juce::Colour> columnColours (float from, float to, int width) const;
+    void setColourFill (juce::Graphics&, juce::Rectangle<float> area, float from, float to, juce::Colour plain, bool colourful) const;
     juce::Colour waveColour() const;
     void showMenu();
     void saveAs();

@@ -97,6 +97,14 @@ namespace
         return dynamic_cast<juce::ComboBox*> (o.getTargetComponent()) != nullptr;
     }
 
+    // Menus opened with showContextMenu (FL's sample / preset menus)
+    constexpr const char* contextMenuProperty = "flContextMenu";
+    bool isContext (const juce::PopupMenu::Options& o)
+    {
+        auto* t = o.getTargetComponent();
+        return t != nullptr && (bool) t->getProperties()[contextMenuProperty];
+    }
+
     // FL menu metrics (measured from FL 2026 screenshots at 100%).
     constexpr int menuRowH = 19, menuHeaderH = 13, knobHeaderH = 16;
     const juce::Colour ddBg { 0xff202122 }, ddEdge { 0xff101112 }, ddHeader { 0xff333434 }, ddHeaderText { 0xff8a8c8d },
@@ -142,7 +150,7 @@ void LookAndFeel::getIdealPopupMenuItemSizeWithOptions (const juce::String& text
     if (isSeparator)
     {
         w = 20;
-        h = 5;
+        h = isContext (o) ? 7 : 5;
         return;
     }
     int acc = 0;
@@ -179,10 +187,12 @@ void LookAndFeel::drawPopupMenuItemWithOptions (juce::Graphics& g, const juce::R
     const bool dd = isDropDown (o);
     if (item.isSeparator)
     {
-        // FL: a full-width dark rule (2 px in the knob menus)
+        // FL: a full-width dark rule (2 px in the knob menus, 1 px in the
+        // sample menu)
         g.setColour (dd ? juce::Colours::black.withAlpha (0.4f) : rmHeader);
-        if (dd) g.fillRect (area.withHeight (1).withY (area.getCentreY()).withTrimmedLeft (2).withTrimmedRight (2));
-        else    g.fillRect (area.withHeight (2).withY (area.getCentreY() - 1));
+        if (dd)                  g.fillRect (area.withHeight (1).withY (area.getCentreY()).withTrimmedLeft (2).withTrimmedRight (2));
+        else if (isContext (o))  g.fillRect (area.withHeight (1).withY (area.getY() + 3));
+        else                     g.fillRect (area.withHeight (2).withY (area.getCentreY() - 1));
         return;
     }
     // FL's dropdowns keep the current choice highlighted.
@@ -199,6 +209,16 @@ void LookAndFeel::drawPopupMenuItemWithOptions (juce::Graphics& g, const juce::R
     if (! item.isEnabled) col = rmDisabled;
     if (hl && dd)         col = juce::Colours::white;
     g.setColour (col);
+    if (item.isTicked && ! dd)
+    {
+        // FL's tick in the left margin (measured: 9 x 7 px, 1.4 px strokes)
+        const auto x = (float) area.getX(), y = (float) area.getY();
+        juce::Path tick;
+        tick.startNewSubPath (x + 2.5f, y + 7.0f);
+        tick.lineTo (x + 5.5f, y + 10.5f);
+        tick.lineTo (x + 10.5f, y + 4.0f);
+        g.strokePath (tick, juce::PathStrokeType (1.4f, juce::PathStrokeType::mitered, juce::PathStrokeType::butt));
+    }
     const auto f = getPopupMenuFont();
     g.setFont (f);
     const auto textArea = area.withTrimmedLeft (dd ? 4 : 16).withTrimmedRight (dd ? 2 : 12);
@@ -632,15 +652,210 @@ void drawIcon (juce::Graphics& g, Icon icon, juce::Rectangle<float> a, juce::Col
 
 void IconButton::paintButton (juce::Graphics& g, bool highlighted, bool down)
 {
-    const auto r = getLocalBounds().toFloat().reduced (0.5f);
-    auto bg = juce::Colour (0xff353c40);
-    if (highlighted) bg = bg.brighter (0.1f);
-    if (down)        bg = bg.darker (0.2f);
-    g.setColour (bg.withMultipliedAlpha (isEnabled() ? 1.0f : 0.5f));
-    g.fillRoundedRectangle (r, 2.5f);
-    g.setColour (juce::Colour (0xff23282b));
-    g.drawRoundedRectangle (r, 2.5f, 1.0f);
-    drawIcon (g, icon, r.reduced (r.getHeight() * 0.22f), (isEnabled() ? colour::title : colour::dim));
+    // FL's file buttons (measured pixel by pixel from FL 2026): a 1 px dark
+    // frame, a 1 px lighter inner edge, a fill darkening downwards, and thin
+    // 1 px line icons at fixed positions.
+    const auto b = getLocalBounds().toFloat();
+    const auto w = b.getWidth(), h = b.getHeight();
+    auto shade = [highlighted, down] (juce::Colour c) { return down ? c.darker (0.15f) : highlighted ? c.brighter (0.2f) : c; };
+    g.setColour (juce::Colour (0xff141717));
+    g.fillRect (b);
+    g.setGradientFill (juce::ColourGradient (shade (juce::Colour (0xff282b2c)), 0.0f, 1.0f, shade (juce::Colour (0xff1e2121)), 0.0f, h - 1.0f, false));
+    g.fillRect (b.reduced (1.0f));
+    g.setGradientFill (juce::ColourGradient (shade (juce::Colour (0xff202324)), 0.0f, 1.0f, shade (juce::Colour (0xff171a1a)), 0.0f, h - 1.0f, false));
+    g.fillRect (b.reduced (2.0f));
+
+    const auto c = isEnabled() ? juce::Colour (0xffdfe4e5) : colour::dim;
+    g.setColour (c);
+    // Icons sit on FL's 1 px grid (pixel centres at +0.5).
+    auto folder = [&g] (float x0, float x1, float tabX, float yTab, float yTop, float yBottom)
+    {
+        juce::Path p;
+        p.startNewSubPath (x0 + 0.5f, yBottom + 0.5f);
+        p.lineTo (x0 + 0.5f, yTab + 0.5f);
+        p.lineTo (tabX + 0.5f, yTab + 0.5f);
+        p.lineTo (tabX + 2.0f, yTop + 0.5f);
+        p.lineTo (x1 + 0.5f, yTop + 0.5f);
+        p.lineTo (x1 + 0.5f, yBottom + 0.5f);
+        p.closeSubPath();
+        g.strokePath (p, juce::PathStrokeType (1.0f, juce::PathStrokeType::mitered, juce::PathStrokeType::square));
+    };
+    const auto cx = std::floor (w * 0.5f);   // FL centres the icons on the box
+    switch (icon)
+    {
+        case Icon::folder:   // 12 x 10 px
+            folder (cx - 5.0f, cx + 6.0f, cx - 1.0f, 6.0f, 8.0f, 15.0f);
+            break;
+        case Icon::locate:   // a 9 x 8 px folder over a little tree
+        {
+            folder (cx - 3.0f, cx + 5.0f, cx, 4.0f, 6.0f, 11.0f);
+            const auto tx = cx + 1.0f;
+            g.fillRect (tx, 13.0f, 1.0f, 6.0f);
+            g.fillRect (tx + 1.0f, 15.0f, 2.0f, 1.0f);
+            g.fillRect (tx + 1.0f, 18.0f, 2.0f, 1.0f);
+            break;
+        }
+        case Icon::close:    // 9 x 9 px cross
+        {
+            const auto x0 = cx - 3.0f, y0 = 7.0f;
+            g.drawLine (x0 + 0.2f, y0 + 0.2f, x0 + 8.8f, y0 + 8.8f, 1.7f);
+            g.drawLine (x0 + 8.8f, y0 + 0.2f, x0 + 0.2f, y0 + 8.8f, 1.7f);
+            break;
+        }
+        default:
+            drawIcon (g, icon, b.reduced (h * 0.22f), c);
+            break;
+    }
+}
+
+//==============================================================================
+void showContextMenu (juce::PopupMenu& menu, juce::Component& target, bool atMouse)
+{
+    target.getProperties().set (contextMenuProperty, true);
+    menu.setLookAndFeel (&target.getLookAndFeel());   // otherwise JUCE uses its default look
+    auto options = juce::PopupMenu::Options().withTargetComponent (&target);
+    menu.showMenuAsync (atMouse ? options.withMousePosition() : options);
+}
+
+namespace
+{
+    // FL's dialog colours (measured from FL 2026's dialogs)
+    const juce::Colour dlgBg { 0xff202324 }, dlgEdge { 0xff16191a }, dlgPanel { 0xff282c2d }, dlgPanelEdge { 0xff1d2021 },
+                       dlgTitle { 0xffd4dadd }, dlgText { 0xffd0d8da }, dlgSign { 0xff98a2a8 }, dlgButtonText { 0xffabb7b7 };
+
+    class Dialog : public juce::Component
+    {
+    public:
+        Dialog (const juce::String& t, const juce::String& m, bool w) : title (t), message (m), warning (w)
+        {
+            setWantsKeyboardFocus (true);
+        }
+
+        void resized() override
+        {
+            constexpr int titleH = 25, signW = 46, buttonH = 31;
+            const int boxW = juce::jmin (380, getWidth() - 24);
+            juce::AttributedString as;
+            as.append (message, font (12.5f), dlgText);
+            as.setWordWrap (juce::AttributedString::byWord);
+            text.createLayout (as, (float) (boxW - 8 - signW - 16));
+            const int panelH = juce::jmax (64, (int) std::ceil (text.getHeight()) + 32);
+            const int boxH = titleH + 1 + panelH + 12 + buttonH + 12;
+            box = juce::Rectangle<int> (boxW, juce::jmin (boxH, getHeight() - 12)).withCentre (getLocalBounds().getCentre());
+            panel = juce::Rectangle<int> (box.getX() + 4, box.getY() + titleH + 1, boxW - 8, panelH);
+            textArea = panel.toFloat().withTrimmedLeft ((float) signW).reduced (8.0f, 16.0f);
+            button = juce::Rectangle<int> (116, buttonH).withCentre ({ box.getCentreX(), panel.getBottom() + 12 + buttonH / 2 });
+            closeBox = juce::Rectangle<int> (box.getRight() - 22, box.getY() + 4, 17, 17);
+        }
+
+        void paint (juce::Graphics& g) override
+        {
+            g.fillAll (juce::Colours::black.withAlpha (0.25f));   // keeps the eye on the dialog
+            g.setColour (juce::Colours::black.withAlpha (0.35f));
+            g.fillRect (box.translated (2, 3));
+            g.setColour (dlgEdge);
+            g.fillRect (box);
+            g.setColour (dlgBg);
+            g.fillRect (box.reduced (1));
+
+            g.setColour (dlgTitle);
+            g.setFont (font (12.5f));
+            g.drawText (title, box.getX() + 6, box.getY(), box.getWidth() - 34, 25, juce::Justification::centredLeft, true);
+            const auto cc = closeBox.toFloat().reduced (4.5f);
+            g.setColour (closeHover ? juce::Colours::white : dlgTitle);
+            g.drawLine (cc.getX(), cc.getY(), cc.getRight(), cc.getBottom(), 1.3f);
+            g.drawLine (cc.getRight(), cc.getY(), cc.getX(), cc.getBottom(), 1.3f);
+
+            g.setColour (dlgPanelEdge);
+            g.fillRect (panel);
+            g.setColour (dlgPanel);
+            g.fillRect (panel.reduced (1));
+            g.setColour (dlgSign);
+            g.setFont (font (40.0f));
+            g.drawText (warning ? "!" : "i", panel.withWidth (46).withTrimmedTop (8).withHeight (56), juce::Justification::centred, false);
+            text.draw (g, textArea);
+
+            // FL's dialog button: dark frame, lighter top edge, darkening fill
+            const auto b = button.toFloat();
+            g.setColour (juce::Colour (0xff181b1c));
+            g.fillRect (b);
+            g.setColour (juce::Colour (0xff343839));
+            g.fillRect (b.reduced (1.0f));
+            const float lift = buttonDown ? -0.06f : buttonHover ? 0.06f : 0.0f;
+            g.setGradientFill (juce::ColourGradient (juce::Colour (0xff2a2e2f).brighter (lift), 0.0f, b.getY() + 2.0f,
+                                                     juce::Colour (0xff202425).brighter (lift), 0.0f, b.getBottom() - 1.0f, false));
+            g.fillRect (b.reduced (1.0f).withTrimmedTop (1.0f));
+            g.setColour (dlgButtonText);
+            g.setFont (font (12.0f));
+            g.drawText ("OK", button, juce::Justification::centred, false);
+        }
+
+        void mouseMove (const juce::MouseEvent& e) override
+        {
+            const bool h = button.contains (e.getPosition()), c = closeBox.contains (e.getPosition());
+            if (h != buttonHover || c != closeHover)
+            {
+                buttonHover = h;
+                closeHover = c;
+                repaint();
+            }
+        }
+        void mouseExit (const juce::MouseEvent&) override { buttonHover = closeHover = false; repaint(); }
+        void mouseDown (const juce::MouseEvent& e) override
+        {
+            buttonDown = button.contains (e.getPosition());
+            repaint();
+        }
+        void mouseUp (const juce::MouseEvent& e) override
+        {
+            const bool fire = (buttonDown && button.contains (e.getPosition())) || closeBox.contains (e.getPosition());
+            buttonDown = false;
+            repaint();
+            if (fire)
+                close();
+        }
+        bool keyPressed (const juce::KeyPress& k) override
+        {
+            if (k == juce::KeyPress::returnKey || k == juce::KeyPress::escapeKey || k == juce::KeyPress::spaceKey)
+            {
+                close();
+                return true;
+            }
+            return false;
+        }
+
+    private:
+        void close()
+        {
+            setVisible (false);
+            juce::Component::SafePointer<Dialog> self (this);
+            juce::MessageManager::callAsync ([self] { delete self.getComponent(); });
+        }
+
+        juce::String title, message;
+        bool warning;
+        juce::TextLayout text;
+        juce::Rectangle<int> box, panel, button, closeBox;
+        juce::Rectangle<float> textArea;
+        bool buttonHover = false, buttonDown = false, closeHover = false;
+    };
+}
+
+void showDialog (juce::Component& owner, const juce::String& title, const juce::String& message, bool warning)
+{
+    // Shown on the editor's scaled canvas (the editor's child that holds
+    // owner), so it grows with the window.
+    juce::Component* top = owner.getTopLevelComponent();
+    if (auto* editor = owner.findParentComponentOfClass<juce::AudioProcessorEditor>())
+    {
+        top = &owner;
+        while (top->getParentComponent() != editor)
+            top = top->getParentComponent();
+    }
+    auto* d = new Dialog (title, message, warning);
+    top->addAndMakeVisible (d);   // the window owns it; it deletes itself when closed
+    d->setBounds (top->getLocalBounds());
+    d->grabKeyboardFocus();
 }
 
 //==============================================================================

@@ -1,5 +1,7 @@
 #include "WaveformView.h"
 #include "FlStyle.h"
+#include "OsFile.h"
+#include <thread>
 
 namespace
 {
@@ -106,7 +108,8 @@ namespace flview
     const juce::Colour frame      { 0xff202324 };   // strip above the view, around the bar
     const juce::Colour bg         { 0xff1b1d1e };
     const juce::Colour grid       { 0xff131516 };   // 0.1 s (or 10x finer / coarser) and the +/-50% lines
-    const juce::Colour gridMajor  { 0xff090b0c };   // whole seconds (10x the fine grid)
+    const juce::Colour gridMajor  { 0xff090b0c };   // the next power of ten (whole seconds)
+    const juce::Colour gridMajorEdge { 0xff17191a };   // 1 px each side of it
     const juce::Colour waveMono   { 0xfff6feff };
     const juce::Colour waveStereo { 0xfff2eded };
     const juce::Colour watermark  { 0xff41464b };
@@ -122,7 +125,7 @@ juce::Colour WaveformView::waveColour() const
     return sample != nullptr && sample->mono ? flview::waveMono : flview::waveStereo;
 }
 
-void WaveformView::drawLanes (juce::Graphics& g, juce::Rectangle<float> area, float from, float to, juce::Colour colour) const
+void WaveformView::drawLanes (juce::Graphics& g, juce::Rectangle<float> area, float from, float to, juce::Colour colour, bool colourful) const
 {
     // FL draws one smooth, anti-aliased shape: per pixel column the lowest and
     // highest value of both channels (measured: within ~1 px of FL's capture),
@@ -166,7 +169,7 @@ void WaveformView::drawLanes (juce::Graphics& g, juce::Rectangle<float> area, fl
             if (! started) { line.startNewSubPath (pt); started = true; }
             else           line.lineTo (pt);
         }
-        g.setColour (colour);
+        setColourFill (g, area, from, to, colour, colourful);
         g.strokePath (line, juce::PathStrokeType (1.5f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
         return;
     }
@@ -226,7 +229,7 @@ void WaveformView::drawLanes (juce::Graphics& g, juce::Rectangle<float> area, fl
         shape.lineTo (*it);
     shape.lineTo (lower.front().translated (-0.5f, 0.0f));
     shape.closeSubPath();
-    g.setColour (colour);
+    setColourFill (g, area, from, to, colour, colourful);
     g.fillPath (shape);
 }
 
@@ -249,7 +252,7 @@ void WaveformView::drawSamples (juce::Graphics& g, juce::Rectangle<float> area, 
     juce::Path line;
     for (int i = first; i <= last; ++i)
         i == first ? line.startNewSubPath (pt (i)) : line.lineTo (pt (i));
-    g.setColour (waveColour());
+    setColourFill (g, area, from, to, waveColour(), true);
     g.strokePath (line, juce::PathStrokeType (1.5f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
     const auto spacing = area.getWidth() / juce::jmax (1.0f, (to - from) * (float) total);
     if (spacing >= 6.0f)
@@ -258,7 +261,7 @@ void WaveformView::drawSamples (juce::Graphics& g, juce::Rectangle<float> area, 
             const auto p = pt (i);
             g.setColour (fl::colour::well);
             g.fillEllipse (p.x - 2.5f, p.y - 2.5f, 5.0f, 5.0f);
-            g.setColour (waveColour());
+            setColourFill (g, area, from, to, waveColour(), true);
             g.drawEllipse (p.x - 2.5f, p.y - 2.5f, 5.0f, 5.0f, 1.0f);
         }
 }
@@ -281,15 +284,32 @@ void WaveformView::paint (juce::Graphics& g)
         const double seconds = sample != nullptr && sample->getTotalFrames() > 0 ? sample->getTotalFrames() / sample->sourceRate : 1.0;
         const double t0 = viewStart * seconds, t1 = viewEnd * seconds;
         const double pps = wave.getWidth() / juce::jmax (1.0e-9, t1 - t0);
-        double step = 0.0001;
-        while (step * pps < 20.0)
-            step *= 10.0;
+        // Steps of 1, 2 or 5 times a power of ten, the finest at least 15 px
+        // apart (FL: 0.1 s at 27 px, 0.2 s rather than 0.1 s at 9 px); the
+        // next power of ten is drawn darker with a soft edge each side.
+        double decade = 0.0001, step = decade;
+        for (;;)
+        {
+            if (decade * pps >= 15.0)            { step = decade;        break; }
+            if (2.0 * decade * pps >= 15.0)      { step = 2.0 * decade;  break; }
+            if (5.0 * decade * pps >= 15.0)      { step = 5.0 * decade;  break; }
+            decade *= 10.0;
+        }
+        const double major = decade * 10.0;
+        const auto perMajor = (long long) std::llround (major / step);
         for (auto k = (long long) std::ceil (t0 / step - 1.0e-6); (double) k * step <= t1 + 1.0e-9; ++k)
         {
             const auto x = (float) std::floor (wave.getX() + ((double) k * step - t0) * pps);
             if (x >= wave.getRight())
                 break;
-            g.setColour (k % 10 == 0 ? flview::gridMajor : flview::grid);
+            if (k % perMajor == 0)
+            {
+                g.setColour (flview::gridMajorEdge);
+                g.fillRect (juce::Rectangle<float> (x - 1.0f, wave.getY(), 3.0f, wave.getHeight()).getIntersection (wave));
+                g.setColour (flview::gridMajor);
+            }
+            else
+                g.setColour (flview::grid);
             g.fillRect (x, wave.getY(), 1.0f, wave.getHeight());
         }
     };
@@ -345,7 +365,10 @@ void WaveformView::paint (juce::Graphics& g)
         // each sample as a dot joined by lines instead of the peak overview.
         const auto visibleFrames = (viewEnd - viewStart) * (float) sample->getTotalFrames();
         if (spectrumView())
+        {
             drawSpectrum (g, wave);
+            drawWatermark();   // FL keeps it over the spectrum
+        }
         else if (multichannelView() && ! sample->mono)
         {
             // Multichannel view: left above, right below, one lane each.
@@ -353,7 +376,7 @@ void WaveformView::paint (juce::Graphics& g)
             for (int ch = 0; ch < 2; ++ch)
             {
                 laneChannel = ch;
-                drawLanes (g, ch == 0 ? top : bottom, viewStart, viewEnd, waveColour());
+                drawLanes (g, ch == 0 ? top : bottom, viewStart, viewEnd, waveColour(), true);
             }
             laneChannel = -1;
             g.setColour (flview::grid);
@@ -362,7 +385,7 @@ void WaveformView::paint (juce::Graphics& g)
         else if (visibleFrames < wave.getWidth() / 2.0f)
             drawSamples (g, wave, viewStart, viewEnd);
         else
-            drawLanes (g, wave, viewStart, viewEnd, waveColour());
+            drawLanes (g, wave, viewStart, viewEnd, waveColour(), true);
     }
 
     // The file's region / slice markers (when loaded): small orange tabs
@@ -492,7 +515,7 @@ void WaveformView::paint (juce::Graphics& g)
         }
         juce::Graphics::ScopedSaveState s (g);
         g.reduceClipRegion (juce::Rectangle<float>::leftTopRightBottom (t0, inner.getY(), t1, inner.getBottom()).toNearestInt());
-        drawLanes (g, inner.reduced (0.0f, 1.0f), 0.0f, 1.0f, flview::overview);
+        drawLanes (g, inner.reduced (0.0f, 1.0f), 0.0f, 1.0f, flview::overview, true);   // FL colours the overview too
         if (viewStart > 0.0f || viewEnd < 1.0f)
         {
             g.setColour (flview::barLight);
@@ -653,6 +676,7 @@ void WaveformView::mouseUp (const juce::MouseEvent&)
 //==============================================================================
 bool WaveformView::spectrumView() const     { return (bool) processor.apvts.state.getProperty ("viewSpectrum", false); }
 bool WaveformView::multichannelView() const { return (bool) processor.apvts.state.getProperty ("viewMultichannel", false); }
+int WaveformView::colourMode() const        { return juce::jlimit (0, 2, (int) processor.apvts.state.getProperty ("colorfulWaveforms", 2)); }
 
 void WaveformView::showMenu()
 {
@@ -670,12 +694,24 @@ void WaveformView::showMenu()
         processor.apvts.state.setProperty ("viewSpectrum", ! spectrumView(), nullptr);
         repaint();
     });
-    menu.addItem ("Multichannel waveform view", ! spectrumView() && hasAudio && ! sample->mono, multichannelView(), [this]
+    // FL greys this out only while the spectrum view is on.
+    menu.addItem ("Multichannel waveform view", ! spectrumView(), multichannelView(), [this]
     {
         processor.apvts.state.setProperty ("viewMultichannel", ! multichannelView(), nullptr);
         repaint();
     });
-    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this).withMousePosition());
+    // FL's Options > General settings > Colorful waveforms, kept per plugin
+    // here (Multiband by default).
+    juce::PopupMenu colours;
+    const char* names[] = { "Off", "Color map", "Multiband" };
+    for (int i = 0; i < 3; ++i)
+        colours.addItem (names[i], true, colourMode() == i, [this, i]
+        {
+            processor.apvts.state.setProperty ("colorfulWaveforms", i, nullptr);
+            repaint();
+        });
+    menu.addSubMenu ("Colorful waveforms", colours);
+    fl::showContextMenu (menu, *this, true);
 }
 
 void WaveformView::saveAs()
@@ -707,80 +743,302 @@ void WaveformView::saveAs()
 
 void WaveformView::showProperties()
 {
+    // FL opens the system's own properties window for the file (Explorer's
+    // Properties on Windows); the same here (Finder's Get Info on macOS).
     const auto file = processor.getSampleFile();
+    if (osfile::showProperties (file))
+        return;
     juce::String text;
-    text << "File: " << (file.existsAsFile() ? file.getFullPathName() : juce::String ("(none)")) << "\n"
-         << processor.getSampleInfo() << "\n"
-         << "Frames: " << sample->getTotalFrames() << "\n"
-         << "Held as: " << (sample->fileBits <= 16 ? "16-bit" : "32-bit float") << "\n"
-         << "Markers in use: " << (int) sample->fileMarkers.size();
-    if (file.existsAsFile())
-        text << "\nFile size: " << juce::File::descriptionOfSizeInBytes (file.getSize());
-    juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::InfoIcon, "Sample properties", text);
+    text << (file.existsAsFile() ? file.getFullPathName() : juce::String ("The sample has no file on disk.")) << "\n\n"
+         << processor.getSampleInfo() << ", " << sample->getTotalFrames() << " frames, held as "
+         << (sample->fileBits <= 16 ? "16-bit" : "32-bit float");
+    fl::showDialog (*this, "Properties", text);
+}
+
+//==============================================================================
+// Colorful waveforms (FL's Options > General settings, measured with tone
+// sweeps): the sample is split into three bands by first-order filters (low:
+// low-pass at 162 Hz, mid: high-pass 162 Hz into low-pass 1312 Hz, high:
+// high-pass at 1312 Hz); each column's colour comes from the RMS of the three
+// bands over its samples (level does not change it). Multiband is red / green /
+// blue in proportion to the bands, R + G + B = 245; Color map places the
+// balance (mid counting half, high full) on FL's palette, red through cream to
+// blue-violet. Matches FL within 2-4 RGB steps on tones and mixtures.
+namespace
+{
+    constexpr int bandBlock = 64;   // frames per stored band-energy block
+
+    struct OnePole
+    {
+        float b = 0, a = 0, x1 = 0, y1 = 0;
+        bool high = false;
+        OnePole (double fc, double sr, bool hp) : high (hp)
+        {
+            const auto k = std::tan (juce::MathConstants<double>::pi * juce::jmin (fc, sr * 0.49) / sr);
+            b = (float) (1.0 / (1.0 + k));
+            a = (float) ((k - 1.0) / (1.0 + k));
+            if (! hp)
+                b = (float) (k / (1.0 + k));
+        }
+        float process (float x)
+        {
+            const auto y = high ? b * (x - x1) - a * y1 : b * (x + x1) - a * y1;
+            x1 = x;
+            y1 = y;
+            return y;
+        }
+    };
+
+    juce::Colour colourMapAt (float t)
+    {
+        // FL's Color map (sampled from tones placed by the same band balance)
+        static const float at[] = { 0.096f, 0.144f, 0.184f, 0.233f, 0.285f, 0.345f, 0.406f, 0.473f, 0.537f, 0.603f,
+                                    0.661f, 0.724f, 0.773f, 0.825f, 0.866f, 0.902f, 0.931f, 0.953f, 0.974f, 0.992f };
+        static const juce::uint8 rgb[][3] = { { 151, 66, 83 }, { 160, 72, 89 }, { 172, 86, 94 }, { 182, 99, 98 }, { 194, 117, 99 },
+                                              { 203, 141, 108 }, { 211, 169, 125 }, { 221, 205, 159 }, { 225, 220, 178 }, { 217, 222, 177 },
+                                              { 195, 210, 164 }, { 167, 196, 167 }, { 128, 175, 154 }, { 96, 147, 147 }, { 81, 131, 151 },
+                                              { 78, 119, 151 }, { 85, 110, 147 }, { 90, 104, 145 }, { 96, 99, 143 }, { 98, 94, 140 } };
+        constexpr int n = (int) std::size (at);
+        if (t <= at[0])     return juce::Colour (rgb[0][0], rgb[0][1], rgb[0][2]);
+        if (t >= at[n - 1]) return juce::Colour (rgb[n - 1][0], rgb[n - 1][1], rgb[n - 1][2]);
+        int i = 0;
+        while (t > at[i + 1]) ++i;
+        const auto u = (t - at[i]) / (at[i + 1] - at[i]);
+        auto mix = [&] (int c) { return (juce::uint8) juce::roundToInt ((float) rgb[i][c] + u * (float) (rgb[i + 1][c] - rgb[i][c])); };
+        return juce::Colour (mix (0), mix (1), mix (2));
+    }
+}
+
+const WaveformView::BandEnergy& WaveformView::bandEnergy (int source) const
+{
+    auto& b = bands[(size_t) source];
+    if (b.owner == sample)
+        return b;
+    b.owner = sample;
+    for (auto& e : b.energy)
+        e.clear();
+    const int total = sample->getTotalFrames();
+    if (total <= 0)
+        return b;
+    const int chans = sample->audio.getNumChannels();
+    const auto* l = sample->audio.getReadPointer (source == 2 ? juce::jmin (1, chans - 1) : 0);
+    const auto* r = sample->audio.getReadPointer (source == 1 ? 0 : juce::jmin (1, chans - 1));
+    const auto sr = sample->sourceRate > 0 ? sample->sourceRate : 44100.0;
+    OnePole low (162.26, sr, false), midHp (162.26, sr, true), midLp (1312.5, sr, false), high (1312.5, sr, true);
+    const int blocks = (total + bandBlock - 1) / bandBlock;
+    for (auto& e : b.energy)
+        e.assign ((size_t) blocks, 0.0f);
+    for (int k = 0; k < blocks; ++k)
+    {
+        float e0 = 0, e1 = 0, e2 = 0;
+        for (int i = k * bandBlock; i < juce::jmin (total, (k + 1) * bandBlock); ++i)
+        {
+            const auto x = 0.5f * (l[i] + r[i]);
+            const auto lo = low.process (x), mid = midLp.process (midHp.process (x)), hi = high.process (x);
+            e0 += lo * lo;
+            e1 += mid * mid;
+            e2 += hi * hi;
+        }
+        b.energy[0][(size_t) k] = e0;
+        b.energy[1][(size_t) k] = e1;
+        b.energy[2][(size_t) k] = e2;
+    }
+    return b;
+}
+
+std::vector<juce::Colour> WaveformView::columnColours (float from, float to, int width) const
+{
+    std::vector<juce::Colour> out ((size_t) juce::jmax (0, width), waveColour());
+    const int mode = colourMode();
+    const int total = sample != nullptr ? sample->getTotalFrames() : 0;
+    if (mode == 0 || total <= 0 || width <= 0)
+        return out;
+    const auto& b = bandEnergy (laneChannel >= 0 && ! sample->mono ? laneChannel + 1 : 0);
+    const int blocks = (int) b.energy[0].size();
+    juce::Colour last = waveColour();
+    bool any = false;
+    for (int x = 0; x < width; ++x)
+    {
+        const auto f0 = from + (to - from) * (float) x / (float) width;
+        const auto f1 = from + (to - from) * (float) (x + 1) / (float) width;
+        const int k0 = juce::jlimit (0, blocks - 1, (int) std::floor (f0 * (float) total / (float) bandBlock));
+        const int k1 = juce::jlimit (k0 + 1, blocks, (int) std::ceil (f1 * (float) total / (float) bandBlock));
+        double e[3] {};
+        for (int c = 0; c < 3; ++c)
+            for (int k = k0; k < k1; ++k)
+                e[c] += b.energy[(size_t) c][(size_t) k];
+        const auto lo = std::sqrt (e[0]), mid = std::sqrt (e[1]), hi = std::sqrt (e[2]);
+        const auto sum = lo + mid + hi;
+        if (sum > 1.0e-9)
+        {
+            if (mode == 2)
+                last = juce::Colour ((juce::uint8) juce::roundToInt (245.0 * lo / sum), (juce::uint8) juce::roundToInt (245.0 * mid / sum),
+                                     (juce::uint8) juce::roundToInt (245.0 * hi / sum));
+            else
+                last = colourMapAt ((float) ((0.5 * mid + hi) / sum));
+            if (! any)   // silence before the first sound takes the first colour
+                std::fill (out.begin(), out.begin() + x, last);
+            any = true;
+        }
+        out[(size_t) x] = last;
+    }
+    return out;
+}
+
+void WaveformView::setColourFill (juce::Graphics& g, juce::Rectangle<float> area, float from, float to, juce::Colour plain, bool colourful) const
+{
+    const auto scale = juce::jmax (1.0f, g.getInternalContext().getPhysicalPixelScaleFactor());
+    const int width = (int) std::ceil (area.getWidth() * scale);
+    if (! colourful || colourMode() == 0 || width < 2)
+    {
+        g.setColour (plain);
+        return;
+    }
+    const auto cols = columnColours (from, to, width);
+    juce::ColourGradient grad (cols.front(), area.getX(), 0.0f, cols.back(), area.getRight(), 0.0f, false);
+    for (int x = 1; x + 1 < width; ++x)
+        if (cols[(size_t) x] != cols[(size_t) x - 1] || cols[(size_t) x] != cols[(size_t) x + 1])
+            grad.addColour (((double) x + 0.5) / (double) width, cols[(size_t) x]);
+    g.setGradientFill (grad);
+}
+
+//==============================================================================
+// FL's spectrum view, modelled on measurements of FL 2026 (tone ladders, fine
+// frequency sweeps, clicks, noise): black, frequency linear from 0 at the
+// bottom to half the sample rate at the top, each pixel row the loudest
+// frequency in its band. FL is sharp in both time and frequency: a click
+// spreads like a 328-sample Blackman-Harris window, a steady tone stays two
+// rows thick. Modelled as the short window's spectrum shaped by a long
+// (Gaussian, sigma 152 samples) spectrum's local peak structure. Levels rise
+// 3 dB per octave (0 at 3 kHz) and run through FL's palette from black at
+// -112 dB through red and yellow to white at 0 dB. Matches FL's captures
+// within about 1 dB on average.
+namespace
+{
+    constexpr int specOrder = 11, specSize = 1 << specOrder, shortLen = 328, longSigma = 152, longLen = 8 * longSigma, peakSpan = 32;
+
+    juce::Colour spectrumColour (float db)
+    {
+        // FL's palette by level (measured from a 6 dB ladder of a 3 kHz tone)
+        static const float at[] = { -112, -102, -96, -90, -84, -78, -72, -66, -60, -54, -48, -42, -36, -30, -24, -18, -12, -6, 0 };
+        static const juce::uint8 rgb[][3] = { { 0, 0, 0 }, { 12, 22, 33 }, { 20, 31, 47 }, { 31, 40, 60 }, { 46, 44, 66 }, { 64, 44, 66 },
+                                              { 87, 44, 66 }, { 111, 44, 66 }, { 139, 44, 66 }, { 164, 44, 66 }, { 185, 49, 66 }, { 208, 93, 66 },
+                                              { 227, 152, 66 }, { 242, 208, 66 }, { 253, 250, 66 }, { 255, 255, 104 }, { 255, 255, 166 },
+                                              { 255, 255, 214 }, { 255, 255, 255 } };
+        constexpr int n = (int) std::size (at);
+        if (db <= at[0])     return juce::Colours::black;
+        if (db >= at[n - 1]) return juce::Colours::white;
+        int i = 0;
+        while (db > at[i + 1]) ++i;
+        const auto u = (db - at[i]) / (at[i + 1] - at[i]);
+        auto mix = [&] (int c) { return (juce::uint8) juce::roundToInt ((float) rgb[i][c] + u * (float) (rgb[i + 1][c] - rgb[i][c])); };
+        return juce::Colour (mix (0), mix (1), mix (2));
+    }
 }
 
 void WaveformView::drawSpectrum (juce::Graphics& g, juce::Rectangle<float> area)
 {
-    // FL's spectrum view: a spectrogram on black, frequency linear from 0 at the
-    // bottom to half the sample rate at the top, heat colours (FL's palette,
-    // sampled). Rebuilt only when the sample, zoom or size change.
     const auto scale = juce::jmax (1.0f, g.getInternalContext().getPhysicalPixelScaleFactor());
-    const int w = juce::jmax (1, (int) std::ceil (area.getWidth() * scale)), h = juce::jmax (1, (int) std::ceil (area.getHeight() * scale));
+    const int w = juce::jmax (1, (int) std::ceil (area.getWidth() * scale)), h = juce::jmax (2, (int) std::ceil (area.getHeight() * scale));
     const auto key = juce::String::toHexString ((juce::pointer_sized_int) sample.get()) + " " + juce::String (viewStart) + " " + juce::String (viewEnd)
                    + " " + juce::String (w) + "x" + juce::String (h);
     if (key != spectrumKey)
     {
         spectrumKey = key;
-        spectrumImage = juce::Image (juce::Image::RGB, w, h, true);
-        constexpr int order = 10, size = 1 << order;
-        juce::dsp::FFT fft (order);
-        std::vector<float> buf (2 * size), window (size);
-        for (int i = 0; i < size; ++i)
-            window[(size_t) i] = 0.5f - 0.5f * std::cos (juce::MathConstants<float>::twoPi * (float) i / (float) (size - 1));
+        spectrumImage = juce::Image (juce::Image::RGB, w, h, true, juce::SoftwareImageType());   // filled from several threads
         const int total = sample->getTotalFrames();
         const auto* l = sample->audio.getReadPointer (0);
         const auto* r = sample->audio.getReadPointer (juce::jmin (1, sample->audio.getNumChannels() - 1));
-        static const juce::Colour stops[] = { juce::Colour (0, 0, 0), juce::Colour (18, 29, 43), juce::Colour (34, 42, 62), juce::Colour (46, 44, 66),
-                                              juce::Colour (165, 44, 66), juce::Colour (204, 85, 66), juce::Colour (225, 144, 66), juce::Colour (246, 225, 66) };
-        static const float at[] = { 0.0f, 0.15f, 0.3f, 0.4f, 0.6f, 0.7f, 0.85f, 1.0f };
-        auto colourFor = [] (float v)
+        const auto sr = sample->sourceRate > 0 ? sample->sourceRate : 44100.0;
+        constexpr int bins = specSize / 2;
+
+        std::vector<float> shortWin (shortLen), longWin (longLen);
+        double shortSum = 0;
+        for (int i = 0; i < shortLen; ++i)
         {
-            v = juce::jlimit (0.0f, 1.0f, v);
-            int i = 0;
-            while (i < 6 && v > at[i + 1]) ++i;
-            return stops[i].interpolatedWith (stops[i + 1], (v - at[i]) / (at[i + 1] - at[i]));
-        };
-        juce::Image::BitmapData px (spectrumImage, juce::Image::BitmapData::writeOnly);
-        for (int x = 0; x < w; ++x)
-        {
-            const auto f = viewStart + (viewEnd - viewStart) * ((float) x + 0.5f) / (float) w;
-            const int centre = (int) (f * (float) total);
-            std::fill (buf.begin(), buf.end(), 0.0f);
-            for (int i = 0; i < size; ++i)
-            {
-                const int k = centre - size / 2 + i;
-                if (k >= 0 && k < total)
-                    buf[(size_t) i] = 0.5f * (l[k] + r[k]) * window[(size_t) i];
-            }
-            fft.performFrequencyOnlyForwardTransform (buf.data());
-            for (int y = 0; y < h; ++y)
-            {
-                const int b0 = (int) ((float) (h - 1 - y) / (float) h * (size / 2));
-                const int b1 = juce::jmax (b0 + 1, (int) ((float) (h - y) / (float) h * (size / 2)));
-                float m = 0.0f;
-                for (int b = b0; b < b1 && b < size / 2; ++b)
-                    m = juce::jmax (m, buf[(size_t) b]);
-                // FL's level -> colour scale (matched against FL's capture of the same sample)
-                static const float dbs[] = { -112.0f, -104.0f, -98.0f, -94.0f, -80.0f, -56.0f, -39.0f, -22.0f };
-                static const float pos[] = { 0.0f, 0.12f, 0.23f, 0.34f, 0.44f, 0.60f, 0.74f, 1.0f };
-                const auto db = juce::Decibels::gainToDecibels (m / (size * 0.25f), -140.0f);
-                float v = db >= dbs[7] ? 1.0f : 0.0f;
-                for (int i = 0; i < 7; ++i)
-                    if (db >= dbs[i] && db < dbs[i + 1])
-                        v = pos[i] + (pos[i + 1] - pos[i]) * (db - dbs[i]) / (dbs[i + 1] - dbs[i]);
-                px.setPixelColour (x, y, colourFor (v));
-            }
+            const auto x = juce::MathConstants<double>::twoPi * i / (shortLen - 1);
+            shortWin[(size_t) i] = (float) (0.35875 - 0.48829 * std::cos (x) + 0.14128 * std::cos (2 * x) - 0.01168 * std::cos (3 * x));
+            shortSum += shortWin[(size_t) i];
         }
+        for (int i = 0; i < longLen; ++i)
+        {
+            const auto d = (i - (longLen - 1) * 0.5) / longSigma;
+            longWin[(size_t) i] = (float) std::exp (-0.5 * d * d);
+        }
+        // Per bin: the 3 dB/octave tilt and the normalisation (a tone of
+        // amplitude A reads 20 log A at 3 kHz).
+        std::vector<float> offset ((size_t) bins);
+        for (int k = 0; k < bins; ++k)
+            offset[(size_t) k] = (float) (10.0 * std::log10 (juce::jmax (1, k) * sr / specSize / 3000.0) + 20.0 * std::log10 (2.0 / shortSum));
+        // Rows (0 = bottom) show the loudest bin between (row - 1) and row
+        // times nyquist / (rows - 1) (measured edges).
+        std::vector<int> rowFirst ((size_t) h), rowLast ((size_t) h);
+        for (int row = 0; row < h; ++row)
+        {
+            const auto lo = (double) (row - 1) / (h - 1) * bins, hi = (double) row / (h - 1) * bins;
+            int a = juce::jmax (0, (int) std::ceil (lo)), b = juce::jmin (bins - 1, (int) std::ceil (hi) - 1);
+            if (b < a)
+                a = b = juce::jlimit (0, bins - 1, (int) std::lround (hi));
+            rowFirst[(size_t) row] = a;
+            rowLast[(size_t) row] = b;
+        }
+
+        auto columns = [&] (int x0, int x1)
+        {
+            juce::dsp::FFT fft (specOrder);
+            std::vector<float> a (2 * specSize), b (2 * specSize), level ((size_t) bins), pre ((size_t) bins), post ((size_t) bins);
+            juce::Image::BitmapData px (spectrumImage, 0, 0, w, h, juce::Image::BitmapData::writeOnly);
+            for (int x = x0; x < x1; ++x)
+            {
+                const auto frac = viewStart + (viewEnd - viewStart) * ((float) x + 0.5f) / (float) w;
+                const int centre = (int) (frac * (float) total);
+                std::fill (a.begin(), a.end(), 0.0f);
+                std::fill (b.begin(), b.end(), 0.0f);
+                for (int i = 0; i < shortLen; ++i)
+                {
+                    const int k = centre - shortLen / 2 + i;
+                    if (k >= 0 && k < total)
+                        a[(size_t) i] = 0.5f * (l[k] + r[k]) * shortWin[(size_t) i];
+                }
+                for (int i = 0; i < longLen; ++i)
+                {
+                    const int k = centre - longLen / 2 + i;
+                    if (k >= 0 && k < total)
+                        b[(size_t) i] = 0.5f * (l[k] + r[k]) * longWin[(size_t) i];
+                }
+                fft.performFrequencyOnlyForwardTransform (a.data(), true);
+                fft.performFrequencyOnlyForwardTransform (b.data(), true);
+                // Local peak of the long spectrum over +/-peakSpan bins (prefix /
+                // suffix maxima per block).
+                constexpr int span = 2 * peakSpan + 1;
+                for (int k = 0; k < bins; ++k)
+                    pre[(size_t) k] = (k % span == 0) ? b[(size_t) k] : juce::jmax (pre[(size_t) k - 1], b[(size_t) k]);
+                for (int k = bins - 1; k >= 0; --k)
+                    post[(size_t) k] = (k % span == span - 1 || k == bins - 1) ? b[(size_t) k] : juce::jmax (post[(size_t) k + 1], b[(size_t) k]);
+                for (int k = 0; k < bins; ++k)
+                {
+                    const int lo = juce::jmax (0, k - peakSpan), hi = juce::jmin (bins - 1, k + peakSpan);
+                    const auto peak = juce::jmax (post[(size_t) lo], pre[(size_t) hi]);
+                    const auto m = a[(size_t) k] * (peak > 0.0f ? b[(size_t) k] / peak : 0.0f);
+                    level[(size_t) k] = m > 1.0e-12f ? 20.0f * std::log10 (m) + offset[(size_t) k] : -200.0f;
+                }
+                for (int row = 0; row < h; ++row)
+                {
+                    float best = -200.0f;
+                    for (int k = rowFirst[(size_t) row]; k <= rowLast[(size_t) row]; ++k)
+                        best = juce::jmax (best, level[(size_t) k]);
+                    px.setPixelColour (x, h - 1 - row, spectrumColour (best));
+                }
+            }
+        };
+        // Columns are independent: spread them over a few threads.
+        const int threads = juce::jlimit (1, 8, (int) std::thread::hardware_concurrency());
+        std::vector<std::thread> pool;
+        for (int t = 1; t < threads; ++t)
+            pool.emplace_back (columns, w * t / threads, w * (t + 1) / threads);
+        columns (0, w / threads);
+        for (auto& t : pool)
+            t.join();
     }
     g.drawImage (spectrumImage, area);
 }

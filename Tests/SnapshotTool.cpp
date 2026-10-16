@@ -38,21 +38,33 @@ int main (int argc, char** argv)
         juce::Slider knobComp;
         const auto ddOpts = juce::PopupMenu::Options().withTargetComponent (&box);
         const auto rmOpts = juce::PopupMenu::Options().withTargetComponent (&knobComp);
-        juce::Image img (juce::Image::RGB, 420, 230, true);
+        juce::Component ctxComp;   // the sample / preset menus (fl::showContextMenu)
+        ctxComp.getProperties().set ("flContextMenu", true);
+        const auto ctxOpts = juce::PopupMenu::Options().withTargetComponent (&ctxComp);
+        juce::Image img (juce::Image::RGB, 460, 330, true);
         {
         juce::Graphics g (img);
         g.fillAll (juce::Colours::white);
         auto drawMenu = [&] (int x, int y, int w, const juce::PopupMenu::Options& o, std::vector<std::pair<juce::String, int>> rows)
         {
+            const auto sepH = &o == &ctxOpts ? 7 : 5;
             int h = 2;
-            for (auto& r : rows) h += r.second == 2 ? 13 : 19;
+            for (auto& r : rows) h += r.second == 2 ? 13 : r.second == 4 ? sepH : 19;
             juce::Graphics::ScopedSaveState ss (g);
             g.setOrigin (x, y);
             g.reduceClipRegion (0, 0, w, h);
             lnf.drawPopupMenuBackgroundWithOptions (g, w, h, o);
             int yy = 1;
-            for (auto& [text, kind] : rows)   // 0 item, 1 highlighted, 2 header, 3 disabled
+            for (auto& [text, kind] : rows)   // 0 item, 1 highlighted, 2 header, 3 disabled, 4 separator, 5 ticked, 6 ticked + disabled, 7 submenu
             {
+                if (kind == 4)
+                {
+                    juce::PopupMenu::Item sep;
+                    sep.isSeparator = true;
+                    lnf.drawPopupMenuItemWithOptions (g, { 1, yy, w - 2, sepH }, false, sep, o);
+                    yy += sepH;
+                    continue;
+                }
                 if (kind == 2)
                 {
                     lnf.drawPopupMenuSectionHeaderWithOptions (g, { 1, yy, w - 2, 13 }, text, o);
@@ -60,7 +72,10 @@ int main (int argc, char** argv)
                     continue;
                 }
                 juce::PopupMenu::Item item (text);
-                item.isEnabled = kind != 3;
+                item.isEnabled = kind != 3 && kind != 6;
+                item.isTicked = kind == 5 || kind == 6;
+                if (kind == 7)
+                    item.subMenu = std::make_unique<juce::PopupMenu>();
                 lnf.drawPopupMenuItemWithOptions (g, { 1, yy, w - 2, 19 }, kind == 1, item, o);
                 yy += 19;
             }
@@ -69,6 +84,8 @@ int main (int argc, char** argv)
                                          { "Elastique", 2 }, { "e3 generic", 0 }, { "e3 mono", 0 }, { "Special", 2 },
                                          { "Slice stretch", 0 }, { "Slice map", 0 } });
         drawMenu (130, 10, 112, rmOpts, { { "&Reset", 0 }, { "&Copy value", 1 }, { "Paste &value", 3 }, { "&Type in value...", 0 } });
+        drawMenu (260, 10, 190, ctxOpts, { { "Reload", 0 }, { "Save as...", 1 }, { "Locate file", 0 }, { "", 4 }, { "Get properties", 0 }, { "", 4 },
+                                           { "Spectrum view", 5 }, { "Multichannel waveform view", 6 }, { "Colorful waveforms", 7 } });
         }   // Direct2D draws when the Graphics goes away
         juce::File out { juce::String (argv[2]) };
         out.deleteFile();
@@ -128,6 +145,9 @@ int main (int argc, char** argv)
         };
         find (*ed);
     }
+    // SNAPSHOT_DIALOG="message": an FL-style message dialog over the editor
+    if (auto* d = std::getenv ("SNAPSHOT_DIALOG"))
+        fl::showDialog (*ed->getChildComponent (0), "Chan Sampler", d, false);
     for (int i = 0; i < 20; ++i)   // let timers update the views
         juce::MessageManager::getInstance()->runDispatchLoopUntil (20);
 

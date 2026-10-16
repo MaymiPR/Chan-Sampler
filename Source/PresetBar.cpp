@@ -105,7 +105,7 @@ void PresetBar::showMenu()
     menu.addSeparator();
     menu.addItem ("Open presets folder", [] { presetFolder().createDirectory(); presetFolder().startAsProcess(); });
 
-    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this));
+    fl::showContextMenu (menu, *this, false);
 }
 
 void PresetBar::load (const juce::File& file)

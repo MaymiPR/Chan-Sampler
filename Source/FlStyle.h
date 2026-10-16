@@ -122,6 +122,16 @@ namespace fl
         juce::String fixedText;
     };
 
+    // FL's grey context menus (sample view, presets): shown with the plugin's
+    // look, ticks for on/off entries and thin separators (measured from FL's
+    // sample right-click menu).
+    void showContextMenu (juce::PopupMenu&, juce::Component& target, bool atMouse);
+
+    // FL's message dialog (measured from FL 2026's dialogs): a title bar, the
+    // message on a panel with a large grey sign, OK below. Shown over the
+    // plugin window that holds owner; closes with OK, the cross, Return or Esc.
+    void showDialog (juce::Component& owner, const juce::String& title, const juce::String& message, bool warning = false);
+
     enum class Icon { sampler, envelope, wrench, valve, sine, triangle, square, folder, locate, close };
     void drawIcon (juce::Graphics&, Icon, juce::Rectangle<float> area, juce::Colour);
 
