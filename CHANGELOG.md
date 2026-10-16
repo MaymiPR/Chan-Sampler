@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.1.0 (in progress)
+
+- CLAP plugin (Windows, macOS, Linux), in the installers.
+- Linux builds: VST3, CLAP and the standalone app (x86-64, glibc 2.35 or
+  later).
+- The root note keyboard is FL's: all 128 notes behind a scroll bar (arrows,
+  thumb, mouse wheel), FL's key colours and size, opening on FL's view.
+- Releases list SHA-256 checksums; the install notes explain the security
+  warnings for the unsigned downloads (SmartScreen, macOS's Open Anyway).
+
 ## 1.0.0
 
 First stable release. Saves from 0.1.0 load unchanged: every parameter, the

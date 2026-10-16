@@ -148,6 +148,46 @@ int main (int argc, char** argv)
     // SNAPSHOT_DIALOG="message": an FL-style message dialog over the editor
     if (auto* d = std::getenv ("SNAPSHOT_DIALOG"))
         fl::showDialog (*ed->getChildComponent (0), "Chan Sampler", d, false);
+    // SNAPSHOT_DRAGTEST="knob name": drags that knob a pixel at a time with mouse
+    // events and prints its value at each step (checks the feel of a drag).
+    if (auto* name = std::getenv ("SNAPSHOT_DRAGTEST"))
+    {
+        std::function<juce::Slider* (juce::Component&)> find = [&] (juce::Component& c) -> juce::Slider*
+        {
+            if (auto* sl = dynamic_cast<juce::Slider*> (&c))
+                if (sl->getTooltip().containsIgnoreCase (name))
+                    return sl;
+            for (auto* ch : c.getChildren())
+                if (auto* found = find (*ch))
+                    return found;
+            return nullptr;
+        };
+        if (auto* sl = find (*ed))
+        {
+            auto src = juce::Desktop::getInstance().getMainMouseSource();
+            const auto start = sl->getLocalBounds().getCentre().toFloat();
+            const auto now = juce::Time::getCurrentTime();
+            auto event = [&] (juce::Point<float> pos, bool dragged)
+            {
+                return juce::MouseEvent (src, pos, juce::ModifierKeys (juce::ModifierKeys::leftButtonModifier), 1.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                                         sl, sl, now, start, now, 1, dragged);
+            };
+            std::cout << sl->getTooltip() << " starts at " << sl->getValue() << "\n";
+            for (int dir : { 1, -1 })
+            {
+                sl->mouseDown (event (start, false));
+                for (int px = 1; px <= 80; ++px)
+                {
+                    const auto pos = start.translated (0.0f, -(float) (dir * px));
+                    sl->mouseDrag (event (pos, true));
+                    std::cout << dir * px << ":" << sl->getValue() << " ";
+                }
+                sl->mouseUp (event (start.translated (0.0f, -(float) (dir * 80)), true));
+                std::cout << "\n";
+            }
+        }
+        return 0;
+    }
     // SNAPSHOT_TEMPO=1: the sample view's Detect tempo dialog
     if (std::getenv ("SNAPSHOT_TEMPO"))
     {

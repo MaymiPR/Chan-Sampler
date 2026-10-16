@@ -5,8 +5,8 @@
 <p align="center">
   <a href="https://github.com/MaymiPR/ChanSampler/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/MaymiPR/ChanSampler?color=4df1b1&label=release"></a>
   <a href="https://github.com/MaymiPR/ChanSampler/actions/workflows/release.yml"><img alt="Build" src="https://github.com/MaymiPR/ChanSampler/actions/workflows/release.yml/badge.svg"></a>
-  <img alt="Formats" src="https://img.shields.io/badge/formats-VST3%20%7C%20AU%20%7C%20Standalone-2d3133">
-  <img alt="Platforms" src="https://img.shields.io/badge/platforms-Windows%20%7C%20macOS-2d3133">
+  <img alt="Formats" src="https://img.shields.io/badge/formats-VST3%20%7C%20CLAP%20%7C%20AU%20%7C%20Standalone-2d3133">
+  <img alt="Platforms" src="https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-2d3133">
   <a href="LICENSE"><img alt="License: AGPL v3" src="https://img.shields.io/badge/license-AGPL--3.0-ffa830"></a>
 </p>
 
@@ -15,8 +15,8 @@ one with the declicking modes, the precomputed effects, the arpeggiator and the
 echo fat mode, that you know by heart?
 
 **Chan Sampler** brings it to every DAW. It is a free, open-source recreation of
-the Channel Sampler from FL Studio 2026 as a **VST3**, **AU** and
-**Standalone** plugin for Windows and macOS. It isn't a lookalike: every knob
+the Channel Sampler from FL Studio 2026 as a **VST3**, **CLAP**, **AU** and
+**Standalone** plugin for Windows, macOS and Linux. It isn't a lookalike: every knob
 uses FL's units, and the engine was measured against FL itself. Most of it
 renders sample-identically to FL (see
 [How close is it to FL?](#how-close-is-it-to-fl)). Your FL Sampler presets
@@ -81,17 +81,26 @@ gap.
 Download from the [Releases](https://github.com/MaymiPR/ChanSampler/releases)
 page:
 
-- **Windows:** `ChanSampler-<version>-Windows-Setup.exe` installs the VST3 to
-  `C:\Program Files\Common Files\VST3\` and the standalone app (Start menu),
-  with an uninstaller. Windows SmartScreen may warn because the installer
-  isn't code-signed: *More info* → *Run anyway*.
+- **Windows:** `ChanSampler-<version>-Windows-Setup.exe` installs the VST3 and
+  the CLAP to `C:\Program Files\Common Files\` and the standalone app (Start
+  menu), with an uninstaller.
 - **macOS** (universal, 10.13 or later): `ChanSampler-<version>-macOS.pkg`
-  installs the AU, the VST3 and the app (you can choose which). It isn't
-  notarized by Apple, so open it with right-click → *Open* (or System Settings →
-  Privacy & Security → *Open Anyway*).
+  installs the AU, the VST3, the CLAP and the app (you can choose which).
+- **Linux** (x86-64, glibc 2.35 or later): `ChanSampler-Linux.tar.gz` holds the
+  VST3, the CLAP and the standalone app; copy the plugins to `~/.vst3` and
+  `~/.clap` (see its `INSTALL.txt`).
 
 Then rescan plugins in your DAW. The `.zip` files hold the same plugins for
 copying by hand (see their `INSTALL.txt`).
+
+**Security warnings.** Chan Sampler isn't code-signed or notarized (that needs
+paid certificates), so the first time you open it:
+- Windows SmartScreen: *More info* → *Run anyway*.
+- macOS 15 and later: open it once, then System Settings → Privacy & Security
+  → *Open Anyway*. On earlier macOS: right-click → *Open*.
+
+Each release lists the files' SHA-256 checksums in `SHA256SUMS.txt`, so you can
+check that a download is the published one.
 
 ## Using it
 
@@ -112,10 +121,12 @@ copying by hand (see their `INSTALL.txt`).
 ## Build
 
 JUCE is downloaded automatically. Requirements: CMake ≥ 3.22 and Git, plus
-Visual Studio 2022 / 2026 with "Desktop development with C++" on Windows, or
-Xcode on macOS.
+Visual Studio 2022 / 2026 with "Desktop development with C++" on Windows,
+Xcode on macOS, or GCC / Clang on Linux. The CLAP version uses
+[clap-juce-extensions](https://github.com/free-audio/clap-juce-extensions),
+also downloaded automatically (`-DCHANSAMPLER_CLAP=OFF` leaves it out).
 
-Windows (VST3 + Standalone):
+Windows (VST3 + CLAP + Standalone):
 
 ```
 cmake -B build -G "Visual Studio 18 2026" -A x64
@@ -125,11 +136,19 @@ cmake --build build --config Release
 (`"Visual Studio 17 2022"` with VS 2022.) Engine tests:
 `build/ChanSamplerTests_artefacts/Release/ChanSamplerTests.exe`
 
-macOS (universal AU + VST3 + Standalone):
+macOS (universal AU + VST3 + CLAP + Standalone):
 
 ```
 cmake -B build -G Xcode -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET=10.13
-cmake --build build --config Release --target ChanSampler_AU ChanSampler_VST3 ChanSampler_Standalone
+cmake --build build --config Release --target ChanSampler_AU ChanSampler_VST3 ChanSampler_CLAP ChanSampler_Standalone
+```
+
+Linux (VST3 + CLAP + Standalone; on Ubuntu / Debian first
+`sudo apt install libasound2-dev libjack-jackd2-dev libfreetype6-dev libfontconfig1-dev libx11-dev libxcomposite-dev libxcursor-dev libxext-dev libxinerama-dev libxrandr-dev libxrender-dev libglu1-mesa-dev`):
+
+```
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --target ChanSampler_VST3 ChanSampler_CLAP ChanSampler_Standalone
 ```
 
 Developer tools (built with everything else):
@@ -143,8 +162,8 @@ Developer tools (built with everything else):
 
 ## Releases
 
-GitHub Actions builds Windows and macOS (`.github/workflows/release.yml`) and
-validates the plugins with pluginval at its strictest level and, on macOS,
+GitHub Actions builds Windows, macOS and Linux (`.github/workflows/release.yml`)
+and validates the plugins with pluginval at its strictest level and, on macOS,
 Apple's `auval`:
 
 - **Test build:** Actions → *Build and release* → *Run workflow*; the zips
