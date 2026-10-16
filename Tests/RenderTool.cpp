@@ -207,8 +207,18 @@ int main (int argc, char** argv)
         };
         const char* names[] = { "Resample", "Stretch", "Stretch Pro", "e3 generic", "e3 mono", "Slice stretch", "Slice map",
                                 "Auto", "e2 generic", "e2 transient", "e2 mono", "e2 speech" };
+        const auto* onlyMode = std::getenv ("BENCH_MODE");   // one stretch method by index (profiling)
         for (int m = 0; m < (std::getenv ("BENCH_AUTOMATION_ONLY") ? 0 : 12); ++m)
-            std::cout << names[m] << ": 32 voices " << juce::String (run (m, 32, false), 1) << "%, 64 voices " << juce::String (run (m, 64, false), 1) << "%\n";
+            if (onlyMode == nullptr || juce::String (onlyMode).getIntValue() == m)
+            {
+                if (auto* counts = std::getenv ("BENCH_VOICES"))   // other voice counts, e.g. "16,32,48,64"
+                {
+                    for (auto& v : juce::StringArray::fromTokens (counts, ",", {}))
+                        std::cout << names[m] << ": " << v << " voices " << juce::String (run (m, v.getIntValue(), false), 1) << "%\n";
+                    continue;
+                }
+                std::cout << names[m] << ": 32 voices " << juce::String (run (m, 32, false), 1) << "%, 64 voices " << juce::String (run (m, 64, false), 1) << "%\n";
+            }
         std::cout << "Resample, 16 voices: " << juce::String (run (0, 16, false), 1) << "%, with heavy automation " << juce::String (run (0, 16, true), 1) << "%\n";
         std::cout << "Stretch Pro, 16 voices: " << juce::String (run (2, 16, false), 1) << "%, with heavy automation " << juce::String (run (2, 16, true), 1) << "%\n";
         return 0;

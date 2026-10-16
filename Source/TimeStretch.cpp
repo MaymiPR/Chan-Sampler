@@ -26,27 +26,31 @@ TimeStretcher::TimeStretcher()
 {
     // Everything is allocated here, so configure / reset never allocate on
     // the audio thread.
+    constexpr size_t bins1 = maxFrame / 2 + 1;
     window.resize (maxFrame);
     olaL.resize (maxFrame);
     olaR.resize (maxFrame);
     target.resize (maxFrame);
     spec.resize (maxFrame);
-    cep.resize (maxFrame);
     work.resize (maxFrame);
     for (int c = 0; c < 2; ++c)
     {
-        prevPhase[c].resize (maxFrame / 2 + 1);
-        synthPhase[c].resize (maxFrame / 2 + 1);
-        prevMag[c].resize (maxFrame / 2 + 1);
+        bins[c].resize (bins1);
+        prevBins[c].resize (bins1);
+        synth[c].resize (bins1);
+        out[c].resize (bins1);
+        mag[c].resize (bins1);
+        prevMag[c].resize (bins1);
+        envelope[c].resize (bins1);
     }
-    mag.resize (maxFrame / 2 + 1);
-    phase.resize (maxFrame / 2 + 1);
-    envelope.resize (maxFrame);
-    peakOf.resize (maxFrame / 2 + 1);
+    corr.resize (bins1);
+    peakTurn.resize (bins1);
+    peakOf.resize (bins1);
+    peaks.resize (bins1);
     fifoL.resize (fifoSize);
     fifoR.resize (fifoSize);
-    for (int o = 10; o <= 13; ++o)
-        ffts[o - 10] = std::make_unique<juce::dsp::FFT> (o);
+    for (int o = 8; o <= 13; ++o)
+        ffts[o - 8] = std::make_unique<juce::dsp::FFT> (o);
 }
 
 void TimeStretcher::configure (StretchMode mode, double sourceRate)
@@ -87,7 +91,7 @@ void TimeStretcher::configure (StretchMode mode, double sourceRate)
 
     for (int i = 0; i < frame; ++i)
         window[(size_t) i] = 0.5f - 0.5f * std::cos (twoPi * (float) i / (float) frame);
-    fft = algo == Algo::vocoder ? ffts[order - 10].get() : nullptr;
+    fft = algo == Algo::vocoder ? ffts[order - 8].get() : nullptr;
 }
 
 void TimeStretcher::reset (double sourcePos)
@@ -99,8 +103,8 @@ void TimeStretcher::reset (double sourcePos)
     std::fill (olaR.begin(), olaR.end(), 0.0f);
     for (int c = 0; c < 2; ++c)
     {
-        std::fill (prevPhase[c].begin(), prevPhase[c].end(), 0.0f);
-        std::fill (synthPhase[c].begin(), synthPhase[c].end(), 0.0f);
+        std::fill (prevBins[c].begin(), prevBins[c].end(), std::complex<float>());
+        std::fill (synth[c].begin(), synth[c].end(), std::complex<float> (1.0f, 0.0f));
         std::fill (prevMag[c].begin(), prevMag[c].end(), 0.0f);
     }
     fifoCount = 0;
@@ -142,146 +146,214 @@ float TimeStretcher::cubic (const std::vector<float>& b, int i, float t)
     return ((c3 * t + c2) * t + c1) * t + x0;
 }
 
-void TimeStretcher::processSpectrum (int c, int pos, double pitchRatio, float formantCents)
+namespace
+{
+    using Complex = std::complex<float>;
+
+    inline Complex mul (Complex a, Complex b)        { return { a.real() * b.real() - a.imag() * b.imag(), a.real() * b.imag() + a.imag() * b.real() }; }
+    inline Complex mulConj (Complex a, Complex b)    { return { a.real() * b.real() + a.imag() * b.imag(), a.imag() * b.real() - a.real() * b.imag() }; }
+    inline Complex unit (Complex x, float m)         { return m > 1.0e-20f ? Complex (x.real() / m, x.imag() / m) : Complex (1.0f, 0.0f); }
+    inline Complex normalised (Complex x)
+    {
+        const auto m = std::sqrt (x.real() * x.real() + x.imag() * x.imag());
+        return unit (x, m);
+    }
+}
+
+void TimeStretcher::processSpectrum (int pos, double pitchRatio, float formantCents)
 {
     const int n = frame, half = n / 2;
+
+    // Split the packed FFT (left + i right) into the two channels' spectra.
     for (int k = 0; k <= half; ++k)
     {
-        mag[(size_t) k] = std::abs (spec[(size_t) k]);
-        phase[(size_t) k] = std::arg (spec[(size_t) k]);
+        const auto z = work[(size_t) k];
+        const auto zc = std::conj (work[(size_t) ((n - k) & (n - 1))]);
+        const Complex l (0.5f * (z.real() + zc.real()), 0.5f * (z.imag() + zc.imag()));
+        const Complex d (0.5f * (z.real() - zc.real()), 0.5f * (z.imag() - zc.imag()));
+        const Complex r (d.imag(), -d.real());   // d / i
+        bins[0][(size_t) k] = l;
+        bins[1][(size_t) k] = r;
+        mag[0][(size_t) k] = std::sqrt (l.real() * l.real() + l.imag() * l.imag());
+        mag[1][(size_t) k] = std::sqrt (r.real() * r.real() + r.imag() * r.imag());
     }
 
-    // Transients (spectral flux jump): take the analysis phases as they are,
-    // which keeps attacks sharp instead of smearing them.
-    float rise = 0.0f, total = 1.0e-9f;
-    for (int k = 1; k < half; ++k)
+    const int analysisHop = juce::jmax (1, pos - prevPos);
+    for (int c = 0; c < 2; ++c)
     {
-        rise += juce::jmax (0.0f, mag[(size_t) k] - prevMag[c][(size_t) k]);
-        total += prevMag[c][(size_t) k];
-    }
-    const bool transient = first || rise / total > transientThreshold;
-
-    if (transient)
-    {
-        for (int k = 0; k <= half; ++k)
-            synthPhase[c][(size_t) k] = phase[(size_t) k];
-    }
-    else
-    {
-        const int analysisHop = juce::jmax (1, pos - prevPos);
-        // Peaks and their regions (identity phase locking, Laroche & Dolson).
-        int lastPeak = 0;
-        std::vector<int>& peaks = peakOf;
-        for (int k = 0; k <= half; ++k)
-            peaks[(size_t) k] = -1;
-        int prev = -1;
-        for (int k = 2; k < half - 1; ++k)
+        // Transients (spectral flux jump): take the analysis phases as they
+        // are, which keeps attacks sharp instead of smearing them.
+        float rise = 0.0f, total = 1.0e-9f;
+        for (int k = 1; k < half; ++k)
         {
-            const auto m = mag[(size_t) k];
-            if (m > mag[(size_t) (k - 1)] && m >= mag[(size_t) (k + 1)] && m > mag[(size_t) (k - 2)] && m >= mag[(size_t) (k + 2)])
-            {
-                // Advance the peak's phase by its measured frequency.
-                const auto expected = twoPi * (float) k * (float) analysisHop / (float) n;
-                const auto dev = wrapPhase (phase[(size_t) k] - prevPhase[c][(size_t) k] - expected);
-                const auto omega = twoPi * (float) k / (float) n + dev / (float) analysisHop;
-                synthPhase[c][(size_t) k] += omega * (float) hop;
-                // Bins between this peak and the previous one follow the nearer peak.
-                const int from = prev < 0 ? 0 : (prev + k) / 2 + 1;
-                for (int j = from; j <= k; ++j)
-                    peaks[(size_t) j] = k;
-                if (prev >= 0)
-                    for (int j = prev + 1; j < from; ++j)
-                        peaks[(size_t) j] = prev;
-                prev = k;
-                lastPeak = k;
-            }
+            rise += juce::jmax (0.0f, mag[c][(size_t) k] - prevMag[c][(size_t) k]);
+            total += prevMag[c][(size_t) k];
         }
-        for (int j = (prev < 0 ? 0 : prev + 1); j <= half; ++j)
-            peaks[(size_t) j] = prev;
-        juce::ignoreUnused (lastPeak);
-
-        for (int k = 0; k <= half; ++k)
-        {
-            const int pk = peaks[(size_t) k];
-            if (pk < 0)
-            {
-                const auto expected = twoPi * (float) k * (float) analysisHop / (float) n;
-                const auto dev = wrapPhase (phase[(size_t) k] - prevPhase[c][(size_t) k] - expected);
-                synthPhase[c][(size_t) k] += (twoPi * (float) k / (float) n + dev / (float) analysisHop) * (float) hop;
-            }
-            else if (pk != k)
-            {
-                synthPhase[c][(size_t) k] = synthPhase[c][(size_t) pk] + phase[(size_t) k] - phase[(size_t) pk];
-            }
-        }
+        phaseLock (c, analysisHop, first || rise / total > transientThreshold);
     }
 
     // Formants (Stretch Pro): the voice resamples this signal by pitchRatio,
     // which would move the spectral envelope too; pre-correct it so that the
     // envelope ends up at its original place, shifted by FORMANT.
-    float corr = 1.0f;
     const bool formants = preserveFormants && (std::abs (pitchRatio - 1.0) > 1.0e-4 || std::abs (formantCents) > 0.5f);
     if (formants)
     {
-        // Cepstral envelope of the log magnitude.
-        for (int k = 0; k < n; ++k)
+        formantEnvelopes();
+        const auto warp = (float) (pitchRatio / std::pow (2.0, (double) formantCents / 1200.0));
+        for (int c = 0; c < 2; ++c)
         {
-            const int b = k <= half ? k : n - k;
-            cep[(size_t) k] = { std::log (mag[(size_t) b] + 1.0e-7f), 0.0f };
+            const auto& env = envelope[c];
+            // The correction moves energy between bands; keep the frame's total.
+            double before = 0.0, after = 0.0;
+            for (int k = 0; k <= half; ++k)
+            {
+                const auto src = (float) k * warp;
+                float tgt;
+                if (src >= (float) half)
+                    tgt = env[(size_t) half] - 6.0f;
+                else
+                {
+                    const int i0 = (int) src;
+                    tgt = env[(size_t) i0] + (env[(size_t) juce::jmin (half, i0 + 1)] - env[(size_t) i0]) * (src - (float) i0);
+                }
+                const auto g = std::exp (juce::jlimit (-6.0f, 6.0f, tgt - env[(size_t) k]));
+                corr[(size_t) k] = g;
+                const auto m = mag[c][(size_t) k];
+                before += (double) m * m;
+                after += (double) (m * g) * (m * g);
+            }
+            const auto norm = after > 0.0 ? (float) std::sqrt (before / after) : 1.0f;
+            for (int k = 0; k <= half; ++k)
+                out[c][(size_t) k] *= corr[(size_t) k] * norm;
         }
-        ffts[order - 10]->perform (cep.data(), work.data(), true);
-        std::copy (work.begin(), work.begin() + n, cep.begin());
-        const int lifter = juce::jmax (8, n / 64);
-        for (int k = 0; k < n; ++k)
-        {
-            const bool keep = k < lifter || k > n - lifter;
-            cep[(size_t) k] = keep ? cep[(size_t) k] : std::complex<float> (0.0f, 0.0f);   // JUCE already scaled the inverse
-        }
-        ffts[order - 10]->perform (cep.data(), work.data(), false);
-        std::copy (work.begin(), work.begin() + n, cep.begin());
-        for (int k = 0; k <= half; ++k)
-            envelope[(size_t) k] = cep[(size_t) k].real();
     }
-    const auto warp = (float) (pitchRatio / std::pow (2.0, (double) formantCents / 1200.0));
 
-    // The correction moves energy between bands; keep the frame's total.
-    double before = 0.0, after = 0.0;
-    if (formants)
+    // Pack the two synthesis spectra for one inverse FFT (left + i right).
+    // DC and Nyquist keep only their real parts, as the real output would.
+    for (int k = 0; k <= half; ++k)
+    {
+        auto l = out[0][(size_t) k], r = out[1][(size_t) k];
+        if (k == 0 || k == half)
+        {
+            l = { l.real(), 0.0f };
+            r = { r.real(), 0.0f };
+        }
+        spec[(size_t) k] = { l.real() - r.imag(), l.imag() + r.real() };
+        if (k > 0 && k < half)
+            spec[(size_t) (n - k)] = { l.real() + r.imag(), r.real() - l.imag() };
+    }
+    for (int c = 0; c < 2; ++c)
+    {
+        std::copy (bins[c].begin(), bins[c].begin() + half + 1, prevBins[c].begin());
+        std::copy (mag[c].begin(), mag[c].begin() + half + 1, prevMag[c].begin());
+    }
+}
+
+void TimeStretcher::phaseLock (int c, int analysisHop, bool transient)
+{
+    // Identity phase locking (Laroche & Dolson) with phases kept as unit
+    // phasors: each peak advances by its measured frequency, the bins around
+    // it keep their phase offset to it. Only the peaks need an angle.
+    const int n = frame, half = n / 2;
+    auto& x = bins[c];
+    auto& m = mag[c];
+    auto& s = synth[c];
+    auto& y = out[c];
+    if (transient)
+    {
         for (int k = 0; k <= half; ++k)
         {
-            const auto src = (float) k * warp;
-            const int i0 = juce::jmin (half, (int) src);
-            const auto t = juce::jmin (1.0f, src - (float) i0);
-            const auto tg = src >= (float) half ? envelope[(size_t) half] - 6.0f
-                                                : envelope[(size_t) i0] + (envelope[(size_t) juce::jmin (half, i0 + 1)] - envelope[(size_t) i0]) * t;
-            const auto m2 = mag[(size_t) k] * std::exp (juce::jlimit (-6.0f, 6.0f, tg - envelope[(size_t) k]));
-            before += (double) mag[(size_t) k] * mag[(size_t) k];
-            after += (double) m2 * m2;
+            s[(size_t) k] = unit (x[(size_t) k], m[(size_t) k]);
+            y[(size_t) k] = x[(size_t) k];
         }
-    const auto norm = formants && after > 0.0 ? (float) std::sqrt (before / after) : 1.0f;
+        return;
+    }
+
+    auto advance = [&] (int k)   // the bin's phase moves by its measured frequency over one synthesis hop
+    {
+        const auto d = mulConj (x[(size_t) k], prevBins[c][(size_t) k]);
+        const auto expected = twoPi * (float) k * (float) analysisHop / (float) n;
+        const auto dev = wrapPhase (std::atan2 (d.imag(), d.real()) - expected);
+        const auto turn = (twoPi * (float) k / (float) n + dev / (float) analysisHop) * (float) hop;
+        s[(size_t) k] = normalised (mul (s[(size_t) k], Complex (std::cos (turn), std::sin (turn))));
+    };
+
+    // Peaks, and which peak each bin follows (the nearer one).
+    int count = 0;
+    for (int k = 2; k < half - 1; ++k)
+    {
+        const auto v = m[(size_t) k];
+        if (v > m[(size_t) (k - 1)] && v >= m[(size_t) (k + 1)] && v > m[(size_t) (k - 2)] && v >= m[(size_t) (k + 2)])
+            peaks[(size_t) count++] = k;
+    }
+    if (count == 0)
+    {
+        for (int k = 0; k <= half; ++k)
+        {
+            advance (k);
+            y[(size_t) k] = s[(size_t) k] * m[(size_t) k];
+        }
+        return;
+    }
+    int prev = -1;
+    for (int i = 0; i < count; ++i)
+    {
+        const int k = peaks[(size_t) i];
+        const int from = prev < 0 ? 0 : (prev + k) / 2 + 1;
+        for (int j = from; j <= k; ++j)
+            peakOf[(size_t) j] = k;
+        if (prev >= 0)
+            for (int j = prev + 1; j < from; ++j)
+                peakOf[(size_t) j] = prev;
+        prev = k;
+        advance (k);
+        // Rotation from this frame's analysis phase to the synthesis phase
+        peakTurn[(size_t) k] = mulConj (s[(size_t) k], unit (x[(size_t) k], m[(size_t) k]));
+    }
+    for (int j = prev + 1; j <= half; ++j)
+        peakOf[(size_t) j] = prev;
 
     for (int k = 0; k <= half; ++k)
     {
-        auto m = mag[(size_t) k];
-        if (formants)
+        const int pk = peakOf[(size_t) k];
+        if (pk != k)
         {
-            const auto src = (float) k * warp;
-            float tgt;
-            if (src >= (float) half)
-                tgt = envelope[(size_t) half] - 6.0f;
-            else
-            {
-                const int i0 = (int) src;
-                const auto t = src - (float) i0;
-                tgt = envelope[(size_t) i0] + (envelope[(size_t) juce::jmin (half, i0 + 1)] - envelope[(size_t) i0]) * t;
-            }
-            corr = std::exp (juce::jlimit (-6.0f, 6.0f, tgt - envelope[(size_t) k]));
-            m *= corr * norm;
+            const auto t = peakTurn[(size_t) pk];
+            s[(size_t) k] = mul (unit (x[(size_t) k], m[(size_t) k]), t);
+            y[(size_t) k] = mul (x[(size_t) k], t);
         }
-        spec[(size_t) k] = std::polar (m, synthPhase[c][(size_t) k]);
+        else
+            y[(size_t) k] = s[(size_t) k] * m[(size_t) k];
+    }
+}
+
+void TimeStretcher::formantEnvelopes()
+{
+    // Cepstral envelopes of both channels' log magnitudes (one packed inverse
+    // FFT; both are real and even). Only the first n / 64 coefficients are
+    // kept, so the envelope is smooth: it is evaluated every 4th bin by a
+    // quarter-size FFT and interpolated in between.
+    const int n = frame, half = n / 2, quarter = n / 4, lifter = juce::jmax (8, n / 64);
+    for (int k = 0; k <= half; ++k)
+    {
+        const Complex v (std::log (mag[0][(size_t) k] + 1.0e-7f), std::log (mag[1][(size_t) k] + 1.0e-7f));
+        spec[(size_t) k] = v;
         if (k > 0 && k < half)
-            spec[(size_t) (n - k)] = std::conj (spec[(size_t) k]);
-        prevPhase[c][(size_t) k] = phase[(size_t) k];
-        prevMag[c][(size_t) k] = mag[(size_t) k];
+            spec[(size_t) (n - k)] = v;
+    }
+    fft->perform (spec.data(), work.data(), true);   // JUCE scales the inverse
+    std::fill (spec.begin(), spec.begin() + quarter, Complex());
+    for (int q = 0; q < lifter; ++q)
+        spec[(size_t) q] = work[(size_t) q];
+    for (int q = 1; q < lifter; ++q)
+        spec[(size_t) (quarter - q)] = work[(size_t) (n - q)];
+    ffts[order - 2 - 8]->perform (spec.data(), work.data(), false);
+    for (int k = 0; k <= half; ++k)
+    {
+        const int p = k >> 2;
+        const auto t = (float) (k & 3) * 0.25f;
+        const auto a = work[(size_t) p], b = work[(size_t) juce::jmin (quarter / 2, p + 1)];
+        envelope[0][(size_t) k] = a.real() + (b.real() - a.real()) * t;
+        envelope[1][(size_t) k] = a.imag() + (b.imag() - a.imag()) * t;
     }
 }

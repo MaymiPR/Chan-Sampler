@@ -115,25 +115,24 @@ private:
     template <typename Reader>
     void vocoderFrame (Reader& read, double ha, double pitchRatio, float formantCents)
     {
+        // Both channels go through one complex FFT each way: left as the real
+        // part, right as the imaginary part (both are real signals).
         const int n = frame;
         const auto pos = (int) std::floor (apos);
-        for (int c = 0; c < 2; ++c)
+        for (int i = 0; i < n; ++i)
         {
-            for (int i = 0; i < n; ++i)
-            {
-                float l, r;
-                read (pos + i, l, r);
-                spec[(size_t) i] = { (c == 0 ? l : r) * window[(size_t) i], 0.0f };
-            }
-            fft->perform (spec.data(), work.data(), false);   // JUCE's FFT is not in-place
-            std::copy (work.begin(), work.begin() + n, spec.begin());
-            processSpectrum (c, pos, pitchRatio, formantCents);
-            fft->perform (spec.data(), work.data(), true);
-            std::copy (work.begin(), work.begin() + n, spec.begin());
-            auto& ola = c == 0 ? olaL : olaR;
-            const float scale = 1.0f / 1.5f;   // JUCE scales the inverse FFT; Hann^2 at 75% overlap sums to 1.5
-            for (int i = 0; i < n; ++i)
-                ola[(size_t) i] += spec[(size_t) i].real() * window[(size_t) i] * scale;
+            float l, r;
+            read (pos + i, l, r);
+            spec[(size_t) i] = { l * window[(size_t) i], r * window[(size_t) i] };
+        }
+        fft->perform (spec.data(), work.data(), false);   // JUCE's FFT is not in-place
+        processSpectrum (pos, pitchRatio, formantCents);  // work -> spec
+        fft->perform (spec.data(), work.data(), true);
+        const float scale = 1.0f / 1.5f;   // JUCE scales the inverse FFT; Hann^2 at 75% overlap sums to 1.5
+        for (int i = 0; i < n; ++i)
+        {
+            olaL[(size_t) i] += work[(size_t) i].real() * window[(size_t) i] * scale;
+            olaR[(size_t) i] += work[(size_t) i].imag() * window[(size_t) i] * scale;
         }
         prevPos = pos;
         first = false;
@@ -141,7 +140,9 @@ private:
         emit (1.0f);
     }
 
-    void processSpectrum (int channel, int pos, double pitchRatio, float formantCents);
+    void processSpectrum (int pos, double pitchRatio, float formantCents);
+    void phaseLock (int channel, int analysisHop, bool transient);
+    void formantEnvelopes();
     void emit (float gain);
     static float cubic (const std::vector<float>& b, int i, float t);
 
@@ -154,12 +155,15 @@ private:
     int prevPos = 0;
     bool first = true;
 
-    std::unique_ptr<juce::dsp::FFT> ffts[4];   // orders 10..13
+    std::unique_ptr<juce::dsp::FFT> ffts[6];   // orders 8..13 (the envelope uses a quarter size)
     juce::dsp::FFT* fft = nullptr;
     std::vector<float> window, olaL, olaR, target;
-    std::vector<std::complex<float>> spec, cep, work;
-    std::vector<float> prevPhase[2], synthPhase[2], prevMag[2], mag, phase, envelope;
-    std::vector<int> peakOf;
+    std::vector<std::complex<float>> spec, work;
+    // Per channel: this frame's and the last frame's analysis spectra, the
+    // synthesis phase as a unit phasor, magnitudes and the formant envelope.
+    std::vector<std::complex<float>> bins[2], prevBins[2], synth[2], out[2], peakTurn;
+    std::vector<float> mag[2], prevMag[2], envelope[2], corr;
+    std::vector<int> peakOf, peaks;
 
     static constexpr int fifoSize = 32768;
     std::vector<float> fifoL, fifoR;
