@@ -105,9 +105,20 @@ public:
     std::function<void()> onUserChange;
 
     void mouseDown (const juce::MouseEvent&) override;
+    void mouseDrag (const juce::MouseEvent&) override;
     void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
 
 private:
+    // FL's drag detents (measured in FL 2026): a two-sided control holds at its
+    // centre, and PITCH at every semitone, for 20 px of drag when a drag
+    // arrives there; a drag that starts on one leaves at once.
+    static constexpr float detentHold = 20.0f;
+    std::vector<double> detents;   // positions 0..1
+    double dragPos = 0.0;
+    juce::Point<float> lastMouse;
+    int holding = -1;              // index into detents while held
+    float heldPx = 0.0f;           // drag so far while held (signed)
+
     bool wheelActive = false;
 };
 

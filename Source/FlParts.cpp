@@ -716,6 +716,17 @@ void ParamMenu::typeIn()
 ParamKnob::ParamKnob (juce::RangedAudioParameter& p, SliderStyle style)
     : juce::Slider (style, juce::Slider::NoTextBox), menu (*this, p)
 {
+    const auto& range = p.getNormalisableRange();
+    if (std::abs (range.start + range.end) <= 1.0e-6f * std::abs (range.end))
+        detents.push_back (p.convertTo0to1 (0.0f));       // two-sided: the centre
+    else if (std::abs (p.getDefaultValue() - 0.5f) < 1.0e-4f)
+        detents.push_back (0.5);                          // e.g. MUL (x1 in the middle)
+    if (p.getParameterID() == pid::pitch || p.getParameterID() == pid::echoPitch)
+        for (int semitone = -12; semitone <= 12; ++semitone)
+            if (semitone != 0)
+                detents.push_back (p.convertTo0to1 ((float) semitone * 100.0f));
+    if (! isRotary())
+        setSliderSnapsToMousePosition (false);            // sliders drag from where they are, like knobs
     menu.beforeEdit = [this] { if (onDragStart != nullptr) onDragStart(); };
     menu.afterEdit = [this] { if (onUserChange != nullptr) onUserChange(); };
     // After the attachment has passed the value to the parameter.
@@ -736,9 +747,65 @@ void ParamKnob::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWhee
 void ParamKnob::mouseDown (const juce::MouseEvent& e)
 {
     if (e.mods.isPopupMenu())
+    {
         menu.show();
+        return;
+    }
+    juce::Slider::mouseDown (e);   // starts the gesture
+    dragPos = valueToProportionOfLength (getValue());
+    lastMouse = e.position;
+    holding = -1;
+}
+
+void ParamKnob::mouseDrag (const juce::MouseEvent& e)
+{
+    if (e.mods.isPopupMenu() || ! isEnabled())
+        return;
+
+    // Relative drag (up / right raises), with FL's detents.
+    const auto d = isRotary() ? (e.position.x - lastMouse.x) - (e.position.y - lastMouse.y)
+                              : (e.position.x - lastMouse.x);
+    lastMouse = e.position;
+    const auto full = (double) (isRotary() ? getMouseDragSensitivity() : juce::jmax (1, getWidth()));
+
+    if (holding >= 0)
+    {
+        heldPx += d;
+        if (std::abs (heldPx) <= detentHold)
+            return;
+        dragPos = detents[(size_t) holding] + (heldPx - std::copysign (detentHold, heldPx)) / full;
+        holding = -1;
+    }
     else
-        juce::Slider::mouseDown (e);
+    {
+        const auto next = dragPos + d / full;
+        int arrived = -1;
+        for (size_t i = 0; i < detents.size(); ++i)
+        {
+            const auto t = detents[i];
+            if ((dragPos < t && next >= t) || (dragPos > t && next <= t))
+                if (arrived < 0 || std::abs (t - dragPos) < std::abs (detents[(size_t) arrived] - dragPos))
+                    arrived = (int) i;   // the first one on the way
+        }
+        if (arrived >= 0)
+        {
+            const auto t = detents[(size_t) arrived];
+            holding = arrived;
+            heldPx = (float) ((next - t) * full);
+            dragPos = t;
+            if (std::abs (heldPx) > detentHold)
+            {
+                dragPos = t + (heldPx - std::copysign (detentHold, heldPx)) / full;
+                holding = -1;
+            }
+        }
+        else
+        {
+            dragPos = next;
+        }
+    }
+    dragPos = juce::jlimit (0.0, 1.0, dragPos);
+    setValue (proportionOfLengthToValue (dragPos), juce::sendNotificationSync);
 }
 
 ParamDigiBox::ParamDigiBox (juce::RangedAudioParameter& p, bool redStyle)
