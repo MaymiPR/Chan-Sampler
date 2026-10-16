@@ -159,8 +159,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          # This version's section of CHANGELOG.md
-          awk -v v="## $VERSION" '$0 == v {on = 1; next} /^## / {on = 0} on' CHANGELOG.md > notes.md
+          # This version's section of CHANGELOG.md (stored with CRLF line endings)
+          tr -d '\r' < CHANGELOG.md | awk -v v="## $VERSION" '$0 == v {on = 1; next} /^## / {on = 0} on' > notes.md
           [ -s notes.md ] || echo "Chan Sampler $VERSION" > notes.md
           gh release create "${GITHUB_REF_NAME}" $(find artifacts -type f \( -name '*.zip' -o -name '*.exe' -o -name '*.pkg' \)) \
             --repo "${GITHUB_REPOSITORY}" --title "Chan Sampler ${VERSION}" --notes-file notes.md
