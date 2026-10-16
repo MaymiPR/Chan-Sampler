@@ -713,15 +713,49 @@ void ParamMenu::typeIn()
 }
 
 //==============================================================================
+namespace
+{
+    // How far FL's controls drag for their whole range, in pixels (measured
+    // in FL 2026 with Copy value before and after a 30 px drag, and pixel by
+    // pixel on PITCH and the echo's PITCH). Most of FL's knobs take 256 px.
+    double flDragPixels (const juce::String& id)
+    {
+        static const std::map<juce::String, double> table {
+            { pid::pitch, 192.0 }, { pid::stretchMul, 400.0 },
+            { pid::startOffset, 2048.0 }, { pid::loopStart, 1600.0 }, { pid::loopEnd, 1600.0 },
+            { pid::pcStart, 1024.0 }, { pid::pcLength, 1024.0 },
+            { pid::cutoff, 512.0 }, { pid::resonance, 512.0 }, { pid::fineTune, 400.0 },
+            { pid::pan, 512.0 }, { pid::volume, 512.0 }, { pid::xOfs, 512.0 }, { pid::yOfs, 512.0 },
+            { pid::slide, 1245.0 }, { pid::arpTime, 249.3 }, { pid::arpGate, 180.0 },
+            { pid::echoX, 512.0 }, { pid::echoY, 512.0 }, { pid::echoPitch, 480.0 }, { pid::echoTime, 240.0 },
+            { pid::velPan, 512.0 }, { pid::velX, 512.0 }, { pid::velY, 512.0 },
+            { pid::keyPan, 512.0 }, { pid::keyX, 512.0 }, { pid::keyY, 512.0 }, { pid::keyMid, 900.0 } };
+        if (const auto it = table.find (id); it != table.end())
+            return it->second;
+        // Envelope / LFO pages (prefix + name): times run on FL's raw 100..65536.
+        for (auto* suffix : { "Del", "Att", "Hold", "Dec", "Rel", "LfoDel", "LfoAtt" })
+            if (id.endsWith (suffix))
+                return 256.0 * 65436.0 / 65536.0;
+        if (id.endsWith ("LfoSpeed"))
+            return 256.0 * 65336.0 / 65536.0;
+        if (id.endsWith ("AttT") || id.endsWith ("DecT") || id.endsWith ("RelT"))
+            return 512.0;
+        return 256.0;
+    }
+}
+
 ParamKnob::ParamKnob (juce::RangedAudioParameter& p, SliderStyle style)
     : juce::Slider (style, juce::Slider::NoTextBox), menu (*this, p)
 {
+    dragPixels = flDragPixels (p.getParameterID());
     const auto& range = p.getNormalisableRange();
     if (std::abs (range.start + range.end) <= 1.0e-6f * std::abs (range.end))
         detents.push_back (p.convertTo0to1 (0.0f));       // two-sided: the centre
     else if (std::abs (p.getDefaultValue() - 0.5f) < 1.0e-4f)
         detents.push_back (0.5);                          // e.g. MUL (x1 in the middle)
-    if (p.getParameterID() == pid::pitch || p.getParameterID() == pid::echoPitch)
+    if (p.getParameterID() == pid::output)
+        detents.push_back (p.getDefaultValue());          // OUT: its default level
+    if (p.getParameterID() == pid::pitch)                 // the echo's PITCH has none (measured)
         for (int semitone = -12; semitone <= 12; ++semitone)
             if (semitone != 0)
                 detents.push_back (p.convertTo0to1 ((float) semitone * 100.0f));
@@ -766,7 +800,7 @@ void ParamKnob::mouseDrag (const juce::MouseEvent& e)
     const auto d = isRotary() ? (e.position.x - lastMouse.x) - (e.position.y - lastMouse.y)
                               : (e.position.x - lastMouse.x);
     lastMouse = e.position;
-    const auto full = (double) (isRotary() ? getMouseDragSensitivity() : juce::jmax (1, getWidth()));
+    const auto full = dragPixels;
 
     if (holding >= 0)
     {

@@ -114,6 +114,7 @@ private:
     // arrives there; a drag that starts on one leaves at once.
     static constexpr float detentHold = 20.0f;
     std::vector<double> detents;   // positions 0..1
+    double dragPixels = 256.0;     // drag for the whole range (FL's, per control)
     double dragPos = 0.0;
     juce::Point<float> lastMouse;
     int holding = -1;              // index into detents while held
