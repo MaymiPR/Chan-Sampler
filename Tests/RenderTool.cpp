@@ -12,6 +12,7 @@
 #include "../Source/PluginProcessor.h"
 #include "../Source/SampleExchange.h"
 #include "../Source/TempoDetect.h"
+#include "../Source/TimeStretch.h"
 #include "../Source/FlPreset.h"
 #include "../Source/Params.h"
 #include "../Source/FactoryPresets.h"
@@ -207,6 +208,42 @@ int main (int argc, char** argv)
         std::cout << "useLoop " << use->getCurrentValueAsText() << ", loopStart " << p.apvts.getParameter (pid::loopStart)->getCurrentValueAsText()
                   << ", loopEnd " << p.apvts.getParameter (pid::loopEnd)->getCurrentValueAsText() << "\n";
         return use->getValue() < 0.5f ? 0 : 2;
+    }
+    if (argc >= 5 && juce::String (argv[1]) == "stretchtest")
+    {
+        // stretchtest <in.wav> <out.wav> <cents> [mode index] [speed]: the
+        // stretcher alone, at the file's rate (pitch from cents, length / speed).
+        juce::ScopedJuceInitialiser_GUI init;
+        ChanSamplerProcessor p;
+        if (! p.loadSample (juce::File (juce::String (argv[2]))))
+            return 1;
+        const auto raw = p.getRaw();
+        const auto mode = (StretchMode) (argc > 5 ? juce::String (argv[5]).getIntValue() : (int) StretchMode::e3Generic);
+        const double speed = argc > 6 ? juce::String (argv[6]).getDoubleValue() : 1.0;
+        const double ratio = std::pow (2.0, juce::String (argv[4]).getDoubleValue() / 1200.0);
+        const int inFrames = raw->audio.getNumSamples(), outFrames = (int) (inFrames / speed);
+        const auto* l = raw->audio.getReadPointer (0);
+        const auto* r = raw->audio.getReadPointer (raw->audio.getNumChannels() > 1 ? 1 : 0);
+        TimeStretcher st;
+        st.configure (mode, raw->sampleRate);
+        st.reset (0.0);
+        juce::AudioBuffer<float> out (2, outFrames);
+        auto read = [&] (int k, float& sl, float& sr) { if (k < 0 || k >= inFrames) { sl = sr = 0; return; } sl = l[k]; sr = r[k]; };
+        for (int i = 0; i < outFrames; ++i)
+        {
+            float a, b;
+            st.next (read, ratio, speed, 0.0f, a, b);
+            out.setSample (0, i, a);
+            out.setSample (1, i, b);
+        }
+        juce::File f { juce::String (argv[3]) };
+        f.deleteFile();
+        juce::WavAudioFormat wav;
+        JUCE_BEGIN_IGNORE_WARNINGS_MSVC (4996)
+        std::unique_ptr<juce::AudioFormatWriter> w (wav.createWriterFor (new juce::FileOutputStream (f), raw->sampleRate, 2, 32, {}, 0));
+        JUCE_END_IGNORE_WARNINGS_MSVC
+        w->writeFromAudioSampleBuffer (out, 0, outFrames);
+        return 0;
     }
     if (argc >= 3 && juce::String (argv[1]) == "tempotest")
     {

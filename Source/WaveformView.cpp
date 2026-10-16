@@ -142,6 +142,12 @@ void WaveformView::updateStretchPreview()
         settleFrames = 6;   // about 0.1 s after the last change
         return;
     }
+    // FL redraws once the knob is let go, not while it turns.
+    if (juce::ModifierKeys::currentModifiers.isAnyMouseButtonDown())
+    {
+        settleFrames = 6;
+        return;
+    }
     if (--settleFrames > 0)
         return;
     settleFrames = -1;

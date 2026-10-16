@@ -96,7 +96,10 @@ void TimeStretcher::configure (StretchMode mode, double sourceRate)
 
 void TimeStretcher::reset (double sourcePos)
 {
-    apos = sourcePos;
+    apos = idealPos = startPos = sourcePos;
+    lockFrames = 0;
+    framesDone = 0;
+    aligned = false;
     prevPos = (int) std::floor (sourcePos);
     first = true;
     std::fill (olaL.begin(), olaL.end(), 0.0f);
@@ -160,7 +163,7 @@ namespace
     }
 }
 
-void TimeStretcher::processSpectrum (int pos, double pitchRatio, float formantCents)
+void TimeStretcher::processSpectrum (int pos, double pitchRatio, float formantCents, bool attack)
 {
     const int n = frame, half = n / 2;
 
@@ -189,7 +192,7 @@ void TimeStretcher::processSpectrum (int pos, double pitchRatio, float formantCe
             rise += juce::jmax (0.0f, mag[c][(size_t) k] - prevMag[c][(size_t) k]);
             total += prevMag[c][(size_t) k];
         }
-        phaseLock (c, analysisHop, first || rise / total > transientThreshold);
+        phaseLock (c, analysisHop, first || attack || rise / total > transientThreshold);
     }
 
     // Formants (Stretch Pro): the voice resamples this signal by pitchRatio,

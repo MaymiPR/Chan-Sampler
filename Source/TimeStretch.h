@@ -21,6 +21,9 @@
 //   Phase vocoder  - identity phase locking + transient phase resets (e3/e2
 //                    generic and transient); Stretch Pro adds formant
 //                    preservation by cepstral envelope and the FORMANT shift.
+//                    Attacks are kept as they are (like FL's e3): the frames
+//                    holding one are taken 1:1 with the source's own phases,
+//                    and the time that costs is made up afterwards.
 class TimeStretcher
 {
 public:
@@ -38,6 +41,21 @@ public:
     void next (Reader&& read, double increment, double timeRate, float formantCents, float& outL, float& outR)
     {
         const double alpha = juce::jlimit (0.05, 20.0, increment / juce::jmax (1.0e-6, timeRate));
+        if (! aligned)
+        {
+            // Measured with clicks: the vocoder's output would run early by a
+            // hop plus a quarter frame x (1 - 1 / alpha); WSOLA's late by a
+            // quarter frame plus 0.58 / -0.42 frames per octave down / up.
+            // Shift the analysis start so the source and the output line up
+            // at any pitch.
+            aligned = true;
+            const auto octaves = std::log2 (alpha);
+            const auto shift = algo == Algo::vocoder ? hop + 0.25 * frame * (1.0 - 1.0 / alpha)
+                                                     : -frame * (0.25 - (octaves < 0.0 ? 0.58 : 0.42) * octaves);
+            apos -= shift;
+            idealPos -= shift;
+            prevPos = (int) std::floor (apos);
+        }
         while (fifoCount - (int) readPos < 4)
             synthesise (read, alpha, increment * sourceToOutputRateScale, formantCents);
 
@@ -119,14 +137,28 @@ private:
         // part, right as the imaginary part (both are real signals).
         const int n = frame;
         const auto pos = (int) std::floor (apos);
+        // Attack detection on the way: block energies, a jump far above the
+        // blocks just before it.
+        constexpr int block = 128;
+        float blockEnergy[64] = {};
         for (int i = 0; i < n; ++i)
         {
             float l, r;
             read (pos + i, l, r);
+            blockEnergy[juce::jmin (63, i / block)] += l * l + r * r;
             spec[(size_t) i] = { l * window[(size_t) i], r * window[(size_t) i] };
         }
+        int attackAt = -1;   // the first attack's block in this window
+        for (int b = 4; b < juce::jmin (64, n / block) && attackAt < 0; ++b)
+        {
+            const auto before = 0.25f * (blockEnergy[b - 1] + blockEnergy[b - 2] + blockEnergy[b - 3] + blockEnergy[b - 4]);
+            if (blockEnergy[b] > 8.0f * before + 1.0e-4f * block)
+                attackAt = b;
+        }
+        const bool locked = lockFrames > 0;
+
         fft->perform (spec.data(), work.data(), false);   // JUCE's FFT is not in-place
-        processSpectrum (pos, pitchRatio, formantCents);  // work -> spec
+        processSpectrum (pos, pitchRatio, formantCents, locked);  // work -> spec
         fft->perform (spec.data(), work.data(), true);
         const float scale = 1.0f / 1.5f;   // JUCE scales the inverse FFT; Hann^2 at 75% overlap sums to 1.5
         for (int i = 0; i < n; ++i)
@@ -136,11 +168,39 @@ private:
         }
         prevPos = pos;
         first = false;
-        apos += ha;
+        // An attack on the way: the frames over it go 1:1 (the attack is
+        // rebuilt as it is), placed so that the frame with the attack at its
+        // centre is where the stretch puts it (on time). Afterwards the
+        // analysis catches up, a quarter of the gap per frame.
+        idealPos += ha;
+        ++framesDone;   // the next frame's index
+        if (locked)
+        {
+            apos += hop;
+            --lockFrames;
+        }
+        else if (attackAt >= 0)
+        {
+            // Frame k's sample i lands at output (k hop + i - hop) / pitch
+            // ratio (measured); the attack should sound at its own time
+            // (source distance / timeRate). Find the frame that has it near
+            // its centre there and step 1:1 up to it.
+            const double attackPos = pos + (attackAt + 0.5) * block;
+            const double alphaNow = (double) hop / ha;
+            const double stretched = (attackPos - startPos) * alphaNow;   // where it belongs, in synthesis samples
+            const int centreFrame = juce::jmax (framesDone, (int) std::round ((stretched - 0.5 * frame) / hop));
+            const double centreStart = attackPos + (double) centreFrame * hop - stretched;
+            apos = juce::jmax ((double) (pos - frame), centreStart - (double) (centreFrame - framesDone) * hop);   // may step back: the source is read by position
+            lockFrames = centreFrame - framesDone + 1 + frame / hop / 2;
+        }
+        else
+        {
+            apos += juce::jlimit (0.25 * ha, 4.0 * ha, ha + 0.25 * (idealPos - apos));
+        }
         emit (1.0f);
     }
 
-    void processSpectrum (int pos, double pitchRatio, float formantCents);
+    void processSpectrum (int pos, double pitchRatio, float formantCents, bool attack);
     void phaseLock (int channel, int analysisHop, bool transient);
     void formantEnvelopes();
     void emit (float gain);
@@ -151,9 +211,10 @@ private:
     float transientThreshold = 1.5f;
     int frame = 1024, hop = 512, tolerance = 256, order = 10;
     float wsolaGain = 1.0f;
-    double apos = 0.0;
-    int prevPos = 0;
-    bool first = true;
+    double apos = 0.0, idealPos = 0.0;
+    int prevPos = 0, lockFrames = 0, framesDone = 0;
+    double startPos = 0.0;
+    bool first = true, aligned = false;
 
     std::unique_ptr<juce::dsp::FFT> ffts[6];   // orders 8..13 (the envelope uses a quarter size)
     juce::dsp::FFT* fft = nullptr;

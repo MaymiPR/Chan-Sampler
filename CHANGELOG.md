@@ -12,6 +12,10 @@
   hidden cursor that drags past the screen's edges.
 - The sample view draws the sample as PITCH, MUL and TIME play it, as FL does;
   PITCH switches Resample to Auto when let go, and Auto reads e3 generic.
+- Stretch modes keep attacks sharp when pitch-shifting (the frames over an
+  attack are rebuilt 1:1, on time), and pitched notes are no longer early or
+  late: the stretcher's output lines up with the source at any pitch (it ran
+  up to 23 ms off). The sample view redraws once a knob is let go.
 - Releases list SHA-256 checksums; the install notes explain the security
   warnings for the unsigned downloads (SmartScreen, macOS's Open Anyway).
 
