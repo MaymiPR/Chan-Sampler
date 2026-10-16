@@ -124,33 +124,101 @@ juce::Colour WaveformView::waveColour() const
 
 void WaveformView::drawLanes (juce::Graphics& g, juce::Rectangle<float> area, float from, float to, juce::Colour colour) const
 {
-    // FL draws one lane, full height: per pixel column the peaks of both
-    // channels together, at least one pixel (silence is a line at the centre).
-    const auto halfH = area.getHeight() * 0.5f;
+    // FL draws one smooth, anti-aliased shape: per pixel column the lowest and
+    // highest value of both channels (measured: within ~1 px of FL's capture),
+    // the space between a smooth upper and lower edge filled, at least 1.5 px
+    // thick, so a zoomed-in wave is a clean ribbon. Values come from the audio
+    // itself up to 8192 frames per column, from the peak table beyond that.
+    const auto halfH = area.getHeight() * 0.5f - 1.0f;
     const auto mid = area.getCentreY();
+    const int total = sample->getTotalFrames();
+    const int width = (int) area.getWidth();
+    if (total <= 0 || width <= 0)
+        return;
+    const auto framesPerColumn = (double) (to - from) * total / width;
+    const auto* l0 = sample->audio.getReadPointer (0);
+    const auto* r0 = sample->audio.getReadPointer (juce::jmin (1, sample->audio.getNumChannels() - 1));
+
+    // Zoomed in (under 100 frames per pixel) FL shows a clean line through the
+    // wave, not its peaks: a 1.5 px anti-aliased line through points every half
+    // pixel (both channels averaged).
+    if (framesPerColumn < 100.0)
+    {
+        juce::Path line;
+        const auto step = 0.5f;
+        bool started = false;
+        for (float px = 0.0f; px <= (float) width; px += step)
+        {
+            const auto f = from + (to - from) * px / area.getWidth();
+            if (f > 1.0f)
+                break;
+            const int i = juce::jlimit (0, total - 1, (int) std::lround (f * total));
+            const auto pt = juce::Point<float> (area.getX() + px, mid - juce::jlimit (-1.0f, 1.0f, 0.5f * (l0[i] + r0[i])) * halfH);
+            if (! started) { line.startNewSubPath (pt); started = true; }
+            else           line.lineTo (pt);
+        }
+        g.setColour (colour);
+        g.strokePath (line, juce::PathStrokeType (1.5f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+        return;
+    }
     const int buckets = SampleData::numPeakBuckets;
-    g.setColour (colour);
-    for (int x = 0; x < (int) area.getWidth(); ++x)
+    const auto* l = sample->audio.getReadPointer (0);
+    const auto* r = sample->audio.getReadPointer (juce::jmin (1, sample->audio.getNumChannels() - 1));
+    auto y = [&] (float v) { return mid - juce::jlimit (-1.0f, 1.0f, v) * halfH; };
+
+    std::vector<juce::Point<float>> upper, lower;
+    upper.reserve ((size_t) width);
+    lower.reserve ((size_t) width);
+    for (int x = 0; x < width; ++x)
     {
         const auto f0 = from + (to - from) * (float) x / area.getWidth();
         const auto f1 = from + (to - from) * (float) (x + 1) / area.getWidth();
         if (f0 >= 1.0f)
             break;
-        const auto b0 = juce::jlimit (0, buckets - 1, (int) (f0 * buckets));
-        const auto b1 = juce::jlimit (b0 + 1, buckets, (int) (f1 * buckets));
         float lo = 0, hi = 0;
-        for (int ch = 0; ch < 2; ++ch)
-            for (int b = b0; b < b1; ++b)
-            {
-                lo = juce::jmin (lo, sample->peakMin[ch][(size_t) b]);
-                hi = juce::jmax (hi, sample->peakMax[ch][(size_t) b]);
-            }
-        // Like FL, a boosted sample is drawn clipped at full scale.
-        lo = juce::jmax (lo, -1.0f);
-        hi = juce::jmin (hi, 1.0f);
-        const auto top = std::floor (mid - hi * halfH), bottom = juce::jmax (top + 1.0f, std::ceil (mid - lo * halfH));
-        g.fillRect (area.getX() + (float) x, top, 1.0f, bottom - top);
+        if (framesPerColumn <= 8192.0)
+        {
+            const int i0 = juce::jlimit (0, total - 1, (int) std::floor (f0 * total));
+            const int i1 = juce::jlimit (i0 + 1, total, (int) std::floor (f1 * total));
+            lo = hi = l[i0];
+            for (int i = i0; i < i1; ++i)
+                for (auto v : { l[i], r[i] })
+                {
+                    lo = juce::jmin (lo, v);
+                    hi = juce::jmax (hi, v);
+                }
+        }
+        else
+        {
+            const auto b0 = juce::jlimit (0, buckets - 1, (int) (f0 * buckets));
+            const auto b1 = juce::jlimit (b0 + 1, buckets, (int) (f1 * buckets));
+            for (int ch = 0; ch < 2; ++ch)
+                for (int b = b0; b < b1; ++b)
+                {
+                    lo = juce::jmin (lo, sample->peakMin[ch][(size_t) b]);
+                    hi = juce::jmax (hi, sample->peakMax[ch][(size_t) b]);
+                }
+        }
+        const auto px = area.getX() + (float) x + 0.5f;
+        const auto yHi = y (hi), yLo = y (lo);
+        const auto centre = 0.5f * (yHi + yLo), half = juce::jmax (0.75f, 0.5f * (yLo - yHi) + 0.5f);
+        upper.push_back ({ px, centre - half });
+        lower.push_back ({ px, centre + half });
     }
+    if (upper.empty())
+        return;
+    juce::Path shape;
+    shape.startNewSubPath (upper.front().translated (-0.5f, 0.0f));
+    for (auto& p : upper)
+        shape.lineTo (p);
+    shape.lineTo (upper.back().translated (0.5f, 0.0f));
+    shape.lineTo (lower.back().translated (0.5f, 0.0f));
+    for (auto it = lower.rbegin(); it != lower.rend(); ++it)
+        shape.lineTo (*it);
+    shape.lineTo (lower.front().translated (-0.5f, 0.0f));
+    shape.closeSubPath();
+    g.setColour (colour);
+    g.fillPath (shape);
 }
 
 void WaveformView::drawSamples (juce::Graphics& g, juce::Rectangle<float> area, float from, float to) const
@@ -167,13 +235,13 @@ void WaveformView::drawSamples (juce::Graphics& g, juce::Rectangle<float> area, 
     auto pt = [&] (int i)
     {
         const auto x = area.getX() + ((float) i / (float) total - from) / (to - from) * area.getWidth();
-        return juce::Point<float> (x, mid - juce::jlimit (-1.0f, 1.0f, 0.5f * (l[i] + r[i])) * halfH);
+        return juce::Point<float> (x, mid - juce::jlimit (-1.0f, 1.0f, 0.5f * (l[i] + r[i])) * (halfH - 1.0f));
     };
     juce::Path line;
     for (int i = first; i <= last; ++i)
         i == first ? line.startNewSubPath (pt (i)) : line.lineTo (pt (i));
     g.setColour (waveColour());
-    g.strokePath (line, juce::PathStrokeType (1.0f));
+    g.strokePath (line, juce::PathStrokeType (1.5f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
     const auto spacing = area.getWidth() / juce::jmax (1.0f, (to - from) * (float) total);
     if (spacing >= 6.0f)
         for (int i = first; i <= last; ++i)
@@ -272,6 +340,25 @@ void WaveformView::paint (juce::Graphics& g)
         else
             drawLanes (g, wave, viewStart, viewEnd, waveColour());
     }
+
+    // FL's format badge (bottom right): the bit depth it holds the sample at
+    // (16 for 16-bit files, otherwise 32-bit float) and a channel icon with
+    // one notch for mono, two for stereo (measured with 16 / 24 / 32-bit files).
+    {
+        const auto iconR = juce::Rectangle<float> (wave.getRight() - 15.0f, wave.getBottom() - 13.0f, 9.0f, 9.0f);
+        g.setColour (juce::Colour (0xffdfe5e8));
+        g.drawRect (iconR.withTrimmedTop (1.0f), 1.0f);
+        if (sample->mono)
+            g.fillRect (iconR.getCentreX() - 1.0f, iconR.getY() - 1.0f, 2.0f, 2.0f);
+        else
+        {
+            g.fillRect (iconR.getX() - 0.5f, iconR.getY() - 1.0f, 2.0f, 2.0f);
+            g.fillRect (iconR.getRight() - 1.5f, iconR.getY() - 1.0f, 2.0f, 2.0f);
+        }
+        g.setFont (fl::font (11.5f));
+        g.drawText (sample->fileBits <= 16 ? "16" : "32", juce::Rectangle<float> (iconR.getX() - 26.0f, iconR.getY() - 2.0f, 21.0f, 13.0f),
+                    juce::Justification::centredRight, false);
+    }
     if (startShown)
     {
         g.setColour (juce::Colours::black.withAlpha (0.6f));   // FL darkens the part before Start
@@ -353,18 +440,24 @@ void WaveformView::paint (juce::Graphics& g)
     g.fillRect (trackArea);
     const auto inner = trackArea.reduced (buttonW, 0.0f);
     {
+        // FL: outside the visible window the track is dark and finely hatched;
+        // inside it the overview shows, between two lighter edges.
+        const auto t0 = std::floor (inner.getX() + viewStart * inner.getWidth());
+        const auto t1 = std::ceil (inner.getX() + viewEnd * inner.getWidth());
+        for (int row = 0; row < (int) inner.getHeight(); ++row)
+        {
+            g.setColour (row % 2 == 0 ? juce::Colour (0xff191b1c) : juce::Colour (0xff1c1e1f));
+            g.fillRect (juce::Rectangle<float>::leftTopRightBottom (inner.getX(), inner.getY() + (float) row, t0, inner.getY() + (float) row + 1.0f));
+            g.fillRect (juce::Rectangle<float>::leftTopRightBottom (t1, inner.getY() + (float) row, inner.getRight(), inner.getY() + (float) row + 1.0f));
+        }
         juce::Graphics::ScopedSaveState s (g);
-        g.reduceClipRegion (inner.toNearestInt());
+        g.reduceClipRegion (juce::Rectangle<float>::leftTopRightBottom (t0, inner.getY(), t1, inner.getBottom()).toNearestInt());
         drawLanes (g, inner.reduced (0.0f, 1.0f), 0.0f, 1.0f, flview::overview);
         if (viewStart > 0.0f || viewEnd < 1.0f)
         {
-            const auto t0 = inner.getX() + viewStart * inner.getWidth(), t1 = inner.getX() + viewEnd * inner.getWidth();
-            g.setColour (flview::track.withAlpha (0.6f));
-            g.fillRect (juce::Rectangle<float>::leftTopRightBottom (inner.getX(), inner.getY(), t0, inner.getBottom()));
-            g.fillRect (juce::Rectangle<float>::leftTopRightBottom (t1, inner.getY(), inner.getRight(), inner.getBottom()));
-            g.setColour (flview::overview);
-            g.fillRect (std::floor (t0), inner.getY(), 1.0f, inner.getHeight());
-            g.fillRect (std::floor (t1) - 1.0f, inner.getY(), 1.0f, inner.getHeight());
+            g.setColour (flview::barLight);
+            g.fillRect (t0, inner.getY(), 1.0f, inner.getHeight());
+            g.fillRect (t1 - 1.0f, inner.getY(), 1.0f, inner.getHeight());
         }
     }
     if (playhead >= 0.0f)

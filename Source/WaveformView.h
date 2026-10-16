@@ -22,6 +22,9 @@ public:
     void mouseMove (const juce::MouseEvent&) override;
     void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
 
+    // Shows frac0..frac1 of the sample (tests / snapshots).
+    void setView (float frac0, float frac1) { viewStart = frac0; viewEnd = frac1; repaint(); }
+
 private:
     enum class Marker { none, start, loopStart, loopEnd, scrollThumb };
     // FL's sample view (measured from FL 2026): an 8 px strip, the view, then an

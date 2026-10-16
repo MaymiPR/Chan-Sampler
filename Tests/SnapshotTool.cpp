@@ -10,6 +10,7 @@
 
 #include "../Source/PluginProcessor.h"
 #include "../Source/PluginEditor.h"
+#include "../Source/WaveformView.h"
 
 int main (int argc, char** argv)
 {
@@ -110,6 +111,19 @@ int main (int argc, char** argv)
     std::unique_ptr<juce::AudioProcessorEditor> ed (proc.createEditor());
     auto* editor = dynamic_cast<ChanSamplerEditor*> (ed.get());
     editor->showSheetForTesting (juce::String (argv[4]).getIntValue(), argc > 6 ? juce::String (argv[6]).getIntValue() : -1);
+    // SNAPSHOT_VIEW="from to": zoom the sample view (fractions of the sample).
+    if (auto* v = std::getenv ("SNAPSHOT_VIEW"))
+    {
+        const auto parts = juce::StringArray::fromTokens (v, " ", {});
+        std::function<void (juce::Component&)> find = [&] (juce::Component& c)
+        {
+            if (auto* w = dynamic_cast<WaveformView*> (&c))
+                w->setView (parts[0].getFloatValue(), parts[1].getFloatValue());
+            for (auto* ch : c.getChildren())
+                find (*ch);
+        };
+        find (*ed);
+    }
     for (int i = 0; i < 20; ++i)   // let timers update the views
         juce::MessageManager::getInstance()->runDispatchLoopUntil (20);
 

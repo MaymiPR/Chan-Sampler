@@ -25,6 +25,7 @@ struct SampleData : juce::ReferenceCountedObject
     std::vector<int> onsets;
     double sourceRate = 44100.0;
     bool mono = false;                // a mono file (FL draws it in a cooler white)
+    int fileBits = 32;                // the file's bit depth (FL's badge: 16, else 32 = float)
 
     // Min/max overview for the waveform view (per channel, per bucket).
     static constexpr int numPeakBuckets = 2048;
@@ -59,6 +60,7 @@ struct RawSample
     juce::AudioBuffer<float> audio;   // 1 or 2 channels
     double sampleRate = 44100.0;
     int bitsPerSample = 16;
+    int heldBits = 32;                // what FL holds it at: 16 for 16-bit PCM, else 32 (float)
     juce::File file;
     // Loop points embedded in the file (WAV "smpl" chunk), in frames.
     int embeddedLoopStart = -1, embeddedLoopEnd = -1;

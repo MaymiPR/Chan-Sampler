@@ -455,6 +455,33 @@ bool ChanSamplerProcessor::loadSample (const juce::File& file)
 
     if (file.hasFileExtension (".wav;.wave"))
         readWavMarkers (file, r.regionMarkers, r.sliceMarkers);
+    // FL keeps 16-bit PCM as 16-bit and decodes everything else (24 / 32-bit,
+    // float, compressed, also compressed audio inside a WAV) to 32-bit float:
+    // its sample view badge shows 16 or 32 (measured).
+    {
+        const auto name = reader->getFormatName();
+        const bool pcmContainer = name.containsIgnoreCase ("WAV") || name.containsIgnoreCase ("AIFF") || name.containsIgnoreCase ("FLAC");
+        bool compressedWav = false;
+        if (name.containsIgnoreCase ("WAV"))
+            if (juce::FileInputStream in (file); in.openedOk())
+            {
+                in.setPosition (12);
+                while (! in.isExhausted())
+                {
+                    const auto id = in.readInt();
+                    const auto size = (juce::uint32) in.readInt();
+                    if (id == (int) juce::ByteOrder::littleEndianInt ("fmt "))
+                    {
+                        const auto tag = (juce::uint16) in.readShort();
+                        compressedWav = tag != 1 && tag != 3 && tag != 0xfffe;
+                        break;
+                    }
+                    if (! in.setPosition (in.getPosition() + size + (size & 1)))
+                        break;
+                }
+            }
+        r.heldBits = pcmContainer && ! compressedWav && ! reader->usesFloatingPointData && reader->bitsPerSample <= 16 ? 16 : 32;
+    }
 
     // Embedded loop points (WAV "smpl" chunk) auto-populate the loop controls.
     const auto& md = reader->metadataValues;

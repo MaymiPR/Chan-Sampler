@@ -432,6 +432,7 @@ SampleData::Ptr buildProcessedSample (const RawSample& raw, const PrecomputeSett
     SampleData::Ptr out = new SampleData();
     out->sourceRate = raw.sampleRate;
     out->mono = raw.audio.getNumChannels() == 1;
+    out->fileBits = raw.heldBits;
 
     const int n = raw.audio.getNumSamples();
     if (n == 0 || raw.audio.getNumChannels() == 0)
