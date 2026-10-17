@@ -92,6 +92,8 @@ private:
             hop = vocoderHop (alpha);
         // Analysis advance for one synthesis hop.
         const double ha = (double) hop / alpha;
+        attackAlpha = alpha;
+        attackPitch = pitchRatio;
         if (algo == Algo::wsola)
             wsolaFrame (read, ha);
         else
@@ -346,15 +348,30 @@ private:
         }
     }
 
-    // Where FL's e3 times an attack: the first sample, within 400 samples of
-    // where it starts, that reaches 95% of the loudest one (measured: noise
-    // bursts after silence, flat, decaying and rising, land with it on time,
-    // 16 of 20 to the sample; a 1 kHz burst's lands 9 samples in, which is
-    // what FL's click timing at +-600 / +-1200 cents implies).
+    // Where FL's e3 times an attack: the first sample, from where it starts
+    // to the end of its search window, that reaches 95% of the loudest one.
+    // With PITCH the window is 400 samples (pitched noise bursts: 16 of 20 to
+    // the sample). With MUL / TIME only, it ends on a 512-sample grid counted
+    // from the note's start (a grid window made pitched cases worse in FL):
+    // at the first grid point (offset ~410 at x1.5 / x2, ~364 at x0.667) at
+    // least ~240 (x1.5 / x2) / ~144 (x0.667) samples after the attack's start
+    // (measured: 64 identical bursts stepped 8 samples through the grid, and
+    // 20 flat / decaying / rising ones: 80 of 84 timed to the sample at x1.5).
     template <typename Reader>
     int loudestAfter (Reader& read, int start)
     {
-        const int span = attackSpan;
+        if (attackSpan <= 1)
+            return start;
+        int span = attackSpan;   // with PITCH: 400 samples (measured with pitched noise bursts)
+        if (std::abs (attackPitch - 1.0) < 1.0e-3)
+        {
+            // Length only (MUL / TIME): the grid-ended window.
+            const double x = juce::jlimit (0.0, 1.0, (std::log2 (attackAlpha) + 0.585) / 1.17);
+            const double grid = 512.0 * hfScale, offset = (364.0 + x * 46.0) * hfScale, gap = (144.0 + x * 96.0) * hfScale;
+            const double rel = start - startPos;
+            const double end = startPos + offset + grid * std::ceil ((rel + gap - offset) / grid);
+            span = juce::jlimit (1, 4096, (int) std::lround (end - start));
+        }
         float peak = 0.0f;
         for (int i = 0; i < span; ++i)
         {
@@ -579,7 +596,8 @@ private:
     int prevPos = 0, lockFrames = 0, framesDone = 0;
     double startPos = 0.0;
     double synthOffset = 0.0;   // where the output starts in the synthesised stream
-    int attackSpan = 1;         // samples searched for an attack's loudest sample (e3 generic: 400)
+    int attackSpan = 1;         // > 1: time attacks like FL's e3 (loudestAfter)
+    double attackAlpha = 1.0, attackPitch = 1.0;   // the stretch and pitch ratio in use (attack timing)
     bool first = true, aligned = false;
 
     std::unique_ptr<juce::dsp::FFT> ffts[6];   // orders 8..13 (the envelope uses a quarter size)

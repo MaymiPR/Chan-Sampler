@@ -184,6 +184,28 @@ the reference source). Everything below is behaviour, not code.
   spectrum 2.02 -> 2.01: about neutral; the per-burst variation (probably
   where the attack falls in FL's frame grid) is not modelled.
 
+## Frame grid (round 7)
+
+- 64 identical noise bursts stepped 8 samples through a 512-sample grid
+  (e3_grid2.wav), MUL 1.5 / 0.667 / 2: FL times each burst either from its
+  start or from its loudest sample 469 in, decided only by its position in
+  a 512-sample grid counted from the note's start (start mod 512: 0-168 and
+  456-504 from the start, 176-448 from the peak at x1.5 and x2; switch
+  points 224 / 408 at x0.667).
+- Model: FL's search window runs from the attack's start to the first grid
+  point (offset ~410 at x1.5 / x2, ~364 at x0.667) at least ~240 / ~144
+  samples later. Fits 80 of 84 bursts at x1.5; in the plugin all 64 grid
+  bursts time like FL's at x0.667 (and at x1.5, apart from a test-ratio
+  drift).
+- It does NOT carry over to PITCH: in FL the 30 pitched cases got worse with
+  it (null -2.86 -> -2.52 dB, the vocal and the groove), so the plugin uses
+  the grid window only when the pitch ratio is 1 (MUL / TIME) and the
+  400-sample window with PITCH. In FL (30 pitch cases) unchanged: null
+  -1.44 raw / -2.86 fitted.
+- The low-band gain during the hold also follows the grid phase smoothly
+  (x1.5: 1.10 -> 1.24 in the start-timed range, 0.85 -> 1.59 in the
+  peak-timed range); not modelled.
+
 ## Open
 
 - The period estimator (range, method, resolution).
