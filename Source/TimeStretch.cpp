@@ -347,7 +347,9 @@ void TimeStretcher::phaseLock (int c, int analysisHop, bool transient)
     // Identity phase locking (Laroche & Dolson) with phases kept as unit
     // phasors: each peak advances by its measured frequency, the bins around
     // it keep their phase offset to it. Only the peaks need an angle.
-    const int n = frame, half = n / 2;
+    // e3 generic keeps only the bins below the split, so only those (and a
+    // few above, for the peaks near it) are worth the work.
+    const int n = frame, half = lowBins > 0 ? juce::jmin (n / 2, lowBins + 8) : n / 2;
     auto& x = bins[c];
     auto& m = mag[c];
     auto& s = synth[c];

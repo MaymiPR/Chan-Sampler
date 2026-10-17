@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- e3 generic / Auto use less CPU: about 28% of one core for 32 voices (1.1.0:
+  37%), with the same sound - the spectral part only works on the band it
+  keeps.
+- Regression tests for e3 (attack timing, the band split, pitched notes'
+  start and length) and a stress test of every stretch mode.
+
 ## 1.1.0
 
 New formats and platforms
