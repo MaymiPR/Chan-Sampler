@@ -109,10 +109,12 @@ void TimeStretcher::configure (StretchMode mode, double sourceRate)
     lowBins = hybrid ? juce::roundToInt (split * frame / sourceRate) : 0;
     if (hybrid)
     {
-        hfMinPeriod = juce::roundToInt (90.0 * scale);
-        hfMaxPeriod = juce::roundToInt (600.0 * scale);
+        hfMinPeriod = juce::roundToInt (40.0 * scale);
+        hfMaxPeriod = juce::roundToInt (512.0 * scale);
         hfFallback = juce::roundToInt (256.0 * scale);
-        hfWindow = juce::roundToInt (1024.0 * scale);
+        hfWindow = juce::roundToInt (512.0 * scale);
+        hfEstOffset = juce::roundToInt (8.0 * scale);
+        hfScale = scale;
         hfEstOrder = 11;
         while ((1 << hfEstOrder) < hfWindow + hfMaxPeriod + 1 && hfEstOrder < 13)
             ++hfEstOrder;

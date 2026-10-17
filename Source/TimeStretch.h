@@ -325,7 +325,7 @@ private:
                     hfLastOnset = o;
                     const double at = hfT + ((double) o - hfIdeal) * alpha + shift;
                     hfP = o - (at - hfT);
-                    hfLockUntil = o + P;
+                    hfLockUntil = o + hfHold (alpha);
                 }
             }
             hfGrain (read, hfT, hfP, P, P);
@@ -340,9 +340,25 @@ private:
         }
     }
 
-    // The period at a source position: the normalised autocorrelation's peak
-    // over 1024 samples, between 90 and 600 samples at 44.1 kHz (kept for
-    // grains less than 128 samples apart).
+    // How long FL's e3 plays an attack 1:1 before the grains catch up, in
+    // samples, by the stretch (measured: the first grain run after a note
+    // start of noise at 0.5, 0.667, 0.8, 1.25, 1.5 and 2 times the length).
+    double hfHold (double alpha) const
+    {
+        static constexpr double oct[] = { -1.0, -0.585, -0.322, 0.322, 0.585, 1.0 };
+        static constexpr double len[] = { 336.0, 368.0, 528.0, 704.0, 1000.0, 1150.0 };
+        const double x = juce::jlimit (-1.0, 1.0, std::log2 (alpha));
+        int i = 0;
+        while (i < 4 && x > oct[i + 1])
+            ++i;
+        return hfScale * (len[i] + (x - oct[i]) / (oct[i + 1] - oct[i]) * (len[i + 1] - len[i]));
+    }
+
+    // The period at a source position, as FL's e3 finds it (measured with
+    // noise plus one echo: the jumps equal the echo's delay from 40 to 512
+    // samples, random outside): the normalised autocorrelation's peak over
+    // 40..512 samples (at 44.1 kHz) of the high band, 512 samples from the
+    // grain's centre on. Kept for grains less than 512 samples apart.
     template <typename Reader>
     int hfPeriod (Reader& read, double p)
     {
@@ -350,15 +366,13 @@ private:
             return hfEstPeriod;
         hfEstPos = p;
         const int W = hfWindow, lo = hfMinPeriod, hi = hfMaxPeriod;
-        const int a = (int) std::floor (p) - W / 2;
-        const int len = W + hi, N = 1 << hfEstOrder;
+        const int a = (int) std::floor (p) + hfEstOffset;
+        const int len = W + hi + 1, N = 1 << hfEstOrder;
+        hfEnsure (read, a, a + len);
         double eRef = 0.0;
         for (int i = 0; i < N; ++i)
         {
-            float l = 0.0f, r = 0.0f;
-            if (i < len)
-                read (a + i, l, r);
-            const float m = l + r;
+            const float m = i < len ? hfCacheL[(size_t) ((a + i) & (hfCacheSize - 1))] + hfCacheR[(size_t) ((a + i) & (hfCacheSize - 1))] : 0.0f;
             hfSeg[(size_t) i] = m;
             hfBuf[(size_t) i] = { i < W ? m : 0.0f, m };   // reference + i segment
             if (i < W)
@@ -556,8 +570,8 @@ private:
     bool hybrid = false, hfStarted = false;
     int lowBins = 0;                       // vocoder bins kept (below the split)
     int hfWindow = 1024, hfMinPeriod = 90, hfMaxPeriod = 600, hfFallback = 256, hfEstOrder = 11, hfHalfKernel = 1023;
-    int hfFilterOrder = 12, hfBlock = 2048, hfCacheLo = 0, hfCacheHi = 0, hfEstPeriod = 256;
-    double hfEstPos = -1.0e9, hfEstReuse = 128.0;
+    int hfFilterOrder = 12, hfBlock = 2048, hfCacheLo = 0, hfCacheHi = 0, hfEstPeriod = 256, hfEstOffset = 8;
+    double hfEstPos = -1.0e9, hfEstReuse = 128.0, hfScale = 1.0;
     static constexpr int hfCacheSize = 1 << 15, hfEnergySlots = 1 << 12;
     double hfT = 0.0, hfP = 0.0, hfIdeal = 0.0, hfLastOnset = -1.0e9, hfLockUntil = -1.0e9;
     std::vector<float> hfAccL, hfAccR, hfWeight, hfSeg, hfCacheL, hfCacheR, hfEnergyValue;

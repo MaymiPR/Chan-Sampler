@@ -33,6 +33,9 @@
   sound above it, attacks on time in both. Against FL's renders of a kick, a
   Rhodes, a voice and two loops at -1200 ... +1200 cents the envelopes are
   21% closer and the spectra 15% closer; it costs about a third more CPU.
+  The grains' period search uses FL's range (40-512 samples, measured with
+  echoes) on the high band, and attacks are held 1:1 as long as FL holds
+  them (spectra 22% closer to FL's than before the split).
   Fixed on the way for all spectral modes: steady sound ran a few ms early,
   and pitched-down notes could skip their start lock (a kick came out late).
 - Multiband waveform colours show a drum's click in its own colour, as FL does

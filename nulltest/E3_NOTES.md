@@ -82,6 +82,29 @@ the reference source). Everything below is behaviour, not code.
   null (level fitted) -2.00 -> -1.93 dB. CPU: e3 generic 28 -> 38% of a core
   for 32 voices.
 
+## Period estimator (round 2)
+
+- Noise plus one echo (x = w + w(n - D)), MUL 1.5: every jump equals D for
+  D = 40 ... 512 exactly; D = 530 and up gives random jumps, so the search
+  range is 40..512 samples. D = 20 / 30 give constant 50 / 256 (fallbacks).
+- On plain noise (random jumps) no autocorrelation definition reproduces FL's
+  choices: best is the normalised autocorrelation of the high band, 512
+  samples from the grain centre on (24% of jumps; chance < 1%). Not a
+  lag-length window, not a fixed analysis grid, not a "first peak" rule;
+  the low band alone matches worst.
+- With a fixed period FL jumps every 3 grains at x1.5 (drift cycle -P/3, 0,
+  +P/3), as the half-period rule gives. Grain centres from Hann crossfade
+  fits: a jump repeats the same source position.
+- Note start: FL plays 1:1 for 336 / 368 / 528 / 704 / ~1000 / ~1150 samples
+  at x0.5 / 0.667 / 0.8 / 1.25 / 1.5 / 2, then jumps to within ~100 samples of
+  the ideal position. Noise-burst onsets inside a sample are NOT placed at
+  their ideal time (+152 samples at x1.5, -99 at x0.667), unlike clicks.
+- FL's output on a perfect 300-sample saw has one small glitch per period
+  (its grains are not seamless): not modelled.
+- In the plugin: range 40..512, high-band estimator on the grain cache, the
+  measured note-start hold for every attack. In FL (30 pitch cases):
+  envelope 1.59 -> 1.57 dB, spectrum 2.08 -> 1.94 dB, null -1.93 -> -1.90.
+
 ## Open
 
 - The period estimator (range, method, resolution).
