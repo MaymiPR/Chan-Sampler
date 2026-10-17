@@ -19,7 +19,7 @@ jobs:
   windows:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Configure
         run: cmake -B build -A x64   # the newest Visual Studio on the runner
@@ -60,7 +60,7 @@ jobs:
           & $iscc "/DAppVersion=$version" "packaging\ChanSampler.iss"
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: ChanSampler-Windows
           path: |
@@ -70,7 +70,7 @@ jobs:
   macos:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: "Configure (universal: Apple Silicon + Intel)"
         run: cmake -B build -G Xcode -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET=10.13
@@ -142,7 +142,7 @@ jobs:
           productbuild --distribution pkg/distribution.xml --package-path pkg --resources pkg/res "dist/ChanSampler-$V-macOS.pkg"
           pkgutil --payload-files "dist/ChanSampler-$V-macOS.pkg" | head -8
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: ChanSampler-macOS
           path: |
@@ -152,7 +152,7 @@ jobs:
   linux:
     runs-on: ubuntu-22.04   # the oldest glibc we support (2.35), so the build runs on newer systems too
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Dependencies
         run: |
@@ -184,7 +184,7 @@ jobs:
           cp LICENSE "$D/LICENSE.txt"
           tar -czf ChanSampler-Linux.tar.gz "$D"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: ChanSampler-Linux
           path: ChanSampler-Linux.tar.gz
@@ -194,8 +194,8 @@ jobs:
     needs: [windows, macos, linux]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v7
         with:
           path: artifacts
           merge-multiple: true
