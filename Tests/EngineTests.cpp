@@ -8,6 +8,7 @@
 #include "../Source/SamplerEngine.h"
 #include "../Source/Params.h"
 #include "../Source/TimeStretch.h"
+#include "../Source/FastFFT.h"
 
 namespace
 {
@@ -299,6 +300,31 @@ int main()
         check (std::abs (frequency (beats, sec / 10, sec) - 440) < 8, "TIME stretch keeps pitch", juce::String (frequency (beats, sec / 10, sec), 1));
     }
 
+    // The stretcher's FFT gives JUCE's results (forward and inverse, every
+    // size the stretcher uses).
+    {
+        juce::Random rnd (11);
+        double worst = -300.0;
+        for (int order = 8; order <= 13; ++order)
+        {
+            const int N = 1 << order;
+            juce::dsp::FFT ref (order);
+            FastFFT::Scratch scratch (order);
+            FastFFT fast (order, scratch);
+            std::vector<std::complex<float>> in ((size_t) N), a ((size_t) N), b ((size_t) N);
+            for (auto& x : in) x = { rnd.nextFloat() - 0.5f, rnd.nextFloat() - 0.5f };
+            for (const bool inverse : { false, true })
+            {
+                ref.perform (in.data(), a.data(), inverse);
+                fast.perform (in.data(), b.data(), inverse);
+                double err = 0, mag = 0;
+                for (int i = 0; i < N; ++i) { err = juce::jmax (err, (double) std::abs (a[(size_t) i] - b[(size_t) i])); mag = juce::jmax (mag, (double) std::abs (a[(size_t) i])); }
+                worst = juce::jmax (worst, juce::Decibels::gainToDecibels (err / mag, -300.0));
+            }
+        }
+        check (worst < -100.0, "FastFFT matches JUCE's FFT (256..8192, both ways)", juce::String (worst, 1) + " dB");
+    }
+
     // e3 generic (FL's structure: vocoder below 1.485 kHz, grains above;
     // nulltest/E3_NOTES.md). Regression checks of what was measured against FL.
     {
@@ -436,6 +462,109 @@ int main()
             check (level (mono, up) > 4.0 * level (mono, f0) && std::abs (cm / c0 - 1.0) < 0.15 && cg / c0 > 1.3,
                    "e3 mono: pitch keeps the spectral envelope",
                    "centroid " + juce::String (c0, 0) + " Hz -> mono " + juce::String (cm, 0) + ", generic " + juce::String (cg, 0));
+        }
+
+        // Every mode keeps a softly starting sound where FL plays it (no
+        // start lock, no attacks: noise swelling in and out, so only the
+        // stretcher's own alignment decides). The lag of the output's
+        // loudness against the source's at the stretched time, in output
+        // samples, measured in FL with the same kind of signal (FL: e3
+        // generic -56 / -4 / -8 / -16 at x1.5 / x0.667 / +700 / -700 cents;
+        // Stretch -164 / -148 / -100 / -248; Stretch Pro -104 / -36 / -60 /
+        // -128; e2 generic -200 / -76 / -116 / -120; e2 transient 56 / 96 /
+        // -16 / 132; the mono and speech modes within +-32). The checks lock
+        // ours, which are within ~50 samples of FL's (e2 speech x0.667: 84),
+        // to 40 samples: a broken alignment moves them by hundreds.
+        {
+            const int n = 3 * n44;
+            juce::Random rnd (5);
+            std::vector<float> swell ((size_t) n), env2 ((size_t) n);
+            for (int i = 0; i < n; ++i)
+            {
+                const double e = 0.3 * std::pow (std::sin (juce::MathConstants<double>::pi * i / 14700.0), 2.0);
+                env2[(size_t) i] = (float) (e * e);
+                swell[(size_t) i] = (float) e * (rnd.nextFloat() * 2.0f - 1.0f);
+            }
+            auto smoothed = [] (const std::vector<float>& v)   // 1024-sample mean, every 4th sample
+            {
+                std::vector<double> out (v.size() / 4);
+                std::vector<double> c (v.size() + 1, 0.0);
+                for (size_t i = 0; i < v.size(); ++i) c[i + 1] = c[i] + v[i];
+                for (size_t k = 0; k < out.size(); ++k)
+                {
+                    const auto i = (long) k * 4, a = juce::jmax (0L, i - 512), b = juce::jmin ((long) v.size(), i + 512);
+                    out[k] = (c[(size_t) b] - c[(size_t) a]) / 1024.0;
+                }
+                return out;
+            };
+            auto lagOf = [&] (const std::vector<float>& in, StretchMode mode, double speed, double cents)
+            {
+                const auto y = stretch (in, cents, mode, speed);
+                std::vector<float> y2 (y.size()), ideal (y.size());
+                for (size_t t = 0; t < y.size(); ++t)
+                {
+                    y2[t] = y[t] * y[t];
+                    const double p = (double) t * speed;
+                    const int i = (int) p;
+                    ideal[t] = i + 1 < n ? (float) (env2[(size_t) i] + (p - i) * (env2[(size_t) i + 1] - env2[(size_t) i])) : 0.0f;
+                }
+                const auto a = smoothed (y2), b = smoothed (ideal);
+                const int s0 = 2000, s1 = (int) a.size() - 2000;
+                double best = -1; int lag = 0;
+                for (int d = -150; d <= 150; ++d)
+                {
+                    double dot = 0, ea = 0;
+                    for (int k = s0; k < s1; ++k) { dot += a[(size_t) (k + d)] * b[(size_t) k]; ea += a[(size_t) (k + d)] * a[(size_t) (k + d)]; }
+                    const double v = dot / std::sqrt (ea + 1e-30);
+                    if (v > best) { best = v; lag = d * 4; }
+                }
+                return lag;
+            };
+            struct Row { StretchMode mode; const char* name; int lags[4]; };
+            const Row rows[] = {
+                { StretchMode::e3Generic,   "e3 generic",    { -4, -24, 8, 20 } },
+                { StretchMode::stretch,     "Stretch",       { -144, -148, -104, -216 } },
+                { StretchMode::stretchPro,  "Stretch Pro",   { -76, -56, -44, -84 } },
+                { StretchMode::e2Generic,   "e2 generic",    { -148, -88, -72, -60 } },
+                { StretchMode::e2Transient, "e2 transient",  { 20, 104, 12, 164 } },
+                { StretchMode::e3Mono,      "e3 mono",       { 4, -20, 12, 12 } },
+                { StretchMode::e2Mono,      "e2 mono",       { 0, -12, 0, 0 } },
+                { StretchMode::e2Speech,    "e2 speech",     { 12, -52, 0, 24 } } };
+            const double speeds[] = { std::pow (2.0, -0.585), std::pow (2.0, 0.585), 1.0, 1.0 }, cents[] = { 0.0, 0.0, 700.0, -700.0 };
+            for (const auto& r : rows)
+            {
+                bool ok = true;
+                juce::String got;
+                for (int c = 0; c < 4; ++c)
+                {
+                    const int l = lagOf (swell, r.mode, speeds[c], cents[c]);
+                    ok = ok && std::abs (l - r.lags[c]) <= 40;
+                    got << l << (c < 3 ? " / " : "");
+                }
+                check (ok, juce::String (r.name) + ": a soft start lines up like FL's", got + " samples (x1.5 / x0.667 / +700 / -700)");
+            }
+            // The band below e3's split alone (the grains above would hide
+            // the vocoder's alignment). FL's bands have their own offsets
+            // (measured with the swell brick-wall filtered at 700 Hz: e3
+            // generic -196 / -96 / 0 / -160, e2 generic 80 / 128 / 104 / 148;
+            // ours within 60 of them there, apart from e3 generic squeezing,
+            // ~200 later, kept for real material; this filter adds its own
+            // delay).
+            const auto low = lowpass (swell, 700.0);
+            const Row lowRows[] = { { StretchMode::e3Generic, "e3 generic", { 40, 152, 32, 260 } },
+                                    { StretchMode::e2Generic, "e2 generic", { 272, 164, 192, 288 } } };
+            for (const auto& r : lowRows)
+            {
+                bool ok = true;
+                juce::String got;
+                for (int c = 0; c < 4; ++c)
+                {
+                    const int l = lagOf (low, r.mode, speeds[c], cents[c]);
+                    ok = ok && std::abs (l - r.lags[c]) <= 40;
+                    got << l << (c < 3 ? " / " : "");
+                }
+                check (ok, juce::String (r.name) + ": a soft start lines up (band below the split)", got + " samples (x1.5 / x0.667 / +700 / -700)");
+            }
         }
 
         // Every stretch mode survives extreme and changing ratios.

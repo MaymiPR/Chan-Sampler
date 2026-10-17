@@ -4,6 +4,7 @@
 #include <complex>
 #include <vector>
 
+#include "FastFFT.h"
 #include "Params.h"
 
 // Real-time time stretching for the stretch modes (FL keeps pitch and length
@@ -66,8 +67,12 @@ public:
             const auto shift = algo == Algo::grains ? 0.0
                              : algo == Algo::vocoder ? vocoderHop (alpha) + 0.25 * frame * (1.0 - 1.0 / alpha)
                                                      : -frame * (0.25 - (octaves < 0.0 ? 0.58 : 0.42) * octaves);
-            apos -= shift;
-            idealPos -= shift;
+            // FL's own latency for a soft start, by mode (no start lock):
+            // later source = earlier output.
+            softShift = softStart (alpha, soft15, soft067);
+            hfSoftShift = softStart (alpha, hfSoft15, hfSoft067);
+            apos -= shift - softShift;
+            idealPos -= shift - softShift;
             prevPos = (int) std::floor (apos);
         }
         while (fifoCount - (int) readPos < 4)
@@ -118,6 +123,16 @@ private:
             wsolaFrame (read, ha);
         else
             vocoderFrame (read, ha, pitchRatio, formantCents);
+    }
+
+    // How much later in the source a note that starts softly (no start
+    // lock) plays, by mode: FL's modes each have their own latency there
+    // (measured with slowly swelling noise at x1.5 / x0.667 and +-700 cents;
+    // interpolated by the stretch in octaves).
+    double softStart (double alpha, double at15, double at067) const
+    {
+        const double x = juce::jlimit (0.0, 1.0, (std::log2 (alpha) + 0.585) / 1.17);
+        return hfScale * (at067 + x * (at15 - at067));
     }
 
     int vocoderHop (double alpha) const
@@ -223,6 +238,7 @@ private:
                 const double alphaNow = (double) hop / ha;
                 idealPos = startPos - synthOffset / alphaNow - (hop + 0.25 * frame * (1.0 - 1.0 / alphaNow));
                 lockFrames = frame / hop;   // up to the frame that starts at it
+                softShift = hfSoftShift = 0.0;
                 lockGain = 0.0f;
                 locked = true;
                 pos = (int) std::floor (apos);
@@ -333,7 +349,7 @@ private:
             // (where the vocoder's output starts).
             hfStarted = true;
             hfT = 0.0;
-            hfIdeal = startPos - synthOffset / alpha;
+            hfIdeal = startPos - synthOffset / alpha + hfSoftShift;
             hfP = hfIdeal;
             hfLastOnset = -1.0e9;
             hfLockUntil = -1.0e9;
@@ -684,12 +700,23 @@ private:
             }
             return;
         }
+        bool silent = true;
         for (int i = 0; i < N; ++i)
         {
             float l = 0.0f, r = 0.0f;
             if (i < B + 2 * M)
                 read (b - M + i, l, r);
             hfBuf[(size_t) i] = { l, r };
+            silent = silent && l == 0.0f && r == 0.0f;
+        }
+        if (silent)   // digital silence (before / after the sample, gaps): no filtering needed
+        {
+            for (int i = 0; i < B; ++i)
+            {
+                const auto slot = (size_t) ((b + i) & (hfCacheSize - 1));
+                hfCacheL[slot] = hfCacheR[slot] = 0.0f;
+            }
+            return;
         }
         auto* f = ffts[hfFilterOrder - 8].get();
         f->perform (hfBuf.data(), hfWork.data(), false);
@@ -743,12 +770,17 @@ private:
     double synthOffset = 0.0;   // where the output starts in the synthesised stream
     int attackSpan = 1;         // > 1: time attacks like FL's e3 (loudestAfter)
     double attackAlpha = 1.0, attackPitch = 1.0;   // the stretch and pitch ratio in use (attack timing)
-    double windowPhase = 0.0;                      // the last attack's place in the timing grid
+    double windowPhase = 0.0;
+    double softShift = 0.0;                        // a soft start's alignment (source samples)
+    double hfSoftShift = 0.0;                      // the same for the grains
+    double soft15 = 0.0, soft067 = 0.0;            // softStart at x1.5 / x0.667 (44.1 kHz samples): the vocoder
+    double hfSoft15 = 0.0, hfSoft067 = 0.0;        // and the grains                      // the last attack's place in the timing grid
     float attackGain = 0.0f, lockGain = 0.0f;      // the low band's gain while an attack is held (0: by the stretch)
     bool first = true, aligned = false;
 
-    std::unique_ptr<juce::dsp::FFT> ffts[6];   // orders 8..13 (the envelope uses a quarter size)
-    juce::dsp::FFT* fft = nullptr;
+    FastFFT::Scratch fftScratch { 13 };
+    std::unique_ptr<FastFFT> ffts[6];   // orders 8..13 (the envelope uses a quarter size)
+    FastFFT* fft = nullptr;
     std::vector<float> window, olaL, olaR, target, power;
     std::vector<std::complex<float>> spec, work;
     // Per channel: this frame's and the last frame's analysis spectra, the

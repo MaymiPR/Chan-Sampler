@@ -51,7 +51,7 @@ TimeStretcher::TimeStretcher()
     fifoL.resize (fifoSize);
     fifoR.resize (fifoSize);
     for (int o = 8; o <= 13; ++o)
-        ffts[o - 8] = std::make_unique<juce::dsp::FFT> (o);
+        ffts[o - 8] = std::make_unique<FastFFT> (o, fftScratch);
     hfAccL.resize (hfRingSize);
     hfAccR.resize (hfRingSize);
     hfWeight.resize (hfRingSize);
@@ -124,11 +124,27 @@ void TimeStretcher::configure (StretchMode mode, double sourceRate)
     // band is pieces of the source too; Stretch's and e2 transient's are
     // spectral (noise stretched x1.5: correlation with the source 0.8 / 0.2),
     // so those two keep e3's attack handling over the whole band.
+    // A soft start's latency in FL (see softStart), the vocoder's and the
+    // grains' (FL's bands differ: e2 generic's low band plays ~280 samples
+    // after its high band at x1.5). e3 generic keeps its own: FL's low band
+    // there plays a swell ~200 samples earlier when squeezing, but moving
+    // ours made FL's sung "ah" pitched down null worse (in FL, -3.3 -> +4.5
+    // dB at -1200 cents).
+    soft15 = soft067 = hfSoft15 = hfSoft067 = 0.0;
+    switch (mode)
+    {
+        case StretchMode::stretch:     soft15 = 57.0;  soft067 = 405.0; break;
+        case StretchMode::stretchPro:  soft15 = -25.0; soft067 = 450.0; break;
+        case StretchMode::e2Transient: soft15 = -50.0; soft067 = 30.0;  break;
+        case StretchMode::e2Generic:   soft15 = -157.0; soft067 = -30.0; hfSoft15 = 112.0; hfSoft067 = 96.0; break;
+        default: break;
+    }
     hybrid = mode == StretchMode::e3Generic || mode == StretchMode::autoMode || mode == StretchMode::e2Generic
           || mode == StretchMode::e2Transient || mode == StretchMode::stretch;
     hfBand = hybrid && mode != StretchMode::e2Transient && mode != StretchMode::stretch;
     grainsOnly = algo == Algo::grains;
     // e3 times an attack by its peak, the grains by its start.
+    hfScale = scale;
     attackSpan = hybrid ? juce::roundToInt (400.0 * scale) : 1;
     constexpr double split = 1485.0;
     lowBins = hfBand ? juce::roundToInt (split * frame / sourceRate) : 0;

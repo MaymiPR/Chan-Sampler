@@ -2,11 +2,15 @@
 
 ## Unreleased
 
-- e3 generic / Auto use less CPU: about 28% of one core for 32 voices (1.1.0:
-  37%), with the same sound - the spectral part only works on the band it
-  keeps.
+- The stretch modes use about half the CPU: e3 generic / Auto about 16% of
+  one core for 32 voices (1.1.0: 37%), with the same sound - a faster FFT of
+  our own, and the spectral part only works on the band it keeps.
+- A note that starts softly (no attack) lines up like FL's in Stretch,
+  Stretch Pro, e2 generic and e2 transient (each of FL's modes has its own
+  latency there; measured with swelling noise).
 - Regression tests for e3 (attack timing, the band split, pitched notes'
-  start and length) and a stress test of every stretch mode.
+  start and length), every mode's alignment of a soft start (both bands of
+  e3 / e2 generic), the FFT, and a stress test of every stretch mode.
 - The other stretch modes matched to FL by measurement: e3 mono and e2 mono
   now splice the sound one pitch period at a time, like FL's, and keep a
   voice's formants when PITCH moves; every click lands on time at full level

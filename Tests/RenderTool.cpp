@@ -13,6 +13,7 @@
 #include "../Source/SampleExchange.h"
 #include "../Source/TempoDetect.h"
 #include "../Source/TimeStretch.h"
+#include "../Source/FastFFT.h"
 #include "../Source/FlPreset.h"
 #include "../Source/Params.h"
 #include "../Source/FactoryPresets.h"
@@ -327,6 +328,35 @@ int main (int argc, char** argv)
 
     // "bench <sample>": CPU load (one core, % of real time) for 32 / 64 looping
     // voices per stretch method, and for heavy automation.
+    if (argc >= 2 && juce::String (argv[1]) == "fftbench")
+    {
+        juce::Random rnd (1);
+        for (int order = 8; order <= 13; ++order)
+        {
+            const int N = 1 << order;
+            juce::dsp::FFT jf (order);
+            FastFFT::Scratch scratch (order);
+            FastFFT ff (order, scratch);
+            std::vector<std::complex<float>> in ((size_t) N), a ((size_t) N), b ((size_t) N);
+            for (auto& x : in) x = { rnd.nextFloat() - 0.5f, rnd.nextFloat() - 0.5f };
+            double err = 0, mag = 0;
+            for (const bool inv : { false, true })
+            {
+                jf.perform (in.data(), a.data(), inv);
+                ff.perform (in.data(), b.data(), inv);
+                for (int i = 0; i < N; ++i) { err = std::max (err, (double) std::abs (a[(size_t) i] - b[(size_t) i])); mag = std::max (mag, (double) std::abs (a[(size_t) i])); }
+            }
+            const int reps = 4000000 / N;
+            auto t0 = juce::Time::getMillisecondCounterHiRes();
+            for (int r = 0; r < reps; ++r) jf.perform (in.data(), a.data(), r & 1);
+            auto t1 = juce::Time::getMillisecondCounterHiRes();
+            for (int r = 0; r < reps; ++r) ff.perform (in.data(), b.data(), r & 1);
+            auto t2 = juce::Time::getMillisecondCounterHiRes();
+            std::cout << "N " << N << "  max error " << juce::String (20.0 * std::log10 (err / mag + 1e-30), 1) << " dB  JUCE "
+                      << juce::String ((t1 - t0) * 1000.0 / reps, 2) << " us  fast " << juce::String ((t2 - t1) * 1000.0 / reps, 2) << " us\n";
+        }
+        return 0;
+    }
     if (argc >= 3 && juce::String (argv[1]) == "bench")
     {
         juce::ScopedJuceInitialiser_GUI init;
