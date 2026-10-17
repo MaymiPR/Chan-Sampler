@@ -1,48 +1,42 @@
 # Changelog
 
-## 1.1.0 (in progress)
+## 1.1.0
 
-- CLAP plugin (Windows, macOS, Linux), in the installers.
+New formats and platforms
+- CLAP plugin (Windows, macOS, Linux), included in the installers.
 - Linux builds: VST3, CLAP and the standalone app (x86-64, glibc 2.35 or
   later).
+
+Closer to FL's Sampler
+- e3 generic and Auto are built like FL's e3 (measured from FL renders, see
+  nulltest/E3_NOTES.md): a spectral stretch below 1.485 kHz and
+  pitch-synchronous grains of the sound above it. Attacks are timed like
+  FL's (the first sample near an attack's peak lands on time) and held as
+  long as FL holds them. Against FL's renders of a kick, a Rhodes, a voice
+  and two drum loops at -1200 ... +1200 cents, nulls improved from -2.0 to
+  -2.9 dB, envelopes are 18% closer and spectra 18% closer. A true null is
+  not possible: FL's engine (elastique) is proprietary.
+- Pitched drums keep their length: a kick an octave down no longer rings
+  twice as long, and attacks are no longer smeared or doubled.
 - The root note keyboard is FL's: all 128 notes behind a scroll bar (arrows,
   thumb, mouse wheel), FL's key colours and size, opening on FL's view.
-- Knobs and sliders feel like FL's: FL's drag distance for each control,
-  the hold at a two-sided control's centre (and PITCH's semitones), and a
-  hidden cursor that drags past the screen's edges.
-- The sample view draws the sample as PITCH, MUL and TIME play it, as FL does;
-  PITCH switches Resample to Auto when let go, and Auto reads e3 generic.
-- Stretch modes keep attacks sharp when pitch-shifting (the frames over an
-  attack are rebuilt 1:1, on time), and pitched notes are no longer early or
-  late: the stretcher's output lines up with the source at any pitch (it ran
-  up to 23 ms off). The sample view redraws once a knob is let go.
-- e3 / e2 attacks land where FL's do, to the sample: each attack is found to
-  the sample (not a 128-sample block), its 1:1 frames start on the frame that
-  finds it (no faint copy before or after it), and a note's own start plays
-  at full level instead of fading in over the first frame. Against FL's e3
-  renders of clicks the attacks null at -22 to -43 dB (they were uncorrelated,
-  up to 60 samples off); sustained tones still differ (elastique).
-- Pitched e3 / e2 notes keep the sound's length and shape like FL's: a kick an
-  octave down no longer rings for twice as long (attacks are held 1:1 only
-  until they have sounded, and the stretcher works in smaller steps below an
-  octave up, which costs about twice the CPU in those modes). Against FL's
-  renders of a kick, a Rhodes, a voice and two loops at -1200 ... +1200 cents
-  the envelopes are 24% closer and the spectra 7% closer.
-- e3 generic / Auto are built like FL's e3 (measured, nulltest/E3_NOTES.md):
-  the spectral stretch below 1.485 kHz, pitch-synchronous grains of the
-  sound above it, attacks on time in both. Against FL's renders of a kick, a
-  Rhodes, a voice and two loops at -1200 ... +1200 cents the envelopes are
-  21% closer and the spectra 15% closer; it costs about a third more CPU.
-  The grains' period search uses FL's range (40-512 samples, measured with
-  echoes) on the high band, and attacks are held 1:1 as long as FL holds
-  them (spectra 22% closer to FL's than before the split).
-  Attacks are timed like FL's: the first sample near the attack's peak
-  (95% of the loudest within 400 samples) lands on time, measured with noise
-  bursts; nulls against FL's renders improved from -1.9 to -2.8 dB.
-  Fixed on the way for all spectral modes: steady sound ran a few ms early,
-  and pitched-down notes could skip their start lock (a kick came out late).
-- Multiband waveform colours show a drum's click in its own colour, as FL does
-  (707 Kick starts blue): band energies in 32-frame blocks instead of 512.
+- Knobs and sliders feel like FL's: FL's drag distance for each control, the
+  hold at a two-sided control's centre (and PITCH's semitones), and a hidden
+  cursor that drags past the screen's edges.
+- The sample view draws the sample as PITCH, MUL and TIME play it, redrawn
+  once a knob is let go; PITCH switches Resample to Auto when let go, and
+  Auto reads e3 generic.
+- Multiband waveform colours show a drum's click in its own colour, as FL
+  does (707 Kick starts blue).
+
+Fixes
+- Stretched notes were up to 23 ms early or late depending on the pitch;
+  steady sound in the spectral modes (e2, Stretch Pro) ran a few ms early.
+- Pitched-down notes in the spectral modes could start late or fade in.
+
+Other
+- e3 generic uses more CPU than before (about 37% of one core for 32
+  voices, was 14%).
 - Releases list SHA-256 checksums; the install notes explain the security
   warnings for the unsigned downloads (SmartScreen, macOS's Open Anyway).
 

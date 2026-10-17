@@ -1,8 +1,8 @@
 ; Windows installer (Inno Setup 6). Built by .github/workflows/release.yml:
-;   iscc /DAppVersion=1.0.0 /DBuildDir=<build artefacts> packaging\ChanSampler.iss
+;   iscc /DAppVersion=1.1.0 /DBuildDir=<build artefacts> packaging\ChanSampler.iss
 
 #ifndef AppVersion
-  #define AppVersion "1.0.0"
+  #define AppVersion "1.1.0"
 #endif
 #ifndef BuildDir
   #define BuildDir "..\build\ChanSampler_artefacts\Release"
