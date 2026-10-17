@@ -228,6 +228,7 @@ private:
                 attackSample = attackAt * block;
                 for (int i = (attackAt - 1) * block; i < (attackAt + 1) * block; ++i)
                     if (power[(size_t) i] > 0.01f * peak) { attackSample = i; break; }
+                attackSample = loudestAfter (read, pos + attackSample) - pos;
             }
             if (attackSample >= 0)
             {
@@ -280,11 +281,14 @@ private:
         emit (1.0f);
     }
 
-    // Where FL's e3 sounds an attack against the source, in output samples,
-    // by the pitch shift in octaves (measured with clicks at -1200, -600,
-    // +600, +1200 cents: down puts it earlier, up later).
-    static double attackShift (double octaves)
+    // Where an attack sounds against the source, in output samples, by the
+    // pitch shift in octaves (measured with 1 kHz clicks in FL's e3 at -1200,
+    // -600, +600, +1200 cents: down earlier, up later). e3 generic times
+    // attacks like FL instead (loudestAfter), which accounts for this.
+    double attackShift (double octaves) const
     {
+        if (hybrid)
+            return 0.0;
         static constexpr double at[] = { -8.3, -2.9, 0.0, 2.05, 3.35 };   // -1, -0.5, 0, 0.5, 1 octaves
         const auto x = juce::jlimit (-2.0, 2.0, octaves) * 2.0 + 2.0;
         const int i = juce::jlimit (0, 3, (int) std::floor (x));
@@ -338,6 +342,32 @@ private:
             while (dev > 0.5 * P) { hfP -= P; dev -= P; }
             while (dev < -0.5 * P) { hfP += P; dev += P; }
         }
+    }
+
+    // Where FL's e3 times an attack: the first sample, within 400 samples of
+    // where it starts, that reaches 95% of the loudest one (measured: noise
+    // bursts after silence, flat, decaying and rising, land with it on time,
+    // 16 of 20 to the sample; a 1 kHz burst's lands 9 samples in, which is
+    // what FL's click timing at +-600 / +-1200 cents implies).
+    template <typename Reader>
+    int loudestAfter (Reader& read, int start)
+    {
+        const int span = attackSpan;
+        float peak = 0.0f;
+        for (int i = 0; i < span; ++i)
+        {
+            float l, r;
+            read (start + i, l, r);
+            peak = juce::jmax (peak, l * l + r * r);
+        }
+        for (int i = 0; i < span; ++i)
+        {
+            float l, r;
+            read (start + i, l, r);
+            if (l * l + r * r >= 0.9025f * peak)
+                return start + i;
+        }
+        return start;
     }
 
     // How long FL's e3 plays an attack 1:1 before the grains catch up, in
@@ -453,9 +483,9 @@ private:
                     float l, r;
                     read (start + i, l, r);
                     if (l * l + r * r > 0.01f * peak)
-                        return start + i;
+                        return loudestAfter (read, start + i);
                 }
-                return start;
+                return loudestAfter (read, start);
             }
         }
         return -1;
@@ -547,6 +577,7 @@ private:
     int prevPos = 0, lockFrames = 0, framesDone = 0;
     double startPos = 0.0;
     double synthOffset = 0.0;   // where the output starts in the synthesised stream
+    int attackSpan = 1;         // samples searched for an attack's loudest sample (e3 generic: 400)
     bool first = true, aligned = false;
 
     std::unique_ptr<juce::dsp::FFT> ffts[6];   // orders 8..13 (the envelope uses a quarter size)

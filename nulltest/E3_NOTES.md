@@ -150,6 +150,26 @@ the reference source). Everything below is behaviour, not code.
   little too dull); at +700 FL loses 1-3 dB at 18-22 kHz that no kernel
   alone gives. Nothing changed in the plugin this round.
 
+## Onset placement (round 5)
+
+- Noise bursts after silence (e3_onsA: flat, start phase varied; e3_onsB:
+  decays of 20..1000 samples, flat, 300 / 1000-sample fade-ins), MUL 1.5
+  and 0.667: FL puts a reference point R samples after the burst's start on
+  time and plays 1:1 around it (offset = R (alpha - 1); both bands alike).
+  R = the first sample, within 400 samples of the start, that reaches 95%
+  of the loudest one: 16 of 20 bursts to the sample (loudest sample alone
+  15/20; centroids, smoothed energy and the low band much worse). Fast
+  decays land on their start, flat noise on its peak, fade-ins late.
+- The same rule puts a 1 kHz click's reference 9 samples in, which is what
+  the old per-pitch attack table (-8.3 .. +3.35 output samples) encoded:
+  R (1 - 1 / pitch ratio). In e3 generic the table is now 0.
+- In the plugin (both bands): bursts land within 3 samples of FL's in 29 of
+  40; clicks keep -16..-31 dB. In FL (30 pitch cases): null (level fitted)
+  -1.90 -> -2.79 dB, raw -0.34 -> -1.51 dB; envelope 1.57 -> 1.62 dB,
+  spectrum 1.94 -> 2.02 dB.
+- Unexplained: 4 bursts whose R needs a shorter or longer window (it may
+  follow the grain period).
+
 ## Open
 
 - The period estimator (range, method, resolution).

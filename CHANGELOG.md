@@ -36,6 +36,9 @@
   The grains' period search uses FL's range (40-512 samples, measured with
   echoes) on the high band, and attacks are held 1:1 as long as FL holds
   them (spectra 22% closer to FL's than before the split).
+  Attacks are timed like FL's: the first sample near the attack's peak
+  (95% of the loudest within 400 samples) lands on time, measured with noise
+  bursts; nulls against FL's renders improved from -1.9 to -2.8 dB.
   Fixed on the way for all spectral modes: steady sound ran a few ms early,
   and pitched-down notes could skip their start lock (a kick came out late).
 - Multiband waveform colours show a drum's click in its own colour, as FL does

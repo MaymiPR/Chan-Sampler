@@ -105,6 +105,7 @@ void TimeStretcher::configure (StretchMode mode, double sourceRate)
     // e3 generic: FL's 1.485 kHz split (measured on saws: harmonics up to
     // 1470 Hz take the low path, from 1500 Hz the grains).
     hybrid = mode == StretchMode::e3Generic || mode == StretchMode::autoMode;
+    attackSpan = hybrid ? juce::roundToInt (400.0 * scale) : 1;
     constexpr double split = 1485.0;
     lowBins = hybrid ? juce::roundToInt (split * frame / sourceRate) : 0;
     if (hybrid)
