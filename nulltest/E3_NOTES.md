@@ -105,6 +105,29 @@ the reference source). Everything below is behaviour, not code.
   measured note-start hold for every attack. In FL (30 pitch cases):
   envelope 1.59 -> 1.57 dB, spectrum 2.08 -> 1.94 dB, null -1.93 -> -1.90.
 
+## Transient boost (round 3)
+
+- Single-sample clicks after silence (e3_imp.wav) come out as one clean copy
+  but louder, in both bands. MUL (no resampling): x1.2 at x0.5 / 0.667 / 0.8,
+  x1.05-1.41 at x1.25, ~x1.38 at x1.5, x1.36-1.63 at x2 - it varies from
+  click to click (at x2: 1.63, 1.60, 1.49, 1.36 for four identical clicks).
+  PITCH (after dividing out the cubic read's own energy change): ~x1.2 down,
+  x1.3-1.4 up. The low band alone: x1.46 at x1.5, x1.6 at x2.
+- The same clicks on steady noise (e3_impn.wav) are NOT treated as attacks:
+  placed up to +-190 samples off and not boosted.
+- A gain model (x1.2 .. x1.5 by stretch, flat 30% of the hold, back to 1 by
+  60%) on our detected attacks did not bring the 30 pitch cases closer (env
+  1.59 -> 1.60 .. 1.62), so it is not in the plugin. The rule for when FL
+  boosts is still unknown.
+- FL starts the 707 Kick ~x1.4 louder than the source at +-1200 (x1.1 at
+  +-300); it starts the soft vocal at x0.2-0.4 (not our start lock: making
+  the lock need a real attack changed nothing for the vocal and broke the
+  kick).
+- Found on the way: our cubic read at exactly x2 (+1200) samples only every
+  second synthesised sample from an even start, so a one-sample click on an
+  odd sample vanishes (FL keeps ~0.8 of its energy). Real audio is not
+  affected much; FL's read grid phase differs from ours.
+
 ## Open
 
 - The period estimator (range, method, resolution).
