@@ -16,11 +16,13 @@
 //   source advance per output sample = timeRate,
 //   pitch ratio                     = increment (source frames / output sample).
 //
-// Algorithms (our own implementations; FL's Elastique engine is proprietary):
-//   WSOLA          - waveform-similarity overlap-add (Stretch, the mono modes, speech)
+// Algorithms (our own implementations; FL's Elastique engine is proprietary;
+// each mode chosen against FL renders, see docs/EVIDENCE.md):
+//   WSOLA          - waveform-similarity overlap-add (Slice stretch)
 //   Phase vocoder  - identity phase locking + transient phase resets (e3/e2
-//                    generic and transient); Stretch Pro adds formant
-//                    preservation by cepstral envelope and the FORMANT shift.
+//                    generic, e2 transient, Stretch: e3's attack handling;
+//                    Stretch Pro adds formant preservation by cepstral
+//                    envelope and the FORMANT shift).
 //                    Attacks are kept as they are (like FL's e3): the frames
 //                    holding one are taken 1:1 with the source's own phases,
 //                    and the time that costs is made up afterwards.
@@ -29,7 +31,12 @@
 //                    grains of the source (PSOLA): grains two periods long,
 //                    one per period, a period repeated or skipped when the
 //                    drift from the ideal position passes half a period, and
-//                    a grain centred on each attack at its time.
+//                    a grain centred on each attack at its time. e2 generic
+//                    the same.
+//   Grains         - those grains over the whole band (e3 / e2 mono, e2
+//                    speech): the mono modes respace them for PITCH (PSOLA,
+//                    which keeps a voice's formants, as FL's do), e2 speech
+//                    resamples them like the other modes.
 class TimeStretcher
 {
 public:
@@ -56,7 +63,8 @@ public:
             // at any pitch.
             aligned = true;
             const auto octaves = std::log2 (alpha);
-            const auto shift = algo == Algo::vocoder ? vocoderHop (alpha) + 0.25 * frame * (1.0 - 1.0 / alpha)
+            const auto shift = algo == Algo::grains ? 0.0
+                             : algo == Algo::vocoder ? vocoderHop (alpha) + 0.25 * frame * (1.0 - 1.0 / alpha)
                                                      : -frame * (0.25 - (octaves < 0.0 ? 0.58 : 0.42) * octaves);
             apos -= shift;
             idealPos -= shift;
@@ -69,14 +77,16 @@ public:
         const auto t = (float) (readPos - i);
         outL = cubic (fifoL, i, t);
         outR = cubic (fifoR, i, t);
-        readPos += increment;
+        // The grains are made at the output's pitch (PSOLA), so the FIFO is
+        // only resampled between the source's and the output's rates.
+        readPos += algo == Algo::grains && psola ? 1.0 / sourceToOutputRateScale : increment;
     }
 
     // Pitch ratio = increment * this (output rate / source rate).
     double sourceToOutputRateScale = 1.0;
 
 private:
-    enum class Algo { wsola, vocoder };
+    enum class Algo { wsola, vocoder, grains };
 
     template <typename Reader>
     void synthesise (Reader& read, double alpha, double pitchRatio, float formantCents)
@@ -94,7 +104,17 @@ private:
         const double ha = (double) hop / alpha;
         attackAlpha = alpha;
         attackPitch = pitchRatio;
-        if (algo == Algo::wsola)
+        if (algo == Algo::grains)
+        {
+            // Synthesis runs at the source's rate and the output's pitch:
+            // alpha / pitch synthesis samples per source sample.
+            const double a = psola ? alpha / pitchRatio : alpha;
+            attackAlpha = a;
+            hfAdvance (read, a, pitchRatio, synthPos + hop);
+            first = false;
+            emit (1.0f);
+        }
+        else if (algo == Algo::wsola)
             wsolaFrame (read, ha);
         else
             vocoderFrame (read, ha, pitchRatio, formantCents);
@@ -267,7 +287,7 @@ private:
         }
         prevPos = pos;
         first = false;
-        if (hybrid)
+        if (hfBand)
             hfAdvance (read, (double) hop / ha, pitchRatio, synthPos + hop);
         // Locked frames step 1:1; afterwards the analysis catches up, a
         // quarter of the gap per frame.
@@ -315,8 +335,32 @@ private:
             hfP = hfIdeal;
             hfLastOnset = -1.0e9;
             hfLockUntil = -1.0e9;
+            hfSearched = std::numeric_limits<int>::min();
+            if (grainsOnly)
+            {
+                // A note that doesn't start silent plays 1:1 from its first
+                // sample (FL's mono modes: the start is the source's own).
+                const auto start = (int) std::ceil (startPos);
+                float energy = 0.0f;
+                for (int i = 0; i < 128; ++i)
+                {
+                    float l, r;
+                    read (start + i, l, r);
+                    energy += l * l + r * r;
+                }
+                if (energy > 1.0e-4f * 128.0f)
+                {
+                    hfP = hfIdeal = start;
+                    hfLastOnset = start;
+                    hfLockUntil = start + hfHold (alpha);
+                }
+            }
         }
         const double shift = attackShift (std::log2 (pitchRatio)) * pitchRatio;
+        // PSOLA (the mono modes): the grains, a source period apart, are
+        // placed a period / pitch apart, which shifts the pitch and keeps the
+        // spectral envelope (FL's e3 / e2 mono keep a voice's formants).
+        const double spacing = grainsOnly && psola ? 1.0 / pitchRatio : 1.0;
         while (hfT - hfMaxPeriod < until)
         {
             const int P = hfPeriod (read, hfP);
@@ -327,19 +371,29 @@ private:
             // on time); the drift is caught up after it.
             if (hfP >= hfLockUntil)
             {
-                const int o = hfOnset (read, (int) std::lround (hfP) - P, 2 * P + hfHalfKernel);
+                // From where the last search ended: the period can shrink
+                // between grains (a click's own period as it comes near),
+                // which would leave a gap.
+                // The grain modes look ahead of the ideal position too: when
+                // squeezing it runs up to half a period ahead of the grains.
+                const double ahead = grainsOnly ? juce::jmax (hfP, hfIdeal) + P : hfP;
+                const int from = juce::jmax (hfSearched, (int) std::lround (hfP) - P), to = (int) std::lround (ahead) + P + hfHalfKernel;
+                hfSearched = juce::jmax (hfSearched, to);
+                const int o = to > from ? hfOnset (read, from, to - from) : -1;
                 if (o >= 0)
                 {
                     hfLastOnset = o;
-                    const double at = hfT + ((double) o - hfIdeal) * alpha + shift;
-                    hfP = o - (at - hfT);
+                    double at = hfT + ((double) o - hfIdeal) * alpha + shift;
+                    if (grainsOnly)
+                        at = juce::jmax (at, hfT);   // found late: now, not skipped
+                    hfP = o - (at - hfT) / spacing;
                     hfLockUntil = o + hfHold (alpha);
                 }
             }
             hfGrain (read, hfT, hfP, P, P);
-            hfT += P;
+            hfT += P * spacing;
             hfP += P;
-            hfIdeal += P / alpha;
+            hfIdeal += P * spacing / alpha;
             if (hfP < hfLockUntil)
                 continue;
             double dev = hfP - hfIdeal;
@@ -394,6 +448,8 @@ private:
     // start of noise at 0.5, 0.667, 0.8, 1.25, 1.5 and 2 times the length).
     double hfHold (double alpha) const
     {
+        if (grainsOnly)
+            return hfScale * hfMonoHold;
         static constexpr double oct[] = { -1.0, -0.585, -0.322, 0.322, 0.585, 1.0 };
         static constexpr double len[] = { 336.0, 368.0, 528.0, 704.0, 1000.0, 1150.0 };
         const double x = juce::jlimit (-1.0, 1.0, std::log2 (alpha));
@@ -449,7 +505,32 @@ private:
                 eSeg += (double) hfSeg[(size_t) (l + W - 1)] * hfSeg[(size_t) (l + W - 1)]
                       - (double) hfSeg[(size_t) (l - 1)] * hfSeg[(size_t) (l - 1)];
             const double score = hfWork[(size_t) l].real() / std::sqrt (eRef * juce::jmax (1.0e-12, eSeg));
+            hfScore[(size_t) l] = (float) score;
             if (score > bestScore) { bestScore = score; hfEstPeriod = l; }
+        }
+        if (grainsOnly)
+        {
+            // PSOLA needs the period itself: the best peak after the
+            // correlation first falls (a low tone still correlates well at
+            // short lags), then the first peak close to it (a multiple of the
+            // period correlates as well).
+            int from = lo;
+            while (from <= hi && hfScore[(size_t) from] >= hfDip)
+                ++from;
+            double best = 0.3;
+            hfEstPeriod = hfFallback;
+            for (int l = from + 1; l < hi; ++l)
+                if (hfScore[(size_t) l] > best && hfScore[(size_t) l] >= hfScore[(size_t) (l - 1)] && hfScore[(size_t) l] >= hfScore[(size_t) (l + 1)])
+                {
+                    best = hfScore[(size_t) l];
+                    hfEstPeriod = l;
+                }
+            for (int l = from + 1; l < hfEstPeriod; ++l)
+                if (hfScore[(size_t) l] >= hfPeakShare * best && hfScore[(size_t) l] >= hfScore[(size_t) (l - 1)] && hfScore[(size_t) l] >= hfScore[(size_t) (l + 1)])
+                {
+                    hfEstPeriod = l;
+                    break;
+                }
         }
         return hfEstPeriod;
     }
@@ -539,6 +620,15 @@ private:
     void hfFilterBlock (Reader& read, int b)
     {
         const int M = hfHalfKernel, B = hfBlock, N = 1 << hfFilterOrder;
+        if (grainsOnly)   // the whole band: the source as it is
+        {
+            for (int i = 0; i < B; ++i)
+            {
+                const auto slot = (size_t) ((b + i) & (hfCacheSize - 1));
+                read (b + i, hfCacheL[slot], hfCacheR[slot]);
+            }
+            return;
+        }
         for (int i = 0; i < N; ++i)
         {
             float l = 0.0f, r = 0.0f;
@@ -618,14 +708,17 @@ private:
     // e3 generic's split and high-band grains (see hfAdvance)
     static constexpr float hfPi = juce::MathConstants<float>::pi;
     static constexpr int hfRingSize = 1 << 15, hfRingMask = hfRingSize - 1;
-    bool hybrid = false, hfStarted = false;
+    bool hybrid = false, hfBand = false, grainsOnly = false, psola = true, hfStarted = false;
     int lowBins = 0;                       // vocoder bins kept (below the split)
     int hfWindow = 1024, hfMinPeriod = 90, hfMaxPeriod = 600, hfFallback = 256, hfEstOrder = 11, hfHalfKernel = 1023;
     int hfFilterOrder = 12, hfBlock = 2048, hfCacheLo = 0, hfCacheHi = 0, hfEstPeriod = 256, hfEstOffset = 8;
     double hfEstPos = -1.0e9, hfEstReuse = 128.0, hfScale = 1.0;
     static constexpr int hfCacheSize = 1 << 15, hfEnergySlots = 1 << 12;
     double hfT = 0.0, hfP = 0.0, hfIdeal = 0.0, hfLastOnset = -1.0e9, hfLockUntil = -1.0e9;
-    std::vector<float> hfAccL, hfAccR, hfWeight, hfSeg, hfCacheL, hfCacheR, hfEnergyValue;
+    int hfSearched = 0;   // where the attack search has reached
+    float hfPeakShare = 0.9f, hfDip = 0.5f;
+    double hfMonoHold = 384.0;
+    std::vector<float> hfAccL, hfAccR, hfWeight, hfSeg, hfScore, hfCacheL, hfCacheR, hfEnergyValue;
     std::vector<int> hfEnergyIndex;
     std::vector<float> hfKernel[2];         // high-pass spectra, FFT orders 12 and 13
     std::vector<std::complex<float>> hfBuf, hfWork;

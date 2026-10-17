@@ -56,6 +56,7 @@ TimeStretcher::TimeStretcher()
     hfAccR.resize (hfRingSize);
     hfWeight.resize (hfRingSize);
     hfSeg.resize (maxFrame);
+    hfScore.resize (maxFrame);
     hfBuf.resize (maxFrame);
     hfWork.resize (maxFrame);
     hfKernel[0].resize (maxFrame / 2);
@@ -86,33 +87,56 @@ void TimeStretcher::configure (StretchMode mode, double sourceRate)
         transientThreshold = transient;
         preserveFormants = formants;
     };
+    // Pitch-synchronous grains of the whole band (the mono and speech modes):
+    // the period when none is found, how long a note's start plays 1:1, and
+    // whether PITCH respaces the grains (PSOLA, keeps formants) or resamples.
+    double fallback44 = 256.0;
+    auto useGrains = [&] (double fallback, double hold, bool keepFormants)
+    {
+        algo = Algo::grains;
+        frame = hop = baseHop = juce::jmax (64, juce::roundToInt (256.0 * scale));
+        preserveFormants = false;
+        fallback44 = fallback;
+        hfMonoHold = hold;
+        psola = keepFormants;
+    };
 
+    // Chosen against FL renders of each mode (clicks, noise, a kick, a
+    // Rhodes, a voice and two drum loops at -700 / +700 cents and x1.5 /
+    // x0.667; see docs/EVIDENCE.md).
     switch (mode)
     {
-        case StretchMode::stretch:      useWsola (1024, 256); break;    // realtime: light, low latency
-        case StretchMode::e3Mono:       useWsola (1536, 384); break;    // monophonic: longer search
-        case StretchMode::e2Mono:       useWsola (1024, 320); break;
-        case StretchMode::e2Speech:     useWsola (768, 192);  break;    // speech: short frames
+        case StretchMode::e3Mono:       useGrains (256, 384, true); break;
+        case StretchMode::e2Mono:       useGrains (128, 0, true); break;
+        case StretchMode::e2Speech:     useGrains (384, 384, false); break;
         case StretchMode::sliceStretch: useWsola (1024, 256); break;    // restarted at each slice
         case StretchMode::stretchPro:   useVocoder (4096, 1.6f, true);  break;
-        case StretchMode::e2Transient:  useVocoder (1024, 1.3f, false); break;
-        case StretchMode::e2Generic:    useVocoder (2048, 2.0f, false); break;
+        case StretchMode::stretch:
+        case StretchMode::e2Transient:
+        case StretchMode::e2Generic:
         case StretchMode::e3Generic:
         case StretchMode::autoMode:
         default:                        useVocoder (2048, 1.5f, false); break;
     }
 
     // e3 generic: FL's 1.485 kHz split (measured on saws: harmonics up to
-    // 1470 Hz take the low path, from 1500 Hz the grains).
-    hybrid = mode == StretchMode::e3Generic || mode == StretchMode::autoMode;
+    // 1470 Hz take the low path, from 1500 Hz the grains). e2 generic's high
+    // band is pieces of the source too; Stretch's and e2 transient's are
+    // spectral (noise stretched x1.5: correlation with the source 0.8 / 0.2),
+    // so those two keep e3's attack handling over the whole band.
+    hybrid = mode == StretchMode::e3Generic || mode == StretchMode::autoMode || mode == StretchMode::e2Generic
+          || mode == StretchMode::e2Transient || mode == StretchMode::stretch;
+    hfBand = hybrid && mode != StretchMode::e2Transient && mode != StretchMode::stretch;
+    grainsOnly = algo == Algo::grains;
+    // e3 times an attack by its peak, the grains by its start.
     attackSpan = hybrid ? juce::roundToInt (400.0 * scale) : 1;
     constexpr double split = 1485.0;
-    lowBins = hybrid ? juce::roundToInt (split * frame / sourceRate) : 0;
-    if (hybrid)
+    lowBins = hfBand ? juce::roundToInt (split * frame / sourceRate) : 0;
+    if (hfBand || grainsOnly)
     {
         hfMinPeriod = juce::roundToInt (40.0 * scale);
         hfMaxPeriod = juce::roundToInt (512.0 * scale);
-        hfFallback = juce::roundToInt (256.0 * scale);
+        hfFallback = juce::roundToInt (fallback44 * scale);
         hfWindow = juce::roundToInt (512.0 * scale);
         hfEstOffset = juce::roundToInt (8.0 * scale);
         hfScale = scale;
@@ -121,9 +145,9 @@ void TimeStretcher::configure (StretchMode mode, double sourceRate)
             ++hfEstOrder;
         // The high-pass is the complement of a windowed-sinc low-pass whose
         // transition matches the vocoder's bin cut (a frame-long Hann).
-        hfHalfKernel = juce::jmin (frame / 2 - 1, 2047);
+        hfHalfKernel = grainsOnly ? 0 : juce::jmin (frame / 2 - 1, 2047);
         hfFilterOrder = hfHalfKernel <= 1023 ? 12 : 13;
-        hfBlock = (1 << hfFilterOrder) - 2 * hfHalfKernel - 2;
+        hfBlock = grainsOnly ? 2048 : (1 << hfFilterOrder) - 2 * hfHalfKernel - 2;
         hfEstReuse = 512.0 * scale;
         const int M = hfHalfKernel;
         std::vector<double> lp ((size_t) (2 * M + 1));
@@ -201,9 +225,9 @@ void TimeStretcher::emit (float gain)
         fifoL[(size_t) (fifoCount + i)] = olaL[(size_t) i] * gain;
         fifoR[(size_t) (fifoCount + i)] = olaR[(size_t) i] * gain;
     }
-    if (hybrid)
+    if (hfBand || grainsOnly)
     {
-        // The high band's grains for these synthesis samples (complete: no
+        // The grains for these synthesis samples (complete: no
         // later grain reaches back this far).
         const auto s0 = (long long) std::llround (synthPos);
         for (int i = 0; i < hop; ++i)

@@ -392,6 +392,52 @@ int main()
             check (std::abs (lagLow - 2) <= 3 && std::abs (lagAll - 2) <= 3, "e3: steady sound on time", "low band " + juce::String (lagLow) + ", all " + juce::String (lagAll) + " samples");
         }
 
+        // The mono modes (PSOLA, measured in FL): clicks on time at full level
+        // when stretching and squeezing, and PITCH moves the partials but not
+        // the spectral envelope (a voice keeps its formants).
+        for (const double speed : { 1.0 / 1.5, 1.5 })
+        {
+            auto y = stretch (click, 0.0, StretchMode::e3Mono, speed);
+            bool ok = true;
+            juce::String detail;
+            for (const int at : { 22050 })
+            {
+                const int want = (int) std::lround (at / speed);
+                const auto pk = peakOf (y, want - 2000, want + 2000);
+                const int on = firstAbove (y, want - 2000, want + 2000, 0.1f * pk) - want;
+                ok = ok && std::abs (on) <= 8 && pk > 0.7f;
+                detail << on << " samples, peak " << juce::String (pk, 2);
+            }
+            check (ok, "e3 mono: click on time at x" + juce::String (1.0 / speed, 3), detail);
+        }
+        {
+            // A 300 Hz pulse train through a 2 kHz resonance (a vowel-like source).
+            std::vector<float> vowel ((size_t) n44, 0.0f);
+            juce::dsp::IIR::Filter<float> f;
+            f.coefficients = juce::dsp::IIR::Coefficients<float>::makeBandPass (sr44, 2000.0, 4.0);
+            for (int i = 0; i < n44; ++i)
+                vowel[(size_t) i] = f.processSample (i % 147 == 0 ? 1.0f : 0.0f);
+            auto level = [&] (const std::vector<float>& v, double hz)   // Goertzel over the middle half
+            {
+                double s1 = 0, s2 = 0; const double c = 2.0 * std::cos (juce::MathConstants<double>::twoPi * hz / sr44);
+                for (int i = n44 / 4; i < n44 * 3 / 4; ++i) { const double s0 = v[(size_t) i] + c * s1 - s2; s2 = s1; s1 = s0; }
+                return std::sqrt (s1 * s1 + s2 * s2 - c * s1 * s2);
+            };
+            auto centroid = [&] (const std::vector<float>& v, double f0)   // of the harmonics from 1 to 5 kHz
+            {
+                double num = 0, den = 0;
+                for (double hz = f0; hz < 5000.0; hz += f0)
+                    if (hz > 1000.0) { const auto e = level (v, hz); num += hz * e * e; den += e * e; }
+                return num / den;
+            };
+            const double f0 = sr44 / 147.0, up = f0 * std::pow (2.0, 700.0 / 1200.0);
+            auto mono = stretch (vowel, 700.0, StretchMode::e3Mono), generic = stretch (vowel, 700.0, StretchMode::e3Generic);
+            const auto c0 = centroid (vowel, f0), cm = centroid (mono, up), cg = centroid (generic, up);
+            check (level (mono, up) > 4.0 * level (mono, f0) && std::abs (cm / c0 - 1.0) < 0.15 && cg / c0 > 1.3,
+                   "e3 mono: pitch keeps the spectral envelope",
+                   "centroid " + juce::String (c0, 0) + " Hz -> mono " + juce::String (cm, 0) + ", generic " + juce::String (cg, 0));
+        }
+
         // Every stretch mode survives extreme and changing ratios.
         {
             juce::Random rnd (3);

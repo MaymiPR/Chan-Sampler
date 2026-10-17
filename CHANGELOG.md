@@ -7,6 +7,12 @@
   keeps.
 - Regression tests for e3 (attack timing, the band split, pitched notes'
   start and length) and a stress test of every stretch mode.
+- The other stretch modes matched to FL by measurement: e3 mono and e2 mono
+  now splice the sound one pitch period at a time, like FL's, and keep a
+  voice's formants when PITCH moves; every click lands on time at full level
+  (they could wander or drop out before). e2 speech uses the same engine;
+  Stretch, e2 generic and e2 transient now handle attacks like e3. All are
+  closer to FL's renders (see docs/EVIDENCE.md).
 - Every knob's drag distance is now measured in FL: the envelopes' AMT and
   the velocity Mid slider take 256 px, as they already did here.
 
