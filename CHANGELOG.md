@@ -7,6 +7,8 @@
   keeps.
 - Regression tests for e3 (attack timing, the band split, pitched notes'
   start and length) and a stress test of every stretch mode.
+- Every knob's drag distance is now measured in FL: the envelopes' AMT and
+  the velocity Mid slider take 256 px, as they already did here.
 
 ## 1.1.0
 

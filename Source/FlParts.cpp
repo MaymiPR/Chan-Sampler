@@ -717,7 +717,8 @@ namespace
 {
     // How far FL's controls drag for their whole range, in pixels (measured
     // in FL 2026 with Copy value before and after a 30 px drag, and pixel by
-    // pixel on PITCH and the echo's PITCH). Most of FL's knobs take 256 px.
+    // pixel on PITCH and the echo's PITCH). Most of FL's knobs take 256 px
+    // (the envelopes' AMT and the velocity Mid slider measured so too).
     double flDragPixels (const juce::String& id)
     {
         static const std::map<juce::String, double> table {
