@@ -1061,9 +1061,13 @@ void WaveformView::showProperties()
 // - Three bands from first-order filters in a tree: low = low-pass 168 Hz;
 //   the rest (high-pass 152 Hz) splits at 1284 Hz into mid and high.
 // - Each band's energy is taken in blocks and follows rises at once and falls
-//   smoothly: Multiband 512-frame blocks falling with a 700-frame time
+//   smoothly: Multiband 32-frame blocks falling with a 700-frame time
 //   constant, Color map 64-frame blocks and 100 frames (so FL's Color map
-//   flickers on low notes, Multiband does not). Each pixel column reads the
+//   flickers on low notes, Multiband does not). Multiband's short blocks
+//   show a drum's click in its own colour: 707 Kick starts blue, 909 Kick
+//   blue to olive within 50 frames (FL 2026 captures of short drums, 8
+//   frames per pixel; the earlier 512 came from 2 s samples, where the
+//   click is under a pixel). Each pixel column reads the
 //   level at its centre (a quarter block late), interpolated between blocks.
 //   Stereo samples use the mean of both channels' energies.
 // - Multiband: red / green / blue in proportion to the band RMS, R + G + B =
@@ -1076,7 +1080,7 @@ void WaveformView::showProperties()
 // stereo drum loop), the Color map's flicker follows FL's in character.
 namespace
 {
-    constexpr int bandBlock = 64;   // frames per band-energy block
+    constexpr int bandBlock = 32;   // frames per band-energy block
 
     struct OnePole
     {
@@ -1116,10 +1120,10 @@ namespace
     }
 
     // Band-energy followers (see above), one value per block
-    void follow (const std::vector<float>* blocks64, int group, double timeConstant, std::vector<float>* out)
+    void follow (const std::vector<float>* blocks, int group, double timeConstant, std::vector<float>* out)
     {
-        const int n64 = (int) blocks64[0].size();
-        const int n = n64 / group + 1;
+        const int nBlocks = (int) blocks[0].size();
+        const int n = nBlocks / group + 1;
         const auto release = (float) std::exp (-(double) (group * bandBlock) / timeConstant);
         for (int b = 0; b < 3; ++b)
         {
@@ -1128,8 +1132,8 @@ namespace
             for (int k = 0; k < n; ++k)
             {
                 float e = 0.0f;
-                for (int j = k * group; j < juce::jmin (n64, (k + 1) * group); ++j)
-                    e += blocks64[b][(size_t) j];
+                for (int j = k * group; j < juce::jmin (nBlocks, (k + 1) * group); ++j)
+                    e += blocks[b][(size_t) j];
                 e /= (float) group;
                 acc = (k == 0 || e > acc) ? e : release * acc + (1.0f - release) * e;
                 out[b][(size_t) k] = acc;
@@ -1153,8 +1157,8 @@ const WaveformView::BandEnergy& WaveformView::bandEnergy (int source) const
     const int chans = juce::jmin (2, sample->audio.getNumChannels());
     const auto sr = sample->sourceRate > 0 ? sample->sourceRate : 44100.0;
     const int blocks = (total + bandBlock - 1) / bandBlock;
-    std::vector<float> e64[3];
-    for (auto& e : e64)
+    std::vector<float> eb[3];
+    for (auto& e : eb)
         e.assign ((size_t) blocks, 0.0f);
     // Source 0: both channels (their energies averaged), 1 left, 2 right.
     const int first = source == 2 ? chans - 1 : 0, last = source == 1 ? 0 : chans - 1;
@@ -1175,18 +1179,18 @@ const WaveformView::BandEnergy& WaveformView::bandEnergy (int source) const
                 m += mi * mi;
                 h += hi * hi;
             }
-            e64[0][(size_t) k] += a * weight;
-            e64[1][(size_t) k] += m * weight;
-            e64[2][(size_t) k] += h * weight;
+            eb[0][(size_t) k] += a * weight;
+            eb[1][(size_t) k] += m * weight;
+            eb[2][(size_t) k] += h * weight;
         }
     }
     // Measured at 44.1 kHz; at other rates the blocks and time constants keep
     // their length in time.
     const auto rateScale = sr / 44100.0;
-    b.group[0] = juce::jmax (1, (int) std::lround (8.0 * rateScale));
-    b.group[1] = juce::jmax (1, (int) std::lround (rateScale));
-    follow (e64, b.group[0], 700.0 * rateScale, b.level[0]);   // Multiband
-    follow (e64, b.group[1], 100.0 * rateScale, b.level[1]);   // Color map
+    b.group[0] = juce::jmax (1, (int) std::lround (rateScale));
+    b.group[1] = juce::jmax (1, (int) std::lround (2.0 * rateScale));
+    follow (eb, b.group[0], 700.0 * rateScale, b.level[0]);   // Multiband
+    follow (eb, b.group[1], 100.0 * rateScale, b.level[1]);   // Color map
     return b;
 }
 

@@ -22,6 +22,14 @@
   at full level instead of fading in over the first frame. Against FL's e3
   renders of clicks the attacks null at -22 to -43 dB (they were uncorrelated,
   up to 60 samples off); sustained tones still differ (elastique).
+- Pitched e3 / e2 notes keep the sound's length and shape like FL's: a kick an
+  octave down no longer rings for twice as long (attacks are held 1:1 only
+  until they have sounded, and the stretcher works in smaller steps below an
+  octave up, which costs about twice the CPU in those modes). Against FL's
+  renders of a kick, a Rhodes, a voice and two loops at -1200 ... +1200 cents
+  the envelopes are 24% closer and the spectra 7% closer.
+- Multiband waveform colours show a drum's click in its own colour, as FL does
+  (707 Kick starts blue): band energies in 32-frame blocks instead of 512.
 - Releases list SHA-256 checksums; the install notes explain the security
   warnings for the unsigned downloads (SmartScreen, macOS's Open Anyway).
 

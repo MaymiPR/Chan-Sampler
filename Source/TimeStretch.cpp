@@ -61,7 +61,7 @@ void TimeStretcher::configure (StretchMode mode, double sourceRate)
     {
         algo = Algo::wsola;
         frame = juce::jmin (maxFrame, roundToEven (n44 * scale));
-        hop = frame / 2;
+        hop = baseHop = frame / 2;
         tolerance = juce::jmax (16, juce::roundToInt (tol44 * scale));
         preserveFormants = false;
     };
@@ -70,7 +70,7 @@ void TimeStretcher::configure (StretchMode mode, double sourceRate)
         algo = Algo::vocoder;
         order = juce::jlimit (10, 13, powerOfTwoNear (n44 * scale));
         frame = 1 << order;
-        hop = frame / 4;
+        hop = baseHop = frame / 4;
         transientThreshold = transient;
         preserveFormants = formants;
     };
@@ -100,6 +100,8 @@ void TimeStretcher::reset (double sourcePos)
     apos = idealPos = startPos = sourcePos;
     lockFrames = 0;
     synthOffset = 0.0;
+    synthPos = 0.0;
+    hop = baseHop;
     framesDone = 0;
     aligned = false;
     prevPos = (int) std::floor (sourcePos);
@@ -135,6 +137,7 @@ void TimeStretcher::emit (float gain)
         fifoR[(size_t) (fifoCount + i)] = olaR[(size_t) i] * gain;
     }
     fifoCount += hop;
+    synthPos += hop;
     std::copy (olaL.begin() + hop, olaL.begin() + frame, olaL.begin());
     std::copy (olaR.begin() + hop, olaR.begin() + frame, olaR.begin());
     std::fill (olaL.begin() + (frame - hop), olaL.begin() + frame, 0.0f);

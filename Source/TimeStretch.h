@@ -75,6 +75,15 @@ private:
     template <typename Reader>
     void synthesise (Reader& read, double alpha, double pitchRatio, float formantCents)
     {
+        // The vocoder's synthesis hop: a quarter frame, smaller below an
+        // octave up (half the analysis rate, an eighth of a frame unpitched,
+        // a sixteenth an octave down), so the source isn't smeared over
+        // several frames (an octave down, a kick kept twice its length).
+        // Chosen against FL's e3 renders of a kick, a Rhodes, a voice and
+        // two drum loops at -1200 ... +1200 cents (nulltest/e3_pitch_cases.py);
+        // it costs about twice the CPU of quarter-frame hops.
+        if (algo == Algo::vocoder)
+            hop = juce::jlimit (baseHop / 4, baseHop, (int) std::lround (baseHop * juce::jmin (1.0, 0.5 * alpha)));
         // Analysis advance for one synthesis hop.
         const double ha = (double) hop / alpha;
         if (algo == Algo::wsola)
@@ -169,7 +178,7 @@ private:
                 synthOffset = (double) (frame - hop) - attackShift (std::log2 (pitchRatio)) * pitchRatio;
                 readPos = synthOffset;
                 apos = idealPos = (double) (pos + at - (frame - hop));
-                lockFrames = frame / hop + frame / hop / 2;
+                lockFrames = frame / hop;   // up to the frame that starts at it
                 locked = true;
                 pos = (int) std::floor (apos);
                 readWindow();
@@ -206,10 +215,10 @@ private:
                 const double attackPos = pos + attackSample;
                 const double alphaNow = (double) hop / ha;
                 const double stretched = (attackPos - startPos) * alphaNow + attackShift (std::log2 (pitchRatio)) * pitchRatio + synthOffset;
-                const int centreFrame = juce::jmax (framesDone, (int) std::round ((stretched - 0.5 * frame) / hop));
-                const double centreStart = attackPos + (double) centreFrame * hop - stretched;
-                apos = juce::jmax ((double) (pos - frame), centreStart - (double) (centreFrame - framesDone) * hop);   // may step back: the source is read by position
-                lockFrames = centreFrame - framesDone + 1 + frame / hop / 2;
+                const int ahead = juce::jmax (0, (int) std::round ((stretched - 0.5 * frame - synthPos) / hop));   // frames to the centred one
+                const double centreStart = attackPos + (synthPos + (double) ahead * hop) - stretched;
+                apos = juce::jmax ((double) (pos - frame), centreStart - (double) ahead * hop);   // may step back: the source is read by position
+                lockFrames = ahead + 1;   // up to the one centred on it
                 locked = true;
                 pos = (int) std::floor (apos);
                 readWindow();
@@ -219,7 +228,7 @@ private:
         fft->perform (spec.data(), work.data(), false);   // JUCE's FFT is not in-place
         processSpectrum (pos, pitchRatio, formantCents, locked);  // work -> spec
         fft->perform (spec.data(), work.data(), true);
-        const float scale = 1.0f / 1.5f;   // JUCE scales the inverse FFT; Hann^2 at 75% overlap sums to 1.5
+        const float scale = (float) hop / (0.375f * (float) n);   // JUCE scales the inverse FFT; Hann^2 overlaps sum to 0.375 frame / hop
         for (int i = 0; i < n; ++i)
         {
             olaL[(size_t) i] += work[(size_t) i].real() * window[(size_t) i] * scale;
@@ -263,7 +272,8 @@ private:
     Algo algo = Algo::wsola;
     bool preserveFormants = false;
     float transientThreshold = 1.5f;
-    int frame = 1024, hop = 512, tolerance = 256, order = 10;
+    int frame = 1024, hop = 512, baseHop = 512, tolerance = 256, order = 10;
+    double synthPos = 0.0;      // where the next frame starts in the synthesised stream
     float wsolaGain = 1.0f;
     double apos = 0.0, idealPos = 0.0;
     int prevPos = 0, lockFrames = 0, framesDone = 0;
