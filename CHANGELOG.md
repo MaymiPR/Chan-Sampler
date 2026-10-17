@@ -13,6 +13,10 @@
   (they could wander or drop out before). e2 speech uses the same engine;
   Stretch, e2 generic and e2 transient now handle attacks like e3. All are
   closer to FL's renders (see docs/EVIDENCE.md).
+- e3 generic / Auto: attacks with PITCH are timed on FL's grid (all 128
+  measured bursts as FL times them), an attack counts from where it is under
+  way (a ramping drum hit, a swelling voice), and when stretching an attack's
+  low band is as much louder as FL plays it at that point of the grid.
 - Every knob's drag distance is now measured in FL: the envelopes' AMT and
   the velocity Mid slider take 256 px, as they already did here.
 

@@ -206,6 +206,41 @@ the reference source). Everything below is behaviour, not code.
   (x1.5: 1.10 -> 1.24 in the start-timed range, 0.85 -> 1.59 in the
   peak-timed range); not modelled.
 
+## Leftovers (round 8)
+
+- Single-sample clicks at exactly +1200 cents (e3_par.wav, 16 clicks on
+  alternating even / odd samples): FL drops the same parity as ours (even
+  ones vanish in both, and both drop the first few); the surviving clicks
+  play at x0.53-0.82 in FL, x1.0 in ours. The round-3 note ("FL keeps ~0.8")
+  came from a different start parity; nothing to change.
+- The vocal's soft start ("x0.2-0.4") is timing, not a fade: FL treats the
+  swell as an attack and times it from a later reference point (R 1258 vs
+  our 922 at x1.5, 1137 vs 873 at x0.667), so its rise comes out later.
+  Fade-in bursts are only attenuated in their first 128-256 samples (-3 to
+  -12 dB). A stricter attack detector moves R towards FL's but costs the
+  other cases (20-case offline score), so detection is unchanged.
+- PITCH has its own grid (e3_grid2.wav at +700 / -700 cents, mode 1): bursts
+  at grid phase 232-400 (+700) / 224-400 (-700) are timed by their peak, the
+  rest by their start. The window model fits all 128 with offset ~360 and a
+  gap of 129-136 (up) / 137-144 (down) samples. The gap counts from where the
+  attack is under way (first sample at 25% of the loudest power over the
+  next 512): a ramping drum hit in DL Groover (1% at +0, 25% at +53) is
+  timed by its peak in FL, which only that start puts on the right side of
+  the grid. All 192 MUL grid bursts and 32 of 40 round-5 bursts (was 31) stay
+  as FL times them. 20-case offline score (e3 generic, floored envelope)
+  1.73 / 1.99 / -2.98 -> 1.70 / 1.99 / -3.07; in FL (30 pitch cases) env
+  1.64 -> 1.64, spectrum 2.01 -> 2.02, null raw -1.44 -> -1.21, fitted -2.86
+  -> -2.72: one case (the vocal at +700: -5.4 -> +4.5 dB) carries the loss.
+  There FL's reference point (496 samples into the swell) is between the
+  old 400-sample window's (388) and the grid's (728): FL measures the
+  "loudest" point differently on a slow swell (unknown).
+- The low band's gain while an attack is held, by grid phase (MUL): timed by
+  its start ~x1.13 flat, timed by its peak 1.13 + 0.0019 per sample of phase
+  into the peak range (x1.5 / x2). Mean error on the 64 bursts per ratio
+  0.121 -> 0.067 (x1.5), 0.160 -> 0.111 (x2); squeezing varies within the
+  attack (x0.667: up then down to x0.7) and keeps x1.1 (0.132 either way).
+  Neutral on real material.
+
 ## Open
 
 - The period estimator (range, method, resolution).

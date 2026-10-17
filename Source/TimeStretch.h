@@ -223,6 +223,7 @@ private:
                 const double alphaNow = (double) hop / ha;
                 idealPos = startPos - synthOffset / alphaNow - (hop + 0.25 * frame * (1.0 - 1.0 / alphaNow));
                 lockFrames = frame / hop;   // up to the frame that starts at it
+                lockGain = 0.0f;
                 locked = true;
                 pos = (int) std::floor (apos);
                 readWindow();
@@ -251,6 +252,7 @@ private:
                 for (int i = (attackAt - 1) * block; i < (attackAt + 1) * block; ++i)
                     if (power[(size_t) i] > 0.01f * peak) { attackSample = i; break; }
                 attackSample = loudestAfter (read, pos + attackSample) - pos;
+                lockGain = attackGain;
             }
             if (attackSample >= 0)
             {
@@ -279,7 +281,7 @@ private:
         fft->perform (spec.data(), work.data(), true);
         float scale = (float) hop / (0.375f * (float) n);   // JUCE scales the inverse FFT; Hann^2 overlaps sum to 0.375 frame / hop
         if (hybrid && locked)
-            scale *= hop > ha ? 1.2f : 1.1f;   // FL's e3 plays the band below the split louder while it holds an attack (measured with noise bursts: x1.1-1.4, mean ~1.2 stretching, ~1.1 squeezing)
+            scale *= lockGain > 0.0f ? lockGain : (hop > ha ? 1.2f : 1.1f);   // FL's e3 plays the band below the split louder while it holds an attack (see loudestAfter; a note's start: x1.2 stretching, x1.1 squeezing)
         for (int i = 0; i < n; ++i)
         {
             olaL[(size_t) i] += work[(size_t) i].real() * window[(size_t) i] * scale;
@@ -404,27 +406,67 @@ private:
 
     // Where FL's e3 times an attack: the first sample, from where it starts
     // to the end of its search window, that reaches 95% of the loudest one.
-    // With PITCH the window is 400 samples (pitched noise bursts: 16 of 20 to
-    // the sample). With MUL / TIME only, it ends on a 512-sample grid counted
-    // from the note's start (a grid window made pitched cases worse in FL):
-    // at the first grid point (offset ~410 at x1.5 / x2, ~364 at x0.667) at
-    // least ~240 (x1.5 / x2) / ~144 (x0.667) samples after the attack's start
-    // (measured: 64 identical bursts stepped 8 samples through the grid, and
-    // 20 flat / decaying / rising ones: 80 of 84 timed to the sample at x1.5).
+    // The window ends on a 512-sample grid counted from the note's start: at
+    // the first grid point at least a gap after the attack is under way. With
+    // MUL / TIME: offset ~410 at x1.5 / x2, ~364 at x0.667, gap ~240 / ~144;
+    // with PITCH: offset ~360, gap ~136 (measured: 64 identical bursts
+    // stepped 8 samples through the grid, all 64 timed like FL's at x1.5,
+    // x0.667, x2, +700 and -700 cents; 20 flat / decaying / rising ones).
     template <typename Reader>
     int loudestAfter (Reader& read, int start)
     {
         if (attackSpan <= 1)
             return start;
-        int span = attackSpan;   // with PITCH: 400 samples (measured with pitched noise bursts)
-        if (std::abs (attackPitch - 1.0) < 1.0e-3)
+        int span = attackSpan;
         {
-            // Length only (MUL / TIME): the grid-ended window.
-            const double x = juce::jlimit (0.0, 1.0, (std::log2 (attackAlpha) + 0.585) / 1.17);
-            const double grid = 512.0 * hfScale, offset = (364.0 + x * 46.0) * hfScale, gap = (144.0 + x * 96.0) * hfScale;
-            const double rel = start - startPos;
+            // With PITCH the switch points give a gap of 129-136 samples up,
+            // 137-144 down.
+            double offset, gap;
+            if (std::abs (attackPitch - 1.0) < 1.0e-3)
+            {
+                const double x = juce::jlimit (0.0, 1.0, (std::log2 (attackAlpha) + 0.585) / 1.17);
+                offset = 364.0 + x * 46.0;
+                gap = 144.0 + x * 96.0;
+            }
+            else
+            {
+                offset = 360.0;
+                gap = 136.0 - 6.0 * std::log2 (attackPitch);
+            }
+            const double grid = 512.0 * hfScale;
+            offset *= hfScale;
+            gap *= hfScale;
+            // The gap counts from where the attack is under way: the first
+            // sample at a quarter of its loudest power over the next 512 (a
+            // drum hit that ramps in, or a voice that swells, starts later
+            // than its first audible sample). Keeps every stepped burst as
+            // FL times it and puts a ramping hit of FL's DL Groover and the
+            // swell of a sung "ah" on FL's side of the grid.
+            int under = start;
+            float pk = 0.0f;
+            const int un = juce::roundToInt (512.0 * hfScale);
+            for (int i = 0; i < un; ++i)
+            {
+                float l, r;
+                read (start + i, l, r);
+                pk = juce::jmax (pk, l * l + r * r);
+            }
+            for (int i = 0; i < un; ++i)
+            {
+                float l, r;
+                read (start + i, l, r);
+                if (l * l + r * r >= 0.25f * pk)
+                {
+                    under = start + i;
+                    break;
+                }
+            }
+            const double rel = under - startPos;
             const double end = startPos + offset + grid * std::ceil ((rel + gap - offset) / grid);
             span = juce::jlimit (1, 4096, (int) std::lround (end - start));
+            // Where the attack sits in the grid sets how much louder FL's low
+            // band plays it (measured: 64 bursts stepped through the grid).
+            windowPhase = std::fmod (std::fmod (rel - (offset - gap), grid) + grid, grid) / hfScale;
         }
         float peak = 0.0f;
         for (int i = 0; i < span; ++i)
@@ -433,14 +475,27 @@ private:
             read (start + i, l, r);
             peak = juce::jmax (peak, l * l + r * r);
         }
+        int found = start;
         for (int i = 0; i < span; ++i)
         {
             float l, r;
             read (start + i, l, r);
             if (l * l + r * r >= 0.9025f * peak)
-                return start + i;
+            {
+                found = start + i;
+                break;
+            }
         }
-        return start;
+        attackGain = 0.0f;
+        if (std::abs (attackPitch - 1.0) < 1.0e-3 && attackAlpha > 1.0)
+        {
+            // Stretching (MUL / TIME): timed by its peak, the attack plays
+            // louder the later it sits in the grid's range (x1.5 / x2: 1.13 +
+            // 0.0019 per sample); timed by its start, about x1.13. (Squeezing
+            // varies within the attack and keeps the mean, x1.1.)
+            attackGain = found - start > juce::roundToInt (64.0 * hfScale) ? (float) (1.13 + 0.0019 * windowPhase) : 1.13f;
+        }
+        return found;
     }
 
     // How long FL's e3 plays an attack 1:1 before the grains catch up, in
@@ -688,6 +743,8 @@ private:
     double synthOffset = 0.0;   // where the output starts in the synthesised stream
     int attackSpan = 1;         // > 1: time attacks like FL's e3 (loudestAfter)
     double attackAlpha = 1.0, attackPitch = 1.0;   // the stretch and pitch ratio in use (attack timing)
+    double windowPhase = 0.0;                      // the last attack's place in the timing grid
+    float attackGain = 0.0f, lockGain = 0.0f;      // the low band's gain while an attack is held (0: by the stretch)
     bool first = true, aligned = false;
 
     std::unique_ptr<juce::dsp::FFT> ffts[6];   // orders 8..13 (the envelope uses a quarter size)
