@@ -1,28 +1,43 @@
 # Changelog
 
-## Unreleased
+## 1.2.0
 
-- The stretch modes use about half the CPU: e3 generic / Auto about 16% of
-  one core for 32 voices (1.1.0: 37%), with the same sound - a faster FFT of
-  our own, and the spectral part only works on the band it keeps.
-- A note that starts softly (no attack) lines up like FL's in Stretch,
-  Stretch Pro, e2 generic and e2 transient (each of FL's modes has its own
-  latency there; measured with swelling noise).
-- Regression tests for e3 (attack timing, the band split, pitched notes'
-  start and length), every mode's alignment of a soft start (both bands of
-  e3 / e2 generic), the FFT, and a stress test of every stretch mode.
-- The other stretch modes matched to FL by measurement: e3 mono and e2 mono
-  now splice the sound one pitch period at a time, like FL's, and keep a
-  voice's formants when PITCH moves; every click lands on time at full level
-  (they could wander or drop out before). e2 speech uses the same engine;
-  Stretch, e2 generic and e2 transient now handle attacks like e3. All are
-  closer to FL's renders (see docs/EVIDENCE.md).
-- e3 generic / Auto: attacks with PITCH are timed on FL's grid (all 128
-  measured bursts as FL times them), an attack counts from where it is under
-  way (a ramping drum hit, a swelling voice), and when stretching an attack's
-  low band is as much louder as FL plays it at that point of the grid.
-- Every knob's drag distance is now measured in FL: the envelopes' AMT and
-  the velocity Mid slider take 256 px, as they already did here.
+Closer to FL's Sampler
+- Every stretch mode was measured against FL's renders (clicks, noise, a
+  kick, a Rhodes, a voice and two drum loops at -700 / +700 cents and x1.5 /
+  x0.667) and rebuilt to match:
+  - e3 mono and e2 mono splice the sound one pitch period at a time, as
+    FL's do, and keep a voice's formants when PITCH moves.
+  - e2 speech uses the same engine, with the pitch resampled like FL's.
+  - Stretch, e2 generic and e2 transient handle attacks like e3; e2 generic
+    plays its highs as pieces of the sound, as FL's does.
+  - Every one of these modes is closer to FL's renders, by up to half (e3
+    mono's spectrum 6.4 -> 3.8 dB from FL's, e2 transient's envelope 5.0 ->
+    2.5 dB).
+- e3 generic / Auto with PITCH: attacks are timed on FL's grid (all 128
+  measured noise bursts land where FL puts them), counted from where an
+  attack is under way, so a ramping drum hit or a swelling voice is timed
+  like FL's. When stretching, an attack's low end is as much louder as FL
+  plays it at that point.
+- A note that starts softly lines up like FL's in Stretch, Stretch Pro, e2
+  generic and e2 transient (each of FL's modes has its own latency there).
+- Every knob's drag distance is now measured in FL.
+
+Faster
+- The stretch modes use about half the CPU, with the same sound: e3 generic
+  / Auto about 16% of one core for 32 voices (1.1.0: 37%), Stretch Pro 25%
+  (36%), the mono and speech modes about 5%. The stretcher has its own,
+  faster FFT, and e3's spectral part only works on the band it keeps.
+
+Fixes
+- e3 mono and e2 mono: clicks could land up to ~190 samples off, or drop
+  out when squeezing; every click now lands on time at full level.
+
+Other
+- Regression tests for the stretch modes: e3's attack timing, band split
+  and pitched notes' start and length, every mode's alignment of a soft
+  start, the mono modes' clicks and formants, the FFT, and a stress test of
+  every mode at extreme, changing ratios.
 
 ## 1.1.0
 
