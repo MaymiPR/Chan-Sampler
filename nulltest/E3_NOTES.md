@@ -128,6 +128,28 @@ the reference source). Everything below is behaviour, not code.
   odd sample vanishes (FL keeps ~0.8 of its energy). Real audio is not
   affected much; FL's read grid phase differs from ours.
 
+## Per-period "glitch" (round 4)
+
+- On the 147 Hz saw FL's high band keeps a constant phase (no offset slips
+  at grain joins); the per-period difference sits on the saw's sharp edge:
+  FL renders the edge slightly softer (residual -20 dB there, -24 dB
+  elsewhere). Cause: FL's output sits at a fractional offset (43.5 samples
+  on the saw) and reads through an interpolator that softens the treble by
+  the fraction.
+- Measured per grain run on noise (MUL 1.5): |H| at 6/10/14/18 kHz against
+  the fractional offset matches a 50/50 blend of Catmull-Rom and 4-point
+  Lagrange (mean error 0.004; Catmull alone 0.020, Lagrange 0.023, Keys a
+  -0.4 0.017, windowed sincs worse).
+- The fraction drifts linearly: FL's jumps are the period + 0.025 samples at
+  MUL 1.5. FL stretches at a ratio slightly below the requested one and
+  resamples the rest: requested 1.500039 / 1.414214 / 1.231144 -> FL
+  ~1.5 / 1.414062 / ~1.230769 (within-run drift 2.2e-5, 7.6e-5, 2.6e-4 per
+  sample). No single grid or integer hop pair fits all three; the rule is
+  unknown.
+- For PITCH, FL's rolloff at -700 cents matches our Catmull read (blend a
+  little too dull); at +700 FL loses 1-3 dB at 18-22 kHz that no kernel
+  alone gives. Nothing changed in the plugin this round.
+
 ## Open
 
 - The period estimator (range, method, resolution).
