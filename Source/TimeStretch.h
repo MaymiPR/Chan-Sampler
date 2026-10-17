@@ -255,7 +255,9 @@ private:
         fft->perform (spec.data(), work.data(), false);   // JUCE's FFT is not in-place
         processSpectrum (pos, pitchRatio, formantCents, locked);  // work -> spec
         fft->perform (spec.data(), work.data(), true);
-        const float scale = (float) hop / (0.375f * (float) n);   // JUCE scales the inverse FFT; Hann^2 overlaps sum to 0.375 frame / hop
+        float scale = (float) hop / (0.375f * (float) n);   // JUCE scales the inverse FFT; Hann^2 overlaps sum to 0.375 frame / hop
+        if (hybrid && locked)
+            scale *= hop > ha ? 1.2f : 1.1f;   // FL's e3 plays the band below the split louder while it holds an attack (measured with noise bursts: x1.1-1.4, mean ~1.2 stretching, ~1.1 squeezing)
         for (int i = 0; i < n; ++i)
         {
             olaL[(size_t) i] += work[(size_t) i].real() * window[(size_t) i] * scale;

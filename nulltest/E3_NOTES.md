@@ -170,6 +170,20 @@ the reference source). Everything below is behaviour, not code.
 - Unexplained: 4 bursts whose R needs a shorter or longer window (it may
   follow the grain period).
 
+## Transient boost, with the timing rule (round 6)
+
+- Aligned on FL's attack timing, the gain during the attack hold per band
+  (noise bursts, 128-sample windows): the band below the split is a clean
+  copy of the source, louder: x1.1-1.4 (up to 1.64) at MUL 1.5, ~x1.0-1.3 at
+  0.667, varying from burst to burst (flat bursts alone: 0.98 .. 1.64). The
+  grain band is not a clean copy there and not boosted (x0.6-1.0, other
+  grains mixed in). So the earlier "click boost" is mostly the low band.
+- In the plugin: the vocoder's locked attack frames x1.2 (stretching) /
+  x1.1 (squeezing), the measured means. In FL (30 pitch cases): null (level
+  fitted) -2.79 -> -2.86 dB, raw -1.51 -> -1.44 dB, envelope 1.62 -> 1.64,
+  spectrum 2.02 -> 2.01: about neutral; the per-burst variation (probably
+  where the attack falls in FL's frame grid) is not modelled.
+
 ## Open
 
 - The period estimator (range, method, resolution).
