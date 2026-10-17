@@ -52,6 +52,18 @@ TimeStretcher::TimeStretcher()
     fifoR.resize (fifoSize);
     for (int o = 8; o <= 13; ++o)
         ffts[o - 8] = std::make_unique<juce::dsp::FFT> (o);
+    hfAccL.resize (hfRingSize);
+    hfAccR.resize (hfRingSize);
+    hfWeight.resize (hfRingSize);
+    hfSeg.resize (maxFrame);
+    hfBuf.resize (maxFrame);
+    hfWork.resize (maxFrame);
+    hfKernel[0].resize (maxFrame / 2);
+    hfKernel[1].resize (maxFrame);
+    hfCacheL.resize (hfCacheSize);
+    hfCacheR.resize (hfCacheSize);
+    hfEnergyValue.resize (hfEnergySlots);
+    hfEnergyIndex.resize (hfEnergySlots);
 }
 
 void TimeStretcher::configure (StretchMode mode, double sourceRate)
@@ -90,6 +102,49 @@ void TimeStretcher::configure (StretchMode mode, double sourceRate)
         default:                        useVocoder (2048, 1.5f, false); break;
     }
 
+    // e3 generic: FL's 1.485 kHz split (measured on saws: harmonics up to
+    // 1470 Hz take the low path, from 1500 Hz the grains).
+    hybrid = mode == StretchMode::e3Generic || mode == StretchMode::autoMode;
+    constexpr double split = 1485.0;
+    lowBins = hybrid ? juce::roundToInt (split * frame / sourceRate) : 0;
+    if (hybrid)
+    {
+        hfMinPeriod = juce::roundToInt (90.0 * scale);
+        hfMaxPeriod = juce::roundToInt (600.0 * scale);
+        hfFallback = juce::roundToInt (256.0 * scale);
+        hfWindow = juce::roundToInt (1024.0 * scale);
+        hfEstOrder = 11;
+        while ((1 << hfEstOrder) < hfWindow + hfMaxPeriod + 1 && hfEstOrder < 13)
+            ++hfEstOrder;
+        // The high-pass is the complement of a windowed-sinc low-pass whose
+        // transition matches the vocoder's bin cut (a frame-long Hann).
+        hfHalfKernel = juce::jmin (frame / 2 - 1, 2047);
+        hfFilterOrder = hfHalfKernel <= 1023 ? 12 : 13;
+        hfBlock = (1 << hfFilterOrder) - 2 * hfHalfKernel - 2;
+        hfEstReuse = 512.0 * scale;
+        const int M = hfHalfKernel;
+        std::vector<double> lp ((size_t) (2 * M + 1));
+        double sum = 0.0;
+        for (int k = -M; k <= M; ++k)
+        {
+            const double x = 2.0 * split / sourceRate * k;
+            const double sinc = k == 0 ? 1.0 : std::sin (juce::MathConstants<double>::pi * x) / (juce::MathConstants<double>::pi * x);
+            const double w = 0.5 + 0.5 * std::cos (juce::MathConstants<double>::pi * k / (M + 1));
+            lp[(size_t) (k + M)] = sinc * w;
+            sum += sinc * w;
+        }
+        for (int o = 12; o <= 13; ++o)
+        {
+            const int N = 1 << o;
+            std::fill (spec.begin(), spec.begin() + N, std::complex<float>());
+            for (int k = -M; k <= M; ++k)
+                spec[(size_t) ((k + N) & (N - 1))] = { (float) ((k == 0 ? 1.0 : 0.0) - lp[(size_t) (k + M)] / sum), 0.0f };
+            ffts[o - 8]->perform (spec.data(), work.data(), false);
+            for (int i = 0; i < N; ++i)
+                hfKernel[o - 12][(size_t) i] = work[(size_t) i].real();
+        }
+    }
+
     for (int i = 0; i < frame; ++i)
         window[(size_t) i] = 0.5f - 0.5f * std::cos (twoPi * (float) i / (float) frame);
     fft = algo == Algo::vocoder ? ffts[order - 8].get() : nullptr;
@@ -116,6 +171,13 @@ void TimeStretcher::reset (double sourcePos)
     }
     fifoCount = 0;
     readPos = 0.0;
+    hfStarted = false;
+    hfCacheLo = hfCacheHi = 0;
+    hfEstPos = -1.0e9;
+    std::fill (hfEnergyIndex.begin(), hfEnergyIndex.end(), std::numeric_limits<int>::min());
+    std::fill (hfAccL.begin(), hfAccL.end(), 0.0f);
+    std::fill (hfAccR.begin(), hfAccR.end(), 0.0f);
+    std::fill (hfWeight.begin(), hfWeight.end(), 0.0f);
 }
 
 void TimeStretcher::emit (float gain)
@@ -135,6 +197,23 @@ void TimeStretcher::emit (float gain)
     {
         fifoL[(size_t) (fifoCount + i)] = olaL[(size_t) i] * gain;
         fifoR[(size_t) (fifoCount + i)] = olaR[(size_t) i] * gain;
+    }
+    if (hybrid)
+    {
+        // The high band's grains for these synthesis samples (complete: no
+        // later grain reaches back this far).
+        const auto s0 = (long long) std::llround (synthPos);
+        for (int i = 0; i < hop; ++i)
+        {
+            const auto idx = (size_t) ((s0 + i) & hfRingMask);
+            const auto w = hfWeight[idx];
+            if (w > 1.0e-3f)
+            {
+                fifoL[(size_t) (fifoCount + i)] += hfAccL[idx] / w;
+                fifoR[(size_t) (fifoCount + i)] += hfAccR[idx] / w;
+            }
+            hfAccL[idx] = hfAccR[idx] = hfWeight[idx] = 0.0f;
+        }
     }
     fifoCount += hop;
     synthPos += hop;
@@ -199,6 +278,9 @@ void TimeStretcher::processSpectrum (int pos, double pitchRatio, float formantCe
         }
         phaseLock (c, analysisHop, first || attack || rise / total > transientThreshold);
     }
+    if (lowBins > 0)   // e3 generic: the vocoder makes only the band below the split
+        for (int c = 0; c < 2; ++c)
+            std::fill (out[c].begin() + lowBins, out[c].begin() + half + 1, std::complex<float>());
 
     // Formants (Stretch Pro): the voice resamples this signal by pitchRatio,
     // which would move the spectral envelope too; pre-correct it so that the

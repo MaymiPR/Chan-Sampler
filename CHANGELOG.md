@@ -28,6 +28,13 @@
   octave up, which costs about twice the CPU in those modes). Against FL's
   renders of a kick, a Rhodes, a voice and two loops at -1200 ... +1200 cents
   the envelopes are 24% closer and the spectra 7% closer.
+- e3 generic / Auto are built like FL's e3 (measured, nulltest/E3_NOTES.md):
+  the spectral stretch below 1.485 kHz, pitch-synchronous grains of the
+  sound above it, attacks on time in both. Against FL's renders of a kick, a
+  Rhodes, a voice and two loops at -1200 ... +1200 cents the envelopes are
+  21% closer and the spectra 15% closer; it costs about a third more CPU.
+  Fixed on the way for all spectral modes: steady sound ran a few ms early,
+  and pitched-down notes could skip their start lock (a kick came out late).
 - Multiband waveform colours show a drum's click in its own colour, as FL does
   (707 Kick starts blue): band energies in 32-frame blocks instead of 512.
 - Releases list SHA-256 checksums; the install notes explain the security

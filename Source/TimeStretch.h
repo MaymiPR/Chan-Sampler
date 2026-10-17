@@ -24,6 +24,12 @@
 //                    Attacks are kept as they are (like FL's e3): the frames
 //                    holding one are taken 1:1 with the source's own phases,
 //                    and the time that costs is made up afterwards.
+//   e3 generic     - FL's structure (measured, nulltest/E3_NOTES.md): the
+//                    vocoder only below 1.485 kHz; above, pitch-synchronous
+//                    grains of the source (PSOLA): grains two periods long,
+//                    one per period, a period repeated or skipped when the
+//                    drift from the ideal position passes half a period, and
+//                    a grain centred on each attack at its time.
 class TimeStretcher
 {
 public:
@@ -50,7 +56,7 @@ public:
             // at any pitch.
             aligned = true;
             const auto octaves = std::log2 (alpha);
-            const auto shift = algo == Algo::vocoder ? hop + 0.25 * frame * (1.0 - 1.0 / alpha)
+            const auto shift = algo == Algo::vocoder ? vocoderHop (alpha) + 0.25 * frame * (1.0 - 1.0 / alpha)
                                                      : -frame * (0.25 - (octaves < 0.0 ? 0.58 : 0.42) * octaves);
             apos -= shift;
             idealPos -= shift;
@@ -83,13 +89,18 @@ private:
         // two drum loops at -1200 ... +1200 cents (nulltest/e3_pitch_cases.py);
         // it costs about twice the CPU of quarter-frame hops.
         if (algo == Algo::vocoder)
-            hop = juce::jlimit (baseHop / 4, baseHop, (int) std::lround (baseHop * juce::jmin (1.0, 0.5 * alpha)));
+            hop = vocoderHop (alpha);
         // Analysis advance for one synthesis hop.
         const double ha = (double) hop / alpha;
         if (algo == Algo::wsola)
             wsolaFrame (read, ha);
         else
             vocoderFrame (read, ha, pitchRatio, formantCents);
+    }
+
+    int vocoderHop (double alpha) const
+    {
+        return juce::jlimit (baseHop / 4, baseHop, (int) std::lround (baseHop * juce::jmin (1.0, 0.5 * alpha)));
     }
 
     template <typename Reader>
@@ -169,15 +180,26 @@ private:
             // starts a note at full level, not faded in): the frames start a
             // frame less a hop before it, so the start already has every
             // overlapping frame (1:1), and the output starts at it.
-            const auto at = (int) std::ceil (startPos) - pos;
+            const auto start = (int) std::ceil (startPos);
             float energy = 0.0f;
-            for (int i = juce::jmax (0, at); i < juce::jmin (n, at + block); ++i)
-                energy += power[(size_t) i];
-            if (at >= 0 && at < n - block && energy > 1.0e-4f * block)
+            for (int i = 0; i < block; ++i)
             {
+                float l, r;
+                read (start + i, l, r);
+                energy += l * l + r * r;
+            }
+            if (energy > 1.0e-4f * block)
+            {
+                const int at = start - pos;
                 synthOffset = (double) (frame - hop) - attackShift (std::log2 (pitchRatio)) * pitchRatio;
                 readPos = synthOffset;
-                apos = idealPos = (double) (pos + at - (frame - hop));
+                apos = (double) (pos + at - (frame - hop));
+                // Afterwards the analysis heads for where the output's
+                // alignment wants it (see next(): synthesis s plays source
+                // startPos + (s - synthOffset) / alpha, the frame starting a
+                // hop plus a quarter frame x (1 - 1 / alpha) before that).
+                const double alphaNow = (double) hop / ha;
+                idealPos = startPos - synthOffset / alphaNow - (hop + 0.25 * frame * (1.0 - 1.0 / alphaNow));
                 lockFrames = frame / hop;   // up to the frame that starts at it
                 locked = true;
                 pos = (int) std::floor (apos);
@@ -197,14 +219,18 @@ private:
                 if (blockEnergy[b] > 8.0f * before + 1.0e-4f * block)
                     attackAt = b;
             }
+            int attackSample = -1;
             if (attackAt >= 0)
             {
                 float peak = 0.0f;
                 for (int i = attackAt * block; i < (attackAt + 1) * block; ++i)
                     peak = juce::jmax (peak, power[(size_t) i]);
-                int attackSample = attackAt * block;
+                attackSample = attackAt * block;
                 for (int i = (attackAt - 1) * block; i < (attackAt + 1) * block; ++i)
                     if (power[(size_t) i] > 0.01f * peak) { attackSample = i; break; }
+            }
+            if (attackSample >= 0)
+            {
 
                 // The frames over it go 1:1 (the attack is rebuilt as it is),
                 // starting with this one, placed so that the frame with the
@@ -236,6 +262,8 @@ private:
         }
         prevPos = pos;
         first = false;
+        if (hybrid)
+            hfAdvance (read, (double) hop / ha, pitchRatio, synthPos + hop);
         // Locked frames step 1:1; afterwards the analysis catches up, a
         // quarter of the gap per frame.
         idealPos += ha;
@@ -261,6 +289,232 @@ private:
         const auto x = juce::jlimit (-2.0, 2.0, octaves) * 2.0 + 2.0;
         const int i = juce::jlimit (0, 3, (int) std::floor (x));
         return at[i] + (x - i) * (at[i + 1] - at[i]);
+    }
+
+    //==============================================================================
+    // e3 generic's high band: grains of the high-passed source, centred at
+    // synthesis positions hfT (one per period), read from source positions hfP.
+    template <typename Reader>
+    void hfAdvance (Reader& read, double alpha, double pitchRatio, double until)
+    {
+        if (! hfStarted)
+        {
+            // Synthesis position s plays source startPos + (s - synthOffset) / alpha
+            // (where the vocoder's output starts).
+            hfStarted = true;
+            hfT = 0.0;
+            hfIdeal = startPos - synthOffset / alpha;
+            hfP = hfIdeal;
+            hfLastOnset = -1.0e9;
+            hfLockUntil = -1.0e9;
+        }
+        const double shift = attackShift (std::log2 (pitchRatio)) * pitchRatio;
+        while (hfT - hfMaxPeriod < until)
+        {
+            const int P = hfPeriod (read, hfP);
+            // An attack coming within the crossover filter's reach: from here
+            // the grains play the source 1:1 in the attack's timing (where the
+            // stretch puts it), so the attack and the split's ringing around
+            // it line up with the vocoder's band (FL plays every attack once,
+            // on time); the drift is caught up after it.
+            if (hfP >= hfLockUntil)
+            {
+                const int o = hfOnset (read, (int) std::lround (hfP) - P, 2 * P + hfHalfKernel);
+                if (o >= 0)
+                {
+                    hfLastOnset = o;
+                    const double at = hfT + ((double) o - hfIdeal) * alpha + shift;
+                    hfP = o - (at - hfT);
+                    hfLockUntil = o + P;
+                }
+            }
+            hfGrain (read, hfT, hfP, P, P);
+            hfT += P;
+            hfP += P;
+            hfIdeal += P / alpha;
+            if (hfP < hfLockUntil)
+                continue;
+            double dev = hfP - hfIdeal;
+            while (dev > 0.5 * P) { hfP -= P; dev -= P; }
+            while (dev < -0.5 * P) { hfP += P; dev += P; }
+        }
+    }
+
+    // The period at a source position: the normalised autocorrelation's peak
+    // over 1024 samples, between 90 and 600 samples at 44.1 kHz (kept for
+    // grains less than 128 samples apart).
+    template <typename Reader>
+    int hfPeriod (Reader& read, double p)
+    {
+        if (std::abs (p - hfEstPos) < hfEstReuse)
+            return hfEstPeriod;
+        hfEstPos = p;
+        const int W = hfWindow, lo = hfMinPeriod, hi = hfMaxPeriod;
+        const int a = (int) std::floor (p) - W / 2;
+        const int len = W + hi, N = 1 << hfEstOrder;
+        double eRef = 0.0;
+        for (int i = 0; i < N; ++i)
+        {
+            float l = 0.0f, r = 0.0f;
+            if (i < len)
+                read (a + i, l, r);
+            const float m = l + r;
+            hfSeg[(size_t) i] = m;
+            hfBuf[(size_t) i] = { i < W ? m : 0.0f, m };   // reference + i segment
+            if (i < W)
+                eRef += (double) m * m;
+        }
+        hfEstPeriod = hfFallback;
+        if (eRef < 1.0e-10)
+            return hfEstPeriod;
+        auto* f = ffts[hfEstOrder - 8].get();
+        f->perform (hfBuf.data(), hfWork.data(), false);
+        for (int k = 0; k < N; ++k)
+        {
+            const auto x = hfWork[(size_t) k], y = std::conj (hfWork[(size_t) ((N - k) & (N - 1))]);
+            const std::complex<float> ref (0.5f * (x + y)), seg ((x - y) * std::complex<float> (0.0f, -0.5f));
+            hfBuf[(size_t) k] = std::conj (ref) * seg;
+        }
+        f->perform (hfBuf.data(), hfWork.data(), true);
+        double eSeg = 0.0;
+        for (int i = 0; i < W; ++i)
+            eSeg += (double) hfSeg[(size_t) (lo + i)] * hfSeg[(size_t) (lo + i)];
+        double bestScore = 0.3;
+        for (int l = lo; l <= hi; ++l)
+        {
+            if (l > lo)
+                eSeg += (double) hfSeg[(size_t) (l + W - 1)] * hfSeg[(size_t) (l + W - 1)]
+                      - (double) hfSeg[(size_t) (l - 1)] * hfSeg[(size_t) (l - 1)];
+            const double score = hfWork[(size_t) l].real() / std::sqrt (eRef * juce::jmax (1.0e-12, eSeg));
+            if (score > bestScore) { bestScore = score; hfEstPeriod = l; }
+        }
+        return hfEstPeriod;
+    }
+
+    // A 128-sample block's energy (block k covers 128 k ...), cached.
+    template <typename Reader>
+    float hfBlockEnergy (Reader& read, int k)
+    {
+        const auto slot = (size_t) (k & (hfEnergySlots - 1));
+        if (hfEnergyIndex[slot] != k)
+        {
+            float e = 0.0f;
+            for (int i = 0; i < 128; ++i)
+            {
+                float l, r;
+                read (k * 128 + i, l, r);
+                e += l * l + r * r;
+            }
+            hfEnergyIndex[slot] = k;
+            hfEnergyValue[slot] = e;
+        }
+        return hfEnergyValue[slot];
+    }
+
+    // An attack starting in [p0, p0 + span): a 128-sample block far above the
+    // four before it (the vocoder's rule), to the first loud sample.
+    template <typename Reader>
+    int hfOnset (Reader& read, int p0, int span)
+    {
+        constexpr int block = 128;
+        const int k0 = (int) std::floor ((double) p0 / block), k1 = (int) std::floor ((double) (p0 + span - 1) / block);
+        for (int k = k0; k <= k1; ++k)
+        {
+            const int start = k * block;
+            if (start <= hfLastOnset + 1024)
+                continue;
+            const float before = 0.25f * (hfBlockEnergy (read, k - 1) + hfBlockEnergy (read, k - 2) + hfBlockEnergy (read, k - 3) + hfBlockEnergy (read, k - 4));
+            const float e = hfBlockEnergy (read, k);
+            if (e > 8.0f * before + 1.0e-4f * block)
+            {
+                float peak = 0.0f;
+                for (int i = 0; i < block; ++i)
+                {
+                    float l, r;
+                    read (start + i, l, r);
+                    peak = juce::jmax (peak, l * l + r * r);
+                }
+                for (int i = -block; i < block; ++i)
+                {
+                    float l, r;
+                    read (start + i, l, r);
+                    if (l * l + r * r > 0.01f * peak)
+                        return start + i;
+                }
+                return start;
+            }
+        }
+        return -1;
+    }
+
+    // The high-passed source, filtered once per block (overlap-save with the
+    // split's kernel) into a cache over the source positions in use.
+    template <typename Reader>
+    void hfEnsure (Reader& read, int lo, int hi)
+    {
+        const int B = hfBlock;
+        const int blo = (int) std::floor ((double) lo / B) * B, bhi = (int) std::ceil ((double) hi / B) * B;
+        if (hfCacheHi <= hfCacheLo || blo < hfCacheLo - hfCacheSize / 2 || bhi > hfCacheHi + hfCacheSize / 2)
+            hfCacheLo = hfCacheHi = blo;
+        while (blo < hfCacheLo)
+        {
+            while (hfCacheHi - (hfCacheLo - B) > hfCacheSize)
+                hfCacheHi -= B;
+            hfCacheLo -= B;
+            hfFilterBlock (read, hfCacheLo);
+        }
+        while (bhi > hfCacheHi)
+        {
+            while (hfCacheHi + B - hfCacheLo > hfCacheSize)
+                hfCacheLo += B;
+            hfFilterBlock (read, hfCacheHi);
+            hfCacheHi += B;
+        }
+    }
+
+    template <typename Reader>
+    void hfFilterBlock (Reader& read, int b)
+    {
+        const int M = hfHalfKernel, B = hfBlock, N = 1 << hfFilterOrder;
+        for (int i = 0; i < N; ++i)
+        {
+            float l = 0.0f, r = 0.0f;
+            if (i < B + 2 * M)
+                read (b - M + i, l, r);
+            hfBuf[(size_t) i] = { l, r };
+        }
+        auto* f = ffts[hfFilterOrder - 8].get();
+        f->perform (hfBuf.data(), hfWork.data(), false);
+        const auto& k = hfKernel[hfFilterOrder - 12];
+        for (int i = 0; i < N; ++i)
+            hfWork[(size_t) i] *= k[(size_t) i];
+        f->perform (hfWork.data(), hfBuf.data(), true);
+        for (int i = 0; i < B; ++i)
+        {
+            const auto slot = (size_t) ((b + i) & (hfCacheSize - 1));
+            hfCacheL[slot] = hfBuf[(size_t) (M + i)].real();
+            hfCacheR[slot] = hfBuf[(size_t) (M + i)].imag();
+        }
+    }
+
+    // One grain: the high-passed source around p, a rising Hann half over
+    // `left` samples and a falling one over `right` (a period each), added
+    // at synthesis t.
+    template <typename Reader>
+    void hfGrain (Reader& read, double t, double p, int left, int right)
+    {
+        const int tc = (int) std::lround (t), pc = (int) std::lround (p);
+        hfEnsure (read, pc - left, pc + right);
+        for (int i = -left; i < right; ++i)
+        {
+            const float w = i < 0 ? 0.5f + 0.5f * std::cos (hfPi * (float) i / (float) left)
+                                  : 0.5f + 0.5f * std::cos (hfPi * (float) i / (float) right);
+            const auto idx = (size_t) ((tc + i) & hfRingMask);
+            const auto slot = (size_t) ((pc + i) & (hfCacheSize - 1));
+            hfAccL[idx] += w * hfCacheL[slot];
+            hfAccR[idx] += w * hfCacheR[slot];
+            hfWeight[idx] += w;
+        }
     }
 
     void processSpectrum (int pos, double pitchRatio, float formantCents, bool attack);
@@ -295,4 +549,19 @@ private:
     std::vector<float> fifoL, fifoR;
     int fifoCount = 0;
     double readPos = 0.0;
+
+    // e3 generic's split and high-band grains (see hfAdvance)
+    static constexpr float hfPi = juce::MathConstants<float>::pi;
+    static constexpr int hfRingSize = 1 << 15, hfRingMask = hfRingSize - 1;
+    bool hybrid = false, hfStarted = false;
+    int lowBins = 0;                       // vocoder bins kept (below the split)
+    int hfWindow = 1024, hfMinPeriod = 90, hfMaxPeriod = 600, hfFallback = 256, hfEstOrder = 11, hfHalfKernel = 1023;
+    int hfFilterOrder = 12, hfBlock = 2048, hfCacheLo = 0, hfCacheHi = 0, hfEstPeriod = 256;
+    double hfEstPos = -1.0e9, hfEstReuse = 128.0;
+    static constexpr int hfCacheSize = 1 << 15, hfEnergySlots = 1 << 12;
+    double hfT = 0.0, hfP = 0.0, hfIdeal = 0.0, hfLastOnset = -1.0e9, hfLockUntil = -1.0e9;
+    std::vector<float> hfAccL, hfAccR, hfWeight, hfSeg, hfCacheL, hfCacheR, hfEnergyValue;
+    std::vector<int> hfEnergyIndex;
+    std::vector<float> hfKernel[2];         // high-pass spectra, FFT orders 12 and 13
+    std::vector<std::complex<float>> hfBuf, hfWork;
 };

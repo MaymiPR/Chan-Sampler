@@ -65,6 +65,23 @@ the reference source). Everything below is behaviour, not code.
   samples: at most 2 of 8 noise jumps reproduced). Without it the grain band
   cannot null on real material.
 
+## In the plugin (TimeStretch, e3 generic / Auto)
+
+- Vocoder bins below 1.485 kHz; above, PSOLA grains from a cached
+  high-passed copy of the source (overlap-save, the complement of a Hann
+  windowed sinc as long as the vocoder frame), period from the normalised
+  autocorrelation (reused within 512 samples). From an attack within the
+  crossover filter's reach the grains play 1:1 in the attack's timing (its
+  ringing lines up with the vocoder's band); drift caught up after it.
+- Fixed on the way (all vocoder modes): the start alignment used the
+  quarter-frame hop instead of the hop in use (steady content 256 samples
+  early unpitched); the note-start lock was skipped when the first window
+  began after the start (pitch down) and its target position disagreed with
+  the alignment afterwards.
+- In FL, 30 pitch cases: envelope 2.01 -> 1.59 dB, spectrum 2.44 -> 2.08 dB,
+  null (level fitted) -2.00 -> -1.93 dB. CPU: e3 generic 28 -> 38% of a core
+  for 32 voices.
+
 ## Open
 
 - The period estimator (range, method, resolution).
