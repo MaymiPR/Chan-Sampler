@@ -7,6 +7,7 @@
 #include "../Source/SampleData.h"
 #include "../Source/SamplerEngine.h"
 #include "../Source/Params.h"
+#include "../Source/TimeStretch.h"
 
 namespace
 {
@@ -75,6 +76,78 @@ namespace
     }
 
     EngineParams params() { return {}; }
+
+    // The stretcher alone, as a voice drives it (pitch from cents, length /
+    // speed), at 44.1 kHz where FL's e3 was measured.
+    constexpr double sr44 = 44100.0;
+    std::vector<float> stretch (const std::vector<float>& in, double cents, StretchMode mode = StretchMode::e3Generic, double speed = 1.0)
+    {
+        TimeStretcher st;
+        st.configure (mode, sr44);
+        st.reset (0.0);
+        const double ratio = std::pow (2.0, cents / 1200.0);
+        const int n = (int) (in.size() / speed);
+        std::vector<float> out ((size_t) n);
+        auto read = [&] (int k, float& l, float& r) { l = r = (k >= 0 && k < (int) in.size()) ? in[(size_t) k] : 0.0f; };
+        for (int i = 0; i < n; ++i)
+        {
+            float l, r;
+            st.next (read, ratio, speed, 0.0f, l, r);
+            out[(size_t) i] = l;
+        }
+        return out;
+    }
+
+    int firstAbove (const std::vector<float>& v, int from, int to, float level)
+    {
+        for (int i = from; i < to; ++i)
+            if (std::abs (v[(size_t) i]) > level) return i;
+        return -1;
+    }
+
+    float peakOf (const std::vector<float>& v, int from, int to)
+    {
+        float p = 0.0f;
+        for (int i = from; i < to; ++i) p = juce::jmax (p, std::abs (v[(size_t) i]));
+        return p;
+    }
+
+    // Best lag (|lag| <= range) of b against a over [from, from + len).
+    int bestLag (const std::vector<float>& a, const std::vector<float>& b, int from, int len, int range)
+    {
+        double best = -1.0e30; int lag = 0;
+        for (int d = -range; d <= range; ++d)
+        {
+            double c = 0, ea = 0, eb = 0;
+            for (int i = from; i < from + len; ++i)
+            {
+                c += a[(size_t) i] * b[(size_t) (i + d)];
+                ea += a[(size_t) i] * a[(size_t) i];
+                eb += b[(size_t) (i + d)] * b[(size_t) (i + d)];
+            }
+            const double v = c / std::sqrt (ea * eb + 1.0e-20);
+            if (v > best) { best = v; lag = d; }
+        }
+        return lag;
+    }
+
+    std::vector<float> lowpass (const std::vector<float>& v, double hz)
+    {
+        juce::dsp::IIR::Filter<float> a, b;   // 4th order, so the high band is out of the way
+        a.coefficients = b.coefficients = juce::dsp::IIR::Coefficients<float>::makeLowPass (sr44, (float) hz);
+        std::vector<float> out (v.size());
+        for (size_t i = 0; i < v.size(); ++i) out[i] = b.processSample (a.processSample (v[i]));
+        return out;
+    }
+
+    std::vector<float> bandpass (const std::vector<float>& v, double hz, double q)
+    {
+        juce::dsp::IIR::Filter<float> f;
+        f.coefficients = juce::dsp::IIR::Coefficients<float>::makeBandPass (sr44, (float) hz, (float) q);
+        std::vector<float> out (v.size());
+        for (size_t i = 0; i < v.size(); ++i) out[i] = f.processSample (v[i]);
+        return out;
+    }
 
     juce::MidiMessage on (int note)  { return juce::MidiMessage::noteOn (1, note, 1.0f); }
     juce::MidiMessage off (int note) { return juce::MidiMessage::noteOff (1, note); }
@@ -224,6 +297,124 @@ int main()
         auto beats = render (*oneSec, t, 3 * sec, { { 0, on (60) }, { (int) (2.5 * sec), off (60) } });
         check (std::abs (lastSound (beats) - 2 * sec) < sec / 20, "TIME 4 beats at 120 BPM lasts 2 s", juce::String (lastSound (beats)));
         check (std::abs (frequency (beats, sec / 10, sec) - 440) < 8, "TIME stretch keeps pitch", juce::String (frequency (beats, sec / 10, sec), 1));
+    }
+
+    // e3 generic (FL's structure: vocoder below 1.485 kHz, grains above;
+    // nulltest/E3_NOTES.md). Regression checks of what was measured against FL.
+    {
+        const int n44 = (int) sr44;
+        // A 1 kHz click after silence lands where FL's e3 puts it: 5 samples
+        // late at +1200 cents, 6-13 early at -1200 (10% onset; FL: -6).
+        std::vector<float> click ((size_t) n44, 0.0f);
+        for (int i = 0; i < 400; ++i)
+            click[(size_t) (22050 + i)] = 0.8f * (float) (std::sin (juce::MathConstants<double>::twoPi * 1000.0 * i / sr44) * std::exp (-i / 100.0));
+        for (const double cents : { 1200.0, -1200.0 })
+        {
+            auto y = stretch (click, cents);
+            const auto pk = peakOf (y, 20000, 24000);
+            const int on = firstAbove (y, 20000, 24000, 0.1f * pk) - 22050;
+            const bool ok = cents > 0 ? std::abs (on - 5) <= 2 : (on <= -5 && on >= -15);
+            check (ok && pk > 0.3f, "e3: click timing at " + juce::String (cents, 0) + " cents", juce::String (on) + " samples, peak " + juce::String (pk, 2));
+        }
+
+        // FL times an attack by its first sample near the peak (95% of the
+        // loudest within 400 samples): a noise burst whose loudest sample is
+        // 200 in starts 200 (1 - 1 / ratio) late at +700 cents.
+        {
+            juce::Random rnd (5);
+            std::vector<float> burst ((size_t) n44, 0.0f);
+            for (int i = 0; i < 3000; ++i) burst[(size_t) (22050 + i)] = 0.3f * (rnd.nextFloat() * 2.0f - 1.0f);
+            burst[22050 + 200] = 0.95f;
+            auto y = stretch (burst, 700.0);
+            const int on = firstAbove (y, 20000, 24000, 0.02f) - 22050;
+            const auto expect = 200.0 * (1.0 - 1.0 / std::pow (2.0, 700.0 / 1200.0));
+            check (std::abs (on - expect) <= 6, "e3: attack timed by its peak", juce::String (on) + " samples late (want " + juce::String (expect, 0) + ")");
+        }
+
+        // Steady tones in both bands keep their level and move by the pitch.
+        for (const double hz : { 300.0, 4000.0 })
+            for (const double cents : { -700.0, 700.0 })
+            {
+                std::vector<float> tone ((size_t) n44);
+                for (int i = 0; i < n44; ++i) tone[(size_t) i] = 0.5f * (float) std::sin (juce::MathConstants<double>::twoPi * hz * i / sr44);
+                auto y = stretch (tone, cents);
+                const auto f = frequency (y, n44 / 4, n44 * 3 / 4) * sr44 / rate;   // frequency() counts at the engine's rate
+                const auto expect = hz * std::pow (2.0, cents / 1200.0);
+                const auto gain = rms (y, n44 / 4, n44 * 3 / 4) / rms (tone, n44 / 4, n44 * 3 / 4);
+                check (std::abs (f / expect - 1.0) < 0.01 && std::abs (juce::Decibels::gainToDecibels (gain)) < 1.0f,
+                       "e3: " + juce::String (hz, 0) + " Hz tone at " + juce::String (cents, 0) + " cents",
+                       juce::String (f, 1) + " Hz (want " + juce::String (expect, 1) + "), " + juce::String (juce::Decibels::gainToDecibels (gain), 2) + " dB");
+            }
+
+        // Noise comes out level across the split (stretched x1.25).
+        {
+            juce::Random rnd (7);
+            std::vector<float> noise ((size_t) (2 * n44));
+            for (auto& x : noise) x = 0.3f * (rnd.nextFloat() * 2.0f - 1.0f);
+            auto y = stretch (noise, 0.0, StretchMode::e3Generic, 1.0 / 1.25);
+            auto ratioAt = [&] (double hz)
+            {
+                auto a = bandpass (noise, hz, 4.0), b = bandpass (y, hz, 4.0);
+                return juce::Decibels::gainToDecibels (rms (b, n44 / 4, n44 * 3 / 2) / rms (a, n44 / 4, n44 * 3 / 2));
+            };
+            const auto split = ratioAt (1485.0), low = ratioAt (600.0), high = ratioAt (4000.0);
+            check (std::abs (split - high) < 1.5f && std::abs (low - high) < 1.5f, "e3: noise level across the 1.485 kHz split",
+                   juce::String (low, 2) + " / " + juce::String (split, 2) + " / " + juce::String (high, 2) + " dB");
+        }
+
+        // A kick an octave down starts at full level and keeps its length.
+        {
+            std::vector<float> kick ((size_t) n44, 0.0f);
+            for (int i = 0; i < 6000; ++i)
+                kick[(size_t) i] = 0.8f * (float) (std::sin (juce::MathConstants<double>::twoPi * 60.0 * i / sr44) * std::exp (-i / 1200.0));
+            auto y = stretch (kick, -1200.0);
+            int lastIn = 0, lastOut = 0;
+            for (int i = 0; i < n44; ++i)
+            {
+                if (std::abs (kick[(size_t) i]) > 0.01f) lastIn = i;
+                if (std::abs (y[(size_t) i]) > 0.01f) lastOut = i;
+            }
+            const auto startGain = peakOf (y, 0, 512) / peakOf (kick, 0, 256);
+            check (startGain > 0.6f && std::abs (lastOut - lastIn) < lastIn / 6, "e3: kick an octave down: start level and length",
+                   "start x" + juce::String (startGain, 2) + ", ends " + juce::String (lastOut) + " vs " + juce::String (lastIn));
+        }
+
+        // Steady sound stays on time after a note's start: noise stretched a
+        // hair (x1.0001) comes out as itself in both bands, not shifted.
+        {
+            juce::Random rnd (11);
+            std::vector<float> noise ((size_t) n44);
+            for (auto& x : noise) x = 0.3f * (rnd.nextFloat() * 2.0f - 1.0f);
+            auto y = stretch (noise, 0.0, StretchMode::e3Generic, 0.9999);
+            auto yl = lowpass (y, 1000.0), xl = lowpass (noise, 1000.0);
+            const int lagLow = bestLag (xl, yl, 20000, 4096, 400);
+            const int lagAll = bestLag (noise, y, 20000, 4096, 400);
+            check (std::abs (lagLow - 2) <= 3 && std::abs (lagAll - 2) <= 3, "e3: steady sound on time", "low band " + juce::String (lagLow) + ", all " + juce::String (lagAll) + " samples");
+        }
+
+        // Every stretch mode survives extreme and changing ratios.
+        {
+            juce::Random rnd (3);
+            std::vector<float> in ((size_t) n44);
+            for (int i = 0; i < n44; ++i) in[(size_t) i] = (i % 9000 < 300 ? 0.9f : 0.2f) * (rnd.nextFloat() * 2.0f - 1.0f);
+            bool ok = true;
+            for (int m = 0; m <= (int) StretchMode::e2Speech; ++m)
+            {
+                TimeStretcher st;
+                st.configure ((StretchMode) m, sr44);
+                st.reset (0.0);
+                auto read = [&] (int k, float& l, float& r) { l = r = (k >= 0 && k < n44) ? in[(size_t) k] : 0.0f; };
+                for (int i = 0; i < 60000; ++i)
+                {
+                    const double inc = std::pow (2.0, ((i / 2000) % 9 - 4) * 1.1), tr = std::pow (2.0, ((i / 3100) % 7 - 3) * 1.2);
+                    float l, r;
+                    st.next (read, inc, tr, 0.0f, l, r);
+                    ok = ok && std::isfinite (l) && std::isfinite (r) && std::abs (l) < 50.0f;
+                    if (i == 30000) st.reset (1234.0);
+                }
+            }
+            check (ok, "stretcher: all modes finite at extreme, changing ratios");
+        }
     }
 
     // Stress: every filter type, envelopes, LFOs and extreme pitch stay finite.
