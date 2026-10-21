@@ -97,8 +97,6 @@ public:
     ParamKnob (juce::RangedAudioParameter&, SliderStyle);
 
     ParamMenu menu;
-    // Kept for existing callers: extra menu entries.
-    std::vector<std::pair<juce::String, float>>& presets = menu.presets;
 
     // Called after the user changes the value (drag, wheel or the menu), not
     // when the host or automation moves it.

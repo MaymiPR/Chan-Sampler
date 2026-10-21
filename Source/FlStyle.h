@@ -28,24 +28,12 @@ namespace fl
         const juce::Colour text       { 0xffcfd1d2 };
         const juce::Colour title      { 0xffe2e3e4 };
         const juce::Colour dim        { 0xff8a8d8f };
-        const juce::Colour wavePink   { 0xffd9c6c6 };   // waveform edges
-        const juce::Colour waveCream  { 0xfff6e4e4 };   // waveform line
-        const juce::Colour waveBg     { 0xff201617 };   // sample view
-        const juce::Colour waveBgPre  { 0xff0c0809 };   // before the Start flag
-        const juce::Colour waveGrid   { 0xff2b1e1f };
-        const juce::Colour watermark  { 0xff473221 };
-        const juce::Colour loopFill   { 0xff3a1a1c };
-        const juce::Colour loopRed    { 0xffb52a2a };
-        const juce::Colour startGold  { 0xffc9a286 };
-        const juce::Colour playOrange { 0xffff6a1f };   // playback bar
-        const juce::Colour keyWhite   { 0xffdee3ec };
-        const juce::Colour keyBlack   { 0xff2b2c2d };
-        const juce::Colour keyRoot    { 0xff4a9cff };
+        const juce::Colour startGold  { 0xffc9a286 };   // sample view: Start flag
+        const juce::Colour playOrange { 0xffff6a1f };   // playback bar (overview)
         const juce::Colour digiRed    { 0xff8c424a };
         const juce::Colour digiGrey   { 0xff5b6063 };
         const juce::Colour tickPink   { 0xffe0606a };
         const juce::Colour menuBg     { 0xff343432 };
-        const juce::Colour menuHeader { 0xff51514d };
         const juce::Colour menuText   { 0xffe8a06a };   // FL's warm menu text
         const juce::Colour comboBg    { 0xff1c1e1f };
         const juce::Colour buttonBg   { 0xff1a1b1d };

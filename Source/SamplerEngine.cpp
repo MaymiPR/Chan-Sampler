@@ -1003,7 +1003,6 @@ void SamplerEngine::updateControls (Voice& v, int numSamples, const SampleData& 
         lfo[i] = v.lfo[i].advance (targets[i]->lfo, dt, p.bpm, v.songLfoStart + dt);
     }
 
-    const float volEnv = 1.0f;
     if (p.volT.envOn && v.env[1].isIdle() && v.envStarted)
         v.active = false;
 
@@ -1071,7 +1070,7 @@ void SamplerEngine::updateControls (Voice& v, int numSamples, const SampleData& 
     // (measured in FL: a full-depth volume LFO swings the gain over 0..2).
     // The tremolo is applied per sample in renderRange (FL's LFO moves
     // linearly between song ticks, which the control blocks would blur).
-    v.gainTarget = p.volume * velocityGain (v.velocity) * volEnv * v.mods.gain;
+    v.gainTarget = p.volume * velocityGain (v.velocity) * v.mods.gain;
     if (v.firstBlock)
     {
         v.gain = v.gainTarget;
@@ -1087,7 +1086,6 @@ void SamplerEngine::updateControls (Voice& v, int numSamples, const SampleData& 
 void SamplerEngine::renderRange (juce::AudioBuffer<float>& out, int start, int num,
                                  const SampleData& s, const EngineParams& p)
 {
-    const auto spec = declickSpec (p.declick);
     const auto loop = loopFrames (s, p);
     const int total = s.getTotalFrames();
     const auto* srcL = s.audio.getReadPointer (0);
@@ -1097,7 +1095,6 @@ void SamplerEngine::renderRange (juce::AudioBuffer<float>& out, int start, int n
     // fades it out over the declick out-time (measured: 10 ms cosine for
     // "Out only"), instead of cutting off.
     const int endLimit = s.playEnd;
-    juce::ignoreUnused (spec);
     const bool granular = isGranular (p.stretchMode);
     const bool sliceMap = p.stretchMode == StretchMode::sliceMap;
     const bool slicesReset = resetsAtOnsets (p.stretchMode);

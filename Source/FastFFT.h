@@ -42,8 +42,6 @@ public:
 
     FastFFT (int order, Scratch& s) : n (1 << order), t (tables (order)), scratch (s) {}
 
-    int getSize() const noexcept { return n; }
-
     void perform (const std::complex<float>* in, std::complex<float>* out, bool inverse) const noexcept
     {
         const float sign = inverse ? -1.0f : 1.0f;   // inverse: conj in, conj out

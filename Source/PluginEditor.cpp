@@ -6,7 +6,6 @@
 
 namespace
 {
-    const juce::String notAvailable = "Not available in Chan Sampler: ";
     const juce::String repository = "https://github.com/MaymiPR/ChanSampler";
 
     // The product name in the top bar: a click opens the plugin's own menu
@@ -128,15 +127,6 @@ juce::Slider& ChanSamplerEditor::knob (juce::Component& parent, const juce::Stri
     return s;
 }
 
-juce::Slider& ChanSamplerEditor::deadKnob (juce::Component& parent, int x, int y, int size, const juce::String& what)
-{
-    auto& s = own (std::make_unique<juce::Slider> (juce::Slider::RotaryHorizontalVerticalDrag, juce::Slider::NoTextBox),
-                   parent, { x, y, size, size });
-    s.setEnabled (false);
-    s.setTooltip (notAvailable + what);
-    return s;
-}
-
 juce::Slider& ChanSamplerEditor::hslider (juce::Component& parent, const juce::String& paramId, int x, int y, int w, int h)
 {
     auto* param = samplerProcessor.apvts.getParameter (paramId);
@@ -166,15 +156,6 @@ juce::ToggleButton& ChanSamplerEditor::led (juce::Component& parent, const juce:
     return b;
 }
 
-juce::ToggleButton& ChanSamplerEditor::deadLed (juce::Component& parent, const juce::String& t, int x, int y, int w, int h,
-                                                const juce::String& what)
-{
-    auto& b = own (std::make_unique<juce::ToggleButton> (t), parent, { x, y, w, h });
-    b.setEnabled (false);
-    b.setTooltip (notAvailable + what);
-    return b;
-}
-
 juce::ComboBox& ChanSamplerEditor::combo (juce::Component& parent, const juce::String& paramId, int x, int y, int w, int h)
 {
     auto& c = own (std::make_unique<juce::ComboBox>(), parent, { x, y, w, h });
@@ -194,16 +175,6 @@ fl::DigiBox& ChanSamplerEditor::digi (juce::Component& parent, const juce::Strin
     sliderAttachments.push_back (std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (samplerProcessor.apvts, paramId, d));
     d.setDoubleClickReturnValue (true, param->convertFrom0to1 (param->getDefaultValue()));
     d.setTooltip (param->getName (64));
-    return d;
-}
-
-fl::DigiBox& ChanSamplerEditor::deadDigi (juce::Component& parent, const juce::String& t, int x, int y, int w, int h,
-                                          bool red, const juce::String& what)
-{
-    auto& d = own (std::make_unique<fl::DigiBox> (red), parent, { x, y, w, h });
-    d.setFixedText (t);
-    d.setEnabled (false);
-    d.setTooltip (notAvailable + what);
     return d;
 }
 
@@ -372,7 +343,7 @@ void ChanSamplerEditor::buildSampleSheet()
                 setParam (pid::stretchTime, bpm > 0 ? (float) tempo::beats (raw->audio.getNumSamples(), raw->sampleRate, bpm) : 0.0f);
             });
         };
-        t.presets = { { "(none)", 0.0f }, { "Autodetect...", 0.0f }, { "Project tempo", 0.0f }, { "-", 0.0f }, { "1 beat", 1.0f }, { "2 beats", 2.0f }, { "1 bar", 4.0f },
+        t.menu.presets = { { "(none)", 0.0f }, { "Autodetect...", 0.0f }, { "Project tempo", 0.0f }, { "-", 0.0f }, { "1 beat", 1.0f }, { "2 beats", 2.0f }, { "1 bar", 4.0f },
                       { "2 bars", 8.0f }, { "3 bars", 12.0f }, { "4 bars", 16.0f } };
     }
     caption (stretch, "TIME", 90, 61, 28, 7);

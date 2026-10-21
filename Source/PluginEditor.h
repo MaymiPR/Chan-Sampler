@@ -34,14 +34,11 @@ private:
     // Builders: positions are FL form coordinates relative to the parent.
     juce::Slider& knob (juce::Component& parent, const juce::String& paramId, int x, int y, int size,
                         juce::Colour ring = fl::colour::amber);
-    juce::Slider& deadKnob (juce::Component& parent, int x, int y, int size, const juce::String& what);
     juce::Slider& hslider (juce::Component& parent, const juce::String& paramId, int x, int y, int w, int h);
     juce::Label& caption (juce::Component& parent, const juce::String& text, int x, int y, int w, int h);
     juce::ToggleButton& led (juce::Component& parent, const juce::String& paramId, const juce::String& text, int x, int y, int w, int h);
-    juce::ToggleButton& deadLed (juce::Component& parent, const juce::String& text, int x, int y, int w, int h, const juce::String& what);
     juce::ComboBox& combo (juce::Component& parent, const juce::String& paramId, int x, int y, int w, int h);
     fl::DigiBox& digi (juce::Component& parent, const juce::String& paramId, int x, int y, int w, int h, bool red);
-    fl::DigiBox& deadDigi (juce::Component& parent, const juce::String& text, int x, int y, int w, int h, bool red, const juce::String& what);
     void showAboutMenu (juce::Component& target);
     juce::Label& text (juce::Component& parent, const juce::String& s, int x, int y, int w, int h, float size, bool bold = false,
                        juce::Justification just = juce::Justification::centredLeft);

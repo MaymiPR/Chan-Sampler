@@ -426,14 +426,11 @@ int main()
             auto y = stretch (click, 0.0, StretchMode::e3Mono, speed);
             bool ok = true;
             juce::String detail;
-            for (const int at : { 22050 })
-            {
-                const int want = (int) std::lround (at / speed);
-                const auto pk = peakOf (y, want - 2000, want + 2000);
-                const int on = firstAbove (y, want - 2000, want + 2000, 0.1f * pk) - want;
-                ok = ok && std::abs (on) <= 8 && pk > 0.7f;
-                detail << on << " samples, peak " << juce::String (pk, 2);
-            }
+            const int want = (int) std::lround (22050 / speed);   // the click, at its stretched time
+            const auto pk = peakOf (y, want - 2000, want + 2000);
+            const int on = firstAbove (y, want - 2000, want + 2000, 0.1f * pk) - want;
+            ok = ok && std::abs (on) <= 8 && pk > 0.7f;
+            detail << on << " samples, peak " << juce::String (pk, 2);
             check (ok, "e3 mono: click on time at x" + juce::String (1.0 / speed, 3), detail);
         }
         {
@@ -664,8 +661,10 @@ int main()
                    juce::String ("knob text ") + c.id + " @" + juce::String (c.pos, 4),
                    text + " -> " + juce::String (back, 4));
         }
-        check (std::abs (flLfoHz ((32950.0f - 200.0f) / 65336.0f) - 0.5f) < 0.01f, "LFO speed default = 0.5 Hz",
-               juce::String (flLfoHz ((32950.0f - 200.0f) / 65336.0f), 3));
+        // The default speed is 416 ticks at 130 BPM: 0.5 Hz (FL's 2 s).
+        const auto period = flLfoPeriodT130 ((32950.0f - 200.0f) / 65336.0f);
+        check (std::round (period) == 416.0, "LFO speed default = 0.5 Hz",
+               juce::String (period, 2) + " ticks = " + juce::String (130.0 / 60.0 * 96.0 / std::round (period), 3) + " Hz");
     }
 
     std::cout << "\n" << (failures == 0 ? "All tests passed" : juce::String (failures) + " test(s) failed") << "\n";

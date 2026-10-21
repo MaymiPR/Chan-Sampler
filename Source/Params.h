@@ -169,19 +169,15 @@ float flEnvKnobForSeconds (float seconds);
 // times measured in FL (about 64 s at the maximum).
 float flEnvSeconds (float knob);
 
-// FL's LFO is tempo-synced (96 ticks per beat). Speed knob (raw = 200 + pos *
-// 65336) to the period: max (3, round (13.5755 * 982.5^pos - 13.2745)) ticks,
-// fitted to 42 speeds measured from FL renders (default raw 32950 = 416 ticks
-// = 2 s at 130 BPM). The predelay knob (raw = 100 + pos * 65436) uses the same
-// law on its raw value, without the 3-tick minimum (measured at 11 values).
-int flLfoPeriodTicks (float speedKnob);
-int flLfoDelayTicks (float delayKnob);
-// The same lengths before rounding (ticks at 130 BPM); the LFO rounds them at
-// the reference tempo (see dsp::Lfo).
+// FL's LFO runs on the song's ticks (96 per beat). The speed knob (raw = 200
+// + pos * 65336) gives the period in ticks at 130 BPM: 13.5755 * 982.5^pos -
+// 13.2745, fitted to 42 speeds measured from FL renders (default raw 32950 =
+// 416 ticks = 2 s). The predelay knob (raw = 100 + pos * 65436) follows the
+// same law on its raw value (measured at 11 values). Unrounded: the LFO
+// rounds them at the reference tempo, the period to at least 3 ticks (see
+// dsp::Lfo).
 double flLfoPeriodT130 (float speedKnob);
 double flLfoDelayT130 (float delayKnob);
-// Hz at a tempo, for display.
-inline float flLfoHz (float knob, double bpm = 130.0) { return (float) (bpm / 60.0 * 96.0 / flLfoPeriodTicks (knob)); }
 
 // Portamento slide knob (raw = pos * 1660) to steps (16ths).
 double flSlideSteps (float knob);

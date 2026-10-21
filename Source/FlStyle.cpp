@@ -635,27 +635,8 @@ void drawIcon (juce::Graphics& g, Icon icon, juce::Rectangle<float> a, juce::Col
         }
         case Icon::folder:
         case Icon::locate:
-        {
-            juce::Path p;
-            p.startNewSubPath (px (0.1f, 0.25f));
-            p.lineTo (px (0.4f, 0.25f));
-            p.lineTo (px (0.48f, 0.35f));
-            p.lineTo (px (0.9f, 0.35f));
-            p.lineTo (px (0.9f, 0.82f));
-            p.lineTo (px (0.1f, 0.82f));
-            p.closeSubPath();
-            g.strokePath (p, juce::PathStrokeType (stroke));
-            if (icon == Icon::locate)
-            {
-                g.drawLine (juce::Line<float> (px (0.5f, 0.45f), px (0.5f, 0.72f)), stroke);
-                g.drawLine (juce::Line<float> (px (0.5f, 0.72f), px (0.65f, 0.72f)), stroke);
-            }
-            break;
-        }
         case Icon::close:
-            g.drawLine (juce::Line<float> (px (0.25f, 0.25f), px (0.75f, 0.75f)), stroke * 1.2f);
-            g.drawLine (juce::Line<float> (px (0.75f, 0.25f), px (0.25f, 0.75f)), stroke * 1.2f);
-            break;
+            break;   // file buttons only: IconButton draws them pixel by pixel
     }
 }
 

@@ -197,19 +197,6 @@ float flEnvSeconds (float knob)
     return (float) (0.001 * (std::exp (l0 + (l1 - l0) * t) + c));
 }
 
-namespace
-{
-    double lfoTicksForRaw (double raw)
-    {
-        return std::round (13.5755 * std::pow (982.5, (raw - 200.0) / 65336.0) - 13.2745);
-    }
-}
-
-int flLfoPeriodTicks (float speedKnob)
-{
-    return (int) juce::jmax (3.0, lfoTicksForRaw (200.0 + juce::jlimit (0.0f, 1.0f, speedKnob) * 65336.0));
-}
-
 double flLfoPeriodT130 (float speedKnob)
 {
     return 13.5755 * std::pow (982.5, (double) juce::jlimit (0.0f, 1.0f, speedKnob)) - 13.2745;
@@ -217,13 +204,9 @@ double flLfoPeriodT130 (float speedKnob)
 
 double flLfoDelayT130 (float delayKnob)
 {
+    // The speed law on the predelay's raw value (100 .. 65536).
     const auto raw = 100.0 + juce::jlimit (0.0f, 1.0f, delayKnob) * 65436.0;
     return juce::jmax (0.0, 13.5755 * std::pow (982.5, (raw - 200.0) / 65336.0) - 13.2745);
-}
-
-int flLfoDelayTicks (float delayKnob)
-{
-    return (int) juce::jmax (0.0, lfoTicksForRaw (100.0 + juce::jlimit (0.0f, 1.0f, delayKnob) * 65436.0));
 }
 
 int flSlideTicks (float knob)

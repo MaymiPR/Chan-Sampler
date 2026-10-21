@@ -57,7 +57,7 @@ double flResonance (double res)
     return 1.0 - std::exp (sum);
 }
 
-double flBiquadF0 (double u, double)
+double flBiquadF0 (double u)
 {
     // LP/BP/HP/BS centre frequency (Hz) at Mod X raw 8, 16, ..., 240: FL's curve
     // traced tick by tick with a Mod X LFO (nulltest/cases/lfo_cases.py l_modx_t1;

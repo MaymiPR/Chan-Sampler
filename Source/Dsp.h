@@ -58,7 +58,6 @@ namespace dsp
         static constexpr double fullRangeSeconds = 389.5 / 44100.0;   // the fastest move, 0 to 1
 
         void noteOn()  { stage = Stage::delay; ticks = 0; phase = 0; from = to = out = 0; segment = 0; pending = true; releaseNext = false; ended = false; }
-        void reset()   { stage = Stage::idle; from = to = out = 0; pending = false; }
         bool isIdle() const noexcept     { return stage == Stage::idle && ! pending && from == 0.0f && to == 0.0f; }
         // The release has reached the tick where it is silent (the level may
         // still be moving there). FL ends the voice there with its declick fade.
@@ -308,7 +307,7 @@ namespace dsp
     //  LPx2 / SVF LPx2 : two stages in series (SVF LPx2 ~ -48 dB null, LPx2 approximate).
     double flOnePoleF (double u);
     double flResonance (double res);
-    double flBiquadF0 (double u, double sampleRate);
+    double flBiquadF0 (double u);   // Hz
     double flBiquadQ (double res);
     double flLpx2Gain (double u, double res);   // LPx2's level compensation (measured)
 
@@ -344,7 +343,7 @@ namespace dsp
                     break;
                 default:
                 {
-                    const auto w = juce::jmin (3.0, juce::MathConstants<double>::twoPi * flBiquadF0 (u, sampleRate) / sampleRate);   // FL caps at 3.0 rad (measured)
+                    const auto w = juce::jmin (3.0, juce::MathConstants<double>::twoPi * flBiquadF0 (u) / sampleRate);   // FL caps at 3.0 rad (measured)
                     const auto Q = flBiquadQ (res);
                     comp = type == FilterType::lpx2 ? flLpx2Gain (u, res) : 1.0;
                     const auto alpha = std::sin (w) / (2.0 * Q), c = std::cos (w), a0 = 1.0 + alpha;
