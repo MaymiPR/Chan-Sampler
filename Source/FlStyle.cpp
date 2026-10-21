@@ -729,31 +729,76 @@ namespace
         g.drawText (label, button, juce::Justification::centred, false);
     }
 
-    void paintDialogFrame (juce::Graphics& g, juce::Rectangle<int> box, const juce::String& title, juce::Rectangle<int> closeBox, bool closeHover)
+    // What FL's dialogs share: the frame with its title and close cross, the
+    // panel under the title, and closing (the dialog deletes itself once the
+    // event that closed it is done).
+    class DialogBase : public juce::Component
     {
-        g.fillAll (juce::Colours::black.withAlpha (0.25f));   // keeps the eye on the dialog
-        g.setColour (juce::Colours::black.withAlpha (0.35f));
-        g.fillRect (box.translated (2, 3));
-        g.setColour (dlgEdge);
-        g.fillRect (box);
-        g.setColour (dlgBg);
-        g.fillRect (box.reduced (1));
-        g.setColour (dlgTitle);
-        g.setFont (font (12.5f));
-        g.drawText (title, box.getX() + 6, box.getY(), box.getWidth() - 34, 25, juce::Justification::centredLeft, true);
-        const auto cc = closeBox.toFloat().reduced (4.5f);
-        g.setColour (closeHover ? juce::Colours::white : dlgTitle);
-        g.drawLine (cc.getX(), cc.getY(), cc.getRight(), cc.getBottom(), 1.3f);
-        g.drawLine (cc.getRight(), cc.getY(), cc.getX(), cc.getBottom(), 1.3f);
-    }
+    public:
+        explicit DialogBase (const juce::String& t) : title (t)
+        {
+            setWantsKeyboardFocus (true);
+        }
 
-    class Dialog : public juce::Component
+    protected:
+        static constexpr int titleH = 25, buttonH = 31;
+
+        // A box boxW wide and up to boxH tall in the middle, the panel under
+        // its title, the close cross in its corner.
+        void layoutFrame (int boxW, int boxH, int panelH)
+        {
+            box = juce::Rectangle<int> (boxW, juce::jmin (boxH, getHeight() - 12)).withCentre (getLocalBounds().getCentre());
+            panel = juce::Rectangle<int> (box.getX() + 4, box.getY() + titleH + 1, boxW - 8, panelH);
+            closeBox = juce::Rectangle<int> (box.getRight() - 22, box.getY() + 4, 17, 17);
+        }
+
+        void paintFrame (juce::Graphics& g) const
+        {
+            g.fillAll (juce::Colours::black.withAlpha (0.25f));   // keeps the eye on the dialog
+            g.setColour (juce::Colours::black.withAlpha (0.35f));
+            g.fillRect (box.translated (2, 3));
+            g.setColour (dlgEdge);
+            g.fillRect (box);
+            g.setColour (dlgBg);
+            g.fillRect (box.reduced (1));
+            g.setColour (dlgTitle);
+            g.setFont (font (12.5f));
+            g.drawText (title, box.getX() + 6, box.getY(), box.getWidth() - 34, titleH, juce::Justification::centredLeft, true);
+            const auto cc = closeBox.toFloat().reduced (4.5f);
+            g.setColour (closeHover ? juce::Colours::white : dlgTitle);
+            g.drawLine (cc.getX(), cc.getY(), cc.getRight(), cc.getBottom(), 1.3f);
+            g.drawLine (cc.getRight(), cc.getY(), cc.getX(), cc.getBottom(), 1.3f);
+            g.setColour (dlgPanelEdge);
+            g.fillRect (panel);
+            g.setColour (dlgPanel);
+            g.fillRect (panel.reduced (1));
+        }
+
+        // Hides the dialog and deletes it after the current event; then runs after.
+        void dismiss (std::function<void()> after = {})
+        {
+            setVisible (false);
+            juce::Component::SafePointer<DialogBase> self (this);
+            juce::MessageManager::callAsync ([self, after]
+            {
+                delete self.getComponent();
+                if (after != nullptr)
+                    after();
+            });
+        }
+
+        juce::String title;
+        juce::Rectangle<int> box, panel, closeBox;
+        bool closeHover = false;
+    };
+
+    // A message (OK), or a properties sheet of label / value rows.
+    class Dialog : public DialogBase
     {
     public:
         Dialog (const juce::String& t, const juce::String& m, bool w, InfoRows r = {})
-            : title (t), message (m), warning (w), rows (std::move (r))
+            : DialogBase (t), message (m), warning (w), rows (std::move (r))
         {
-            setWantsKeyboardFocus (true);
         }
 
         void resized() override
@@ -763,29 +808,21 @@ namespace
                 layoutTable();
                 return;
             }
-            constexpr int titleH = 25, signW = 46, buttonH = 31;
+            constexpr int signW = 46;
             const int boxW = juce::jmin (380, getWidth() - 24);
             juce::AttributedString as;
             as.append (message, font (12.5f), dlgText);
             as.setWordWrap (juce::AttributedString::byWord);
             text.createLayout (as, (float) (boxW - 8 - signW - 16));
             const int panelH = juce::jmax (64, (int) std::ceil (text.getHeight()) + 32);
-            const int boxH = titleH + 1 + panelH + 12 + buttonH + 12;
-            box = juce::Rectangle<int> (boxW, juce::jmin (boxH, getHeight() - 12)).withCentre (getLocalBounds().getCentre());
-            panel = juce::Rectangle<int> (box.getX() + 4, box.getY() + titleH + 1, boxW - 8, panelH);
+            layoutFrame (boxW, titleH + 1 + panelH + 12 + buttonH + 12, panelH);
             textArea = panel.toFloat().withTrimmedLeft ((float) signW).reduced (8.0f, 16.0f);
             button = juce::Rectangle<int> (116, buttonH).withCentre ({ box.getCentreX(), panel.getBottom() + 12 + buttonH / 2 });
-            closeBox = juce::Rectangle<int> (box.getRight() - 22, box.getY() + 4, 17, 17);
         }
 
         void paint (juce::Graphics& g) override
         {
-            paintDialogFrame (g, box, title, closeBox, closeHover);
-
-            g.setColour (dlgPanelEdge);
-            g.fillRect (panel);
-            g.setColour (dlgPanel);
-            g.fillRect (panel.reduced (1));
+            paintFrame (g);
             if (rows.empty())
             {
                 g.setColour (dlgSign);
@@ -821,13 +858,13 @@ namespace
             buttonDown = false;
             repaint();
             if (fire)
-                close();
+                dismiss();
         }
         bool keyPressed (const juce::KeyPress& k) override
         {
             if (k == juce::KeyPress::returnKey || k == juce::KeyPress::escapeKey || k == juce::KeyPress::spaceKey)
             {
-                close();
+                dismiss();
                 return true;
             }
             return false;
@@ -838,7 +875,6 @@ namespace
 
         void layoutTable()
         {
-            constexpr int titleH = 25, buttonH = 31;
             const int boxW = juce::jmin (440, getWidth() - 24);
             const auto valueW = (float) (boxW - 8 - 16 - labelW - 12);
             layouts.clear();
@@ -859,11 +895,9 @@ namespace
                 layouts.push_back (std::move (tl));
             }
             panelH += 10;
-            const int boxH = titleH + 1 + panelH + 12 + buttonH + 12;
-            box = juce::Rectangle<int> (boxW, juce::jmin (boxH, getHeight() - 12)).withCentre (getLocalBounds().getCentre());
-            panel = juce::Rectangle<int> (box.getX() + 4, box.getY() + titleH + 1, boxW - 8, juce::jmin (panelH, box.getHeight() - titleH - buttonH - 26));
+            layoutFrame (boxW, titleH + 1 + panelH + 12 + buttonH + 12, panelH);
+            panel.setHeight (juce::jmin (panelH, box.getHeight() - titleH - buttonH - 26));
             button = juce::Rectangle<int> (116, buttonH).withCentre ({ box.getCentreX(), panel.getBottom() + 12 + buttonH / 2 });
-            closeBox = juce::Rectangle<int> (box.getRight() - 22, box.getY() + 4, 17, 17);
         }
 
         void paintTable (juce::Graphics& g)
@@ -891,61 +925,46 @@ namespace
             }
         }
 
-        void close()
-        {
-            setVisible (false);
-            juce::Component::SafePointer<Dialog> self (this);
-            juce::MessageManager::callAsync ([self] { delete self.getComponent(); });
-        }
-
-        juce::String title, message;
+        juce::String message;
         bool warning;
         InfoRows rows;
         std::vector<juce::TextLayout> layouts;
         juce::TextLayout text;
-        juce::Rectangle<int> box, panel, button, closeBox;
+        juce::Rectangle<int> button;
         juce::Rectangle<float> textArea;
-        bool buttonHover = false, buttonDown = false, closeHover = false;
+        bool buttonHover = false, buttonDown = false;
     };
 
     // FL's question dialog with a column of choices (Tempo detection).
-    class ChoiceDialog : public juce::Component
+    class ChoiceDialog : public DialogBase
     {
     public:
         ChoiceDialog (const juce::String& t, const juce::String& m, const juce::StringArray& c, std::function<void (int)> f)
-            : title (t), message (m), choices (c), onChoice (std::move (f))
+            : DialogBase (t), message (m), choices (c), onChoice (std::move (f))
         {
-            setWantsKeyboardFocus (true);
         }
 
         void resized() override
         {
-            constexpr int titleH = 25, signW = 70, buttonW = 104, buttonH = 23, gap = 4;   // FL: 31 / 6, but our window is smaller
+            constexpr int signW = 70, choiceW = 104, choiceH = 23, gap = 4;   // FL: 31 / 6, but our window is smaller
             const int boxW = juce::jmin (546, getWidth() - 24);
             juce::AttributedString as;
             as.append (message, font (12.5f), dlgText);
             as.setWordWrap (juce::AttributedString::byWord);
             text.createLayout (as, (float) (boxW - 8 - signW - 16));
             const int panelH = juce::jmax (64, (int) std::ceil (text.getHeight()) + 24);
-            const int listH = choices.size() * (buttonH + gap) - gap;
-            const int boxH = titleH + 1 + panelH + 12 + listH + 10;
-            box = juce::Rectangle<int> (boxW, juce::jmin (boxH, getHeight() - 12)).withCentre (getLocalBounds().getCentre());
-            panel = juce::Rectangle<int> (box.getX() + 4, box.getY() + titleH + 1, boxW - 8, panelH);
+            const int listH = choices.size() * (choiceH + gap) - gap;
+            layoutFrame (boxW, titleH + 1 + panelH + 12 + listH + 10, panelH);
             textArea = panel.toFloat().withTrimmedLeft ((float) signW).reduced (8.0f, 12.0f);
             buttons.clear();
             for (int i = 0; i < choices.size(); ++i)
-                buttons.push_back (juce::Rectangle<int> (buttonW, buttonH)
-                                       .withCentre ({ box.getCentreX(), panel.getBottom() + 12 + i * (buttonH + gap) + buttonH / 2 }));
-            closeBox = juce::Rectangle<int> (box.getRight() - 22, box.getY() + 4, 17, 17);
+                buttons.push_back (juce::Rectangle<int> (choiceW, choiceH)
+                                       .withCentre ({ box.getCentreX(), panel.getBottom() + 12 + i * (choiceH + gap) + choiceH / 2 }));
         }
 
         void paint (juce::Graphics& g) override
         {
-            paintDialogFrame (g, box, title, closeBox, closeHover);
-            g.setColour (dlgPanelEdge);
-            g.fillRect (panel);
-            g.setColour (dlgPanel);
-            g.fillRect (panel.reduced (1));
+            paintFrame (g);
             g.setColour (dlgSign);
             g.setFont (font (64.0f));
             g.drawText ("?", panel.withWidth (70).withTrimmedTop (4).withHeight (80), juce::Justification::centred, false);
@@ -999,34 +1018,29 @@ namespace
 
         void finish (int choice)
         {
-            setVisible (false);
             auto f = std::move (onChoice);
-            juce::Component::SafePointer<ChoiceDialog> self (this);
-            juce::MessageManager::callAsync ([self, f, choice]
+            dismiss ([f, choice]
             {
-                delete self.getComponent();
                 if (f != nullptr && choice >= 0)
                     f (choice);
             });
         }
 
-        juce::String title, message;
+        juce::String message;
         juce::StringArray choices;
         std::function<void (int)> onChoice;
         juce::TextLayout text;
-        juce::Rectangle<int> box, panel, closeBox;
         juce::Rectangle<float> textArea;
         std::vector<juce::Rectangle<int>> buttons;
         int hover = -1, down = -1;
-        bool closeHover = false;
     };
 
     // A one-line entry in FL's dialog style (the Type in choices).
-    class TextDialog : public juce::Component
+    class TextDialog : public DialogBase
     {
     public:
         TextDialog (const juce::String& t, const juce::String& p, const juce::String& initial, std::function<void (const juce::String&)> f)
-            : title (t), prompt (p), onText (std::move (f))
+            : DialogBase (t), prompt (p), onText (std::move (f))
         {
             editor.setFont (juce::FontOptions (13.0f));
             editor.setColour (juce::TextEditor::backgroundColourId, juce::Colour (0xff1c2226));
@@ -1042,13 +1056,10 @@ namespace
 
         void resized() override
         {
-            constexpr int titleH = 25, buttonH = 31;
-            const int boxW = juce::jmin (300, getWidth() - 24);
-            box = juce::Rectangle<int> (boxW, titleH + 1 + 86 + 12 + buttonH + 12).withCentre (getLocalBounds().getCentre());
-            panel = juce::Rectangle<int> (box.getX() + 4, box.getY() + titleH + 1, boxW - 8, 86);
+            constexpr int panelH = 86;
+            layoutFrame (juce::jmin (300, getWidth() - 24), titleH + 1 + panelH + 12 + buttonH + 12, panelH);
             editor.setBounds (juce::Rectangle<int> (140, 24).withCentre ({ panel.getCentreX(), panel.getY() + 58 }));
             button = juce::Rectangle<int> (116, buttonH).withCentre ({ box.getCentreX(), panel.getBottom() + 12 + buttonH / 2 });
-            closeBox = juce::Rectangle<int> (box.getRight() - 22, box.getY() + 4, 17, 17);
         }
 
         void visibilityChanged() override
@@ -1066,11 +1077,7 @@ namespace
 
         void paint (juce::Graphics& g) override
         {
-            paintDialogFrame (g, box, title, closeBox, closeHover);
-            g.setColour (dlgPanelEdge);
-            g.fillRect (panel);
-            g.setColour (dlgPanel);
-            g.fillRect (panel.reduced (1));
+            paintFrame (g);
             g.setColour (dlgText);
             g.setFont (font (12.5f));
             g.drawText (prompt, panel.withHeight (40), juce::Justification::centred, true);
@@ -1102,23 +1109,20 @@ namespace
     private:
         void finish (bool apply)
         {
-            setVisible (false);
             auto f = std::move (onText);
             const auto t = editor.getText();
-            juce::Component::SafePointer<TextDialog> self (this);
-            juce::MessageManager::callAsync ([self, f, t, apply]
+            dismiss ([f, t, apply]
             {
-                delete self.getComponent();
                 if (apply && f != nullptr)
                     f (t);
             });
         }
 
-        juce::String title, prompt;
+        juce::String prompt;
         std::function<void (const juce::String&)> onText;
         juce::TextEditor editor;
-        juce::Rectangle<int> box, panel, button, closeBox;
-        bool buttonHover = false, buttonDown = false, closeHover = false;
+        juce::Rectangle<int> button;
+        bool buttonHover = false, buttonDown = false;
     };
 }
 
