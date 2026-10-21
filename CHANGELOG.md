@@ -2,8 +2,17 @@
 
 ## Unreleased
 
+Downloads
+- Each release has the Windows installer, the macOS installer and the Linux
+  tarball (now with the version in its name); the Windows and macOS zips are
+  gone. Every download includes the licenses of the third-party software in
+  Chan Sampler (THIRD-PARTY-NOTICES.txt).
+
 Other
-- The repository: every push is built and tested on Windows and Linux, a
+- The code builds without compiler warnings on Linux (deprecated JUCE calls
+  replaced, unused code removed).
+- The repository: code changes are built and tested automatically (Linux on
+  every push, Windows on pull requests), a
   contributor guide (CONTRIBUTING.md), the null-test tools in folders (with
   the stretch-mode measurements of 1.2.0 and a generator for their test
   signals), LF line endings.
