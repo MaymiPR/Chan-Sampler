@@ -39,6 +39,15 @@ set(CHANSAMPLER_SOURCES
     Source/TempoDetect.cpp
     Source/WaveformView.cpp)
 
+# Two of JUCE's recommended GCC / Clang warnings flag patterns this code uses
+# on purpose: switches over a few cases with a default, and exact float
+# comparisons (a value that is set, not computed: "is this LFO off?", "did it
+# change?"). Linked after JUCE's warning flags, so these come later and win.
+add_library(chansampler_warnings INTERFACE)
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(chansampler_warnings INTERFACE -Wno-switch-enum -Wno-float-equal)
+endif()
+
 # The developer tools build the plugin's code as a console app, so they
 # define what juce_add_plugin would.
 set(CHANSAMPLER_TOOL_DEFINITIONS
@@ -96,7 +105,8 @@ target_link_libraries(ChanSamplerTests PRIVATE
     juce::juce_audio_processors
     juce::juce_dsp
     juce::juce_recommended_config_flags
-    juce::juce_recommended_warning_flags)
+    juce::juce_recommended_warning_flags
+    chansampler_warnings)
 
 # Offline renderer used by nulltest/ to compare against FL Studio renders.
 juce_add_console_app(ChanSamplerRender PRODUCT_NAME "ChanSamplerRender")
@@ -123,7 +133,8 @@ target_link_libraries(ChanSampler
     PUBLIC
         juce::juce_recommended_config_flags
         juce::juce_recommended_lto_flags
-        juce::juce_recommended_warning_flags)
+        juce::juce_recommended_warning_flags
+        chansampler_warnings)
 
 # Hosts the built VST3 like a DAW and checks automation, MIDI, save / reload and editor size.
 juce_add_console_app(ChanSamplerHostTest PRODUCT_NAME "ChanSamplerHostTest")
@@ -133,17 +144,8 @@ target_link_libraries(ChanSamplerHostTest PRIVATE
     juce::juce_audio_processors
     juce::juce_gui_basics
     juce::juce_recommended_config_flags
-    juce::juce_recommended_warning_flags)
-
-# Two of JUCE's recommended GCC / Clang warnings flag patterns this code uses
-# on purpose: switches over a few cases with a default, and exact float
-# comparisons (a value that is set, not computed: "is this LFO off?", "did
-# it change?").
-if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    foreach(target ChanSampler ChanSamplerTests ChanSamplerRender ChanSamplerSnapshot ChanSamplerHostTest)
-        target_compile_options(${target} PRIVATE -Wno-switch-enum -Wno-float-equal)
-    endforeach()
-endif()
+    juce::juce_recommended_warning_flags
+    chansampler_warnings)
 
 # The macOS clipboard (Source/SampleExchange.cpp) is Objective-C++.
 if(APPLE)
