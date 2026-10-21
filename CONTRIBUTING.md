@@ -22,8 +22,8 @@ tools (all in `build/<tool>_artefacts/Release/`):
 | Tool | What it does |
 |---|---|
 | `ChanSamplerTests` | The engine tests (no arguments). Run it after every change; it returns non-zero on a failure. |
-| `ChanSamplerHostTest <Chan Sampler.vst3> nulltest/signals/sine.wav` | Loads the built VST3 the way a DAW does: automation, MIDI, save / reload, the editor size, host rate changes, offline rendering. It expects that 2-second sine. |
-| `ChanSamplerRender` | Renders notes offline for the null tests; also `bench <sample>` (CPU per stretch mode, 32 / 64 voices), `stretchtest` (the stretcher alone on a file), `fftbench` (the stretcher's FFT against JUCE's), `compatstate <state.bin>` (an older version's saved state loads unchanged). |
+| `ChanSamplerHostTest <Chan Sampler.vst3> nulltest/signals/sine.wav Tests/data/state-*.bin` | Loads the built VST3 the way a DAW does: automation, MIDI, save / reload, the editor size, host rate changes, offline rendering, and projects saved by each earlier release (`Tests/data`). It expects that 2-second sine. |
+| `ChanSamplerRender` | Renders notes offline for the null tests; also `bench <sample>` (CPU per stretch mode, 32 / 64 voices), `stretchtest` (the stretcher alone on a file), `fftbench` (the stretcher's FFT against JUCE's); the full list is at the top of `Tests/RenderTool.cpp`. |
 | `ChanSamplerSnapshot` | Writes editor screenshots (to compare with FL's screen, and the README's pictures). |
 
 GitHub Actions builds and runs the engine and host tests
@@ -61,7 +61,17 @@ own samples from the FL install.
    placeholder in `.github/ISSUE_TEMPLATE/bug_report.yml`.
 2. Rename `## Unreleased` in `CHANGELOG.md` to `## x.y.z`: that section
    becomes the release notes.
-3. Commit, push, then tag:
+3. Save a project of the new version for the host test, so later versions are
+   checked against it:
+
+   ```
+   build/ChanSamplerHostTest_artefacts/Release/ChanSamplerHostTest "build/ChanSampler_artefacts/Release/VST3/Chan Sampler.vst3" --save-state Tests/data/state-x.y.z.bin
+   ```
+
+   A later change that alters how a saved setting reads back fails CI; if
+   it's intended (a range FL changed, say), say so in the changelog and update
+   the `.txt` beside the old project.
+4. Commit, push, then tag:
 
    ```
    git tag v1.2.0

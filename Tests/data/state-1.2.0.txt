@@ -1,0 +1,135 @@
+Pitch bend range	7
+Declicking mode	Smooth (bleeding)
+Load regions	Off
+Load slice markers	On
+Sample start offset	61%
+Use loop points	Off
+Loop start position	0
+Loop end position	0
+Ping pong loop	Off
+Output	2.2 dB
+Stretch method	e3 generic
+Formant shift amount	+1045 cents
+Panning LFO tempo-based time	On
+Panning LFO global phase	Off
+Panning LFO shape	Pulse
+Panning LFO speed	41%
+Panning LFO amount	-95%
+Panning LFO predelay time	64%
+Panning LFO attack time	26%
+Volume envelope	On
+Volume predelay time	50%
+Volume attack time	12%
+Volume hold time	73%
+Volume decay time	35%
+Volume sustain level	97%
+Volume release time	59%
+Volume attack tension	-59%
+Volume decay tension	65%
+Volume release tension	-12%
+Volume envelope tempo-based time	Off
+Volume LFO tempo-based time	On
+Volume LFO global phase	Off
+Volume LFO shape	Pulse
+Volume LFO speed	53%
+Volume LFO amount	-70%
+Volume LFO predelay time	77%
+Volume LFO attack time	39%
+Mod X envelope	Off
+Mod X predelay time	62%
+Mod X attack time	24%
+Mod X hold time	86%
+Mod X decay time	48%
+Mod X sustain level	9%
+Mod X release time	71%
+Mod X attack tension	-34%
+Mod X decay tension	90%
+Mod X release tension	13%
+Mod X envelope amount	-63%
+Mod X envelope tempo-based time	On
+Mod X LFO tempo-based time	Off
+Mod X LFO global phase	Off
+Mod X LFO shape	Triangle
+Mod X LFO speed	27%
+Mod X LFO amount	79%
+Mod X LFO predelay time	51%
+Mod X LFO attack time	13%
+Mod Y envelope	On
+Mod Y predelay time	36%
+Mod Y attack time	98%
+Mod Y hold time	60%
+Mod Y decay time	22%
+Mod Y sustain level	84%
+Mod Y release time	46%
+Mod Y attack tension	-85%
+Mod Y decay tension	38%
+Mod Y release tension	-38%
+Mod Y envelope amount	85%
+Mod Y envelope tempo-based time	On
+Mod Y LFO tempo-based time	Off
+Mod Y LFO global phase	On
+Mod Y LFO shape	Triangle
+Mod Y LFO speed	2%
+Mod Y LFO amount	27%
+Mod Y LFO predelay time	25%
+Mod Y LFO attack time	87%
+Pitch envelope	Off
+Pitch predelay time	11%
+Pitch attack time	73%
+Pitch hold time	34%
+Pitch decay time	96%
+Pitch sustain level	58%
+Pitch release time	20%
+Pitch attack tension	63%
+Pitch decay tension	-13%
+Pitch release tension	-90%
+Pitch envelope amount	34%
+Pitch envelope tempo-based time	Off
+Pitch LFO tempo-based time	On
+Pitch LFO global phase	On
+Pitch LFO shape	Sine
+Pitch LFO speed	76%
+Pitch LFO amount	-24%
+Pitch LFO predelay time	100%
+Pitch LFO attack time	61%
+Filter type	BP
+Filter frequency (modulation X)	85%
+Filter bandwidth (modulation Y)	47%
+Panning offset	83% left
+Volume multiplier	141%  9.0dB  2.83
+Modulation X offset	-36%
+Modulation Y offset	88%
+Maximum polyphony	36
+Monophonic mode	Off
+Portamento mode	On
+Portamento time	0:07
+Cut itself	Off
+Cut group	64
+Cut by group	26
+Velocity to panning	77%
+Velocity to modulation X	1%
+Velocity to modulation Y	-76%
+Velocity middle value	74%
+Key to panning	-29%
+Key to modulation X	95%
+Key to modulation Y	19%
+Middle value	C#2
+Arpeggio direction	Up / down (sticky)
+Arpeggio range (octaves)	3
+Arpeggio repeat	2
+Arpeggio time	1:10
+Arpeggio gate	30%
+Arpeggio slide	On
+Arpeggio chord	m7add11
+Delay feedback	31%
+Delay panning	109% right
+Delay modulation X	-22%
+Delay modulation Y	-98%
+Delay pitch	+306 cents
+Delay time	1:23
+Echoes	14
+Ping pong	Off
+Fat mode	Off
+Root note	G7
+Fine tuning	-33 cents
+Bypass	On

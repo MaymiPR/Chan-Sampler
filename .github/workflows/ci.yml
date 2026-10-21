@@ -56,7 +56,7 @@ jobs:
         run: build/ChanSamplerTests_artefacts/Release/ChanSamplerTests
 
       - name: Host test
-        run: xvfb-run -a build/ChanSamplerHostTest_artefacts/Release/ChanSamplerHostTest "build/ChanSampler_artefacts/Release/VST3/Chan Sampler.vst3" nulltest/signals/sine.wav
+        run: xvfb-run -a build/ChanSamplerHostTest_artefacts/Release/ChanSamplerHostTest "build/ChanSampler_artefacts/Release/VST3/Chan Sampler.vst3" nulltest/signals/sine.wav Tests/data/state-*.bin
 
   windows:
     if: github.event_name != 'push'
@@ -74,4 +74,5 @@ jobs:
         run: build/ChanSamplerTests_artefacts/Release/ChanSamplerTests.exe
 
       - name: Host test
-        run: build/ChanSamplerHostTest_artefacts/Release/ChanSamplerHostTest.exe "build/ChanSampler_artefacts/Release/VST3/Chan Sampler.vst3" nulltest/signals/sine.wav
+        shell: bash
+        run: build/ChanSamplerHostTest_artefacts/Release/ChanSamplerHostTest.exe "build/ChanSampler_artefacts/Release/VST3/Chan Sampler.vst3" nulltest/signals/sine.wav Tests/data/state-*.bin

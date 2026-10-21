@@ -1,9 +1,16 @@
 // Hosts the built Chan Sampler.vst3 the way a DAW does (JUCE's VST3 hosting)
 // and checks host features: parameter list, automation, MIDI (pitch bend,
 // CCs), save / reload across instances, the editor size, the host changing
-// its sample rate mid-session and offline (non-realtime) rendering.
+// its sample rate mid-session and offline (non-realtime) rendering, and that
+// projects saved by earlier versions load unchanged.
 //
-//   ChanSamplerHostTest <Chan Sampler.vst3> <sample.wav>
+//   ChanSamplerHostTest <Chan Sampler.vst3> <sample.wav> [saved-state.bin...]
+//   ChanSamplerHostTest <Chan Sampler.vst3> --save-state <state.bin>
+//
+// --save-state writes a project state with every parameter away from its
+// default (no sample path), plus state.txt listing each parameter's name and
+// its text as this version shows it; Tests/data holds one per release, and
+// the test loads each into the current build and compares the texts.
 
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -115,14 +122,80 @@ namespace
     }
 }
 
+namespace
+{
+    // A project state with every parameter away from its default, and the text
+    // each one shows (the reference for later versions).
+    int saveState (const juce::String& pluginPath, const juce::File& out)
+    {
+        auto p = load (pluginPath);
+        if (p == nullptr) { std::cerr << "cannot load plugin\n"; return 1; }
+        int i = 0;
+        for (auto* prm : p->getParameters())
+            if (prm->isAutomatable())
+                prm->setValueNotifyingHost ((float) std::fmod (0.137 + 0.618034 * i++, 1.0));
+        render (*p, 4, [] (int, juce::MidiBuffer&) {});   // the processor takes the changes
+        setStateAttribute (*p, "samplePath", juce::String());
+        juce::MemoryBlock state;
+        p->getStateInformation (state);
+        juce::StringArray lines;
+        for (auto* prm : p->getParameters())
+            if (prm->isAutomatable())
+                lines.add (prm->getName (128) + "\t" + prm->getText (prm->getValue(), 128));
+        if (! out.replaceWithData (state.getData(), state.getSize())
+            || ! out.withFileExtension (".txt").replaceWithText (lines.joinIntoString ("\n") + "\n"))
+            return 1;
+        std::cout << "wrote " << out.getFullPathName() << " (" << lines.size() << " parameters)\n";
+        return 0;
+    }
+
+    // A state saved by an earlier version: every parameter it listed reads back
+    // with the same text (none removed or changed; new ones keep defaults).
+    void checkSavedState (const juce::String& pluginPath, const juce::File& saved, std::function<void (bool, const juce::String&)> check)
+    {
+        juce::MemoryBlock state;
+        juce::StringArray lines;
+        saved.withFileExtension (".txt").readLines (lines);
+        auto p = load (pluginPath);
+        if (! saved.loadFileAsData (state) || lines.isEmpty() || p == nullptr)
+        {
+            check (false, "saved state " + saved.getFileName() + " and its .txt readable");
+            return;
+        }
+        p->setStateInformation (state.getData(), (int) state.getSize());
+        render (*p, 4, [] (int, juce::MidiBuffer&) {});
+        int differ = 0, compared = 0;
+        for (auto& line : lines)
+        {
+            const auto name = line.upToFirstOccurrenceOf ("\t", false, false);
+            const auto text = line.fromFirstOccurrenceOf ("\t", false, false);
+            if (name.isEmpty())
+                continue;
+            ++compared;
+            auto* prm = findParam (*p, name);
+            const auto now = prm != nullptr ? prm->getText (prm->getValue(), 128) : juce::String ("(removed)");
+            if (now != text)
+            {
+                ++differ;
+                std::cout << "      " << name << ": saved \"" << text << "\", now \"" << now << "\"\n";
+            }
+        }
+        check (differ == 0, "a project saved by " + saved.getFileNameWithoutExtension().fromFirstOccurrenceOf ("state-", false, false)
+                            + " loads unchanged (" + juce::String (compared) + " parameters, " + juce::String (differ) + " different)");
+    }
+}
+
 int main (int argc, char** argv)
 {
+    juce::ScopedJuceInitialiser_GUI init;
+    if (argc == 4 && juce::String (argv[2]) == "--save-state")
+        return saveState (argv[1], juce::File::getCurrentWorkingDirectory().getChildFile (argv[3]));
     if (argc < 3)
     {
-        std::cerr << "usage: ChanSamplerHostTest <plugin.vst3> <sample.wav>\n";
+        std::cerr << "usage: ChanSamplerHostTest <plugin.vst3> <sample.wav> [saved-state.bin...]\n"
+                     "       ChanSamplerHostTest <plugin.vst3> --save-state <state.bin>\n";
         return 2;
     }
-    juce::ScopedJuceInitialiser_GUI init;
     const juce::String pluginPath (argv[1]), samplePath (argv[2]);
     int failures = 0;
     auto check = [&failures] (bool ok, const juce::String& what)
@@ -130,6 +203,11 @@ int main (int argc, char** argv)
         std::cout << (ok ? "PASS  " : "FAIL  ") << what << "\n";
         if (! ok) ++failures;
     };
+
+    // 0. Projects saved by earlier versions (Tests/data/state-*.bin). First:
+    // the loop position texts follow the last sample loaded in the process.
+    for (int i = 3; i < argc; ++i)
+        checkSavedState (pluginPath, juce::File::getCurrentWorkingDirectory().getChildFile (argv[i]), check);
 
     auto a = load (pluginPath);
     if (a == nullptr) { std::cerr << "cannot load plugin\n"; return 1; }

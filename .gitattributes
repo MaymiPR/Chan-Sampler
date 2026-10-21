@@ -10,3 +10,4 @@
 *.flp binary
 *.fst binary
 *.pkl binary
+*.bin binary
