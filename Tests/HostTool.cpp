@@ -407,17 +407,17 @@ int main (int argc, char** argv)
     {
         auto e = load (pluginPath);
         setStateAttribute (*e, "samplePath", samplePath);
-        auto onAudioThread = [&e] (int blocks, std::function<void (int, juce::MidiBuffer&)> onBlock)
+        auto onAudioThread = [&e] (int numBlocks, std::function<void (int, juce::MidiBuffer&)> onBlock)
         {
-            std::vector<float> y;
-            std::thread audio ([&] { y = render (*e, blocks, onBlock); });
+            std::vector<float> rendered;
+            std::thread audio ([&] { rendered = render (*e, numBlocks, onBlock); });
             audio.join();
-            return y;
+            return rendered;
         };
-        auto lastSound = [] (const std::vector<float>& y)
+        auto lastSound = [] (const std::vector<float>& out)
         {
-            for (int i = (int) y.size() - 1; i >= 0; --i)
-                if (std::abs (y[(size_t) i]) > 1.0e-3f)
+            for (int i = (int) out.size() - 1; i >= 0; --i)
+                if (std::abs (out[(size_t) i]) > 1.0e-3f)
                     return (float) i / (float) sr;
             return 0.0f;
         };
