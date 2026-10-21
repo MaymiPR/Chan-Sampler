@@ -162,7 +162,7 @@ As of 1.0:
 - **Sample view:** the spectrum is a model of FL's (about 1 dB mean error per pixel); colourful waveforms match within 0.4–2.5 RGB steps on solid fills (a stereo loop about 4), Color map's column-to-column flicker matches in character only.
 - **Not implemented** (FL host features or FL-only storage): Keep on disk and Resample (how FL holds the file), gate / shift / swing (FL's Time panel), FL's channel VOL / PAN / PITCH / RANGE / TRACK (host-side), Edit in audio editor / pitch corrector / time warper, Open in new channel, and the sample menu's keyboard shortcuts. Max polyphony is shown but, as in FL's renders, does nothing.
 
-## UI layout evidence (B-FORM)
+## UI layout (FL's own form)
 
 Controls sit at the positions and sizes of FL's own `TPluginForm` controls: `SmpSheet`, `InsSheet`, `FuncSheet` and `TopPanel`, each sheet 561×399 under a 45 px top panel. The canvas is scaled to the window. Option lists use FL's own wording, e.g. `DeclickModeSelect` and the filter types. Panels for FL-only features were removed, and the arpeggiator / echo panels were rearranged to fit.
 

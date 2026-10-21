@@ -1,7 +1,8 @@
 # FL e3 generic (elastique): black-box measurements
 
-Measured with FL renders only (nulltest/lib/nullfl.py harness; FL's own Resample render is
-the reference source). Everything below is behaviour, not code.
+Measured with FL renders only (lib/nullfl.py; FL's own Resample render is the
+reference source). Everything below is behaviour, not code. The tools that
+reproduce these measurements are in stretch/ (see README.md).
 
 ## Architecture
 
@@ -52,7 +53,7 @@ the reference source). Everything below is behaviour, not code.
   late, like a plain phase vocoder). At MUL 0.667 ours drifts against FL by
   ~0.1% (to fix).
 
-## Prototype (scratchpad, Python)
+## Prototype (Python, before the plugin version; not kept)
 
 - Hybrid = our vocoder below 1.485 kHz + PSOLA above (period from the
   normalized autocorrelation, 1024 window, 90..600 lags; grain centred on
