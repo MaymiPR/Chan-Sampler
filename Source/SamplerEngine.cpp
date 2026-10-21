@@ -11,7 +11,7 @@ namespace
     }
 
     // FL's sample interpolator, measured from impulses played at many pitches
-    // (nulltest/kernel_extract.py, window_fit.py): a 30-tap windowed sinc,
+    // (nulltest/probes/kernel_extract.py, nulltest/probes/window_fit.py): a 30-tap windowed sinc,
     // k(d) = c sinc(c d) w(d) for |d| < 15 input samples, with c = min(1, 1/ratio)
     // (the cutoff follows the playback ratio; the window stays 15 samples wide)
     // and w a 7-term cosine series. It reproduces FL's renders to < 1 LSB.

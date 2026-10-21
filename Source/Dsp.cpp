@@ -32,7 +32,7 @@ double flOnePoleF (double u)
 double flResonance (double res)
 {
     // r measured in FL at raw resonance 0, 32, ..., 640 (cutoff open: y = x + r (y1 - y2),
-    // nulltest/res_r.npy), interpolated cubically in log (1 - r). Mod Y maps 0..256 onto it.
+    // nulltest/data/res_r.npy), interpolated cubically in log (1 - r). Mod Y maps 0..256 onto it.
     static const double rv[] = { 0.0, 0.1815353218, 0.3301693593, 0.4518676647, 0.5515086796, 0.6330945280,
                                  0.6998893266, 0.7545816900, 0.7993627980, 0.8360268703, 0.8660461431,
                                  0.8906255328, 0.9107490105, 0.9272267638, 0.9407179614, 0.9517637502,
@@ -60,7 +60,7 @@ double flResonance (double res)
 double flBiquadF0 (double u, double)
 {
     // LP/BP/HP/BS centre frequency (Hz) at Mod X raw 8, 16, ..., 240: FL's curve
-    // traced tick by tick with a Mod X LFO (nulltest/lfo_cases.py l_modx_t1;
+    // traced tick by tick with a Mod X LFO (nulltest/cases/lfo_cases.py l_modx_t1;
     // agrees with the earlier static points). Above that FL keeps rising
     // exponentially, past the knob's end under modulation, until the 3.0 rad
     // cap in VoiceFilter::setup (21056 Hz at 44.1 kHz, reached at Mod X 100%).

@@ -1,6 +1,6 @@
 # FL e3 generic (elastique): black-box measurements
 
-Measured with FL renders only (nullfl.py harness; FL's own Resample render is
+Measured with FL renders only (nulltest/lib/nullfl.py harness; FL's own Resample render is
 the reference source). Everything below is behaviour, not code.
 
 ## Architecture

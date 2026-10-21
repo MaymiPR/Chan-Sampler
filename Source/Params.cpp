@@ -170,7 +170,7 @@ namespace
     // Arpeggio time (measured in FL): position = (raw - 450) / 997, raw 1447 is
     // Hold. FL plays a whole number of ticks (24 per step):
     // round (3.88852 * 25^p - 1.08184) with p from the integer raw value, which
-    // reproduces all 77 measured raw values (nulltest/arp_ticks_dense.txt).
+    // reproduces all 77 measured raw values (nulltest/data/arp_ticks_dense.txt).
     double arpTicksForRaw (double raw)
     {
         const auto p = (raw - 450.0) / 997.0;
@@ -181,7 +181,7 @@ namespace
 
 float flEnvSeconds (float knob)
 {
-    // FL's own times, measured at six tempos (nulltest/env_time_probe.py,
+    // FL's own times, measured at six tempos (nulltest/probes/env_time_probe.py,
     // env_times.txt): FL rounds every stage to whole ticks (dsp::Envelope), so
     // a time read at one tempo is only known to a tick; the tempos together
     // pin it down. Between the points the time follows log (t - c) linearly,
@@ -239,7 +239,7 @@ int flLfoDelayTicks (float delayKnob)
 int flSlideTicks (float knob)
 {
     // Glide length in ticks, measured in FL renders at 17 raw values
-    // (nulltest/untested_cases.py): raw 0 -> 1, 500 -> 4, 820 -> 13,
+    // (nulltest/cases/untested_cases.py): raw 0 -> 1, 500 -> 4, 820 -> 13,
     // 1000 -> 23, 1660 -> 193 (raw = knob * 1660). FL shows one tick less.
     const auto raw = juce::jlimit (0.0, 1660.0, (double) knob * 1660.0);
     return juce::jmax (1, (int) std::lround (0.92049 * std::pow (209.414, raw / 1660.0) - 0.15));

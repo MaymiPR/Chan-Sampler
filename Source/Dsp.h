@@ -32,7 +32,7 @@ namespace dsp
     }
 
     // DAHDSR envelope from the INS tab, as FL works it out (measured,
-    // nulltest/env_tick_probe.py, env_time_probe.py, tempo_env_cases.py): once
+    // nulltest/probes/env_tick_probe.py, nulltest/probes/env_time_probe.py, nulltest/cases/tempo_env_cases.py): once
     // per song tick (96 per beat) from the note start, interpolated linearly in
     // between. Every stage lasts a whole number of ticks, N = ceil (time / tick
     // + 1/2), none for no time. From one tick to the next the level moves at
@@ -151,7 +151,7 @@ namespace dsp
         // own and its last tick is where the decay starts (or, with no decay
         // time, the last tick before the fall); the decay's ticks are its own
         // (it runs at a rate down to the sustain level). Measured over 74
-        // attack / hold / tempo combinations (nulltest/env_hold_probe.py), this
+        // attack / hold / tempo combinations (nulltest/probes/env_hold_probe.py), this
         // gets FL's hold end exactly in 48 and within a tick in the rest.
         float level (const Params& p)
         {
@@ -193,8 +193,8 @@ namespace dsp
     };
 
     // Per-note LFO (retriggered at note-on) with delay and fade-in.
-    // FL's channel LFO (measured from FL renders, nulltest/lfo_cases.py,
-    // tempo_probe.py). FL evaluates it once per song tick (96 per beat) and
+    // FL's channel LFO (measured from FL renders, nulltest/cases/lfo_cases.py,
+    // nulltest/probes/tempo_probe.py). FL evaluates it once per song tick (96 per beat) and
     // interpolates linearly in between. The speed and predelay knobs give a
     // length T in ticks at 130 BPM; the period is round (T * ref / 130) ticks
     // with ref = the project tempo (Tempo off: the same length in seconds at

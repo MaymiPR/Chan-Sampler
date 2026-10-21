@@ -12,7 +12,7 @@
 namespace
 {
     // FL's sample-rate conversion on load, measured from impulse trains in
-    // 22.05/32/48/88.2 kHz files (nulltest/src_extract.py): an 88-tap windowed
+    // 22.05/32/48/88.2 kHz files (nulltest/probes/src_extract.py): an 88-tap windowed
     // sinc, k(d) = c sinc(c d) w(d), |d| < 44 input samples, c = min(1, 1/ratio),
     // w a 9-term cosine series (close to Hann). Matches FL to 1 LSB.
     juce::AudioBuffer<float> convertRate (const juce::AudioBuffer<float>& in, double fromRate, double toRate)

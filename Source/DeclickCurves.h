@@ -6,7 +6,7 @@
 // Declick fade curves measured in FL (constant, noise and sine samples):
 // Transient (no bleeding)'s out-fade (at the sample end and at cuts) and the
 // Crossfade mode's in- and out-fades. Lengths are at 44.1 kHz and keep their
-// length in time at other rates. See nulltest/declick_cases.py.
+// length in time at other rates. See nulltest/cases/declick_cases.py.
 namespace declick
 {
     // Transient (no bleeding) out-fade: not a gain fade but a one-pole

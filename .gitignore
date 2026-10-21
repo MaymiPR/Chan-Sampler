@@ -9,17 +9,20 @@ nulltest/renders/
 nulltest/renders_fl/
 nulltest/ours/
 nulltest/probe/
-nulltest/dc70.wav
 __pycache__/
 *.pyc
 
-# Leftovers
-old-stray-install/
+# Generated test signals (python -m stretch.make_signals; probes/env_time_probe.py)
+nulltest/signals/e3_*.wav
+!nulltest/signals/e3_clicks.wav
+!nulltest/signals/e3_loop.wav
+!nulltest/signals/e3_noise.wav
+nulltest/signals/dc70.wav
 
 # OS files
 .DS_Store
 Thumbs.db
 
-# FL demo samples copied in by nulltest/untested_cases.py
+# FL demo samples copied in by nulltest/cases/untested_cases.py
 nulltest/fmt_test.*
 nulltest/fst/

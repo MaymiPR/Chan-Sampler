@@ -101,7 +101,7 @@ private:
         // a sixteenth an octave down), so the source isn't smeared over
         // several frames (an octave down, a kick kept twice its length).
         // Chosen against FL's e3 renders of a kick, a Rhodes, a voice and
-        // two drum loops at -1200 ... +1200 cents (nulltest/e3_pitch_cases.py);
+        // two drum loops at -1200 ... +1200 cents (nulltest/cases/e3_pitch_cases.py);
         // it costs about twice the CPU of quarter-frame hops.
         if (algo == Algo::vocoder)
             hop = vocoderHop (alpha);

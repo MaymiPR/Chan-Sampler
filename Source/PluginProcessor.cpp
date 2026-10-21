@@ -513,7 +513,7 @@ bool ChanSamplerProcessor::loadSample (const juce::File& file)
     // length the file cannot hold (an uncompressed WAV / AIFF stores every
     // frame), and refuse what would need more memory than a sample can use,
     // also once converted to the playback rate (checked with
-    // nulltest/corrupt_files.py).
+    // nulltest/probes/corrupt_files.py).
     const auto rate = reader->sampleRate;
     if (reader->numChannels < 1 || reader->numChannels > 64 || ! (rate >= 1000.0 && rate <= 768000.0) || reader->bitsPerSample > 64)
         return false;
