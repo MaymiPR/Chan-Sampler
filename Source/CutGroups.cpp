@@ -55,6 +55,8 @@ namespace cutgroups
                 numbersInUse.push_back (n);
                 return n;
             }
+        // Over 99 instances: the rest share 99 without recording it, so
+        // closing one of them can hand 99 to a new instance as well.
         return 99;
     }
 

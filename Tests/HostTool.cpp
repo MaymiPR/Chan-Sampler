@@ -223,7 +223,8 @@ int main (int argc, char** argv)
     });
     const auto before = rms (y, 4000, blocks / 2 * bs - 100), after = rms (y, blocks / 2 * bs + 4000, (int) y.size() - 4000);
     check (after < before * 0.8f, "volume automation changes the level mid-note (" + juce::String (before, 4) + " -> " + juce::String (after, 4) + ")");
-    vol->setValueNotifyingHost (vol->getDefaultValue());
+    if (vol != nullptr)
+        vol->setValueNotifyingHost (vol->getDefaultValue());
     render (*a, 20, [] (int i, juce::MidiBuffer& m) { if (i == 0) m.addEvent (juce::MidiMessage::allNotesOff (1), 0); });
 
     // 2. MIDI: pitch bend (default range 2 semitones) and controllers.
