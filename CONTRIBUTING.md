@@ -70,8 +70,10 @@ own samples from the FL install.
 
 The release workflow (`.github/workflows/release.yml`) builds Windows, macOS
 (universal) and Linux, validates the plugins with pluginval at its strictest
-level and, on macOS, with Apple's `auval`, makes the installers, and publishes
-the release with SHA-256 checksums. For a test build without releasing:
+level and, on macOS, with Apple's `auval`, and publishes the Windows installer,
+the macOS installer and the Linux tarball with SHA-256 checksums. Each carries
+`packaging/THIRD-PARTY-NOTICES.txt`: when a dependency is added or updated,
+update its license text there. For a test build without releasing:
 Actions → *Build and release* → *Run workflow*; the files appear under the
 run's *Artifacts*.
 

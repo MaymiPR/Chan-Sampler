@@ -93,12 +93,11 @@ page:
   menu), with an uninstaller.
 - **macOS** (universal, 10.13 or later): `ChanSampler-<version>-macOS.pkg`
   installs the AU, the VST3, the CLAP and the app (you can choose which).
-- **Linux** (x86-64, glibc 2.35 or later): `ChanSampler-Linux.tar.gz` holds the
-  VST3, the CLAP and the standalone app; copy the plugins to `~/.vst3` and
-  `~/.clap` (see its `INSTALL.txt`).
+- **Linux** (x86-64, glibc 2.35 or later): `ChanSampler-<version>-Linux.tar.gz`
+  holds the VST3, the CLAP and the standalone app; copy the plugins to
+  `~/.vst3` and `~/.clap` (see its `INSTALL.txt`).
 
-Then rescan plugins in your DAW. The `.zip` files hold the same plugins for
-copying by hand (see their `INSTALL.txt`).
+Then rescan plugins in your DAW.
 
 **Security warnings.** Chan Sampler isn't code-signed or notarized (that needs
 paid certificates), so the first time you open it:
@@ -171,7 +170,10 @@ an FL preset (`.fst`) that shows it helps most. Changes per version:
 
 Chan Sampler is free software under the
 [GNU Affero General Public License v3](LICENSE). It is built with
-[JUCE](https://juce.com) (used under the AGPLv3) and the VST3 SDK (MIT).
+[JUCE](https://juce.com) (used under the AGPLv3), the VST3 SDK, CLAP and
+clap-juce-extensions (MIT); their licenses, and those of the libraries JUCE
+includes, are in [THIRD-PARTY-NOTICES.txt](packaging/THIRD-PARTY-NOTICES.txt)
+and ship with every download.
 
 FL Studio is a trademark of Image-Line Software; other names are trademarks of
 their owners and are used only to describe compatibility.

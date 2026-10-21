@@ -1,7 +1,7 @@
 # Builds Chan Sampler for Windows (VST3 + CLAP + Standalone), macOS (universal
 # AU + VST3 + CLAP + Standalone app) and Linux (VST3 + CLAP + Standalone),
-# validates the plugins, and makes installers (Windows setup .exe, macOS .pkg)
-# and zips / a tarball. Run it by hand from the Actions tab to get them as
+# validates the plugins, and makes the installers (Windows setup .exe, macOS
+# .pkg) and, for Linux, a tarball. Run it by hand from the Actions tab to get them as
 # downloadable artifacts, or push a version tag (see CONTRIBUTING.md) to also
 # publish them as a GitHub Release with that version's notes from
 # CHANGELOG.md and their SHA-256 checksums. Everyday builds and tests: ci.yml.
@@ -42,18 +42,6 @@ jobs:
           Write-Host "pluginval exit code: $($p.ExitCode)"
           if ($p.ExitCode -ne 0) { exit 1 }
 
-      - name: Package
-        shell: pwsh
-        run: |
-          $dist = "Chan Sampler (Windows)"
-          New-Item -ItemType Directory $dist | Out-Null
-          Copy-Item -Recurse "build/ChanSampler_artefacts/Release/VST3/Chan Sampler.vst3" $dist
-          Copy-Item "build/ChanSampler_artefacts/Release/CLAP/Chan Sampler.clap" $dist
-          Copy-Item "build/ChanSampler_artefacts/Release/Standalone/Chan Sampler.exe" $dist
-          Copy-Item "packaging/INSTALL-Windows.txt" "$dist/INSTALL.txt"
-          Copy-Item "LICENSE" "$dist/LICENSE.txt"
-          Compress-Archive -Path $dist -DestinationPath ChanSampler-Windows.zip
-
       - name: Installer (Inno Setup)
         shell: pwsh
         run: |
@@ -66,9 +54,7 @@ jobs:
       - uses: actions/upload-artifact@v6
         with:
           name: ChanSampler-Windows
-          path: |
-            ChanSampler-Windows.zip
-            dist/*.exe
+          path: dist/*.exe
 
   macos:
     runs-on: macos-latest
@@ -109,16 +95,6 @@ jobs:
           $P --strictness-level 10 --skip-gui-tests --timeout-ms 900000 --validate ~/Library/Audio/Plug-Ins/Components/"Chan Sampler.component"
           $P --strictness-level 10 --skip-gui-tests --timeout-ms 900000 --validate "build/ChanSampler_artefacts/Release/VST3/Chan Sampler.vst3"
 
-      - name: Package
-        run: |
-          A=build/ChanSampler_artefacts/Release
-          D="Chan Sampler (macOS)"
-          mkdir "$D"
-          cp -R "$A/AU/Chan Sampler.component" "$A/VST3/Chan Sampler.vst3" "$A/CLAP/Chan Sampler.clap" "$A/Standalone/Chan Sampler.app" "$D/"
-          cp packaging/INSTALL-macOS.txt "$D/INSTALL.txt"
-          cp LICENSE "$D/LICENSE.txt"
-          ditto -c -k --keepParent "$D" ChanSampler-macOS.zip
-
       - name: Installer (.pkg)
         run: |
           set -e
@@ -140,7 +116,7 @@ jobs:
           pkgbuild --root pkg/vst3 --component-plist pkg/vst3.plist --install-location "/Library/Audio/Plug-Ins/VST3"       --identifier com.chansampler.vst3 --version "$V" pkg/ChanSampler-VST3.pkg
           pkgbuild --root pkg/clap --component-plist pkg/clap.plist --install-location "/Library/Audio/Plug-Ins/CLAP"       --identifier com.chansampler.clap --version "$V" pkg/ChanSampler-CLAP.pkg
           pkgbuild --root pkg/app  --component-plist pkg/app.plist  --install-location "/Applications"                       --identifier com.chansampler.app  --version "$V" pkg/ChanSampler-App.pkg
-          cp LICENSE pkg/res/LICENSE.txt
+          cat LICENSE packaging/THIRD-PARTY-NOTICES.txt > pkg/res/LICENSE.txt   # the installer's license page
           sed "s/VERSION/$V/g" packaging/distribution.xml > pkg/distribution.xml
           productbuild --distribution pkg/distribution.xml --package-path pkg --resources pkg/res "dist/ChanSampler-$V-macOS.pkg"
           pkgutil --payload-files "dist/ChanSampler-$V-macOS.pkg" | head -8
@@ -148,9 +124,7 @@ jobs:
       - uses: actions/upload-artifact@v6
         with:
           name: ChanSampler-macOS
-          path: |
-            ChanSampler-macOS.zip
-            dist/*.pkg
+          path: dist/*.pkg
 
   linux:
     runs-on: ubuntu-22.04   # the oldest glibc we support (2.35), so the build runs on newer systems too
@@ -183,14 +157,16 @@ jobs:
           D="Chan Sampler (Linux)"
           mkdir "$D"
           cp -R "$A/VST3/Chan Sampler.vst3" "$A/CLAP/Chan Sampler.clap" "$A/Standalone/Chan Sampler" "$D/"
+          V=$(sed -n 's/^project(ChanSampler VERSION \([0-9.]*\)).*/\1/p' CMakeLists.txt)
           cp packaging/INSTALL-Linux.txt "$D/INSTALL.txt"
           cp LICENSE "$D/LICENSE.txt"
-          tar -czf ChanSampler-Linux.tar.gz "$D"
+          cp packaging/THIRD-PARTY-NOTICES.txt "$D/"
+          tar -czf "ChanSampler-$V-Linux.tar.gz" "$D"
 
       - uses: actions/upload-artifact@v6
         with:
           name: ChanSampler-Linux
-          path: ChanSampler-Linux.tar.gz
+          path: ChanSampler-*-Linux.tar.gz
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
@@ -210,9 +186,9 @@ jobs:
           # This version's section of CHANGELOG.md (stored with CRLF line endings)
           tr -d '\r' < CHANGELOG.md | awk -v v="## $VERSION" '$0 == v {on = 1; next} /^## / {on = 0} on' > notes.md
           [ -s notes.md ] || echo "Chan Sampler $VERSION" > notes.md
-          FILES=$(find artifacts -type f \( -name '*.zip' -o -name '*.exe' -o -name '*.pkg' -o -name '*.tar.gz' \))
+          FILES=$(find artifacts -type f \( -name '*.exe' -o -name '*.pkg' -o -name '*.tar.gz' \))
           # Checksums, so downloads of these unsigned files can be checked
-          (cd artifacts && find . -type f \( -name '*.zip' -o -name '*.exe' -o -name '*.pkg' -o -name '*.tar.gz' \) -exec sha256sum {} + | sed 's|  .*/|  |') > SHA256SUMS.txt
+          (cd artifacts && find . -type f \( -name '*.exe' -o -name '*.pkg' -o -name '*.tar.gz' \) -exec sha256sum {} + | sed 's|  .*/|  |') > SHA256SUMS.txt
           cat SHA256SUMS.txt
           gh release create "${GITHUB_REF_NAME}" $FILES SHA256SUMS.txt \
             --repo "${GITHUB_REPOSITORY}" --title "Chan Sampler ${VERSION}" --notes-file notes.md

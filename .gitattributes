@@ -1,8 +1,7 @@
 # Text files are stored and checked out with LF line endings on every
-# platform; the Windows installer script and install notes keep CRLF.
+# platform; the Windows installer script keeps CRLF.
 * text=auto eol=lf
 *.iss text eol=crlf
-packaging/INSTALL-Windows.txt text eol=crlf
 
 # Binary data
 *.wav binary

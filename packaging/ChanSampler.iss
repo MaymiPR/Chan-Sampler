@@ -44,6 +44,7 @@ Source: "{#BuildDir}\VST3\Chan Sampler.vst3\*"; DestDir: "{commoncf64}\VST3\Chan
 Source: "{#BuildDir}\CLAP\Chan Sampler.clap"; DestDir: "{commoncf64}\CLAP"; Components: clap; Flags: ignoreversion
 Source: "{#BuildDir}\Standalone\Chan Sampler.exe"; DestDir: "{app}"; Components: standalone; Flags: ignoreversion
 Source: "..\LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"; Flags: ignoreversion
+Source: "THIRD-PARTY-NOTICES.txt"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\Chan Sampler"; Filename: "{app}\Chan Sampler.exe"; Components: standalone
