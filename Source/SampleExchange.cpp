@@ -19,6 +19,7 @@
 
 namespace exchange
 {
+#if JUCE_WINDOWS || JUCE_MAC   // pasting audio data (Linux pastes file paths only)
 namespace
 {
     // A new file name in folder for pasted audio.
@@ -37,6 +38,7 @@ namespace
         return file.replaceWithData (data, size) ? file : juce::File();
     }
 }
+#endif
 
 #if JUCE_WINDOWS
 namespace

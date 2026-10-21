@@ -355,9 +355,9 @@ void ChanSamplerEditor::buildSampleSheet()
         autoText.setColour (juce::Label::textColourId, fl::colour::dim);
         auto& apvts = samplerProcessor.apvts;
         auto* choice = dynamic_cast<juce::AudioParameterChoice*> (apvts.getParameter (pid::stretchMode));
-        auto update = [&autoText, choice] (float mode)   // the new value (the stored one can lag behind)
+        auto update = [&autoText, choice] (float value)   // the new value (the stored one can lag behind)
         {
-            autoText.setText (juce::roundToInt (mode) == (int) StretchMode::autoMode ? choice->choices[(int) StretchMode::e3Generic] : juce::String(),
+            autoText.setText (juce::roundToInt (value) == (int) StretchMode::autoMode ? choice->choices[(int) StretchMode::e3Generic] : juce::String(),
                               juce::dontSendNotification);
         };
         paramAttachments.push_back (std::make_unique<juce::ParameterAttachment> (*choice, update));

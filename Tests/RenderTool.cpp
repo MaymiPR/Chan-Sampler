@@ -240,9 +240,8 @@ int main (int argc, char** argv)
         juce::File f { juce::String (argv[3]) };
         f.deleteFile();
         juce::WavAudioFormat wav;
-        JUCE_BEGIN_IGNORE_WARNINGS_MSVC (4996)
-        std::unique_ptr<juce::AudioFormatWriter> w (wav.createWriterFor (new juce::FileOutputStream (f), raw->sampleRate, 2, 32, {}, 0));
-        JUCE_END_IGNORE_WARNINGS_MSVC
+        std::unique_ptr<juce::OutputStream> stream = std::make_unique<juce::FileOutputStream> (f);
+        auto w = wav.createWriterFor (stream, juce::AudioFormatWriterOptions{}.withSampleRate (raw->sampleRate).withNumChannels (2).withBitsPerSample (32));
         w->writeFromAudioSampleBuffer (out, 0, outFrames);
         return 0;
     }
@@ -441,7 +440,8 @@ int main (int argc, char** argv)
             const juce::File out { juce::String (argv[3]) + fmt->getFormatName().removeCharacters (" ") + ".wav" };
             out.deleteFile();
             juce::WavAudioFormat wav;
-            std::unique_ptr<juce::AudioFormatWriter> w (wav.createWriterFor (new juce::FileOutputStream (out), r->sampleRate, (unsigned) buf.getNumChannels(), 32, {}, 0));
+            std::unique_ptr<juce::OutputStream> stream = std::make_unique<juce::FileOutputStream> (out);
+            auto w = wav.createWriterFor (stream, juce::AudioFormatWriterOptions{}.withSampleRate (r->sampleRate).withNumChannels (buf.getNumChannels()).withBitsPerSample (32));
             w->writeFromAudioSampleBuffer (buf, 0, buf.getNumSamples());
             std::cout << fmt->getFormatName() << ": " << r->lengthInSamples << " frames at " << r->sampleRate << "\n";
         }
@@ -557,12 +557,8 @@ int main (int argc, char** argv)
 
     outFile.deleteFile();
     juce::WavAudioFormat wav;
-    JUCE_BEGIN_IGNORE_WARNINGS_MSVC (4996)
-    JUCE_BEGIN_IGNORE_DEPRECATION_WARNINGS
-    std::unique_ptr<juce::AudioFormatWriter> writer (wav.createWriterFor (outFile.createOutputStream().release(),
-                                                                          sampleRate, 2, 32, {}, 0));
-    JUCE_END_IGNORE_DEPRECATION_WARNINGS
-    JUCE_END_IGNORE_WARNINGS_MSVC
+    std::unique_ptr<juce::OutputStream> stream = outFile.createOutputStream();
+    auto writer = wav.createWriterFor (stream, juce::AudioFormatWriterOptions{}.withSampleRate (sampleRate).withNumChannels (2).withBitsPerSample (32));
     if (writer == nullptr)
     {
         std::cerr << "cannot write " << outFile.getFullPathName() << "\n";

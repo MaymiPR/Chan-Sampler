@@ -272,9 +272,9 @@ int main (int argc, char** argv)
             e->setPlayConfigDetails (0, 2, rate, bs);
             e->prepareToPlay (rate, bs);
             const int blocksAtRate = (int) (40 * rate / 44100.0);
-            const auto y = render (*e, blocksAtRate, note);
+            const auto yr = render (*e, blocksAtRate, note);
             render (*e, 20, off);
-            const auto f = freq (y, (int) (1000 * rate / 44100.0), (int) (18000 * rate / 44100.0), rate);
+            const auto f = freq (yr, (int) (1000 * rate / 44100.0), (int) (18000 * rate / 44100.0), rate);
             check (f44 > 20.0f && std::abs (f / f44 - 1.0f) < 0.01f,
                    "host rate 44.1 -> " + juce::String (rate / 1000.0, 1) + " kHz keeps the pitch (" + juce::String (f44, 1) + " -> " + juce::String (f, 1) + " Hz)");
         }

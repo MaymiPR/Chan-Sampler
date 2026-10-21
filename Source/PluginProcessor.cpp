@@ -488,15 +488,10 @@ juce::MemoryBlock ChanSamplerProcessor::getSampleAsWav() const
         return block;
     const int bits = r->bitsPerSample <= 16 ? 16 : r->bitsPerSample <= 24 ? 24 : 32;   // 32 = float
     juce::WavAudioFormat wav;
-    auto* stream = new juce::MemoryOutputStream (block, false);
-    JUCE_BEGIN_IGNORE_WARNINGS_MSVC (4996)
-    std::unique_ptr<juce::AudioFormatWriter> writer (wav.createWriterFor (stream, r->sampleRate, (unsigned) r->audio.getNumChannels(), bits, {}, 0));
-    JUCE_END_IGNORE_WARNINGS_MSVC
+    std::unique_ptr<juce::OutputStream> stream = std::make_unique<juce::MemoryOutputStream> (block, false);
+    auto writer = wav.createWriterFor (stream, juce::AudioFormatWriterOptions{}.withSampleRate (r->sampleRate).withNumChannels (r->audio.getNumChannels()).withBitsPerSample (bits));
     if (writer == nullptr)
-    {
-        delete stream;
         return {};
-    }
     writer->writeFromAudioSampleBuffer (r->audio, 0, r->audio.getNumSamples());
     writer.reset();   // writes the header's final sizes
     return block;

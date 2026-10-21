@@ -540,14 +540,14 @@ SampleData::Ptr buildProcessedSample (const RawSample& raw, const PrecomputeSett
     {
         if (start <= 0)
             return;
-        const int n = juce::jmin (len, trimtail::headSize);
+        const int count = juce::jmin (len, trimtail::headSize);
         float in[trimtail::headSize] {};
-        for (int i = 0; i < n; ++i)
+        for (int i = 0; i < count; ++i)
             in[i] = d[i];
-        for (int i = 0; i < n; ++i)
+        for (int i = 0; i < count; ++i)
         {
             float acc = 0.0f;
-            for (int e = 0; e < n; ++e)
+            for (int e = 0; e < count; ++e)
                 acc += trimtail::head22[i * trimtail::headSize + e] * in[e];
             d[i] = acc;
         }

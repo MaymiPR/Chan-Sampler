@@ -1007,11 +1007,9 @@ void WaveformView::saveAs()
                               file.deleteFile();
                               juce::WavAudioFormat wav;
                               const int channels = keep->mono ? 1 : 2;
-                              JUCE_BEGIN_IGNORE_WARNINGS_MSVC (4996)
-                              if (auto out = std::unique_ptr<juce::AudioFormatWriter> (wav.createWriterFor (new juce::FileOutputStream (file), keep->sourceRate,
-                                                                                                             (unsigned) channels, 24, {}, 0)))
+                              std::unique_ptr<juce::OutputStream> stream = std::make_unique<juce::FileOutputStream> (file);
+                              if (auto out = wav.createWriterFor (stream, juce::AudioFormatWriterOptions{}.withSampleRate (keep->sourceRate).withNumChannels (channels).withBitsPerSample (24)))
                                   out->writeFromAudioSampleBuffer (keep->audio, 0, keep->playEnd);
-                              JUCE_END_IGNORE_WARNINGS_MSVC
                           });
 }
 
@@ -1316,7 +1314,7 @@ void WaveformView::drawSpectrum (juce::Graphics& g, juce::Rectangle<float> area)
         const int peakSpan = juce::jmax (1, (int) std::lround (32.0 * (44100.0 / 2048.0) / (sr / specSize)));
         const int bins = specSize / 2;
 
-        std::vector<float> shortWin (shortLen), longWin (longLen);
+        std::vector<float> shortWin ((size_t) shortLen), longWin ((size_t) longLen);
         double shortSum = 0;
         for (int i = 0; i < shortLen; ++i)
         {
@@ -1350,7 +1348,7 @@ void WaveformView::drawSpectrum (juce::Graphics& g, juce::Rectangle<float> area)
         auto columns = [&] (int x0, int x1)
         {
             juce::dsp::FFT fft (specOrder);
-            std::vector<float> a (2 * specSize), b (2 * specSize), level ((size_t) bins), pre ((size_t) bins), post ((size_t) bins);
+            std::vector<float> a ((size_t) (2 * specSize)), b ((size_t) (2 * specSize)), level ((size_t) bins), pre ((size_t) bins), post ((size_t) bins);
             juce::Image::BitmapData px (spectrumImage, 0, 0, w, h, juce::Image::BitmapData::writeOnly);
             for (int x = x0; x < x1; ++x)
             {

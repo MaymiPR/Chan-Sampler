@@ -156,15 +156,6 @@ namespace
         addFloat  (l, p ("LfoAtt"),   target + " LFO attack time",   unit, envPos (20000), percentAttr());
     }
 
-    double interpLog (const double* xs, const double* ys, int n, double x)
-    {
-        if (x <= xs[0])     return ys[0] * std::pow (ys[1] / ys[0], (x - xs[0]) / (xs[1] - xs[0]));
-        if (x >= xs[n - 1]) return ys[n - 1] * std::pow (ys[n - 1] / ys[n - 2], (x - xs[n - 1]) / (xs[n - 1] - xs[n - 2]));
-        int i = 0;
-        while (x > xs[i + 1]) ++i;
-        return ys[i] * std::pow (ys[i + 1] / ys[i], (x - xs[i]) / (xs[i + 1] - xs[i]));
-    }
-
     // Arpeggio time: FL knob positions for 1/4, 1/2, 1, 2 and 4 steps (read
     // from FL by typing each value and copying the position); 1 = Hold.
     // Arpeggio time (measured in FL): position = (raw - 450) / 997, raw 1447 is

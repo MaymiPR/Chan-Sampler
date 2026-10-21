@@ -499,8 +499,8 @@ void RootKeyboard::timerCallback()
 
 //==============================================================================
 RootNotePanel::RootNotePanel (juce::AudioProcessorValueTreeState& s, juce::MidiKeyboardState& k)
-    : fl::Panel ("Root note: C5"), apvts (s), keyboard (s, k),
-      fine (*s.getParameter (pid::fineTune), juce::Slider::LinearHorizontal)
+    : fl::Panel ("Root note: C5"), apvts (s),
+      fine (*s.getParameter (pid::fineTune), juce::Slider::LinearHorizontal), keyboard (s, k)
 {
     resetButton.setTooltip ("Default root note and fine tune");
     resetButton.onClick = [this]

@@ -135,6 +135,16 @@ target_link_libraries(ChanSamplerHostTest PRIVATE
     juce::juce_recommended_config_flags
     juce::juce_recommended_warning_flags)
 
+# Two of JUCE's recommended GCC / Clang warnings flag patterns this code uses
+# on purpose: switches over a few cases with a default, and exact float
+# comparisons (a value that is set, not computed: "is this LFO off?", "did
+# it change?").
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    foreach(target ChanSampler ChanSamplerTests ChanSamplerRender ChanSamplerSnapshot ChanSamplerHostTest)
+        target_compile_options(${target} PRIVATE -Wno-switch-enum -Wno-float-equal)
+    endforeach()
+endif()
+
 # The macOS clipboard (Source/SampleExchange.cpp) is Objective-C++.
 if(APPLE)
     foreach(target ChanSampler ChanSamplerRender ChanSamplerSnapshot)
