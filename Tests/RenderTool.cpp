@@ -1,9 +1,24 @@
-// Offline renderer for null tests against FL Studio renders.
+// Offline renderer for null tests against FL Studio renders, and the
+// developer checks that need the whole plugin without a host.
 //
 //   ChanSamplerRender <sample.wav> <out.wav> <seconds> <params.txt> <notes>
 //
 // params.txt: one "paramID value" per line (plain, unnormalised values).
-// notes: "key:startSec:lengthSec:velocity;..." with FL velocity 0-128.
+// notes: "key:startSec:lengthSec:velocity;..." with FL's note velocity, which
+// FL's plugin wrapper passes on unchanged as the MIDI velocity (so 1-127).
+//
+// Other commands (each described where it is handled below):
+//   loadcheck <sample>                 a file's loop points don't switch looping on
+//   stretchtest <in> <out> <cents> [mode] [speed]   the stretcher alone on a file
+//   tempotest <sample>                 Detect tempo's estimate and FL's ranges
+//   reloadtest <a> <b> <copy>          a sample changed on disk reloads, settings kept
+//   cliptest <sample> <folder>         copy to the clipboard and paste into another instance
+//   compatstate <state.bin>            an older version's saved state reads back the same
+//   statetest <sample>                 save / reload round trip plays identically
+//   cuttest <sample>                   cut groups between two instances
+//   fftbench                           the stretcher's FFT against JUCE's
+//   bench <sample>                     CPU per stretch mode, 32 / 64 voices
+//   decode <file> <out-prefix>         what each audio format reader decodes
 
 #include <juce_audio_formats/juce_audio_formats.h>
 #include <juce_events/juce_events.h>
@@ -83,9 +98,6 @@ static int cutTest (const juce::File& sampleFile)
     return 0;
 }
 
-// Save / reload test: random settings, state round trip into a new instance,
-// then the same notes through both.
-//   ChanSamplerRender statetest <sample.wav>
 // Compatibility with older saves: loads a state written by an earlier
 // version (state.bin, plus state.txt listing "id<TAB>plain value<TAB>text" as
 // that version showed them) and reports every parameter that reads back
@@ -131,6 +143,9 @@ static int compatState (const juce::File& stateFile)
     return mismatches == 0 ? 0 : 2;
 }
 
+// Save / reload test: random settings, state round trip into a new instance,
+// then the same notes through both.
+//   ChanSamplerRender statetest <sample.wav>
 static int stateTest (const juce::File& sampleFile)
 {
     constexpr double sr = 44100.0;
@@ -325,8 +340,8 @@ int main (int argc, char** argv)
         return cutTest (juce::File (juce::String (argv[2])));
     }
 
-    // "bench <sample>": CPU load (one core, % of real time) for 32 / 64 looping
-    // voices per stretch method, and for heavy automation.
+    // "fftbench": the stretcher's FFT (FastFFT) against JUCE's, per size:
+    // the largest difference and the time per transform.
     if (argc >= 2 && juce::String (argv[1]) == "fftbench")
     {
         juce::Random rnd (1);
@@ -356,6 +371,8 @@ int main (int argc, char** argv)
         }
         return 0;
     }
+    // "bench <sample>": CPU load (one core, % of real time) for 32 / 64 looping
+    // voices per stretch method, and for heavy automation.
     if (argc >= 3 && juce::String (argv[1]) == "bench")
     {
         juce::ScopedJuceInitialiser_GUI init;
@@ -524,7 +541,9 @@ int main (int argc, char** argv)
     proc.setPlayConfigDetails (0, 2, sampleRate, blockSize);
     proc.prepareToPlay (sampleRate, blockSize);
 
-    // Notes: FL velocity v (0-128) arrives as MIDI velocity v * 127 / 128.
+    // Notes: FL's plugin wrapper sends a note's velocity unchanged as the MIDI
+    // velocity (measured; SamplerEngine reads it so), so FL's 128 can't reach
+    // a plugin: it is clamped to 127.
     juce::MidiBuffer all;
     for (auto& n : juce::StringArray::fromTokens (noteSpec, ";", {}))
     {
@@ -534,7 +553,7 @@ int main (int argc, char** argv)
         const int key = f[0].getIntValue();
         const int on = (int) std::round (f[1].getDoubleValue() * sampleRate);
         const int off = on + (int) std::round (f[2].getDoubleValue() * sampleRate);
-        const auto vel = (juce::uint8) juce::jlimit (1, 127, (int) std::round (f[3].getDoubleValue() * 127.0 / 128.0));
+        const auto vel = (juce::uint8) juce::jlimit (1, 127, (int) std::round (f[3].getDoubleValue()));
         all.addEvent (juce::MidiMessage::noteOn (1, key, vel), on);
         all.addEvent (juce::MidiMessage::noteOff (1, key), off);
     }

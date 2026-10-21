@@ -63,12 +63,12 @@ or FL's half spills into ours.
 ## Offline tests (fast)
 
 `lib/nulltest.py` with `cases/cases.py` renders FL's half from the command line
-and Chan Sampler's with `ChanSamplerRender`; `probes/offline_vs_fl.py` compares
-an offline render with FL's half of an in-FL case, for model tuning without new
-FL renders. The offline renderer is 1.25× the in-FL level and maps FL velocity
-v to MIDI round(v·127/128), so trust the in-FL tests for final numbers (the
-offline cases currently sit at about −32 dB against FL's renders, while the
-same settings null in FL).
+(FL's Sampler alone) and Chan Sampler's with `ChanSamplerRender`;
+`probes/offline_vs_fl.py` compares an offline render with FL's half of an
+in-FL case, for model tuning without new FL renders. The cases play at FL's
+unity velocity, 100: FL passes a note's velocity to a plugin unchanged as the
+MIDI velocity, so FL's 128 can't be reproduced outside FL. The in-FL tests
+remain the reference for final numbers.
 
 ## Stretch modes
 
