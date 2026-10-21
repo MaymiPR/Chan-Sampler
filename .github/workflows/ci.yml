@@ -1,13 +1,30 @@
-# Builds Chan Sampler and runs its tests on every push and pull request:
-# the engine tests (ChanSamplerTests) and the host test, which loads the
-# built VST3 the way a DAW does (ChanSamplerHostTest). Releases are built by
-# release.yml.
+# Builds Chan Sampler and runs its tests: the engine tests (ChanSamplerTests)
+# and the host test, which loads the built VST3 the way a DAW does
+# (ChanSamplerHostTest). Kept cheap: Linux on every push to main, Windows too
+# on pull requests (or by hand: Actions -> CI -> Run workflow), and nothing
+# when only docs or the null-test scripts change. macOS is built and
+# validated by release.yml at each release.
 name: CI
 
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'nulltest/**'
+      - 'LICENSE'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/pull_request_template.md'
   pull_request:
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'nulltest/**'
+      - 'LICENSE'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/pull_request_template.md'
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -42,6 +59,7 @@ jobs:
         run: xvfb-run -a build/ChanSamplerHostTest_artefacts/Release/ChanSamplerHostTest "build/ChanSampler_artefacts/Release/VST3/Chan Sampler.vst3" nulltest/signals/sine.wav
 
   windows:
+    if: github.event_name != 'push'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5

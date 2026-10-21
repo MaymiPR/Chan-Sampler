@@ -26,8 +26,11 @@ tools (all in `build/<tool>_artefacts/Release/`):
 | `ChanSamplerRender` | Renders notes offline for the null tests; also `bench <sample>` (CPU per stretch mode, 32 / 64 voices), `stretchtest` (the stretcher alone on a file), `fftbench` (the stretcher's FFT against JUCE's), `compatstate <state.bin>` (an older version's saved state loads unchanged). |
 | `ChanSamplerSnapshot` | Writes editor screenshots (to compare with FL's screen, and the README's pictures). |
 
-GitHub Actions builds and runs the engine and host tests on Windows and Linux
-for every push and pull request (`.github/workflows/ci.yml`).
+GitHub Actions builds and runs the engine and host tests
+(`.github/workflows/ci.yml`): on Linux for every push to `main`, on Windows
+too for pull requests, and on both from Actions → *CI* → *Run workflow*.
+Changes to docs or `nulltest/` alone don't start it. macOS is built and
+validated at each release.
 
 ## Null tests against FL
 
