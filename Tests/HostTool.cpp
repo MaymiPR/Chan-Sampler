@@ -9,8 +9,9 @@
 //
 // --save-state writes a project state with every parameter away from its
 // default (no sample path), plus state.txt listing each parameter's name and
-// its text as this version shows it; Tests/data holds one per release, and
-// the test loads each into the current build and compares the texts.
+// its text as this version shows it. Tests/data holds one for each release
+// that changed the parameters; the test loads each into the current build and
+// compares the texts.
 
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -120,10 +121,7 @@ namespace
             d = juce::jmax (d, std::abs (a[i] - b[i]));
         return d;
     }
-}
 
-namespace
-{
     // A project state with every parameter away from its default, and the text
     // each one shows (the reference for later versions).
     int saveState (const juce::String& pluginPath, const juce::File& out)
@@ -240,9 +238,16 @@ int main (int argc, char** argv)
     check (std::abs (f1 / f0 - 1.1225f) < 0.02f, "pitch bend reaches the plugin");
     render (*a, 20, [] (int i, juce::MidiBuffer& m) { if (i == 0) { m.addEvent (juce::MidiMessage::pitchWheel (1, 8192), 0); m.addEvent (juce::MidiMessage::allNotesOff (1), 0); } });
     render (*a, 300, [] (int, juce::MidiBuffer&) {});   // let the bent note die away
-    // one throw-away note so the first comparison starts from the same state as the others
-    render (*a, 60, [] (int i, juce::MidiBuffer& m) { if (i == 0) m.addEvent (juce::MidiMessage::noteOn (1, 60, (juce::uint8) 100), 1); });
-    render (*a, 20, [] (int i, juce::MidiBuffer& m) { if (i == 0) m.addEvent (juce::MidiMessage::allNotesOff (1), 0); });
+    // Other CCs are ignored (hosts map them to parameters). Without the volume
+    // envelope a note plays to the sample's end, as in FL, so each note here
+    // overlaps the next two: two throw-away notes first, so every comparison
+    // starts with the same notes still sounding.
+    for (int k = 0; k < 2; ++k)
+    {
+        render (*a, 60, [] (int i, juce::MidiBuffer& m) { if (i == 0) m.addEvent (juce::MidiMessage::noteOn (1, 60, (juce::uint8) 100), 1); });
+        render (*a, 20, [] (int i, juce::MidiBuffer& m) { if (i == 0) m.addEvent (juce::MidiMessage::allNotesOff (1), 0); });
+    }
+    juce::StringArray changedBy;
     for (int cc : { 1, 7, 10, 11, 64 })
     {
         auto y0 = render (*a, 60, [] (int i, juce::MidiBuffer& m) { if (i == 0) m.addEvent (juce::MidiMessage::noteOn (1, 60, (juce::uint8) 100), 1); });
@@ -254,8 +259,11 @@ int main (int argc, char** argv)
         render (*a, 20, [cc] (int i, juce::MidiBuffer& m) { if (i == 0) { m.addEvent (juce::MidiMessage::controllerEvent (1, cc, cc == 7 ? 100 : 0), 0); m.addEvent (juce::MidiMessage::allNotesOff (1), 0); } });
         float diff = 0;
         for (size_t i = 0; i < y0.size(); ++i) diff = juce::jmax (diff, std::abs (y0[i] - y1[i]));
-        std::cout << "      CC" << cc << " = 20: output " << (diff > 1.0e-4f ? "changes" : "unchanged") << " (max difference " << diff << ")\n";
+        if (diff > 1.0e-4f)
+            changedBy.add ("CC" + juce::String (cc));
     }
+    check (changedBy.isEmpty(), "CC1, 7, 10, 11 and 64 (pedal up) leave the sound alone"
+                                + (changedBy.isEmpty() ? juce::String() : " (changed by " + changedBy.joinIntoString (", ") + ")"));
 
     // Sustain pedal: a note released while the pedal is down keeps sounding
     // (volume envelope on, so a note-off would otherwise release it).
@@ -279,7 +287,7 @@ int main (int argc, char** argv)
     //    with audible settings, then the editor size the user left it at.
     juce::Random rng (7);
     for (auto* prm : a->getParameters())
-        if (prm->isAutomatable() && prm->getName (100) != "Time stretch mode")
+        if (prm->isAutomatable())
             prm->setValueNotifyingHost (rng.nextFloat());
     juce::MemoryBlock saved;
     a->getStateInformation (saved);
@@ -360,9 +368,18 @@ int main (int argc, char** argv)
         auto note = [] (int i, juce::MidiBuffer& m) { if (i == 0) m.addEvent (juce::MidiMessage::noteOn (1, 60, (juce::uint8) 100), 0); };
         auto ref = load (pluginPath);
         setStateAttribute (*ref, "samplePath", samplePath);
+        const auto yPlain = render (*ref, 60, note);
+        render (*ref, 20, [] (int i, juce::MidiBuffer& m) { if (i == 0) m.addEvent (juce::MidiMessage::allNotesOff (1), 0); });
         if (auto* rev = findParam (*ref, "Reverse")) rev->setValueNotifyingHost (1.0f);
-        juce::Thread::sleep (500);   // the realtime reference: the rebuild has finished
-        const auto yRef = render (*ref, 60, note);
+        render (*ref, 4, [] (int, juce::MidiBuffer&) {});   // the processor takes the change
+        juce::MemoryBlock project;
+        ref->getStateInformation (project);
+        // The reference: loading a project builds its sample while it loads,
+        // so there is no background rebuild to wait for.
+        auto loaded = load (pluginPath);
+        loaded->setStateInformation (project.getData(), (int) project.getSize());
+        const auto yRef = render (*loaded, 60, note);
+        check (maxDiff (yRef, yPlain) > 0.01f, "the reference plays the sample reversed");
 
         auto off = load (pluginPath);
         setStateAttribute (*off, "samplePath", samplePath);
@@ -374,8 +391,6 @@ int main (int argc, char** argv)
                "offline render right after a precomputed change uses the new sample (max diff " + juce::String (maxDiff (yRef, yOff)) + ")");
 
         // ... and right after a project is loaded
-        juce::MemoryBlock project;
-        ref->getStateInformation (project);
         auto fresh = load (pluginPath);
         fresh->setNonRealtime (true);
         fresh->setStateInformation (project.getData(), (int) project.getSize());
