@@ -18,6 +18,34 @@ FetchContent_Declare(JUCE
     GIT_SHALLOW ON)
 FetchContent_MakeAvailable(JUCE)
 
+# The sources: the engine alone (what the tests need) and everything.
+set(CHANSAMPLER_ENGINE_SOURCES
+    Source/Params.cpp
+    Source/SampleData.cpp
+    Source/Dsp.cpp
+    Source/SamplerEngine.cpp
+    Source/TimeStretch.cpp)
+set(CHANSAMPLER_SOURCES
+    ${CHANSAMPLER_ENGINE_SOURCES}
+    Source/PluginProcessor.cpp
+    Source/CutGroups.cpp
+    Source/FlPreset.cpp
+    Source/PresetBar.cpp
+    Source/FactoryPresets.cpp
+    Source/PluginEditor.cpp
+    Source/FlStyle.cpp
+    Source/FlParts.cpp
+    Source/SampleExchange.cpp
+    Source/TempoDetect.cpp
+    Source/WaveformView.cpp)
+
+# The developer tools build the plugin's code as a console app, so they
+# define what juce_add_plugin would.
+set(CHANSAMPLER_TOOL_DEFINITIONS
+    JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0 JUCE_USE_MP3AUDIOFORMAT=1
+    JucePlugin_Name="Chan Sampler" JucePlugin_IsSynth=1 JucePlugin_WantsMidiInput=1
+    JucePlugin_ProducesMidiOutput=0 JucePlugin_IsMidiEffect=0)
+
 # VST3 + Standalone everywhere; AU is only buildable on macOS.
 set(CHANSAMPLER_FORMATS VST3 Standalone)
 if(APPLE)
@@ -39,23 +67,7 @@ juce_add_plugin(ChanSampler
     AU_MAIN_TYPE kAudioUnitType_MusicDevice
     VST3_CATEGORIES Instrument Sampler)
 
-target_sources(ChanSampler PRIVATE
-    Source/Params.cpp
-    Source/SampleData.cpp
-    Source/Dsp.cpp
-    Source/SamplerEngine.cpp
-    Source/TimeStretch.cpp
-    Source/PluginProcessor.cpp
-    Source/CutGroups.cpp
-    Source/FlPreset.cpp
-    Source/PresetBar.cpp
-    Source/FactoryPresets.cpp
-    Source/PluginEditor.cpp
-    Source/FlStyle.cpp
-    Source/FlParts.cpp
-    Source/SampleExchange.cpp
-    Source/TempoDetect.cpp
-    Source/WaveformView.cpp)
+target_sources(ChanSampler PRIVATE ${CHANSAMPLER_SOURCES})
 
 # CLAP, through clap-juce-extensions (MIT; it brings the CLAP SDK).
 option(CHANSAMPLER_CLAP "Build the CLAP plugin" ON)
@@ -78,13 +90,7 @@ target_compile_definitions(ChanSampler PUBLIC
 
 # Offline engine tests: build target ChanSamplerTests and run it.
 juce_add_console_app(ChanSamplerTests PRODUCT_NAME "ChanSamplerTests")
-target_sources(ChanSamplerTests PRIVATE
-    Tests/EngineTests.cpp
-    Source/Params.cpp
-    Source/SampleData.cpp
-    Source/Dsp.cpp
-    Source/SamplerEngine.cpp
-    Source/TimeStretch.cpp)
+target_sources(ChanSamplerTests PRIVATE Tests/EngineTests.cpp ${CHANSAMPLER_ENGINE_SOURCES})
 target_compile_definitions(ChanSamplerTests PRIVATE JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0)
 target_link_libraries(ChanSamplerTests PRIVATE
     juce::juce_audio_processors
@@ -94,28 +100,8 @@ target_link_libraries(ChanSamplerTests PRIVATE
 
 # Offline renderer used by nulltest/ to compare against FL Studio renders.
 juce_add_console_app(ChanSamplerRender PRODUCT_NAME "ChanSamplerRender")
-target_sources(ChanSamplerRender PRIVATE
-    Tests/RenderTool.cpp
-    Source/Params.cpp
-    Source/SampleData.cpp
-    Source/Dsp.cpp
-    Source/SamplerEngine.cpp
-    Source/TimeStretch.cpp
-    Source/PluginProcessor.cpp
-    Source/CutGroups.cpp
-    Source/FlPreset.cpp
-    Source/PresetBar.cpp
-    Source/FactoryPresets.cpp
-    Source/PluginEditor.cpp
-    Source/FlStyle.cpp
-    Source/FlParts.cpp
-    Source/SampleExchange.cpp
-    Source/TempoDetect.cpp
-    Source/WaveformView.cpp)
-target_compile_definitions(ChanSamplerRender PRIVATE
-    JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0 JUCE_USE_MP3AUDIOFORMAT=1
-    JucePlugin_Name="Chan Sampler" JucePlugin_IsSynth=1 JucePlugin_WantsMidiInput=1
-    JucePlugin_ProducesMidiOutput=0 JucePlugin_IsMidiEffect=0)
+target_sources(ChanSamplerRender PRIVATE Tests/RenderTool.cpp ${CHANSAMPLER_SOURCES})
+target_compile_definitions(ChanSamplerRender PRIVATE ${CHANSAMPLER_TOOL_DEFINITIONS})
 target_link_libraries(ChanSamplerRender PRIVATE
     juce::juce_audio_utils
     juce::juce_dsp
@@ -123,28 +109,8 @@ target_link_libraries(ChanSamplerRender PRIVATE
 
 # Editor snapshots for visual comparison with FL (Tests/SnapshotTool.cpp).
 juce_add_console_app(ChanSamplerSnapshot PRODUCT_NAME "ChanSamplerSnapshot")
-target_sources(ChanSamplerSnapshot PRIVATE
-    Tests/SnapshotTool.cpp
-    Source/Params.cpp
-    Source/SampleData.cpp
-    Source/Dsp.cpp
-    Source/SamplerEngine.cpp
-    Source/TimeStretch.cpp
-    Source/PluginProcessor.cpp
-    Source/CutGroups.cpp
-    Source/FlPreset.cpp
-    Source/PresetBar.cpp
-    Source/FactoryPresets.cpp
-    Source/PluginEditor.cpp
-    Source/FlStyle.cpp
-    Source/FlParts.cpp
-    Source/SampleExchange.cpp
-    Source/TempoDetect.cpp
-    Source/WaveformView.cpp)
-target_compile_definitions(ChanSamplerSnapshot PRIVATE
-    JUCE_MODAL_LOOPS_PERMITTED=1 JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0 JUCE_USE_MP3AUDIOFORMAT=1
-    JucePlugin_Name="Chan Sampler" JucePlugin_IsSynth=1 JucePlugin_WantsMidiInput=1
-    JucePlugin_ProducesMidiOutput=0 JucePlugin_IsMidiEffect=0)
+target_sources(ChanSamplerSnapshot PRIVATE Tests/SnapshotTool.cpp ${CHANSAMPLER_SOURCES})
+target_compile_definitions(ChanSamplerSnapshot PRIVATE JUCE_MODAL_LOOPS_PERMITTED=1 ${CHANSAMPLER_TOOL_DEFINITIONS})
 target_link_libraries(ChanSamplerSnapshot PRIVATE
     juce::juce_audio_utils
     juce::juce_dsp
