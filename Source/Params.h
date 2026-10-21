@@ -174,6 +174,17 @@ int parseNoteName (const juce::String& text);
 // Host tempo for the knob menus' "Set > n steps" entries (updated by the processor).
 extern std::atomic<double> displayBpm;
 
+// Envelope / LFO time knobs: FL's raw 100 .. 65536 as a knob position.
+inline float flEnvKnobForRaw (int raw) { return (float) (raw - 100) / 65436.0f; }
+
+// Sets a parameter (plain value) as one gesture, as a user's edit does.
+inline void setParameterAsGesture (juce::RangedAudioParameter& p, float plainValue)
+{
+    p.beginChangeGesture();
+    p.setValueNotifyingHost (p.convertTo0to1 (plainValue));
+    p.endChangeGesture();
+}
+
 // Inverse of flEnvSeconds: the knob position for a time in seconds.
 float flEnvKnobForSeconds (float seconds);
 

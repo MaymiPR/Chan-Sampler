@@ -116,9 +116,6 @@ namespace
         return { start, 1.0f, 1.0f / (float) steps };
     }
 
-    // Envelope / LFO time knobs: FL position = (raw - 100) / 65436, shown as %.
-    float envPos (int raw) { return (float) (raw - 100) / 65436.0f; }
-
     // DAHDSR envelope + LFO for one INS target, with FL's defaults.
     // FL's Panning page has no envelope, only the LFO.
     void addTarget (Layout& l, const char* prefix, const juce::String& target, bool hasAmount, bool hasEnvelope = true)
@@ -130,11 +127,11 @@ namespace
         {
             addBool  (l, p ("EnvOn"),  target + " envelope", false);
             addFloat (l, p ("Del"),    target + " predelay time", unit, 0.0f,           percentAttr());
-            addFloat (l, p ("Att"),    target + " attack time",   unit, envPos (20000), percentAttr());
-            addFloat (l, p ("Hold"),   target + " hold time",     unit, envPos (20000), percentAttr());
-            addFloat (l, p ("Dec"),    target + " decay time",    unit, envPos (30000), percentAttr());
+            addFloat (l, p ("Att"),    target + " attack time",   unit, flEnvKnobForRaw (20000), percentAttr());
+            addFloat (l, p ("Hold"),   target + " hold time",     unit, flEnvKnobForRaw (20000), percentAttr());
+            addFloat (l, p ("Dec"),    target + " decay time",    unit, flEnvKnobForRaw (30000), percentAttr());
             addFloat (l, p ("Sus"),    target + " sustain level", unit, 50.0f / 128.0f, percentAttr());
-            addFloat (l, p ("Rel"),    target + " release time",  unit, envPos (20000), percentAttr());
+            addFloat (l, p ("Rel"),    target + " release time",  unit, flEnvKnobForRaw (20000), percentAttr());
             addFloat (l, p ("AttT"),   target + " attack tension",  bipolar, 0.0f, percentAttr());
             addFloat (l, p ("DecT"),   target + " decay tension",   bipolar, 0.0f, percentAttr());
             addFloat (l, p ("RelT"),   target + " release tension", bipolar, isVolume ? -101.0f / 128.0f : 0.0f, percentAttr());
@@ -152,7 +149,7 @@ namespace
         addFloat  (l, p ("LfoSpeed"), target + " LFO speed",        unit, (32950.0f - 200.0f) / 65336.0f, percentAttr());
         addFloat  (l, p ("LfoAmt"),   target + " LFO amount",       bipolar, 0.0f, percentAttr());
         addFloat  (l, p ("LfoDel"),   target + " LFO predelay time", unit, 0.0f, percentAttr());
-        addFloat  (l, p ("LfoAtt"),   target + " LFO attack time",   unit, envPos (20000), percentAttr());
+        addFloat  (l, p ("LfoAtt"),   target + " LFO attack time",   unit, flEnvKnobForRaw (20000), percentAttr());
     }
 
     // Arpeggio time (measured in FL): position = (raw - 450) / 997, raw 1447 is

@@ -3,9 +3,7 @@
 
 void applyFactoryPreset (ChanSamplerProcessor& processor, const FactoryPreset& preset)
 {
-    for (auto* p : processor.getParameters())
-        if (auto* rp = dynamic_cast<juce::RangedAudioParameter*> (p))
-            rp->setValueNotifyingHost (rp->getDefaultValue());
+    processor.resetParameters();
     for (auto& [id, value] : preset.values)
     {
         auto* rp = processor.apvts.getParameter (id);

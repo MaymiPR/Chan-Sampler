@@ -977,9 +977,7 @@ void WaveformView::copySample()
 void WaveformView::pasteSample()
 {
     // Pasted audio data (not a file) is kept as a WAV file, so projects can find it again.
-    const auto folder = juce::File::getSpecialLocation (juce::File::userDocumentsDirectory)
-                            .getChildFile ("Chan Sampler").getChildFile ("Pasted audio");
-    const auto file = exchange::pasteFromClipboard (folder);
+    const auto file = exchange::pasteFromClipboard (ChanSamplerProcessor::userFolder ("Pasted audio"));
     if (file == juce::File())
         fl::showDialog (*this, "Chan Sampler", "The clipboard holds no audio.", true);
     else if (! processor.loadSample (file))

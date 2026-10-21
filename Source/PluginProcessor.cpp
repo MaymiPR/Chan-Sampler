@@ -297,6 +297,18 @@ EngineParams ChanSamplerProcessor::readEngineParams() const
 }
 
 //==============================================================================
+void ChanSamplerProcessor::resetParameters()
+{
+    for (auto* p : getParameters())
+        if (auto* rp = dynamic_cast<juce::RangedAudioParameter*> (p))
+            rp->setValueNotifyingHost (rp->getDefaultValue());
+}
+
+juce::File ChanSamplerProcessor::userFolder (const juce::String& name)
+{
+    return juce::File::getSpecialLocation (juce::File::userDocumentsDirectory).getChildFile ("Chan Sampler").getChildFile (name);
+}
+
 void ChanSamplerProcessor::applyLoopLink (const juce::String& changedId)
 {
     // FL's linked loop knobs (measured): START moves alone while it is below
@@ -313,12 +325,7 @@ void ChanSamplerProcessor::applyLoopLink (const juce::String& changedId)
     else if (changedId == pid::loopEnd && end < start)
         newEnd = start;
     if (newEnd != end)
-    {
-        auto* e = apvts.getParameter (pid::loopEnd);
-        e->beginChangeGesture();
-        e->setValueNotifyingHost (e->convertTo0to1 (newEnd));
-        e->endChangeGesture();
-    }
+        setParameterAsGesture (*apvts.getParameter (pid::loopEnd), newEnd);
 }
 
 void ChanSamplerProcessor::parameterChanged (const juce::String& parameterID, float)
@@ -334,20 +341,13 @@ void ChanSamplerProcessor::parameterChanged (const juce::String& parameterID, fl
 
 void ChanSamplerProcessor::timerCallback()
 {
-
     // FL: switching Cut self on sets Cut and By to the channel's own number, so
     // other channels can be cut by it too (here the instance number); off
     // clears them again if they still hold it.
     const int cutSelf = param (pid::cutItself) > 0.5f ? 1 : 0;
     if (lastCutSelf >= 0 && cutSelf != lastCutSelf)
     {
-        auto set = [this] (const char* id, float v)
-        {
-            auto* p = apvts.getParameter (id);
-            p->beginChangeGesture();
-            p->setValueNotifyingHost (p->convertTo0to1 (v));
-            p->endChangeGesture();
-        };
+        auto set = [this] (const char* id, float v) { setParameterAsGesture (*apvts.getParameter (id), v); };
         if (cutSelf == 1)
         {
             set (pid::cutGroup, (float) instanceNumber);

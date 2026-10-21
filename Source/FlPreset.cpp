@@ -120,7 +120,6 @@ namespace
         return beside.existsAsFile() ? beside : juce::File();
     }
 
-    float envPos (int raw)          { return (float) (raw - 100) / 65436.0f; }
     float volGain (double x)        { return (float) ((std::pow (11.0, x) - 1.0) / 10.0); }
     float volKnob (double gain)     { return (float) (std::log (10.0 * juce::jmax (0.0, gain) + 1.0) / std::log (11.0)); }
 }
@@ -186,9 +185,7 @@ flpreset::Result flpreset::import (ChanSamplerProcessor& processor, const juce::
     };
 
     // Start from Chan Sampler's defaults (FL's), then the sample, then the preset's values.
-    for (auto* p : processor.getParameters())
-        if (auto* rp = dynamic_cast<juce::RangedAudioParameter*> (p))
-            rp->setValueNotifyingHost (rp->getDefaultValue());
+    processor.resetParameters();
 
     if (auto* e = get (196))
     {
@@ -384,12 +381,12 @@ flpreset::Result flpreset::import (ChanSamplerProcessor& processor, const juce::
         if (i != 0)   // FL's Panning page has no envelope
         {
             set (p ("EnvOn"), field (1, 0) ? 1.0f : 0.0f);
-            set (p ("Del"),  envPos (field (2, 100)));
-            set (p ("Att"),  envPos (field (3, 20000)));
-            set (p ("Hold"), envPos (field (4, 20000)));
-            set (p ("Dec"),  envPos (field (5, 30000)));
+            set (p ("Del"),  flEnvKnobForRaw (field (2, 100)));
+            set (p ("Att"),  flEnvKnobForRaw (field (3, 20000)));
+            set (p ("Hold"), flEnvKnobForRaw (field (4, 20000)));
+            set (p ("Dec"),  flEnvKnobForRaw (field (5, 30000)));
             set (p ("Sus"),  (float) field (6, 50) / 128.0f);
-            set (p ("Rel"),  envPos (field (7, 20000)));
+            set (p ("Rel"),  flEnvKnobForRaw (field (7, 20000)));
             if (i >= 2)
                 set (p ("EnvAmt"), (float) field (8, 0) / 128.0f);
             set (p ("AttT"), (float) field (14, 0) / 128.0f);
@@ -397,8 +394,8 @@ flpreset::Result flpreset::import (ChanSamplerProcessor& processor, const juce::
             set (p ("RelT"), (float) field (16, i == 1 ? -101 : 0) / 128.0f);
             set (p ("EnvTempo"), (flags & 1) ? 1.0f : 0.0f);
         }
-        set (p ("LfoDel"),   envPos (field (9, 100)));
-        set (p ("LfoAtt"),   envPos (field (10, 20000)));
+        set (p ("LfoDel"),   flEnvKnobForRaw (field (9, 100)));
+        set (p ("LfoAtt"),   flEnvKnobForRaw (field (10, 20000)));
         set (p ("LfoAmt"),   (float) field (11, 0) / 128.0f);
         set (p ("LfoSpeed"), (float) (field (12, 32950) - 200) / 65336.0f);
         set (p ("LfoShape"), (float) field (13, 0));

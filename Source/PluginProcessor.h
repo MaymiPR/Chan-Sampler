@@ -72,6 +72,10 @@ public:
     SampleData::Ptr getSampleForDisplay() const;
     juce::File getSampleFile() const { return getRaw()->file; }
     int getSampleLength() const { return getRaw()->audio.getNumSamples(); }
+    // Every parameter back to its default (presets start from here).
+    void resetParameters();
+    // Documents/Chan Sampler/<name>: the user's presets, envelopes and pasted audio.
+    static juce::File userFolder (const juce::String& name);
     // FL's linked loop START / END, for the user's edits (message thread).
     void applyLoopLink (const juce::String& changedId);
     juce::String getSampleInfo() const;

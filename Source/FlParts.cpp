@@ -437,10 +437,7 @@ void RootKeyboard::mouseDown (const juce::MouseEvent& e)
     if (e.mods.isPopupMenu())
     {
         // Right-click sets the root key (FL behaviour)
-        auto* p = apvts.getParameter (pid::rootNote);
-        p->beginChangeGesture();
-        p->setValueNotifyingHost (p->convertTo0to1 ((float) n));
-        p->endChangeGesture();
+        setParameterAsGesture (*apvts.getParameter (pid::rootNote), (float) n);
         return;
     }
 
@@ -505,15 +502,8 @@ RootNotePanel::RootNotePanel (juce::AudioProcessorValueTreeState& s, juce::MidiK
     resetButton.setTooltip ("Default root note and fine tune");
     resetButton.onClick = [this]
     {
-        auto reset = [this] (const char* id, float value)
-        {
-            auto* p = apvts.getParameter (id);
-            p->beginChangeGesture();
-            p->setValueNotifyingHost (p->convertTo0to1 (value));
-            p->endChangeGesture();
-        };
-        reset (pid::rootNote, 60.0f);
-        reset (pid::fineTune, 0.0f);
+        setParameterAsGesture (*apvts.getParameter (pid::rootNote), 60.0f);
+        setParameterAsGesture (*apvts.getParameter (pid::fineTune), 0.0f);
     };
 
     fineLabel.setFont (fl::font (11.5f));

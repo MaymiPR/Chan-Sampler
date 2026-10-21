@@ -12,7 +12,7 @@ PresetBar::PresetBar (ChanSamplerProcessor& p) : processor (p)
 
 juce::File PresetBar::presetFolder()
 {
-    return juce::File::getSpecialLocation (juce::File::userDocumentsDirectory).getChildFile ("Chan Sampler").getChildFile ("Presets");
+    return ChanSamplerProcessor::userFolder ("Presets");
 }
 
 juce::Array<juce::File> PresetBar::presetFiles() const
@@ -198,9 +198,7 @@ void PresetBar::importFst()
 
 void PresetBar::initialize()
 {
-    for (auto* p : processor.getParameters())
-        if (auto* rp = dynamic_cast<juce::RangedAudioParameter*> (p))
-            rp->setValueNotifyingHost (rp->getDefaultValue());
+    processor.resetParameters();
     processor.removeSample();
     setCurrentName ({});
 }

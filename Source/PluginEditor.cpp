@@ -310,11 +310,7 @@ void ChanSamplerEditor::buildSampleSheet()
         {
             if (juce::roundToInt (modeParam->convertFrom0to1 (modeParam->getValue())) == (int) StretchMode::resample
                 && std::abs (pitchParam->convertFrom0to1 (pitchParam->getValue())) > 0.5f)
-            {
-                modeParam->beginChangeGesture();
-                modeParam->setValueNotifyingHost (modeParam->convertTo0to1 ((float) StretchMode::autoMode));
-                modeParam->endChangeGesture();
-            }
+                setParameterAsGesture (*modeParam, (float) StretchMode::autoMode);
         };
         pk.onDragEnd = toAuto;
         pk.onUserChange = [&pk, toAuto] { if (! pk.isMouseButtonDown()) toAuto(); };   // the wheel and the menu
@@ -716,11 +712,7 @@ void ChanSamplerEditor::buildFuncSheet()
 void ChanSamplerEditor::setParam (const juce::String& id, float value)
 {
     if (auto* p = samplerProcessor.apvts.getParameter (id))
-    {
-        p->beginChangeGesture();
-        p->setValueNotifyingHost (p->convertTo0to1 (value));
-        p->endChangeGesture();
-    }
+        setParameterAsGesture (*p, value);
 }
 
 void ChanSamplerEditor::showEchoPresets (juce::Component& anchor)
@@ -766,10 +758,7 @@ namespace
     const char* const envelopeKeys[] = { "EnvOn", "Del", "Att", "Hold", "Dec", "Sus", "Rel", "AttT", "DecT", "RelT", "EnvAmt", "EnvTempo",
                                          "LfoShape", "LfoDel", "LfoAtt", "LfoAmt", "LfoSpeed", "LfoTempo", "LfoGlobal" };
 
-    juce::File envelopeFolder()
-    {
-        return juce::File::getSpecialLocation (juce::File::userDocumentsDirectory).getChildFile ("Chan Sampler").getChildFile ("Envelopes");
-    }
+    juce::File envelopeFolder() { return ChanSamplerProcessor::userFolder ("Envelopes"); }
 }
 
 void ChanSamplerEditor::showEnvelopeMenu (const juce::String& prefix, juce::Component& anchor)
@@ -868,22 +857,22 @@ void ChanSamplerEditor::loadFile (const juce::File& file)
         fl::showDialog (canvas, "Chan Sampler", samplerProcessor.getLoadError(), true);
 }
 
+bool ChanSamplerEditor::canLoad (const juce::File& f)
+{
+    return flpreset::isPresetFile (f) || samplerProcessor.getFormatManager().findFormatForFileExtension (f.getFileExtension()) != nullptr;
+}
+
 bool ChanSamplerEditor::isInterestedInFileDrag (const juce::StringArray& files)
 {
     if (waveform.isDraggingSampleOut())   // our own sample on its way out
         return false;
-    for (auto& f : files)
-        if (flpreset::isPresetFile (juce::File (f))
-             || samplerProcessor.getFormatManager().findFormatForFileExtension (juce::File (f).getFileExtension()) != nullptr)
-            return true;
-    return false;
+    return std::any_of (files.begin(), files.end(), [this] (const juce::String& f) { return canLoad (juce::File (f)); });
 }
 
 void ChanSamplerEditor::filesDropped (const juce::StringArray& files, int, int)
 {
     for (auto& f : files)
-        if (flpreset::isPresetFile (juce::File (f))
-             || samplerProcessor.getFormatManager().findFormatForFileExtension (juce::File (f).getFileExtension()) != nullptr)
+        if (canLoad (juce::File (f)))
         {
             loadFile (juce::File (f));
             return;

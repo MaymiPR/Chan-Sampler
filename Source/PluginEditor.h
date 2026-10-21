@@ -65,6 +65,7 @@ private:
     void changeListenerCallback (juce::ChangeBroadcaster*) override;
     void refreshSample();
     void loadFile (const juce::File& file);
+    bool canLoad (const juce::File& file);   // a sample format we read, or an FL preset
     // The panel menus: FL's echo presets, and envelope presets (FL ships none;
     // its menu lists the ones saved with Save as).
     void showEchoPresets (juce::Component& anchor);
