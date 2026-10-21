@@ -27,8 +27,8 @@ body:
     id: version
     attributes:
       label: Chan Sampler version
-      description: Shown in your DAW's plugin list, or the release you downloaded.
-      placeholder: "1.2.1"
+      description: Click CHAN SAMPLER at the top of the plugin; the menu starts with the version.
+      placeholder: "1.x.y"
     validations:
       required: true
   - type: dropdown

@@ -37,7 +37,7 @@ void PresetBar::setCurrentName (const juce::String& name)
 void PresetBar::paint (juce::Graphics& g)
 {
     const auto r = getLocalBounds().toFloat();
-    g.setColour (juce::Colour (0xff1b1d1e));
+    g.setColour (fl::colour::well);
     g.fillRoundedRectangle (r, 2.0f);
     g.setColour (juce::Colour (0xff3a3d3f));
     g.drawRoundedRectangle (r.reduced (0.5f), 2.0f, 1.0f);

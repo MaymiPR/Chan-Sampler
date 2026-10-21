@@ -1,8 +1,10 @@
 ; Windows installer (Inno Setup 6). Built by .github/workflows/release.yml:
-;   iscc /DAppVersion=1.2.1 /DBuildDir=<build artefacts> packaging\ChanSampler.iss
+;   iscc /DAppVersion=<x.y.z> /DBuildDir=<build artefacts> packaging\ChanSampler.iss
+; The workflow passes the version from CMakeLists.txt; a build by hand
+; without it is labelled "dev".
 
 #ifndef AppVersion
-  #define AppVersion "1.2.1"
+  #define AppVersion "dev"
 #endif
 #ifndef BuildDir
   #define BuildDir "..\build\ChanSampler_artefacts\Release"

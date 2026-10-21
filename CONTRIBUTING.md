@@ -56,9 +56,9 @@ own samples from the FL install.
 
 ## Making a release
 
-1. Set the version in `CMakeLists.txt` (`project(ChanSampler VERSION x.y.z)`),
-   `packaging/ChanSampler.iss` (both places), the tag example below and the
-   placeholder in `.github/ISSUE_TEMPLATE/bug_report.yml`.
+1. Set the version in `CMakeLists.txt` (`project(ChanSampler VERSION x.y.z)`):
+   the plugin, its About menu, the tools and the installers take it from
+   there.
 2. Rename `## Unreleased` in `CHANGELOG.md` to `## x.y.z`: that section
    becomes the release notes.
 3. Save a project of the new version for the host test, so later versions are
@@ -75,8 +75,8 @@ own samples from the FL install.
 4. Commit, push, then tag:
 
    ```
-   git tag v1.2.1
-   git push origin v1.2.1
+   git tag vx.y.z
+   git push origin vx.y.z
    ```
 
 The release workflow (`.github/workflows/release.yml`) builds Windows, macOS
