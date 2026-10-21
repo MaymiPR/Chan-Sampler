@@ -1,4 +1,5 @@
 from lib import flrender as F
+from cases.fl_cases import envpos   # the measured knob positions, shared with the in-FL cases
 # The offline cases (lib/nulltest.py). They play at FL's unity velocity, 100,
 # which reaches the plugin unchanged as MIDI velocity 100 (FL's 128 cannot:
 # MIDI stops at 127).
@@ -32,7 +33,7 @@ for raw in [16, 64, 256]:
 for mix, fq in [(256, 128), (128, 64), (256, 0)]:
     CASES.append(dict(name=f"off_rm{mix}_{fq}", sample="signals/noise_q.wav", fl=[F.dword(131, mix | (fq << 16))], ours={"pcRmMix": mix / 256, "pcRmFreq": fq / 256}, **V))
 for cut, res in [(512, 0), (768, 0), (256, 0), (640, 320), (640, 640)]:
-    CASES.append(dict(name=f"v128L_pccut{cut}_{res}", sample="signals/noise.wav", fl=[F.word(71, cut), F.word(83, res)], ours={"pcCut": cut / 1024, "pcRes": res / 640}, **V))
+    CASES.append(dict(name=f"offL_pccut{cut}_{res}", sample="signals/noise.wav", fl=[F.word(71, cut), F.word(83, res)], ours={"pcCut": cut / 1024, "pcRes": res / 640}, **V))
 for sd in [0, 1024, 3072, 4096]:
     CASES.append(dict(name=f"off_sd{sd}", sample="signals/noise.wav", fl=[F.word(85, sd)], ours={"pcStereoDelay": (sd - 2048) / 2048}, **V))
 for pg in [0, 128, 384, 512]:
@@ -44,15 +45,15 @@ for so in [0.1, 0.5]:
 for mode in range(6):
     CASES.append(dict(name=f"off_dk{mode}_so", sample="signals/noise.wav", fl=[F.params(83, '<B', mode), F.params(144, '<d', 0.25)], ours={"declick": mode, "startOffset": 0.25}, **V))
     CASES.append(dict(name=f"off_dk{mode}_cut", sample="signals/sine3.wav", fl=[F.params(83, '<B', mode), F.dword(132, 1 | (1 << 16))],
-                      ours={"declick": mode, "cutItself": 1}, notes=[(0, 4, 60, 128), (1, 4, 60, 128)], **V))
+                      ours={"declick": mode, "cutItself": 1}, notes=[(0, 4, 60, 100), (1, 4, 60, 100)], **V))
 
-# Volume envelope (event 218, target "vol"); ours uses knob = raw/65536, sustain raw/128, tension raw/128
+# Volume envelope (event 218, target "vol"); knob positions as measured (envpos), sustain raw/128, tension raw/128
 def envcase(name, beats=8, sample="signals/dc20.wav", **kw):
     base = dict(env_on=1, delay=100, attack=20000, hold=20000, decay=30000, sustain=50, release=20000, att_tension=0, dec_tension=0, rel_tension=-101)
     base.update(kw)
-    ours = {"volEnvOn": 1, "volDel": base["delay"] / 65536 if base["delay"] > 100 else 0, "volAtt": base["attack"] / 65536,
-            "volHold": base["hold"] / 65536, "volDec": base["decay"] / 65536, "volSus": base["sustain"] / 128,
-            "volRel": base["release"] / 65536, "volAttT": base["att_tension"] / 128, "volDecT": base["dec_tension"] / 128,
+    ours = {"volEnvOn": 1, "volDel": envpos(base["delay"]), "volAtt": envpos(base["attack"]),
+            "volHold": envpos(base["hold"]), "volDec": envpos(base["decay"]), "volSus": base["sustain"] / 128,
+            "volRel": envpos(base["release"]), "volAttT": base["att_tension"] / 128, "volDecT": base["dec_tension"] / 128,
             "volRelT": base["rel_tension"] / 128}
     return dict(name=name, sample=sample, fl=[F.env('vol', k, v) for k, v in base.items()], ours=ours, beats=beats, vel=100)
 CASES += [
@@ -72,5 +73,5 @@ for typ in range(8):
 
 # Crossfade without loop points (FL turns the sample into a crossfaded loop); start + length interplay
 for raw in [64, 128, 256]:
-    CASES.append(dict(name=f"off_xf{raw}_noloop", sample="signals/noise.wav", fl=[F.params(84, '<I', raw)], ours={"pcCrossfade": raw / 256}, **V))
+    CASES.append(dict(name=f"off_xf{raw}_noloop", sample="signals/noise.wav", fl=[F.params(84, '<I', raw)], ours={"pcCrossfade": raw / 1024}, **V))
 CASES.append(dict(name="off_st25_len50", sample="signals/noise.wav", fl=[F.params(128, '<d', 0.25), F.params(136, '<d', 0.5)], ours={"pcStart": 0.25, "pcLength": 0.5}, **V))

@@ -18,9 +18,18 @@ FL's command-line export is 16-bit, so the best possible residual is roughly −
 - **close:** −30 to −60 dB.
 - **diff:** worse than −30 dB.
 
-Test cases use FL velocity 128, which maps exactly to MIDI 127.
+The offline cases (nulltest/cases/cases.py, the table at the end) play at FL's
+unity velocity 100, which FL passes to a plugin unchanged as MIDI velocity 100.
+At that level FL's 16-bit floor sits about 6 dB higher than in the earlier runs
+at velocity 128, and the cases that matched then moved by that much. So the
+EQ and ring-mod cases, three pogo cases, the precomputed cut at 512 and the
+SVF LPx2 filter case, NULL at −60 to −66 dB before, are now "close" because of
+the export alone. The small
+real differences are the precomputed cut at its lowest cutoff (−46.5 dB), the
+envelope with tensions (−46.2) and the Fast LP, LP, BP and LPx2 filter cases
+(−51 to −59). The in-FL tests in the sections above are the reference.
 
-Current suite: **82 cases: 62 NULL, 14 close, 6 diff** (full table at the end).
+Offline suite: **82 cases: 65 NULL, 17 close, 0 diff** (full table at the end).
 
 ## Measured laws
 
@@ -174,87 +183,89 @@ Controls sit at the positions and sizes of FL's own `TPluginForm` controls: `Smp
 
 ## Null-test results
 
+Offline cases (`python -c "from lib import nulltest; from cases import cases; nulltest.run(cases.CASES)"` in nulltest/), FL velocity 100.
+
 | Case | Residual (dB) | Result |
 |---|---|---|
-| v128_base | -75.3 | NULL |
-| v128_boost16 | -75.9 | NULL |
-| v128_boost64 | -83.8 | NULL |
-| v128_boost128 | -88.9 | NULL |
-| v128_boost256 | -93.8 | NULL |
-| v128_boost64clip | -94.9 | NULL |
-| v128_eq0 | -68.5 | NULL |
-| v128_eq64 | -66.0 | NULL |
-| v128_eq192 | -66.0 | NULL |
-| v128_eq256 | -68.6 | NULL |
-| v128_fin64 | -74.2 | NULL |
-| v128_fout64 | -75.0 | NULL |
-| v128_fin256 | -70.6 | NULL |
-| v128_fout256 | -72.8 | NULL |
-| v128_fin1024 | -67.2 | NULL |
-| v128_fout1024 | -72.7 | NULL |
-| v128_start25 | -73.4 | NULL |
-| v128_len50 | -33.0 | close |
-| v128_norm | -78.4 | NULL |
-| v128_rev | -77.5 | NULL |
-| v128_inv | -75.3 | NULL |
-| v128_swap | -75.3 | NULL |
-| v128_fadest | -72.6 | NULL |
-| v128_remdc | -82.0 | NULL |
-| v128_trim16 | -75.7 | NULL |
-| v128_trim64 | -76.3 | NULL |
-| v128_trim256 | -77.0 | NULL |
-| v128_rm256_128 | -62.1 | NULL |
-| v128_rm128_64 | -61.2 | NULL |
-| v128_rm256_0 | -62.0 | NULL |
-| v128L_pccut512_0 | -60.6 | NULL |
-| v128L_pccut768_0 | -67.7 | NULL |
-| v128L_pccut256_0 | -52.7 | close |
-| v128L_pccut640_320 | -71.9 | NULL |
-| v128L_pccut640_640 | -52.6 | close |
-| v128_sd0 | -75.6 | NULL |
-| v128_sd1024 | -75.6 | NULL |
-| v128_sd3072 | -77.2 | NULL |
-| v128_sd4096 | -77.2 | NULL |
-| v128_pogo0 | -64.1 | NULL |
-| v128_pogo128 | -64.5 | NULL |
-| v128_pogo384 | -63.7 | NULL |
-| v128_pogo512 | -49.6 | close |
-| v128_so0.1 | -74.0 | NULL |
-| v128_so0.5 | -73.8 | NULL |
-| v128_dk0_so | -74.8 | NULL |
-| v128_dk0_cut | -79.4 | NULL |
-| v128_dk1_so | -38.0 | close |
-| v128_dk1_cut | -36.8 | close |
-| v128_dk2_so | -74.6 | NULL |
-| v128_dk2_cut | -80.6 | NULL |
-| v128_dk3_so | -75.0 | NULL |
-| v128_dk3_cut | -80.6 | NULL |
-| v128_dk4_so | -76.7 | NULL |
-| v128_dk4_cut | -81.6 | NULL |
-| v128_dk5_so | -22.8 | diff |
-| v128_dk5_cut | -29.9 | diff |
-| v128_env_default | -44.0 | close |
-| v128_env_att10000 | -37.8 | close |
-| v128_env_dec20000 | -55.2 | close |
-| v128_env_rel20000 | -82.7 | NULL |
-| v128_env_tension | -24.2 | diff |
-| v128_flt0_128_0 | -58.8 | close |
-| v128_flt0_96_160 | -65.3 | NULL |
-| v128_flt1_128_0 | -58.6 | close |
-| v128_flt1_96_160 | -58.0 | close |
-| v128_flt2_128_0 | -74.0 | NULL |
-| v128_flt2_96_160 | -57.4 | close |
-| v128_flt3_128_0 | -71.4 | NULL |
-| v128_flt3_96_160 | -65.9 | NULL |
-| v128_flt4_128_0 | -69.7 | NULL |
-| v128_flt4_96_160 | -68.5 | NULL |
-| v128_flt5_128_0 | 6.7 | diff |
-| v128_flt5_96_160 | -11.1 | diff |
-| v128_flt6_128_0 | -64.6 | NULL |
-| v128_flt6_96_160 | -65.3 | NULL |
-| v128_flt7_128_0 | -64.5 | NULL |
-| v128_flt7_96_160 | -14.3 | diff |
-| v128_xf64_noloop | -76.5 | NULL |
-| v128_xf128_noloop | -76.6 | NULL |
-| v128_xf256_noloop | -76.7 | NULL |
-| v128_st25_len50 | -32.7 | close |
+| off_base | -70.7 | NULL |
+| off_boost16 | -69.8 | NULL |
+| off_boost64 | -77.7 | NULL |
+| off_boost128 | -82.7 | NULL |
+| off_boost256 | -88.3 | NULL |
+| off_boost64clip | -91.5 | NULL |
+| off_eq0 | -62.7 | NULL |
+| off_eq64 | -59.9 | close |
+| off_eq192 | -59.9 | close |
+| off_eq256 | -62.8 | NULL |
+| off_fin64 | -69.5 | NULL |
+| off_fout64 | -69.8 | NULL |
+| off_fin256 | -65.9 | NULL |
+| off_fout256 | -66.6 | NULL |
+| off_fin1024 | -64.5 | NULL |
+| off_fout1024 | -66.6 | NULL |
+| off_start25 | -70.5 | NULL |
+| off_len50 | -71.0 | NULL |
+| off_norm | -76.5 | NULL |
+| off_rev | -71.3 | NULL |
+| off_inv | -70.7 | NULL |
+| off_swap | -70.7 | NULL |
+| off_fadest | -67.8 | NULL |
+| off_remdc | -76.0 | NULL |
+| off_trim16 | -69.5 | NULL |
+| off_trim64 | -70.0 | NULL |
+| off_trim256 | -70.7 | NULL |
+| off_rm256_128 | -56.2 | close |
+| off_rm128_64 | -55.1 | close |
+| off_rm256_0 | -56.2 | close |
+| offL_pccut512_0 | -54.4 | close |
+| offL_pccut768_0 | -61.8 | NULL |
+| offL_pccut256_0 | -46.5 | close |
+| offL_pccut640_320 | -66.6 | NULL |
+| offL_pccut640_640 | -73.7 | NULL |
+| off_sd0 | -70.8 | NULL |
+| off_sd1024 | -70.8 | NULL |
+| off_sd3072 | -71.3 | NULL |
+| off_sd4096 | -71.3 | NULL |
+| off_pogo0 | -58.4 | close |
+| off_pogo128 | -58.4 | close |
+| off_pogo384 | -58.4 | close |
+| off_pogo512 | -58.4 | close |
+| off_so0.1 | -68.8 | NULL |
+| off_so0.5 | -70.1 | NULL |
+| off_dk0_so | -70.5 | NULL |
+| off_dk0_cut | -75.2 | NULL |
+| off_dk1_so | -70.8 | NULL |
+| off_dk1_cut | -70.7 | NULL |
+| off_dk2_so | -70.5 | NULL |
+| off_dk2_cut | -75.6 | NULL |
+| off_dk3_so | -70.6 | NULL |
+| off_dk3_cut | -75.6 | NULL |
+| off_dk4_so | -70.9 | NULL |
+| off_dk4_cut | -75.7 | NULL |
+| off_dk5_so | -70.8 | NULL |
+| off_dk5_cut | -75.5 | NULL |
+| off_env_default | -76.5 | NULL |
+| off_env_att10000 | -80.1 | NULL |
+| off_env_dec20000 | -80.0 | NULL |
+| off_env_rel20000 | -78.9 | NULL |
+| off_env_tension | -46.2 | close |
+| off_flt0_128_0 | -54.2 | close |
+| off_flt0_96_160 | -61.0 | NULL |
+| off_flt1_128_0 | -54.0 | close |
+| off_flt1_96_160 | -62.8 | NULL |
+| off_flt2_128_0 | -69.4 | NULL |
+| off_flt2_96_160 | -59.5 | close |
+| off_flt3_128_0 | -66.6 | NULL |
+| off_flt3_96_160 | -71.5 | NULL |
+| off_flt4_128_0 | -66.1 | NULL |
+| off_flt4_96_160 | -70.3 | NULL |
+| off_flt5_128_0 | -51.2 | close |
+| off_flt5_96_160 | -62.3 | NULL |
+| off_flt6_128_0 | -60.0 | NULL |
+| off_flt6_96_160 | -60.7 | NULL |
+| off_flt7_128_0 | -59.8 | close |
+| off_flt7_96_160 | -63.3 | NULL |
+| off_xf64_noloop | -71.1 | NULL |
+| off_xf128_noloop | -71.1 | NULL |
+| off_xf256_noloop | -71.0 | NULL |
+| off_st25_len50 | -70.8 | NULL |
