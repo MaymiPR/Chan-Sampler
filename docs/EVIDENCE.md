@@ -21,13 +21,13 @@ FL's command-line export is 16-bit, so the best possible residual is roughly −
 The offline cases (nulltest/cases/cases.py, the table at the end) play at FL's
 unity velocity 100, which FL passes to a plugin unchanged as MIDI velocity 100.
 At that level FL's 16-bit floor sits about 6 dB higher than in the earlier runs
-at velocity 128, and the cases that matched then moved by that much. So the
-EQ and ring-mod cases, three pogo cases, the precomputed cut at 512 and the
-SVF LPx2 filter case, NULL at −60 to −66 dB before, are now "close" because of
-the export alone. The small
-real differences are the precomputed cut at its lowest cutoff (−46.5 dB), the
-envelope with tensions (−46.2) and the Fast LP, LP, BP and LPx2 filter cases
-(−51 to −59). The in-FL tests in the sections above are the reference.
+at velocity 128, and the cases that matched then moved by that much. So the EQ
+and ring-mod cases, three pogo cases, the precomputed cut at 512 and the SVF
+LPx2 filter case, NULL at -60 to -66 dB before, are now "close" because of the
+export alone. The small real differences are the precomputed cut at its lowest
+cutoff (-46.5 dB), the envelope with tensions (-46.2) and the Fast LP, LP, BP
+and LPx2 filter cases (-51 to -59). The in-FL tests in the sections below are
+the reference.
 
 Offline suite: **82 cases: 65 NULL, 17 close, 0 diff** (full table at the end).
 
@@ -55,7 +55,7 @@ Offline suite: **82 cases: 65 NULL, 17 close, 0 diff** (full table at the end).
 | Sample-rate conversion | Files at another rate are converted to the project rate on load with an 88-tap windowed sinc (\|d\| < 44, near-Hann 9-term window), then played through the 30-tap kernel | 1 LSB; 48 kHz mono sweep NULL |
 | Envelope graph | Stage width = knob position × ⅓ of the view (decay × (1 − sustain)); no sustain plateau; release drawn from the sustain level at full width; delay is empty space; curves bend with each tension | matches FL screenshots (9 settings) |
 | Arpeggiator | Parameters event: direction @40, range @44, chord @48 (−2 Auto, −1 Auto (sustain) = FL default, 0 (none), k = preset k−1), time @52, gate @56 (raw/48), slide @60, repeat @92. Step k starts at round(k·step) after the first. TIME position = (raw−450)/997, raw 1447 = Hold; FL plays whole ticks: round(3.88852·25^p − 1.08184) (77 raws measured). Arp notes end at the gate end or key release (cut with the declick fade when the volume envelope is off), unlike normal notes. Auto (sustain) holds a single key and restarts it on the next step once the sample has run out. Slide = legato: the sounding note takes the next pitch at the step, no glide; once it runs out later steps stay silent. FL sends All-notes-off right before the note-off | NULL −61…−83 dB (22 cases); one TIME value −46 dB (half-sample ties) |
-| Stretch modes | FL keeps pitch and length independent in every stretch mode (key change keeps the length; MUL / TIME change the length, not the pitch; FL renders). Chan Sampler (TimeStretch.cpp, own code): pitch-synchronous grains for e3 / e2 mono and e2 speech, e3's vocoder (and e3's high-band grains for e2 generic) for Stretch / e2 generic / e2 transient, WSOLA for slice stretch, Stretch Pro = 4096-point vocoder with cepstral formant preservation and FORMANT shift (+/-1200 cents, centre = preserve). Other modes against FL (FL renders of clicks, noise and saws at MUL x1.5 / x0.667, and of a kick, a Rhodes, a voice and two drum loops at -700 / +700 cents and x1.5 / x0.667): FL's e3 mono and e2 mono are time-domain splicers (noise: the output is pieces of the source, a splice every ~900 / ~480 samples at x1.5, each jumping one estimated period, ~250 / ~140 samples on noise), clicks land on time (+/-20 samples) at full level, and PITCH keeps the spectral envelope (a voice's 99% roll-off stays at 12.7 kHz at -700 and +700 cents; e3 / e2 generic, e2 transient and Stretch move it with the pitch; e3 mono and e2 mono null at -13...-20 dB against each other on a Rhodes); e3 mono plays a note's first ~384 samples 1:1, e2 mono splices at once. e2 speech is time-domain with long splices (~1150 samples at x1.5). e2 generic's and Stretch Pro's high band is pieces of the source (noise correlation 0.8 at x1.5), Stretch's and e2 transient's spectral (0.2). FL's e2 generic / transient smear a click over ~-300 samples and run at a quantised ratio (x1.5 plays as 1024 / 683). Envelope / band-spectrum distance to FL over those 20 cases (dB, before -> after): e3 mono 3.34 / 6.38 -> 2.16 / 3.83, e2 mono 2.76 / 7.28 -> 2.06 / 5.10, e2 speech 2.33 / 3.25 -> 1.88 / 2.70, e2 transient 4.95 / 3.83 -> 2.45 / 3.07, Stretch 2.12 / 2.82 -> 1.77 / 2.04, e2 generic 2.57 / 2.87 -> 2.55 / 2.85 (e3 generic 1.73 / 1.99; Stretch Pro unchanged at 2.93 / 4.37). Elastique is proprietary, so these cannot null; log-spectrogram distance to FL's renders 7-10 dB. e3 pitch (nulltest/cases/e3_pitch_cases.py: FL's 707 Kick, a Rhodes, a voice, two drum loops, -1200 ... +1200 cents, in FL): FL's e3 on noise plays resampled stretches of the source with constant offsets for 400-700 samples, then jumps (a time-domain-like engine), and keeps a kick's envelope at any pitch. Ours: the vocoder's synthesis hop shrinks below +1 octave (0.5 x the analysis rate) and an attack is held 1:1 only up to the frame centred on it, so a kick an octave down no longer lasts twice as long; mean envelope distance 2.64 -> 2.01 dB, band-spectrum distance 2.61 -> 2.44 dB, raw null +0.0 -> -0.5 dB (sample-level nulls stay near 0 dB past the first attack). Attacks (e3 generic, 1 kHz clicks at -1200 / -600 / +600 / +1200 cents): FL sounds every attack at the same place, -6 / -1 / +4 / +5 samples from the source's (ours now the same within a sample, attack found to the sample, the 1:1 frames placed with a per-pitch shift table); each click nulls at -22…-43 dB after a level fit; a note's start is 1:1 from its first sample (in-FL +600 cents: -37 dB over the first 256 samples). Sustained tonal material stays uncorrelated (≈0 dB) | nulltest/stretch/stretch_check.py, nulltest/stretch/stretch_vs_fl.py, e3_clicks.wav |
+| Stretch modes | Pitch and length independent in every stretch mode (a key change keeps the length; MUL / TIME change the length, not the pitch). How each mode behaves and how close it comes: [Time stretching](#time-stretching-against-fls-renders) | can't null: FL's engine (elastique) is proprietary |
 | Envelope on the tick grid | FL works the envelope out once per song tick (96 per beat) from the note start and interpolates linearly; every FL render is piecewise linear on that grid to the 16-bit floor (nulltest/probes/env_tick_probe.py). Each stage lasts N = ceil(time / tick + ½) ticks (none for no time), counted from the note start for delay and attack; the hold's last tick is the decay's first (with no decay time, the last tick before the fall). From tick to tick the level moves at most the full range per 8.83 ms (389.5 samples): that is what smooths a jump and limits very short attacks (the old "424-sample ramps" and "19.23 ms attack floor" were this, seen at 130 BPM). The first tick holds the second's level when there is no delay or attack. A note-off starts the release on the next tick (FL's notes end on ticks; within a sample of one counts as on it); once the release is silent FL ends the voice with the declick fade. Default release tension (−101) exponent 4.62 | NULL −63…−99 dB at 65, 100, 130 and 160 BPM, Tempo off and on (nulltest/cases/fl_cases.py, nulltest/cases/tempo_env_cases.py: 41 of 44 cases; the other three −45…−54 dB, see Known gaps) |
 | MUL (Resample) | 2^(raw/10000) at params+104; tape-style speed 1/MUL | NULL −68…−80 dB (×¼ … ×4) |
 | LFO | Event 218 lfo_* fields. Tempo-synced: FL evaluates the LFO once per song tick (96/beat, from the note start) and interpolates linearly; the first tick holds tick 1's value. Period ticks = max(3, round(13.5755·982.5^p − 13.2745)), p = speed position (42 speeds measured); predelay ticks = same law on the predelay raw, no minimum (11 values). Attack fade in seconds like the envelope times. Shapes start at 0 going up; triangle in phase with the sine; pulse edges cross over 4 ticks (0.27205 per tick for 3 ticks, then the rest). Volume: gain × (1 + lfo); pan: + 2 × lfo (clipped); pitch envelope and LFO in cents (raw amount = cents, ±128) and half a tick early (−2.5 samples); Mod X / Y: + lfo (full scale). Note: with the volume envelope off a note plays to the end of the sample (note-off ignored), so test samples must be shorter than the gap | NULL −67…−96 dB (17 volume/pan/pitch cases), pitch envelope −60 dB |
@@ -83,13 +83,9 @@ Offline suite: **82 cases: 65 NULL, 17 close, 0 diff** (full table at the end).
 - LFO graph: drawn in knob units, not time: on a 130 px view one period is 8 + 64 x SPEED, the predelay 64 x DELAY, the linear fade 64 x ATT; height = AMT (negative starts downwards).
 - FUNC Levels VOL is FL's "Volume multiplier" (event 229 offset 4, raw / 12800, default 100% = unity, gain (11^x - 1)/10, hint "100%  0.0dB  1.00"); FL's channel volume (event 219, 78%) is applied by FL to plugin channels too, so the plugin's output trim supplies the fixed 0.5 (-6.02 dB).
 
-## Host features and robustness (tests)
+## Control timing
 
-- `ChanSamplerHostTest <Chan Sampler.vst3> nulltest/signals/sine.wav` (it expects that 2 s sine) hosts the built VST3 through JUCE's VST3 hosting (as a DAW does): 119 automatable parameters (plus JUCE's MIDI-CC pass-through parameters); volume automation mid-note; pitch bend; sustain pedal (CC64 holds note-offs; FL handles the pedal itself); other CCs are ignored (map them to parameters in the host); save / reload into a new instance restores every parameter (host and plugin side), the sample and the editor size, and plays bit-identically. All pass.
-- `ChanSamplerRender statetest <sample>`: in-process round trip of all 144 parameters, sample and window width, bit-identical audio.
-- `nulltest/probes/robust_check.py`: 44.1 / 48 / 96 kHz hosts with stereo float, mono 16-bit, stereo 24-bit and 48 kHz files all play at the right pitch and length; a 10-minute file loads and plays in 0.4 s.
-- CPU (`ChanSamplerRender bench`, one core, % of real time, 32 / 64 looping voices): Resample 14 / 35, Stretch 18 / 42, Stretch Pro 25 / 53, e3 generic and Auto 16 / 36 (vocoder below 1.485 kHz, phase work on those bins only, + high-band grains; 37 / 83 in 1.1.0), e2 generic 16 / 36, e2 transient 19 / 43, e3 mono 6 / 12, e2 mono 6 / 12, e2 speech 5 / 11, slice stretch 10 / 27, slice map 12 / 23 (the bench's notes run from C2 up to B5, and a stretcher's work grows with the note's pitch ratio). Most of the stretch modes' time is FFTs: the stretcher uses its own (Source/FastFFT.h, radix-4 Stockham on split arrays with SIMD butterflies; JUCE's results to -133 dB, 3-3.6x faster than JUCE's fallback FFT at 256..8192 points, the twiddle tables shared between voices), which took e3 generic from 29 / 67 to 16 / 36; the high band's filter skips blocks of digital silence. The phase vocoder (Stretch Pro, e3 / e2 generic and transient) packs both channels into one complex FFT each way, keeps phases as unit phasors so only spectral peaks need an angle, and rebuilds Stretch Pro's formant envelope (64 cepstral coefficients) with a quarter-size FFT: Stretch Pro went from 39 / 118 to 19 / 54, the other vocoder modes from 26 / 77 to 14 / 40. Its output matches the earlier code to -95 dB at the start of a note; the earlier code's phase accumulator lost precision as notes went on (-41 dB after 3.6 s), the phasors do not. Automating cutoff, resonance, pan, volume and fine tune every block adds 0.3–0.4% (16 voices: 5.1 → 5.5% Resample, 6.1 → 6.4% Stretch Pro). The editor scales as vectors (Retina / high-DPI sharp; the waveform is computed at the screen's physical resolution).
-- Fixed while testing: the stretch modes stopped after one pass of a loop (the stretcher's read position is now folded into the loop on every pass, forward and ping-pong). FL's linked loop START / END now apply to the user's edits only (knobs, menu, sample view); host automation sets the values it shows, and the engine treats an END below START as START.
+Envelopes / LFOs are updated in 32-sample control blocks that start at each note's own start (not the host buffer), and an event that changes a voice refreshes its targets on that sample without moving the envelopes on. The volume envelope runs per sample. Before, a transition could move by up to one block depending on where the note fell in the host buffer (hold 5000: −57 → −68 dB; offline renders now match in-FL ones). Arp TIME 640 stays at −46 dB: 4 of ~100 steps fall on exact half-sample ties that FL rounds both ways (its internal arithmetic is not visible).
 
 ## Echo delay (in FL)
 
@@ -116,9 +112,81 @@ NULL −59…−72 dB for LFO / envelope on Mod X and Mod Y with Fast LP, LP, HP
 - **Overlapping notes on one key:** a note-off ends the oldest voice only. NULL −76 dB.
 - **Test harness:** a tick at 130 BPM is 11025/52 samples, so the two halves of an in-FL render share sub-sample note and tick positions only when the gap is a multiple of 13 beats; multi-note cases use 26 (a 16-beat gap moves later notes by a sample, which ruins a noise null).
 
+## Loop points (in FL)
+
+Event 251 (43 bytes, present once set): int 2, start, 0, end, 0, double −1.0, int −1, byte 0, int 0x7fffffff ×2, 0, 1. Use loop points = event 143 bit 8, Ping pong loop = event 20. The END frame is part of a forward loop; with loop points the crossfade length is crossfade/4 × the sample and moves the loop start that far in. Forward, short, ping-pong, crossfade and off: NULL −79…−83 dB.
+
 ## Content: regions and slice markers (in FL)
 
 Sample flags (event 143): 1 resample, 2 load regions, 4 load slice markers, 8 use loop points, 256 keep on disk (FL's default 0x0B). Rendered in FL's Slice map with test tones carrying markers (nulltest: cue_tone.wav, strc_tone.wav, strc_jump.wav): **Load regions** slices at the WAV cue points, **Load slice markers** at the ACID "strc" chunk (28-byte header with the count, 24-byte entries, position in the second field; the first entry is a header entry). Loaded markers replace the detected transients (a hard level step at 0.5 s is a slice start without markers and falls inside the 0.3 s slice with them). Chan Sampler carries the markers through rate conversion, Sample Start and Reverse; its slice boundaries land within 2 samples of FL's (12211 / 28493 vs 12211 / 28491; level step 21032 vs 21029). Keep on disk and Resample only change how FL holds the file and are shown greyed.
+
+## Time stretching (against FL's renders)
+
+FL keeps pitch and length independent in every stretch mode: a key change
+keeps the length, MUL / TIME change the length and not the pitch (FL
+renders). FL's engine (elastique) is proprietary, so these modes can't null;
+they are compared by behaviour, attack timing and envelope / band-spectrum
+distance to FL's renders (`nulltest/stretch/`, `nulltest/E3_NOTES.md`).
+
+- **Ours** (Source/TimeStretch.cpp, own code): pitch-synchronous grains for
+  e3 / e2 mono and e2 speech; e3's vocoder (and e3's high-band grains for e2
+  generic) for Stretch / e2 generic / e2 transient; WSOLA for slice stretch;
+  Stretch Pro = 4096-point vocoder with cepstral formant preservation and
+  FORMANT shift (+/-1200 cents, centre = preserve).
+- **FL's other modes, measured** (FL renders of clicks, noise and saws at MUL
+  x1.5 / x0.667, and of a kick, a Rhodes, a voice and two drum loops at -700
+  / +700 cents and x1.5 / x0.667):
+  - FL's e3 mono and e2 mono are time-domain splicers (noise: the output is
+    pieces of the source, a splice every ~900 / ~480 samples at x1.5, each
+    jumping one estimated period, ~250 / ~140 samples on noise), clicks land
+    on time (+/-20 samples) at full level, and PITCH keeps the spectral
+    envelope (a voice's 99% roll-off stays at 12.7 kHz at -700 and +700
+    cents; e3 / e2 generic, e2 transient and Stretch move it with the pitch;
+    e3 mono and e2 mono null at -13...-20 dB against each other on a Rhodes);
+    e3 mono plays a note's first ~384 samples 1:1, e2 mono splices at once.
+  - e2 speech is time-domain with long splices (~1150 samples at x1.5).
+  - e2 generic's and Stretch Pro's high band is pieces of the source (noise
+    correlation 0.8 at x1.5), Stretch's and e2 transient's spectral (0.2).
+    FL's e2 generic / transient smear a click over ~-300 samples and run at a
+    quantised ratio (x1.5 plays as 1024 / 683).
+- **Distance to FL** over those 20 cases (envelope / band spectrum, dB,
+  before -> after): e3 mono 3.34 / 6.38 -> 2.16 / 3.83, e2 mono 2.76 / 7.28
+  -> 2.06 / 5.10, e2 speech 2.33 / 3.25 -> 1.88 / 2.70, e2 transient 4.95 /
+  3.83 -> 2.45 / 3.07, Stretch 2.12 / 2.82 -> 1.77 / 2.04, e2 generic 2.57 /
+  2.87 -> 2.55 / 2.85 (e3 generic 1.73 / 1.99; Stretch Pro unchanged at
+  2.93 / 4.37). Log-spectrogram distance to FL's renders 7-10 dB.
+- **e3 pitch** (nulltest/cases/e3_pitch_cases.py: FL's 707 Kick, a Rhodes, a
+  voice, two drum loops, -1200 ... +1200 cents, in FL): FL's e3 on noise
+  plays resampled stretches of the source with constant offsets for 400-700
+  samples, then jumps (a time-domain-like engine), and keeps a kick's
+  envelope at any pitch. Ours: the vocoder's synthesis hop shrinks below +1
+  octave (0.5 x the analysis rate) and an attack is held 1:1 only up to the
+  frame centred on it, so a kick an octave down no longer lasts twice as
+  long; mean envelope distance 2.64 -> 2.01 dB, band-spectrum distance 2.61
+  -> 2.44 dB, raw null +0.0 -> -0.5 dB (sample-level nulls stay near 0 dB
+  past the first attack).
+- **Attacks** (e3 generic, 1 kHz clicks at -1200 / -600 / +600 / +1200
+  cents): FL sounds every attack at the same place, -6 / -1 / +4 / +5
+  samples from the source's (ours now the same within a sample, attack found
+  to the sample, the 1:1 frames placed with a per-pitch shift table); each
+  click nulls at −22…−43 dB after a level fit; a note's start is 1:1 from
+  its first sample (in-FL +600 cents: -37 dB over the first 256 samples).
+  Sustained tonal material stays uncorrelated (≈0 dB).
+
+Evidence: nulltest/stretch/stretch_check.py, nulltest/stretch/stretch_vs_fl.py,
+e3_clicks.wav.
+
+## FL Sampler presets (.fst)
+
+A channel preset is the project event stream of one channel (FLhd / FLdt, the same events as a project). Source/FlPreset.cpp reads the Sampler's fields with the scales above; event 21 (channel type 0, or 4 without a plugin name) tells a Sampler preset from a generator's. The preset's own channel pan / volume (219) are folded into Levels, as a plugin channel applies its own. FL 4 and earlier store pans and volumes at 1/100 of today's scale (echo pan centre 64, not 6400; FL 9 onwards are current, measured across FL's preset library). Checked by writing each in-FL null case's Sampler channel out as a preset (nulltest/cases/fst_cases.py): the import renders bit-identically to the parameter settings that null in FL, in all 177 cases. The FL trial cannot save presets, so FL-written files are untested here.
+
+## Group (Cut / By) between instances
+
+FL's channel Group is a host feature; Chan Sampler rebuilds it across its own instances (Source/CutGroups.*): every note start of an instance with Cut = n is posted on a process-wide lock-free bus with its host timeline position, and instances with By = n stop their voices there (release, or the declick fade without a volume envelope, as Cut self). An instance never cuts itself through its group (Cut self does that). Sample-exact when the cut instance is processed after the cutting one, otherwise at the start of its next block (`ChanSamplerRender cuttest dc6.wav`: 0 and 144 samples late at 512-sample blocks). With the transport stopped the cut happens at the next block. Bridged / sandboxed instances in other processes cannot see each other. FL's Time panel (gate / shift / swing / full porta) edits FL's note events and is not reproduced. FL has no Panning envelope (LFO only), so neither does Chan Sampler.
+
+## UI layout (FL's own form)
+
+Controls sit at the positions and sizes of FL's own `TPluginForm` controls: `SmpSheet`, `InsSheet`, `FuncSheet` and `TopPanel`, each sheet 561×399 under a 45 px top panel. The canvas is scaled to the window. Option lists use FL's own wording, e.g. `DeclickModeSelect` and the filter types. Panels for FL-only features were removed, and the arpeggiator / echo panels were rearranged to fit.
 
 ## Sample view and tracking defaults (FL 2026 GUI, measured)
 
@@ -138,31 +206,30 @@ FL's sample view menu: Reload, Save as..., Locate file, Copy / Paste audio, Edit
 - File buttons (FL capture, pixel by pixel): 32 / 19 / 19 x 23 px boxes, a #141717 frame, a lighter inner edge and a fill darkening downwards; 1 px line icons: a 12 x 10 px folder, a 9 x 8 px folder over a small tree (locate), a 9 x 9 px cross.
 - FL's message dialogs (captured): #202324 window with a 25 px title bar, the text on a #282C2D panel with a large grey sign, OK buttons with a dark frame and a darkening fill. Chan Sampler shows its messages (preset import, unreadable file) the same way inside the plugin window.
 
-## FL Sampler presets (.fst)
-
-A channel preset is the project event stream of one channel (FLhd / FLdt, the same events as a project). Source/FlPreset.cpp reads the Sampler's fields with the scales above; event 21 (channel type 0, or 4 without a plugin name) tells a Sampler preset from a generator's. The preset's own channel pan / volume (219) are folded into Levels, as a plugin channel applies its own. FL 4 and earlier store pans and volumes at 1/100 of today's scale (echo pan centre 64, not 6400; FL 9 onwards are current, measured across FL's preset library). Checked by writing each in-FL null case's Sampler channel out as a preset (nulltest/cases/fst_cases.py): the import renders bit-identically to the parameter settings that null in FL, in all 177 cases. The FL trial cannot save presets, so FL-written files are untested here.
-
-## Loop points (in FL)
-
-Event 251 (43 bytes, present once set): int 2, start, 0, end, 0, double −1.0, int −1, byte 0, int 0x7fffffff ×2, 0, 1. Use loop points = event 143 bit 8, Ping pong loop = event 20. The END frame is part of a forward loop; with loop points the crossfade length is crossfade/4 × the sample and moves the loop start that far in. Forward, short, ping-pong, crossfade and off: NULL −79…−83 dB.
-
-## Control timing
-
-Envelopes / LFOs are updated in 32-sample control blocks that start at each note's own start (not the host buffer), and an event that changes a voice refreshes its targets on that sample without moving the envelopes on. The volume envelope runs per sample. Before, a transition could move by up to one block depending on where the note fell in the host buffer (hold 5000: −57 → −68 dB; offline renders now match in-FL ones). Arp TIME 640 stays at −46 dB: 4 of ~100 steps fall on exact half-sample ties that FL rounds both ways (its internal arithmetic is not visible).
-
 ## Playback markers and loop knobs (FL GUI, measured)
 
 FL defaults: Use loop points on, loop START = END = 0 (0 = no loop); the sample view shows no markers. The Start marker appears once the start offset is above 0; the loop once END is above 0 (START = END is drawn as one line). START moves alone while below END and pushes END to START + 1 sample when it reaches it; END moves alone but stops at START. FL draws the loop red even with Use loop points off (Chan Sampler draws an unused loop grey, by request). Loading a new sample resets start offset and loop points to 0 unless the file has an embedded loop, which sets the loop markers; Use loop points is not touched (FL leaves it as it was).
 
-## Group (Cut / By) between instances
+## Format notes (FL 2026 vs PyFLP)
 
-FL's channel Group is a host feature; Chan Sampler rebuilds it across its own instances (Source/CutGroups.*): every note start of an instance with Cut = n is posted on a process-wide lock-free bus with its host timeline position, and instances with By = n stop their voices there (release, or the declick fade without a volume envelope, as Cut self). An instance never cuts itself through its group (Cut self does that). Sample-exact when the cut instance is processed after the cutting one, otherwise at the start of its next block (`ChanSamplerRender cuttest dc6.wav`: 0 and 144 samples late at 512-sample blocks). With the transport stopped the cut happens at the next block. Bridged / sandboxed instances in other processes cannot see each other. FL's Time panel (gate / shift / swing / full porta) edits FL's note events and is not reproduced. FL has no Panning envelope (LFO only), so neither does Chan Sampler.
+- **Parameters event (215):** fields from offset 128 are doubles: Sample Start at 128, Length at 136, Start offset at 144. Normalize (80), Reverse polarity (81), declick mode (83), crossfade (84) and trim (88) are unchanged.
+- **Five envelope/LFO events (218)** in INS order: Panning, Volume, Mod X, Mod Y, Pitch.
+- **Root note** is event 135, not a Parameters field (offset 16 of 215 has no effect). Polyphony (221) = max u32, slide u32, flags byte (1 mono, 2 porta), as in PyFLP.
+
+## Host features and robustness (tests)
+
+- `ChanSamplerHostTest <Chan Sampler.vst3> nulltest/signals/sine.wav Tests/data/state-*.bin` (it expects that 2 s sine) hosts the built VST3 through JUCE's VST3 hosting, as a DAW does: 135 automatable parameters (plus JUCE's MIDI-CC pass-through parameters); volume automation mid-note; pitch bend; MIDI CCs 1, 7, 10 and 11 leave the sound alone (map them to parameters in the host) and the sustain pedal (CC64) holds note-offs (FL handles the pedal itself); save / reload into a new instance restores every parameter (host and plugin side), the sample and the editor size, and plays bit-identically; host rate changes keep the pitch; offline rendering right after a change or a project load uses the new sample; a stretch mode chosen while playing plays stretched; a project without its sample plays nothing and keeps the path; projects saved by earlier releases load with every setting unchanged. All pass; CI runs it on every push.
+- `ChanSamplerRender statetest <sample>`: in-process round trip of all 160 parameters, sample and window width, bit-identical audio.
+- `nulltest/probes/robust_check.py`: 44.1 / 48 / 96 kHz hosts with stereo float, mono 16-bit, stereo 24-bit and 48 kHz files all play at the right pitch and length; a 10-minute file loads and plays in 0.4 s.
+- CPU (`ChanSamplerRender bench`, one core, % of real time, 32 / 64 looping voices): Resample 14 / 35, Stretch 18 / 42, Stretch Pro 25 / 53, e3 generic and Auto 16 / 36 (vocoder below 1.485 kHz, phase work on those bins only, + high-band grains; 37 / 83 in 1.1.0), e2 generic 16 / 36, e2 transient 19 / 43, e3 mono 6 / 12, e2 mono 6 / 12, e2 speech 5 / 11, slice stretch 10 / 27, slice map 12 / 23 (the bench's notes run from C2 up to B5, and a stretcher's work grows with the note's pitch ratio). Most of the stretch modes' time is FFTs: the stretcher uses its own (Source/FastFFT.h, radix-4 Stockham on split arrays with SIMD butterflies; JUCE's results to -133 dB, 3-3.6x faster than JUCE's fallback FFT at 256..8192 points, the twiddle tables shared between voices), which took e3 generic from 29 / 67 to 16 / 36; the high band's filter skips blocks of digital silence. The phase vocoder (Stretch Pro, e3 / e2 generic and transient) packs both channels into one complex FFT each way, keeps phases as unit phasors so only spectral peaks need an angle, and rebuilds Stretch Pro's formant envelope (64 cepstral coefficients) with a quarter-size FFT: Stretch Pro went from 39 / 118 to 19 / 54, the other vocoder modes from 26 / 77 to 14 / 40. Its output matches the earlier code to -95 dB at the start of a note; the earlier code's phase accumulator lost precision as notes went on (-41 dB after 3.6 s), the phasors do not. Automating cutoff, resonance, pan, volume and fine tune every block adds 0.3–0.4% (16 voices: 5.1 → 5.5% Resample, 6.1 → 6.4% Stretch Pro). The editor scales as vectors (Retina / high-DPI sharp; the waveform is computed at the screen's physical resolution).
+- Memory (one instance, peak private bytes): about 4 MB in Resample; about 130 MB once a stretch mode is used, almost all of it the 64 voices' time stretchers, which are made the first time a stretch mode is needed (earlier versions made them up front in every instance).
+- Fixed while testing: the stretch modes stopped after one pass of a loop (the stretcher's read position is now folded into the loop on every pass, forward and ping-pong). FL's linked loop START / END now apply to the user's edits only (knobs, menu, sample view); host automation sets the values it shows, and the engine treats an END below START as START.
 
 ## Known gaps (diff / approximate)
 
-As of 1.0:
+As of 1.2.1:
 
-- **Time-stretch modes:** our own WSOLA and phase-vocoder algorithms (Stretch Pro with cepstral formants). FL's Elastique is proprietary, so they match FL in duration, pitch and character, not sample for sample. Resample with TIME nulls.
+- **Time-stretch modes:** our own algorithms (pitch-synchronous grains, phase vocoder, e3's band split; see [Time stretching](#time-stretching-against-fls-renders)). FL's elastique is proprietary, so they match FL in duration, pitch, attack timing and character, not sample for sample. Resample with TIME nulls.
 - **Envelope hold end after another timed stage:** FL's rounding of a hold that follows an attack matches a single rule in 48 of 74 measured combinations (nulltest/probes/env_hold_probe.py) and is a tick off in the rest; neither separate nor cumulative rounding explains all of them. A tick off at the hold's end: −45…−54 dB (the default envelope at 65, 100 and 160 BPM, Tempo off). Above raw 47500 the table points are known to ±2 ms only (FL's per-tick steps drift slightly over thousands of ticks).
 - **LPx2 at maximum resonance** on very short sounds: −32 dB (the first-tick glide of its level compensation). Otherwise LPx2 −44…−63 dB and SVF LPx2 bit-exact (nulltest/cases/filter_x2_cases.py): SVF LPx2 = two Chamberlin stages with q1 = 1 − 0.8 res, q2 = 1 − 0.6 res; LPx2 = two identical LP biquads (no Q floor) times a measured level compensation (resonance × cutoff table) that starts at unity and glides to its value over the note's first tick.
 - **SMP trim tail on noise:** FL's tail depends on the content (not a linear filter), so very short trims of noisy samples differ slightly.
@@ -170,16 +237,6 @@ As of 1.0:
 - **LFO:** see the LFO row above. FL's pan envelope had no audible effect in CLI renders (amount ±128, sustain 128), so Chan Sampler has a panning LFO and no panning envelope.
 - **Sample view:** the spectrum is a model of FL's (about 1 dB mean error per pixel); colourful waveforms match within 0.4–2.5 RGB steps on solid fills (a stereo loop about 4), Color map's column-to-column flicker matches in character only.
 - **Not implemented** (FL host features or FL-only storage): Keep on disk and Resample (how FL holds the file), gate / shift / swing (FL's Time panel), FL's channel VOL / PAN / PITCH / RANGE / TRACK (host-side), Edit in audio editor / pitch corrector / time warper, Open in new channel, and the sample menu's keyboard shortcuts. Max polyphony is shown but, as in FL's renders, does nothing.
-
-## UI layout (FL's own form)
-
-Controls sit at the positions and sizes of FL's own `TPluginForm` controls: `SmpSheet`, `InsSheet`, `FuncSheet` and `TopPanel`, each sheet 561×399 under a 45 px top panel. The canvas is scaled to the window. Option lists use FL's own wording, e.g. `DeclickModeSelect` and the filter types. Panels for FL-only features were removed, and the arpeggiator / echo panels were rearranged to fit.
-
-## Format notes (FL 2026 vs PyFLP)
-
-- **Parameters event (215):** fields from offset 128 are doubles: Sample Start at 128, Length at 136, Start offset at 144. Normalize (80), Reverse polarity (81), declick mode (83), crossfade (84) and trim (88) are unchanged.
-- **Five envelope/LFO events (218)** in INS order: Panning, Volume, Mod X, Mod Y, Pitch.
-- **Root note** is event 135, not a Parameters field (offset 16 of 215 has no effect). Polyphony (221) = max u32, slide u32, flags byte (1 mono, 2 porta), as in PyFLP.
 
 ## Null-test results
 
