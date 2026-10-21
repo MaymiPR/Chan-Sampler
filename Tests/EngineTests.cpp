@@ -618,6 +618,7 @@ int main()
             void prepareToPlay (double, int) override {}
             void releaseResources() override {}
             void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override {}
+            using juce::AudioProcessor::processBlock;
             double getTailLengthSeconds() const override { return 0; }
             bool acceptsMidi() const override { return true; }
             bool producesMidi() const override { return false; }
