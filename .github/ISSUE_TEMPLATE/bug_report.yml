@@ -35,7 +35,7 @@ body:
     id: format
     attributes:
       label: Plugin format
-      options: [VST3, AU, Standalone]
+      options: [VST3, CLAP, AU, Standalone]
     validations:
       required: true
   - type: input
@@ -49,7 +49,7 @@ body:
     id: os
     attributes:
       label: Operating system
-      placeholder: "Windows 11 / macOS 15 (Apple Silicon)"
+      placeholder: "Windows 11 / macOS 15 (Apple Silicon) / Ubuntu 24.04"
     validations:
       required: true
   - type: textarea

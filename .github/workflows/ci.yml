@@ -1,0 +1,59 @@
+# Builds Chan Sampler and runs its tests on every push and pull request:
+# the engine tests (ChanSamplerTests) and the host test, which loads the
+# built VST3 the way a DAW does (ChanSamplerHostTest). Releases are built by
+# release.yml.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ninja-build libasound2-dev libjack-jackd2-dev libfreetype6-dev libfontconfig1-dev \
+            libx11-dev libxcomposite-dev libxcursor-dev libxext-dev libxinerama-dev libxrandr-dev libxrender-dev \
+            libglu1-mesa-dev mesa-common-dev xvfb
+
+      - name: Configure
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCHANSAMPLER_CLAP=OFF
+
+      - name: Build
+        run: cmake --build build --target ChanSamplerTests ChanSamplerHostTest ChanSampler_VST3
+
+      - name: Engine tests
+        run: build/ChanSamplerTests_artefacts/Release/ChanSamplerTests
+
+      - name: Host test
+        run: xvfb-run -a build/ChanSamplerHostTest_artefacts/Release/ChanSamplerHostTest "build/ChanSampler_artefacts/Release/VST3/Chan Sampler.vst3" nulltest/signals/sine.wav
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Configure
+        run: cmake -B build -A x64 -DCHANSAMPLER_CLAP=OFF
+
+      - name: Build
+        run: cmake --build build --config Release --target ChanSamplerTests ChanSamplerHostTest ChanSampler_VST3 --parallel
+
+      - name: Engine tests
+        run: build/ChanSamplerTests_artefacts/Release/ChanSamplerTests.exe
+
+      - name: Host test
+        run: build/ChanSamplerHostTest_artefacts/Release/ChanSamplerHostTest.exe "build/ChanSampler_artefacts/Release/VST3/Chan Sampler.vst3" nulltest/signals/sine.wav
