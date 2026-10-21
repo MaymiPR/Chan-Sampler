@@ -69,6 +69,8 @@ public:
             juce::Thread::sleep (2);
     }
     void removeSample();
+    // A project's sample that could not be loaded: no sample plays, the path is kept.
+    void setMissingSample (const juce::File& file);
     SampleData::Ptr getSampleForDisplay() const;
     juce::File getSampleFile() const { return getRaw()->file; }
     int getSampleLength() const { return getRaw()->audio.getNumSamples(); }

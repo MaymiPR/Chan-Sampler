@@ -665,6 +665,19 @@ void ChanSamplerProcessor::removeSample()
     rebuildSample();
 }
 
+void ChanSamplerProcessor::setMissingSample (const juce::File& file)
+{
+    RawSample r;
+    r.file = file;
+    r.missing = true;
+    {
+        const juce::ScopedLock sl (poolLock);
+        raw = std::make_shared<const RawSample> (std::move (r));
+    }
+    loopTextLength.store (0);
+    rebuildSample();
+}
+
 juce::String ChanSamplerProcessor::getSampleInfo() const
 {
     const auto r = getRaw();
@@ -697,13 +710,25 @@ void ChanSamplerProcessor::setStateInformation (const void* data, int sizeInByte
     apvts.replaceState (state);
     lastCutSelf = param (pid::cutItself) > 0.5f ? 1 : 0;   // a restored Cut self keeps its saved groups
 
-    if (path.isNotEmpty() && juce::File (path).existsAsFile())
+    // The project's sample, or none: never the sample that was here before.
+    if (path.isEmpty())
+    {
+        removeSample();
+    }
+    else
     {
         // Restore the project's own loop points, not the file's embedded ones.
         const auto savedLoop = apvts.copyState();
-        loadSample (juce::File (path));
-        apvts.replaceState (savedLoop);
-        rebuildSample();
+        const juce::File file (path);
+        if (file.existsAsFile() && loadSample (file))
+        {
+            apvts.replaceState (savedLoop);
+            rebuildSample();
+        }
+        else
+        {
+            setMissingSample (file);   // the project's settings stay as saved
+        }
     }
     if (needsStretchers())
         engine.ensureStretchers();

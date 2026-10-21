@@ -434,7 +434,29 @@ int main (int argc, char** argv)
                + " s, resampled " + juce::String (resampled, 2) + " s)");
     }
 
-    // 7. Projects saved by earlier versions (Tests/data/state-*.bin), in new
+    // 7. Loading a project never keeps the sample that was there before: a
+    //    project without a sample plays nothing, and one whose sample is
+    //    missing plays nothing but keeps the path when saved again.
+    {
+        auto e = load (pluginPath);
+        setStateAttribute (*e, "samplePath", samplePath);
+        auto note = [] (int i, juce::MidiBuffer& m) { if (i == 0) m.addEvent (juce::MidiMessage::noteOn (1, 60, (juce::uint8) 100), 0); };
+        auto off = [] (int i, juce::MidiBuffer& m) { if (i == 0) m.addEvent (juce::MidiMessage::allNotesOff (1), 0); };
+        const auto withSample = rms (render (*e, 40, note), 0, 40 * bs);
+        render (*e, 300, off);
+        setStateAttribute (*e, "samplePath", juce::String());
+        const auto none = rms (render (*e, 40, note), 0, 40 * bs);
+        render (*e, 300, off);
+        const juce::String gone = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("Chan Sampler missing sample.wav").getFullPathName();
+        setStateAttribute (*e, "samplePath", gone);
+        const auto missing = rms (render (*e, 40, note), 0, 40 * bs);
+        const auto kept = pluginXml (*e)->getStringAttribute ("samplePath");
+        check (withSample > 1.0e-3f && none == 0.0f && missing == 0.0f && kept == gone,
+               "a project without its sample plays nothing and keeps the path (levels " + juce::String (withSample, 4) + " / "
+               + juce::String (none) + " / " + juce::String (missing) + ")");
+    }
+
+    // 8. Projects saved by earlier versions (Tests/data/state-*.bin), in new
     // instances with no sample: their loop position texts must not follow the
     // sample loaded above (each instance shows its own).
     for (int i = 3; i < argc; ++i)

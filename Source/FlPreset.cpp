@@ -196,6 +196,8 @@ flpreset::Result flpreset::import (ChanSamplerProcessor& processor, const juce::
             result.message = "Sample not found: " + path;
         else if (! processor.loadSample (file))
             result.message = processor.getLoadError();
+        if (result.message.isNotEmpty())
+            processor.removeSample();   // the preset's settings, without the previous sample
     }
 
     // Levels (219): channel pan / volume (host side in FL), fine tune, Mod X / Y, filter type.

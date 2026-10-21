@@ -76,6 +76,10 @@ struct RawSample
     int bitsPerSample = 16;
     int heldBits = 32;                // what FL holds it at: 16 for 16-bit PCM, else 32 (float)
     juce::File file;
+    // A project's sample that could not be loaded (not found, or unreadable):
+    // no audio, but the path stays, so the project keeps it and the sample
+    // reloads once the file is back.
+    bool missing = false;
     juce::int64 fileTime = 0, fileSize = 0;   // the file's modification time (ms) and size when loaded
     double fileTempo = 0;                     // a WAV's ACID tempo (BPM), 0 when it has none
     juce::String format;              // e.g. "WAV, 16-bit PCM", "WAV, compressed (Ogg Vorbis)", "FLAC"

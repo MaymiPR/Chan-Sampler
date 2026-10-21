@@ -821,14 +821,15 @@ void ChanSamplerEditor::changeListenerCallback (juce::ChangeBroadcaster*)
 void ChanSamplerEditor::refreshSample()
 {
     waveform.setSample (samplerProcessor.getSampleForDisplay());
-    const auto file = samplerProcessor.getSampleFile();
+    const auto raw = samplerProcessor.getRaw();
     if (fileName != nullptr)
     {
-        fileName->setText (file == juce::File() ? juce::String() : file.getFileName(), juce::dontSendNotification);
-        fileName->setTooltip (samplerProcessor.getSampleInfo());
+        fileName->setText (raw->file == juce::File() ? juce::String() : raw->file.getFileName() + (raw->missing ? " (missing)" : ""), juce::dontSendNotification);
+        fileName->setColour (juce::Label::textColourId, raw->missing ? fl::colour::ledOn : fl::colour::title);
+        fileName->setTooltip (raw->missing ? "Not found or unreadable: " + raw->file.getFullPathName() : samplerProcessor.getSampleInfo());
     }
     if (sampleInfo != nullptr)
-        sampleInfo->setText (file == juce::File() ? juce::String ("No sample loaded") : samplerProcessor.getSampleInfo(), juce::dontSendNotification);
+        sampleInfo->setText (raw->missing ? juce::String ("Sample missing") : samplerProcessor.getSampleInfo(), juce::dontSendNotification);
 }
 
 void ChanSamplerEditor::chooseFile()

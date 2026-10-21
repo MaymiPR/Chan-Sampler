@@ -8,6 +8,12 @@ Faster
   is needed): ten instances in Resample went from about 1.3 GB to 40 MB.
 
 Fixes
+- Loading a project or preset no longer keeps the sample that was loaded
+  before when the project has none, or its file is missing or unreadable:
+  no sample plays, the editor shows the missing file's name and path, the
+  project keeps the path when saved again, and the sample reloads once the
+  file is back. An FL preset (.fst) whose sample can't be found or read
+  likewise loads without the previous sample.
 - Switching a playing note from Resample to a stretch mode no longer reads
   from a stretcher left over from an earlier note; that note carries on
   resampled, and the next note is stretched.

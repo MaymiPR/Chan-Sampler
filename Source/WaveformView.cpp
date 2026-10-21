@@ -493,7 +493,13 @@ void WaveformView::paint (juce::Graphics& g)
         drawWatermark();
         g.setColour (fl::colour::dim);
         g.setFont (fl::font (12.0f));
-        g.drawText ("Drag a sample here or click the folder button", wave, juce::Justification::centred, false);
+        const auto raw = processor.getRaw();
+        if (raw->missing)
+            g.drawFittedText ((raw->file.existsAsFile() ? "Can't read the project's sample:\n" : "The project's sample was not found:\n")
+                                  + raw->file.getFullPathName() + "\nIt reloads when the file is back, or load another.",
+                              wave.reduced (12.0f, 4.0f).toNearestInt(), juce::Justification::centred, 4);
+        else
+            g.drawText ("Drag a sample here or click the folder button", wave, juce::Justification::centred, false);
         return;
     }
 
