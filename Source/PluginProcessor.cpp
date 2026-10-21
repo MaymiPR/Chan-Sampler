@@ -402,30 +402,48 @@ SampleData::Ptr ChanSamplerProcessor::getSampleForDisplay() const
 //==============================================================================
 namespace
 {
-    // Markers in a WAV file: cue points (FL's "regions") and the ACID "strc"
-    // chunk (FL's "slice markers": a 28-byte header with the entry count, then
-    // 24-byte entries whose second field is the position in frames).
-    void readWavMarkers (const juce::File& file, std::vector<int>& regions, std::vector<int>& slices)
+    // What a RIFF / WAVE file says about itself, whichever reader decodes it
+    // (FL's compressed WAVs hold Ogg Vorbis, which the Ogg reader reads): the
+    // first "fmt " chunk's format tag, the cue points (FL's "regions") and
+    // the ACID "strc" chunk (FL's "slice markers": a 28-byte header with the
+    // entry count, then 24-byte entries whose second field is the position in
+    // frames). One pass over the chunks.
+    struct WavChunks
     {
+        bool riffWave = false;
+        juce::uint16 formatTag = 1;   // 1 PCM, 3 float, 0xfffe extensible, others compressed
+        std::vector<int> regions, slices;
+    };
+
+    WavChunks readWavChunks (const juce::File& file)
+    {
+        WavChunks w;
         juce::FileInputStream in (file);
         if (! in.openedOk() || in.readInt() != (int) juce::ByteOrder::littleEndianInt ("RIFF"))
-            return;
+            return w;
         in.readInt();
         if (in.readInt() != (int) juce::ByteOrder::littleEndianInt ("WAVE"))
-            return;
+            return w;
+        w.riffWave = true;
+        bool formatRead = false;
         while (! in.isExhausted())
         {
             const auto id = in.readInt();
             const auto size = (juce::uint32) in.readInt();
             const auto next = in.getPosition() + size + (size & 1);
-            if (id == (int) juce::ByteOrder::littleEndianInt ("cue ") && size >= 4)
+            if (id == (int) juce::ByteOrder::littleEndianInt ("fmt ") && ! formatRead)
+            {
+                w.formatTag = (juce::uint16) in.readShort();
+                formatRead = true;
+            }
+            else if (id == (int) juce::ByteOrder::littleEndianInt ("cue ") && size >= 4)
             {
                 const int count = in.readInt();
                 for (int i = 0; i < count && (juce::uint32) (4 + 24 * (i + 1)) <= size; ++i)
                 {
                     juce::uint32 f[6];
                     for (auto& v : f) v = (juce::uint32) in.readInt();
-                    regions.push_back ((int) f[5]);   // sample offset
+                    w.regions.push_back ((int) f[5]);   // sample offset
                 }
             }
             else if (id == (int) juce::ByteOrder::littleEndianInt ("strc") && size >= 28)
@@ -438,12 +456,13 @@ namespace
                     juce::uint32 f[6];
                     for (auto& v : f) v = (juce::uint32) in.readInt();
                     if (f[0] != 2)   // the first entry is a header entry
-                        slices.push_back ((int) f[1]);
+                        w.slices.push_back ((int) f[1]);
                 }
             }
             if (! in.setPosition (next))
                 break;
         }
+        return w;
     }
 }
 
@@ -540,47 +559,22 @@ bool ChanSamplerProcessor::loadSample (const juce::File& file)
     r.audio.setSize (numChannels, length);
     reader->read (&r.audio, 0, length, 0, true, numChannels > 1);
 
+    auto wav = readWavChunks (file);
     if (file.hasFileExtension (".wav;.wave"))
-        readWavMarkers (file, r.regionMarkers, r.sliceMarkers);
+    {
+        r.regionMarkers = std::move (wav.regions);
+        r.sliceMarkers = std::move (wav.slices);
+    }
     // FL keeps 16-bit PCM as 16-bit and decodes everything else (24 / 32-bit,
     // float, compressed, also compressed audio inside a WAV) to 32-bit float:
     // its sample view badge shows 16 or 32 (measured).
     {
-        const auto name = reader->getFormatName();
-        const bool pcmContainer = name.containsIgnoreCase ("WAV") || name.containsIgnoreCase ("AIFF") || name.containsIgnoreCase ("FLAC");
-        bool compressedWav = false;
-        juce::uint16 wavTag = 1;
-        // A RIFF / WAVE file, whichever reader decodes it (FL's compressed
-        // WAVs hold Ogg Vorbis, which the Ogg reader reads)
-        bool riffWave = false;
-        if (juce::FileInputStream head (file); head.openedOk())
-        {
-            const auto riff = head.readInt();
-            head.readInt();
-            riffWave = riff == (int) juce::ByteOrder::littleEndianInt ("RIFF") && head.readInt() == (int) juce::ByteOrder::littleEndianInt ("WAVE");
-        }
-        if (riffWave)
-            if (juce::FileInputStream in (file); in.openedOk())
-            {
-                in.setPosition (12);
-                while (! in.isExhausted())
-                {
-                    const auto id = in.readInt();
-                    const auto size = (juce::uint32) in.readInt();
-                    if (id == (int) juce::ByteOrder::littleEndianInt ("fmt "))
-                    {
-                        const auto tag = (juce::uint16) in.readShort();
-                        compressedWav = tag != 1 && tag != 3 && tag != 0xfffe;
-                        wavTag = tag;
-                        break;
-                    }
-                    if (! in.setPosition (in.getPosition() + size + (size & 1)))
-                        break;
-                }
-            }
+        const bool pcmContainer = formatName.containsIgnoreCase ("WAV") || formatName.containsIgnoreCase ("AIFF") || formatName.containsIgnoreCase ("FLAC");
+        const auto wavTag = wav.formatTag;
+        const bool compressedWav = wav.riffWave && wavTag != 1 && wavTag != 3 && wavTag != 0xfffe;
         r.heldBits = pcmContainer && ! compressedWav && ! reader->usesFloatingPointData && reader->bitsPerSample <= 16 ? 16 : 32;
         // For the properties window
-        auto container = riffWave ? juce::String ("WAV") : name.upToFirstOccurrenceOf (" file", false, true).trim();
+        auto container = wav.riffWave ? juce::String ("WAV") : formatName.upToFirstOccurrenceOf (" file", false, true).trim();
         if (compressedWav)
             r.format = container + ", compressed (" + (wavTag == 0x674f || wavTag == 0x6750 || wavTag == 0x6751 ? juce::String ("Ogg Vorbis")
                                                        : wavTag == 0x55 ? juce::String ("MP3")
