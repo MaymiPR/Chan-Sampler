@@ -1,6 +1,6 @@
 """FL's envelope / LFO 'Tempo' switches (event 218 flags: 1 = envelope tempo,
 2 = LFO tempo, 32 = LFO global phase) and the project tempo (event 156 = BPM x 1000)."""
-import sys, struct, numpy as np; from lib import flrender as F
+import struct, numpy as np; from lib import flrender as F
 
 def tempo(bpm):
     def p(ev):

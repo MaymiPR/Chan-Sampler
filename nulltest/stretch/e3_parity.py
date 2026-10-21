@@ -5,7 +5,6 @@ ours. At +1200 both drop the even ones (E3_NOTES.md, round 8).
 
     python -m stretch.make_signals
     python -m stretch.e3_parity"""
-import numpy as np
 from lib import flrender as F
 from stretch import common as C
 

@@ -11,7 +11,7 @@ the fitted null (dB) per case and the means.
 Used for the 1.2.0 stretch-mode work (docs/EVIDENCE.md, "Stretch modes")."""
 import os, sys
 import numpy as np
-from lib import flrender as F, paths, wavio
+from lib import flrender as F, wavio
 from cases import e3_pitch_cases as E
 from stretch import common as C
 from stretch.metrics import envdist, specdist, null

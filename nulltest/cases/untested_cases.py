@@ -15,7 +15,7 @@ FL 2026 storage (found by saving from FL's GUI and comparing the files):
   fine tune: levels (219) pitch field (cents)
 """
 import os, shutil, struct, sys
-from lib import flp, flrender as F, nullfl, paths
+from lib import flrender as F, nullfl, paths
 
 def loop_points(start, end):
     payload = (struct.pack('<5i', 2, start, 0, end, 0) + struct.pack('<d', -1.0) + struct.pack('<i', -1)

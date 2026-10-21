@@ -1,5 +1,5 @@
 """Build a one-note FL project that plays a test sample through channel 0 (Sampler)."""
-import struct, sys, json
+import struct, sys
 from lib import flp
 
 TEMPLATE = r"C:/Program Files/Image-Line/FL Studio 2026/Data/Templates/Minimal/Basic/Basic.flp"

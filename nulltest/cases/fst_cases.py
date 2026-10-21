@@ -9,8 +9,8 @@ channel), so ours is scaled by 0.8; no gain fitting, so levels are checked too.
 
   python -m cases.fst_cases [name filters...]   (from nulltest/)
 """
-import os, sys, struct, subprocess, numpy as np
-from lib import flp, flrender as F, nullfl, wavio, paths
+import os, sys, subprocess
+from lib import flp, nullfl, wavio, paths
 
 HERE = paths.ROOT
 R = paths.RENDER_TOOL

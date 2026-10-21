@@ -1,8 +1,12 @@
+"""The offline null-test cases: FL's Sampler rendered alone from the command
+line against ChanSamplerRender (lib/nulltest.py; results in docs/EVIDENCE.md).
+They play at FL's unity velocity, 100, which reaches the plugin unchanged as
+MIDI velocity 100 (FL's 128 cannot: MIDI stops at 127).
+
+    python -c "from lib import nulltest; from cases import cases; nulltest.run(cases.CASES)"
+"""
 from lib import flrender as F
 from cases.fl_cases import envpos   # the measured knob positions, shared with the in-FL cases
-# The offline cases (lib/nulltest.py). They play at FL's unity velocity, 100,
-# which reaches the plugin unchanged as MIDI velocity 100 (FL's 128 cannot:
-# MIDI stops at 127).
 CASES = [
     dict(name="off_base", sample="signals/noise.wav", vel=100),
 ]

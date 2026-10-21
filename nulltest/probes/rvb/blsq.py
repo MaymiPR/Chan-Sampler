@@ -1,3 +1,5 @@
+"""Type B: least-squares levels of the comb echoes at given positions (from
+bfit), fitted up to the tail cut."""
 import numpy as np
 from probes.rvb import pulses as P
 from probes.rvb.bfit import atomB

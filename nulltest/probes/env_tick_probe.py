@@ -2,7 +2,7 @@
 envelope out once per tick from the note start and interpolates linearly in
 between. Renders FL alone at several tempos and reports, per case, the stage
 lengths in ticks read from the per-tick values (knots)."""
-import sys, struct, numpy as np; from lib import flrender as F, wavio
+import numpy as np; from lib import flrender as F
 from probes.tempo_probe import tempo
 
 BPMS = (65, 77, 91, 100, 113, 143, 160, 177)

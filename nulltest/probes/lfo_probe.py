@@ -1,6 +1,6 @@
 """Measure FL's LFO curves: DC sample (dc20.wav), one INS target's LFO set by
 raw event-218 fields, returns the per-sample output ratio to the LFO-off render."""
-import sys, numpy as np
+import numpy as np
 from lib import flrender as F
 
 def curve(name, target='vol', beats=16, **lfo):

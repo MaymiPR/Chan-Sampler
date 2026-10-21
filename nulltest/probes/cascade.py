@@ -1,5 +1,5 @@
 """FL's sample-rate conversion modelled as cascaded windowed-sinc resamplers (the 30 / 84-tap kernels)."""
-import numpy as np; from lib import wavio
+import numpy as np
 A30 = np.array([0.362684569, 0.509910674, 0.132162708, -0.006084749, 0.001926633, -0.000879890, 0.000296751])
 A84 = np.array([0.498387586, 0.490065433, 0.009996963, 0.002969411, -0.002640382, 0.002159460, -0.001503978, 0.000750707, -0.000168888])
 def kern(d, c, co, W):

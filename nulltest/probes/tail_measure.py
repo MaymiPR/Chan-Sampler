@@ -2,7 +2,7 @@
 frames before the cut only affects the output from cut-d to cut-d/2, so clicks
 whose distances more than double from one to the next are measured together.
 Result: C[D, d] = output at distance D from the cut per unit click at distance d."""
-import numpy as np, sys, os
+import numpy as np, os
 from lib import wavio, flrender as F
 N = 88200; cut = 44100; K = 200
 rng = np.random.default_rng(1)

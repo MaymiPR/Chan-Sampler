@@ -5,7 +5,7 @@ generated project) and through Chan Sampler (offline renderer), scales ours by
 FL's channel gain (volume 78.125% + centre pan = 0.389612, measured), flips
 its polarity, sums, and reports the residual relative to FL's signal.
 Residual < -60 dB = null (FL's 16-bit export floor is about -70 dB here)."""
-import os, subprocess, sys, numpy as np
+import os, subprocess, numpy as np
 from lib import flrender as F, wavio, paths
 
 HERE = paths.ROOT

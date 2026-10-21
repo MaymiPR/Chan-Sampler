@@ -1,3 +1,5 @@
+"""Divides the allpass chain (and an optional output filter) out of FL's
+impulse response, leaving the comb section's echoes."""
 import numpy as np
 from probes.rvb import pulses as P
 from probes.rvb.model import ap

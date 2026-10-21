@@ -1,3 +1,8 @@
+"""Type A's comb echoes: matching pursuit of FL's impulse response (dry part
+removed) with the allpass chain's response as the atom; prints the residual.
+
+    python -m probes.rvb.combs <case, e.g. rv_A128> <samples> [channel]
+"""
 import sys, numpy as np
 from probes.rvb import pulses as P
 from probes.rvb.model import ap

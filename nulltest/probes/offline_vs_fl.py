@@ -1,6 +1,6 @@
 """Compare an offline ChanSamplerRender render with FL's half of a nullfl case
 (least-squares gain), for quick model tuning without FL re-renders."""
-import os, sys, subprocess, numpy as np; from lib import wavio, nullfl
+import os, subprocess, numpy as np; from lib import wavio, nullfl
 from lib import paths
 HERE = paths.ROOT
 R = paths.RENDER_TOOL

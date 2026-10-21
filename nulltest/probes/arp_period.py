@@ -1,5 +1,5 @@
 """FL's arpeggiator step length from renders at several TIME values (python -m probes.arp_period <raw> ...)."""
-import numpy as np, sys; from lib import nullfl; from probes import arp_time as T
+import numpy as np, sys; from probes import arp_time as T
 def period(y):
     # pitch per 256 samples; step period = mean distance between changes over many notes
     hop = 128; fr = []

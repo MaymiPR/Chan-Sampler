@@ -1,3 +1,8 @@
+"""Type B's comb echoes: matching pursuit with type B's allpass + one-pole
+atom, per mix and channel (the second allpass is 97 samples left, 79 right).
+
+    python -m probes.rvb.bfit <samples>
+"""
 import numpy as np, sys
 from probes.rvb import pulses as P, combs as C
 from probes.rvb.model import ap

@@ -1,3 +1,5 @@
+"""Schroeder comb and allpass sections, and reverb type A built from them as
+fitted to FL's impulse response (the plugin's version: Source/SampleData.cpp)."""
 import numpy as np
 def ap(x, D, g):
     """Schroeder allpass: y[n] = -g x[n] + x[n-D] + g y[n-D] (block-wise, exact)."""
