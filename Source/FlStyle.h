@@ -115,6 +115,8 @@ namespace fl
     // look, ticks for on/off entries and thin separators (measured from FL's
     // sample right-click menu).
     void showContextMenu (juce::PopupMenu&, juce::Component& target, bool atMouse);
+    // The component property that marks a menu's target as such a context menu.
+    inline constexpr const char* contextMenuProperty = "flContextMenu";
 
     // FL's message dialog (measured from FL 2026's dialogs): a title bar, the
     // message on a panel with a large grey sign, OK below. Shown over the

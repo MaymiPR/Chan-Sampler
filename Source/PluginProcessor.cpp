@@ -36,9 +36,7 @@ void ChanSamplerProcessor::prepareToPlay (double sampleRate, int)
 {
     // Files at another rate are converted to the playback rate (as in FL).
     if (hostRate.exchange (sampleRate) != sampleRate)
-    {
         rebuildNow();
-    }
     engine.prepare (sampleRate);
     cutOffsets.reserve (256);
     outputGain.reset (sampleRate, 0.02);
@@ -202,21 +200,21 @@ EngineParams ChanSamplerProcessor::readEngineParams() const
         }
         else
         {
-        t.envOn  = get ("EnvOn") > 0.5f;
-        t.envTempo = get ("EnvTempo") > 0.5f;
-        if (auto* amt = apvts.getRawParameterValue (pid::env (prefix, "EnvAmt")))
-            t.envAmt = amt->load();
-        t.env.delay    = flEnvSeconds (get ("Del"));
-        // Measured: the minimum raw attack (100, position 0) is instant.
-        const auto att = get ("Att");
-        t.env.attack   = att <= 0.5f / 65436.0f ? 0.0f : flEnvSeconds (att);
-        t.env.hold     = flEnvSeconds (get ("Hold"));
-        t.env.decay    = flEnvSeconds (get ("Dec"));
-        t.env.sustain  = get ("Sus");
-        t.env.release  = flEnvSeconds (get ("Rel"));
-        t.env.attackK  = flTensionToK (get ("AttT"));
-        t.env.decayK   = flTensionToK (get ("DecT"));
-        t.env.releaseK = flTensionToK (get ("RelT"));
+            t.envOn    = get ("EnvOn") > 0.5f;
+            t.envTempo = get ("EnvTempo") > 0.5f;
+            if (auto* amt = apvts.getRawParameterValue (pid::env (prefix, "EnvAmt")))
+                t.envAmt = amt->load();
+            t.env.delay    = flEnvSeconds (get ("Del"));
+            // Measured: the minimum raw attack (100, position 0) is instant.
+            const auto att = get ("Att");
+            t.env.attack   = att <= 0.5f / 65436.0f ? 0.0f : flEnvSeconds (att);
+            t.env.hold     = flEnvSeconds (get ("Hold"));
+            t.env.decay    = flEnvSeconds (get ("Dec"));
+            t.env.sustain  = get ("Sus");
+            t.env.release  = flEnvSeconds (get ("Rel"));
+            t.env.attackK  = flTensionToK (get ("AttT"));
+            t.env.decayK   = flTensionToK (get ("DecT"));
+            t.env.releaseK = flTensionToK (get ("RelT"));
         }
         t.lfo.shape   = (LfoShape) (int) get ("LfoShape");
         t.lfo.periodT130 = flLfoPeriodT130 (get ("LfoSpeed"));

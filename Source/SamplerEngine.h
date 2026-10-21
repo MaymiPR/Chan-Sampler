@@ -1,15 +1,13 @@
 #pragma once
 
-#include "TimeStretch.h"
-
-#include <atomic>
-
 #include <juce_audio_basics/juce_audio_basics.h>
 #include <array>
+#include <atomic>
 
 #include "DeclickCurves.h"
 #include "Dsp.h"
 #include "SampleData.h"
+#include "TimeStretch.h"
 
 // Per-block snapshot of every realtime parameter.
 struct EngineParams
@@ -192,6 +190,7 @@ private:
         NoteMods mods;
     };
 
+    // Host events, the arpeggiator and echoes (scheduled notes)
     void handleNoteOn (int64_t time, int note, float velocity, const EngineParams& p);
     void handleNoteOff (int64_t time, int note, const EngineParams& p);
     void endArpNote (int note, const EngineParams& p, bool keyReleased);
@@ -199,8 +198,14 @@ private:
     void playNoteOff (int64_t time, int note, int echo, const EngineParams& p);
     void schedule (const Scheduled& e);
     void advanceArp (int64_t until, const EngineParams& p);
+    void cutByGroup (const EngineParams& p);
     double samplesPerStep (const EngineParams& p) const { return sampleRate * 60.0 / juce::jmax (1.0, p.bpm) / 4.0; }
+    double songTimeAt (const EngineParams& p, int bufferPos) const
+    {
+        return (p.songSeconds >= 0.0 ? p.songSeconds : (double) now / sampleRate) + bufferPos / sampleRate;
+    }
 
+    // Voices
     void noteOn (int note, float velocity, NoteMods mods, const SampleData& s, const EngineParams& p);
     void noteOff (int note, int echo, const EngineParams& p);
     void releaseVoice (Voice& v, const EngineParams& p);
@@ -214,6 +219,12 @@ private:
     void releaseModKnots (Voice& v, double noteSeconds, const EngineParams& p);
     void setupFilterAt (Voice& v, double noteSeconds, double songSeconds, const EngineParams& p);
 
+    // Mono / portamento glide
+    void eraseMonoKey (int key);
+    void startGlide (Voice& v, int note, const EngineParams& p);
+    void beginGlide (Voice& v, float fromCents, int note, const EngineParams& p) const;
+    double soundingNote (Voice& v, const EngineParams& p, double songSeconds) const;
+
     std::array<Voice, maxVoices> voices;
     std::array<TimeStretcher, maxVoices> stretchers;   // one per voice, allocated up front
     std::atomic<float> playhead { -1.0f };
@@ -223,22 +234,13 @@ private:
     float lastNote = -1;
     std::array<int, 128> monoKeys {};       // mono: earlier keys to return to (FL's key stack)
     int numMonoKeys = 0;
-    void eraseMonoKey (int key);
-    void startGlide (Voice& v, int note, const EngineParams& p);
-    double soundingNote (Voice& v, const EngineParams& p, double songSeconds) const;
-    void beginGlide (Voice& v, float fromCents, int note, const EngineParams& p) const;
     const SampleData* currentSample = nullptr;
 
     int64_t now = 0;                        // absolute sample clock
     int blockPos = 0;                       // offset in the current block
     int ctlBufferPos = 0;                   // buffer offset of the control block being set up
-    double songTimeAt (const EngineParams& p, int bufferPos) const
-    {
-        return (p.songSeconds >= 0.0 ? p.songSeconds : (double) now / sampleRate) + bufferPos / sampleRate;
-    }
     uint64_t eventSerial = 0;               // bumped by anything that changes a voice
     std::vector<int> noteStarts;            // see getNoteStarts()
-    void cutByGroup (const EngineParams& p);
     std::vector<Scheduled> pending;         // reserved; never grows on the audio thread
     static constexpr size_t maxPending = 4096;
 
@@ -248,6 +250,6 @@ private:
     int64_t arpNextStep = -1;
     int64_t arpStart = 0;     // time of the first step; step k sits at round (k * step) after it
     int64_t arpSteps = 0;
-    int arpIndex = 0, arpNote = -1, sustainedNote = -1;
+    int arpIndex = 0, sustainedNote = -1;
     juce::Random arpRandom { 1234 };
 };

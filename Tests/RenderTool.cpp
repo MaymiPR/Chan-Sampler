@@ -18,6 +18,12 @@
 //   fftbench                           the stretcher's FFT against JUCE's
 //   bench <sample>                     CPU per stretch mode, 32 / 64 voices
 //   decode <file> <out-prefix>         what each audio format reader decodes
+//
+// Environment: RENDER_SR (render rate, default 44100), RENDER_BPM (host
+// tempo, default 130 as in FL's test projects), RENDER_FACTORY (a factory
+// preset's name, applied on top of params.txt); bench takes BENCH_MODE (one
+// stretch method by index), BENCH_VOICES ("16,32,..."), BENCH_PARAM (automate
+// one parameter) and BENCH_AUTOMATION_ONLY.
 
 #include <juce_audio_formats/juce_audio_formats.h>
 #include <juce_events/juce_events.h>
@@ -240,8 +246,8 @@ int main (int argc, char** argv)
         ChanSamplerProcessor p;
         if (! p.loadSample (copy))
             return 1;
-        auto* vol = p.apvts.getParameter (pid::startOffset);
-        vol->setValueNotifyingHost (0.3f);
+        auto* offset = p.apvts.getParameter (pid::startOffset);
+        offset->setValueNotifyingHost (0.3f);
         const int before = p.getSampleLength();
         p.reloadIfFileChanged();
         juce::Thread::sleep (1100);   // a newer modification time
@@ -250,8 +256,8 @@ int main (int argc, char** argv)
         p.reloadIfFileChanged();      // sees the change, waits for it to settle
         const int waiting = p.getSampleLength();
         p.reloadIfFileChanged();      // reloads
-        std::cout << "frames " << before << " -> " << waiting << " -> " << p.getSampleLength() << ", start offset " << vol->getValue() << "\n";
-        return before != p.getSampleLength() && waiting == before && std::abs (vol->getValue() - 0.3f) < 1.0e-6f ? 0 : 2;
+        std::cout << "frames " << before << " -> " << waiting << " -> " << p.getSampleLength() << ", start offset " << offset->getValue() << "\n";
+        return before != p.getSampleLength() && waiting == before && std::abs (offset->getValue() - 0.3f) < 1.0e-6f ? 0 : 2;
     }
     if (argc >= 4 && juce::String (argv[1]) == "cliptest")
     {
@@ -354,15 +360,16 @@ int main (int argc, char** argv)
                     if (auto* only = std::getenv ("BENCH_PARAM"))   // one parameter only (profiling)
                     {
                         set (only, (float) (0.5 + 0.3 * std::sin (ph)) * (juce::String (only) == "fineTune" ? 50.0f : 1.0f));
-                        goto automated;
                     }
-                    set (pid::cutoff, 0.5f + 0.4f * std::sin (ph));
-                    set (pid::pan, 0.8f * std::sin (ph * 1.3f));
-                    set (pid::volume, 1.0f + 0.3f * std::sin (ph * 0.7f));
-                    set (pid::fineTune, 50.0f * std::sin (ph * 0.9f));
-                    set (pid::resonance, 0.3f + 0.2f * std::sin (ph * 1.1f));
+                    else
+                    {
+                        set (pid::cutoff, 0.5f + 0.4f * std::sin (ph));
+                        set (pid::pan, 0.8f * std::sin (ph * 1.3f));
+                        set (pid::volume, 1.0f + 0.3f * std::sin (ph * 0.7f));
+                        set (pid::fineTune, 50.0f * std::sin (ph * 0.9f));
+                        set (pid::resonance, 0.3f + 0.2f * std::sin (ph * 1.1f));
+                    }
                 }
-                automated:
                 buf.clear();
                 proc.processBlock (buf, midi);
             }

@@ -4,12 +4,12 @@
 // its precomputed copy (rebuilt in the background when an effect changes), the
 // engine, saving and loading state, and the sample's link to its file.
 
-#include "CutGroups.h"
-#include <array>
-#include <mutex>
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_audio_formats/juce_audio_formats.h>
+#include <array>
+#include <mutex>
 
+#include "CutGroups.h"
 #include "Params.h"
 #include "SampleData.h"
 #include "SamplerEngine.h"

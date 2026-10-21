@@ -98,7 +98,6 @@ namespace
     }
 
     // Menus opened with showContextMenu (FL's sample / preset menus)
-    constexpr const char* contextMenuProperty = "flContextMenu";
     bool isContext (const juce::PopupMenu::Options& o)
     {
         auto* t = o.getTargetComponent();

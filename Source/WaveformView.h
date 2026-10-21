@@ -77,11 +77,12 @@ private:
     void saveAs();
     void showProperties();
     void drawSpectrum (juce::Graphics&, juce::Rectangle<float> area);
-    juce::Image spectrumImage;
-    int laneChannel = -1;   // drawLanes: one channel only (multichannel view), -1 both
-    juce::String spectrumKey;
-    std::unique_ptr<juce::FileChooser> chooser;
     void drawSamples (juce::Graphics&, juce::Rectangle<float> area, float from, float to) const;
+
+    juce::Image spectrumImage;
+    juce::String spectrumKey;
+    int laneChannel = -1;   // drawLanes: one channel only (multichannel view), -1 both
+    std::unique_ptr<juce::FileChooser> chooser;
 
     ChanSamplerProcessor& processor;
     SampleData::Ptr sample;       // what the view draws: the file's sample, or its stretched copy

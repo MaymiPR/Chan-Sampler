@@ -473,9 +473,9 @@ juce::Component& ChanSamplerEditor::buildTargetPage (const char* prefix, bool ha
         envMenu.onClick = [this, p = juce::String (prefix), &envMenu] { showEnvelopeMenu (p, envMenu); };
         auto* envOn = samplerProcessor.apvts.getParameter (id ("EnvOn"));
         // FL turns an envelope on as soon as one of its knobs is edited.
-        auto knob = [this, envOn] (juce::Component& parent, const juce::String& paramId, int x, int y, int size) -> juce::Slider&
+        auto envKnob = [this, envOn] (juce::Component& parent, const juce::String& paramId, int x, int y, int size) -> juce::Slider&
         {
-            auto& s = ChanSamplerEditor::knob (parent, paramId, x, y, size, fl::colour::green);   // FL: green arcs on INS
+            auto& s = knob (parent, paramId, x, y, size, fl::colour::green);   // FL: green arcs on INS
             s.onDragStart = [envOn]
             {
                 if (envOn->getValue() < 0.5f)
@@ -486,20 +486,20 @@ juce::Component& ChanSamplerEditor::buildTargetPage (const char* prefix, bool ha
         // The switch covers the "Envelope" title too: clicking the text toggles it, as in FL.
         led (env, id ("EnvOn"), {}, 2, 1, 78, 17).setTooltip ("Use envelope");
         own (std::make_unique<EnvelopeDisplay> (samplerProcessor.apvts, prefix), env, { 6, 26, 273, 83 });
-        knob (env, id ("Del"),  6,   115, 30);  caption (env, "DELAY", 7,   148, 28, 7);
-        knob (env, id ("Att"),  40,  115, 30);  caption (env, "ATT",   41,  148, 28, 7);
-        knob (env, id ("Hold"), 74,  115, 30);  caption (env, "HOLD",  75,  148, 28, 7);
-        knob (env, id ("Dec"),  108, 115, 30);  caption (env, "DEC",   109, 148, 28, 7);
-        knob (env, id ("Sus"),  142, 115, 30);  caption (env, "SUS",   143, 148, 28, 7);
-        knob (env, id ("Rel"),  176, 115, 30);  caption (env, "REL",   177, 148, 28, 7);
-        knob (env, id ("AttT"), 44,  158, 22);
-        knob (env, id ("DecT"), 112, 158, 22);
-        knob (env, id ("RelT"), 180, 158, 22);
+        envKnob (env, id ("Del"),  6,   115, 30);  caption (env, "DELAY", 7,   148, 28, 7);
+        envKnob (env, id ("Att"),  40,  115, 30);  caption (env, "ATT",   41,  148, 28, 7);
+        envKnob (env, id ("Hold"), 74,  115, 30);  caption (env, "HOLD",  75,  148, 28, 7);
+        envKnob (env, id ("Dec"),  108, 115, 30);  caption (env, "DEC",   109, 148, 28, 7);
+        envKnob (env, id ("Sus"),  142, 115, 30);  caption (env, "SUS",   143, 148, 28, 7);
+        envKnob (env, id ("Rel"),  176, 115, 30);  caption (env, "REL",   177, 148, 28, 7);
+        envKnob (env, id ("AttT"), 44,  158, 22);
+        envKnob (env, id ("DecT"), 112, 158, 22);
+        envKnob (env, id ("RelT"), 180, 158, 22);
         caption (env, "TENSION", 67, 166, 44, 7);
         caption (env, "TENSION", 135, 166, 44, 7);
         if (hasAmount)
         {
-            knob (env, id ("EnvAmt"), 245, 115, 34);
+            envKnob (env, id ("EnvAmt"), 245, 115, 34);
             caption (env, "AMT", 248, 152, 28, 7);
         }
         // FL: "Tempo" (tempo-based times) at the bottom right
@@ -510,7 +510,7 @@ juce::Component& ChanSamplerEditor::buildTargetPage (const char* prefix, bool ha
 
     auto lfoKnob = [this] (juce::Component& parent, const juce::String& paramId, int x, int y, int size) -> juce::Slider&
     {
-        return ChanSamplerEditor::knob (parent, paramId, x, y, size, fl::colour::green);
+        return knob (parent, paramId, x, y, size, fl::colour::green);
     };
 
     // LFO panel; the header holds the shape selector.
