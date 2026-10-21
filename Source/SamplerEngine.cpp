@@ -1,4 +1,4 @@
-﻿#include "SamplerEngine.h"
+#include "SamplerEngine.h"
 #include "Chords.h"
 
 namespace

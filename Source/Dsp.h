@@ -1,5 +1,10 @@
 #pragma once
 
+// The engine's building blocks, each measured against FL's Sampler (see
+// docs/EVIDENCE.md): envelope curves and FL's envelope on its tick grid,
+// the channel LFO, the filters (Fast LP, RBJ biquads, state-variable,
+// the x2 cascades) and their parameter mappings.
+
 #include <juce_core/juce_core.h>
 #include <cmath>
 

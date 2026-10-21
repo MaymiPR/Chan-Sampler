@@ -1,5 +1,9 @@
 #pragma once
 
+// The plugin: parameters (AudioProcessorValueTreeState), the loaded sample and
+// its precomputed copy (rebuilt in the background when an effect changes), the
+// engine, saving and loading state, and the sample's link to its file.
+
 #include "CutGroups.h"
 #include <array>
 #include <mutex>
