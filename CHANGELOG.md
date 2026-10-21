@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+Other
+- The repository: every push is built and tested on Windows and Linux, a
+  contributor guide (CONTRIBUTING.md), the null-test tools in folders (with
+  the stretch-mode measurements of 1.2.0 and a generator for their test
+  signals), LF line endings.
+
 ## 1.2.0
 
 Closer to FL's Sampler

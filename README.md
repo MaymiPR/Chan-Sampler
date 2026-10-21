@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="https://github.com/MaymiPR/ChanSampler/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/MaymiPR/ChanSampler?color=4df1b1&label=release"></a>
-  <a href="https://github.com/MaymiPR/ChanSampler/actions/workflows/release.yml"><img alt="Build" src="https://github.com/MaymiPR/ChanSampler/actions/workflows/release.yml/badge.svg"></a>
+  <a href="https://github.com/MaymiPR/ChanSampler/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/MaymiPR/ChanSampler/actions/workflows/ci.yml/badge.svg"></a>
   <img alt="Formats" src="https://img.shields.io/badge/formats-VST3%20%7C%20CLAP%20%7C%20AU%20%7C%20Standalone-2d3133">
   <img alt="Platforms" src="https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-2d3133">
   <a href="LICENSE"><img alt="License: AGPL v3" src="https://img.shields.io/badge/license-AGPL--3.0-ffa830"></a>
@@ -71,10 +71,17 @@ import reproduces FL's settings.
 The sample view's colours, grid, spectrum and colourful waveforms were measured
 from FL's screen.
 
-Not identical: the time-stretch modes (FL's engine is proprietary, so they
-match in behaviour, not sample for sample) and a few edge cases.
 [docs/EVIDENCE.md](docs/EVIDENCE.md) lists every measurement and every known
-gap.
+gap. The main ones:
+
+- **Time stretching** (PITCH / MUL / TIME in any mode but Resample) matches
+  FL's in behaviour, not sample for sample: FL's engine (elastique) is
+  proprietary. Attacks land where FL puts them; Stretch Pro with PITCH is the
+  furthest from FL's sound.
+- **FL-only features** that need FL itself as the host are left out: the
+  Time panel (gate, shift, swing) and the knob menus' automation and
+  remote-control entries (your DAW provides those).
+- Not **code-signed** (see Install).
 
 ## Install
 
@@ -133,8 +140,7 @@ cmake -B build -G "Visual Studio 18 2026" -A x64
 cmake --build build --config Release
 ```
 
-(`"Visual Studio 17 2022"` with VS 2022.) Engine tests:
-`build/ChanSamplerTests_artefacts/Release/ChanSamplerTests.exe`
+(`"Visual Studio 17 2022"` with VS 2022.)
 
 macOS (universal AU + VST3 + CLAP + Standalone):
 
@@ -151,43 +157,15 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --target ChanSampler_VST3 ChanSampler_CLAP ChanSampler_Standalone
 ```
 
-Developer tools (built with everything else):
+Engine tests, the developer tools, the null tests against FL and how
+releases are made: [CONTRIBUTING.md](CONTRIBUTING.md).
 
-- `ChanSamplerRender` renders notes offline (for the null tests), and has
-  `bench <sample>` (CPU per stretch mode, 32 / 64 voices) and
-  `compatstate <state.bin>` (checks that an older version's saved state loads
-  unchanged).
-- `ChanSamplerSnapshot` writes editor screenshots (used to compare with FL's
-  screen and for the pictures above).
+## Feedback
 
-## Releases
-
-GitHub Actions builds Windows, macOS and Linux (`.github/workflows/release.yml`)
-and validates the plugins with pluginval at its strictest level and, on macOS,
-Apple's `auval`:
-
-- **Test build:** Actions → *Build and release* → *Run workflow*; the zips
-  appear under the run's *Artifacts*.
-- **Release:** push a version tag; the zips are attached to a new GitHub
-  Release:
-
-  ```
-  git tag v1.2.0
-  git push origin v1.2.0
-  ```
-
-Changes per version: [CHANGELOG.md](CHANGELOG.md).
-
-## Working on another computer
-
-```
-git clone https://github.com/MaymiPR/ChanSampler.git
-```
-
-Build as above. Commit and push before switching computers, and pull on the
-other one. Generated files (`build/`, FL's test renders in
-`nulltest/renders*`) are not in the repository: rebuild, and re-render the null
-tests with FL Studio when needed.
+Found a bug or a difference from FL's Sampler? Open an
+[issue](https://github.com/MaymiPR/ChanSampler/issues/new/choose); a sample or
+an FL preset (`.fst`) that shows it helps most. Changes per version:
+[CHANGELOG.md](CHANGELOG.md).
 
 ## License
 
