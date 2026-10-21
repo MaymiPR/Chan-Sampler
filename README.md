@@ -31,6 +31,14 @@ renders sample-identically to FL (see
 |---|---|---|
 | ![Envelopes](docs/screenshots/envelope.png) | ![Misc](docs/screenshots/misc.png) | ![Spectrum](docs/screenshots/spectrum.png) |
 
+## How it was made
+
+Chan Sampler was created entirely with Claude (Anthropic's AI) and
+[REA](https://github.com/morluto/rea): every line of code, the measurements
+behind it and this documentation. FL Studio itself was the reference: its
+behaviour was measured from its renders and its interface, as described in
+[docs/EVIDENCE.md](docs/EVIDENCE.md).
+
 ## Features
 
 - **Samples:** WAV, AIFF, FLAC, Ogg Vorbis and MP3, including FL's compressed
@@ -179,11 +187,3 @@ and ship with every download.
 
 FL Studio is a trademark of Image-Line Software; other names are trademarks of
 their owners and are used only to describe compatibility.
-
-## How it was made
-
-Chan Sampler was created entirely with Claude (Anthropic's AI) and
-[REA](https://github.com/morluto/rea): every
-line of code, the measurements behind it and this documentation. FL Studio
-itself was the reference: its behaviour was measured from its renders and its
-interface, as described in [docs/EVIDENCE.md](docs/EVIDENCE.md).
