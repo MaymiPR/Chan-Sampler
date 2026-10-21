@@ -9,6 +9,8 @@ ChanSamplerProcessor::ChanSamplerProcessor()
 
     for (auto& id : precomputeParamIDs())
         apvts.addParameterListener (id, this);
+    for (auto* id : stretchParamIDs)
+        apvts.addParameterListener (id, this);
 
     publish (buildProcessedSample (*raw, readPrecomputeSettings()));
     rebuildThread.startThread();
@@ -20,6 +22,8 @@ ChanSamplerProcessor::~ChanSamplerProcessor()
     stopTimer();
     cutgroups::releaseNumber (instanceNumber);
     for (auto& id : precomputeParamIDs())
+        apvts.removeParameterListener (id, this);
+    for (auto* id : stretchParamIDs)
         apvts.removeParameterListener (id, this);
     rebuildThread.signalThreadShouldExit();
     rebuildThread.notify();
@@ -38,6 +42,8 @@ void ChanSamplerProcessor::prepareToPlay (double sampleRate, int)
     if (hostRate.exchange (sampleRate) != sampleRate)
         rebuildNow();
     engine.prepare (sampleRate);
+    if (needsStretchers())
+        engine.ensureStretchers();
     cutOffsets.reserve (256);
     outputGain.reset (sampleRate, 0.02);
     outputGain.setCurrentAndTargetValue (juce::Decibels::decibelsToGain (param (pid::output), -47.9f));
@@ -117,6 +123,9 @@ void ChanSamplerProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
         }
     displayBpm.store (params.bpm);
     applyTempo (params);
+    // An export can't wait for the timer: make the stretchers here when not in real time.
+    if (isNonRealtime() && SamplerEngine::usesStretcher (params.stretchMode) && ! engine.hasStretchers())
+        engine.ensureStretchers();
     if (const int n = previewOff.exchange (-1); n >= 0)
         engine.previewNote (n, false, params);
     if (const int n = previewOn.exchange (-1); n >= 0 && audioThreadSample != nullptr)
@@ -326,8 +335,23 @@ void ChanSamplerProcessor::applyLoopLink (const juce::String& changedId)
         setParameterAsGesture (*apvts.getParameter (pid::loopEnd), newEnd);
 }
 
+bool ChanSamplerProcessor::needsStretchers() const
+{
+    const auto mode = resolveStretchMode ((StretchMode) (int) param (pid::stretchMode), param (pid::pitch), param (pid::stretchMul), param (pid::stretchTime));
+    return SamplerEngine::usesStretcher (mode);
+}
+
 void ChanSamplerProcessor::parameterChanged (const juce::String& parameterID, float)
 {
+    // A stretch mode switched on from the editor gets its stretchers at once
+    // (host automation runs on the audio thread: the timer makes them then).
+    if (std::any_of (std::begin (stretchParamIDs), std::end (stretchParamIDs), [&] (const char* id) { return parameterID == id; }))
+    {
+        if (juce::MessageManager::existsAndIsCurrentThread() && needsStretchers())
+            engine.ensureStretchers();
+        return;
+    }
+
     // Loop points only touch the sample data when a loop crossfade is baked in.
     const bool loopParam = parameterID == pid::useLoop || parameterID == pid::loopStart || parameterID == pid::loopEnd;
     if (loopParam && param (pid::pcCrossfade) <= 0.0f)
@@ -358,6 +382,9 @@ void ChanSamplerProcessor::timerCallback()
         }
     }
     lastCutSelf = cutSelf;
+
+    if (! engine.hasStretchers() && needsStretchers())
+        engine.ensureStretchers();
 
     const juce::ScopedLock sl (poolLock);
     for (int i = releasePool.size(); --i >= 0;)
@@ -678,6 +705,8 @@ void ChanSamplerProcessor::setStateInformation (const void* data, int sizeInByte
         apvts.replaceState (savedLoop);
         rebuildSample();
     }
+    if (needsStretchers())
+        engine.ensureStretchers();
 }
 
 juce::AudioProcessorEditor* ChanSamplerProcessor::createEditor()

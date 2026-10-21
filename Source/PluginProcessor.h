@@ -93,12 +93,17 @@ public:
     juce::AudioProcessorValueTreeState apvts;
     juce::MidiKeyboardState keyboardState;
 
+    // The parameters that decide whether the time stretchers are needed.
+    static constexpr const char* stretchParamIDs[] = { pid::stretchMode, pid::pitch, pid::stretchMul, pid::stretchTime };
+
     // Sample-view preview, sent to the engine directly (not as MIDI) so only
     // these notes show the playback bar. Thread-safe, called from the UI.
     void requestPreview (int note, bool on) { (on ? previewOn : previewOff).store (note); }
 
 private:
     void parameterChanged (const juce::String& parameterID, float newValue) override;
+    // True when the current settings play through the time stretchers.
+    bool needsStretchers() const;
     void timerCallback() override;
     void rebuildSample();
     void publish (SampleData::Ptr newSample);

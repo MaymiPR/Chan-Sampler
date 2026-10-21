@@ -16,6 +16,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <iostream>
+#include <thread>
 
 namespace
 {
@@ -398,7 +399,42 @@ int main (int argc, char** argv)
         check (maxDiff (yRef, yFresh) < 1.0e-6f, "offline render right after loading a project matches (max diff " + juce::String (maxDiff (yRef, yFresh)) + ")");
     }
 
-    // 6. Projects saved by earlier versions (Tests/data/state-*.bin), in new
+    // 6. A stretch mode chosen while the host plays on its own audio thread:
+    //    the plugin makes its stretchers off the audio thread (when the change
+    //    arrives on the message thread, else on its timer), and then an octave
+    //    up keeps the sample's length instead of halving it as Resample does.
+    {
+        auto e = load (pluginPath);
+        setStateAttribute (*e, "samplePath", samplePath);
+        auto onAudioThread = [&e] (int blocks, std::function<void (int, juce::MidiBuffer&)> onBlock)
+        {
+            std::vector<float> y;
+            std::thread audio ([&] { y = render (*e, blocks, onBlock); });
+            audio.join();
+            return y;
+        };
+        auto lastSound = [] (const std::vector<float>& y)
+        {
+            for (int i = (int) y.size() - 1; i >= 0; --i)
+                if (std::abs (y[(size_t) i]) > 1.0e-3f)
+                    return (float) i / (float) sr;
+            return 0.0f;
+        };
+        auto octaveUp = [] (int i, juce::MidiBuffer& m) { if (i == 0) m.addEvent (juce::MidiMessage::noteOn (1, 72, (juce::uint8) 100), 0); };
+        const int threeSeconds = (int) (3.0 * sr / bs);
+        const auto resampled = lastSound (onAudioThread (threeSeconds, octaveUp));
+        auto* mode = findParam (*e, "Stretch method");
+        if (mode != nullptr)
+            mode->setValueNotifyingHost (1.0f / 11.0f);   // "Stretch", the second of 12 methods
+        onAudioThread (4, [] (int, juce::MidiBuffer&) {});   // the change reaches the plugin on the audio thread
+        juce::MessageManager::getInstance()->runDispatchLoopUntil (300);   // its timer runs
+        const auto stretched = lastSound (onAudioThread (threeSeconds, octaveUp));
+        check (mode != nullptr && mode->getCurrentValueAsText() == "Stretch" && std::abs (resampled - 1.0f) < 0.1f && std::abs (stretched - 2.0f) < 0.1f,
+               "a stretch mode chosen while playing plays stretched (an octave up lasts " + juce::String (stretched, 2)
+               + " s, resampled " + juce::String (resampled, 2) + " s)");
+    }
+
+    // 7. Projects saved by earlier versions (Tests/data/state-*.bin), in new
     // instances with no sample: their loop position texts must not follow the
     // sample loaded above (each instance shows its own).
     for (int i = 3; i < argc; ++i)

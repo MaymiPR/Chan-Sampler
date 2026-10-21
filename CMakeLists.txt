@@ -143,7 +143,7 @@ target_link_libraries(ChanSamplerSnapshot PRIVATE
 # and projects saved by earlier releases (Tests/data).
 juce_add_console_app(ChanSamplerHostTest PRODUCT_NAME "ChanSamplerHostTest")
 target_sources(ChanSamplerHostTest PRIVATE Tests/HostTool.cpp)
-target_compile_definitions(ChanSamplerHostTest PRIVATE JUCE_PLUGINHOST_VST3=1 JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0)
+target_compile_definitions(ChanSamplerHostTest PRIVATE JUCE_PLUGINHOST_VST3=1 JUCE_MODAL_LOOPS_PERMITTED=1 JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0)
 target_link_libraries(ChanSamplerHostTest PRIVATE
     juce::juce_audio_processors
     juce::juce_gui_basics

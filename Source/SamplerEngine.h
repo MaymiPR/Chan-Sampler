@@ -3,6 +3,8 @@
 #include <juce_audio_basics/juce_audio_basics.h>
 #include <array>
 #include <atomic>
+#include <memory>
+#include <mutex>
 
 #include "DeclickCurves.h"
 #include "Dsp.h"
@@ -106,6 +108,14 @@ public:
     float getPlayhead() const noexcept { return playhead.load(); }
     void updatePlayhead (const SampleData* sample) noexcept;
 
+    // The time stretchers (about 2 MB per voice) are made the first time a
+    // stretch mode is needed, never on the audio thread: call
+    // ensureStretchers () from the message thread, or from a non-realtime
+    // render. A note that starts before they exist plays resampled.
+    static bool usesStretcher (StretchMode m) { return m != StretchMode::resample && m != StretchMode::sliceMap; }
+    void ensureStretchers();
+    bool hasStretchers() const noexcept { return stretchersReady.load (std::memory_order_acquire); }
+
 private:
     enum class KillShape { cosine, transient, crossfade };   // out-fade curve
 
@@ -170,6 +180,7 @@ private:
         double filterKnot = -1;           // note seconds of coefNext (-1: recompute)
         float cutBase = 1, resBase = 0;   // unmodulated cutoff / resonance
 
+        bool stretched = false;   // plays through its voice's stretcher (decided at note-on)
         int onsetIdx = 0;         // next transient for the slice modes
         double slicePos = -1;     // slice map: read head inside the current slice
         int sliceFade = 0;
@@ -226,7 +237,9 @@ private:
     double soundingNote (Voice& v, const EngineParams& p, double songSeconds) const;
 
     std::array<Voice, maxVoices> voices;
-    std::array<TimeStretcher, maxVoices> stretchers;   // one per voice, allocated up front
+    std::array<std::unique_ptr<TimeStretcher>, maxVoices> stretchers;   // one per voice, see ensureStretchers ()
+    std::atomic<bool> stretchersReady { false };
+    std::mutex stretcherLock;   // ensureStretchers () only, never the audio thread
     std::atomic<float> playhead { -1.0f };
     double sampleRate = 44100.0;
     uint64_t ageCounter = 0;

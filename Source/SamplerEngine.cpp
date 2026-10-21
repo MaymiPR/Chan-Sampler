@@ -122,7 +122,6 @@ namespace
 
     struct LoopFrames { int start, end; bool valid; };
 
-    bool isGranular (StretchMode m) { return m != StretchMode::resample && m != StretchMode::sliceMap; }
     bool resetsAtOnsets (StretchMode m) { return m == StretchMode::sliceStretch || m == StretchMode::e2Transient; }
 
     LoopFrames loopFrames (const SampleData& s, const EngineParams& p)
@@ -187,6 +186,17 @@ void SamplerEngine::updatePlayhead (const SampleData* sample) noexcept
             newest = &v;
     const int total = sample != nullptr ? sample->getTotalFrames() : 0;
     playhead.store (newest != nullptr && total > 0 ? (float) juce::jlimit (0.0, 1.0, newest->pos / total) : -1.0f);
+}
+
+void SamplerEngine::ensureStretchers()
+{
+    const std::lock_guard<std::mutex> lock (stretcherLock);
+    if (hasStretchers())
+        return;
+    for (auto& s : stretchers)
+        if (s == nullptr)
+            s = std::make_unique<TimeStretcher>();
+    stretchersReady.store (true, std::memory_order_release);
 }
 
 int SamplerEngine::getNumActiveVoices() const noexcept
@@ -715,9 +725,10 @@ void SamplerEngine::noteOn (int note, float velocity, NoteMods mods, const Sampl
     v.age = ++ageCounter;
     v.pos = juce::jlimit (0.0, (double) s.playEnd - 1.0, (double) p.startOffset * s.playEnd);
     v.inLoop = loop.valid && v.pos < loop.end;
-    if (isGranular (p.stretchMode))
+    v.stretched = usesStretcher (p.stretchMode) && hasStretchers();
+    if (v.stretched)
     {
-        auto& st = stretchers[(size_t) (&v - voices.data())];
+        auto& st = *stretchers[(size_t) (&v - voices.data())];
         st.configure (p.stretchMode, s.sourceRate);
         st.sourceToOutputRateScale = sampleRate / s.sourceRate;
         st.reset (v.pos);
@@ -1034,7 +1045,7 @@ void SamplerEngine::updateControls (Voice& v, int numSamples, const SampleData& 
     // length, times MUL. Resample plays it like tape (pitch follows speed);
     // the other methods keep duration and pitch independent.
     const auto speed = stretchSpeed ((double) s.playEnd / s.sourceRate, p.stretchMul, p.stretchTime, p.bpm);
-    if (p.stretchMode == StretchMode::resample)
+    if (p.stretchMode == StretchMode::resample || (usesStretcher (p.stretchMode) && ! v.stretched))
     {
         v.increment *= speed;
         v.timeRate = v.increment;
@@ -1091,7 +1102,7 @@ void SamplerEngine::renderRange (juce::AudioBuffer<float>& out, int start, int n
     const auto* srcL = s.audio.getReadPointer (0);
     const auto* srcR = s.audio.getReadPointer (1);
     const int endLimit = s.playEnd;
-    const bool granular = isGranular (p.stretchMode);
+    const bool stretchMode = usesStretcher (p.stretchMode);
     const bool sliceMap = p.stretchMode == StretchMode::sliceMap;
     const bool slicesReset = resetsAtOnsets (p.stretchMode);
 
@@ -1174,7 +1185,7 @@ void SamplerEngine::renderRange (juce::AudioBuffer<float>& out, int start, int n
                     l = v.holdL;
                     r = v.holdR;
                 }
-                else if (granular)
+                else if (stretchMode && v.stretched)
                 {
                     // Time stretching (TimeStretch.h): pitch from the key, length
                     // from MUL / TIME. Past the sample end the source is silent.
@@ -1198,7 +1209,7 @@ void SamplerEngine::renderRange (juce::AudioBuffer<float>& out, int start, int n
                         sl = srcL[m];
                         sr = srcR[m];
                     };
-                    stretchers[(size_t) (&v - voices.data())].next (read, v.increment, v.timeRate, p.formant, l, r);
+                    stretchers[(size_t) (&v - voices.data())]->next (read, v.increment, v.timeRate, p.formant, l, r);
                     v.lastL = l;
                     v.lastR = r;
                 }
@@ -1338,9 +1349,9 @@ void SamplerEngine::renderRange (juce::AudioBuffer<float>& out, int start, int n
                         v.slicePos = onset;
                         v.sliceFade = 0;
                     }
-                    else
+                    else if (v.stretched)
                     {
-                        stretchers[(size_t) (&v - voices.data())].reset (onset);   // slice stretch: restart at each transient
+                        stretchers[(size_t) (&v - voices.data())]->reset (onset);   // slice stretch: restart at each transient
                     }
                 }
                 if (looping)

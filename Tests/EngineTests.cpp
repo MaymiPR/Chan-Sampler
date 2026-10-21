@@ -38,6 +38,7 @@ namespace
     {
         SamplerEngine engine;
         engine.prepare (rate);
+        engine.ensureStretchers();
         std::vector<float> out;
         juce::AudioBuffer<float> block (2, 512);
         for (int pos = 0; pos < numSamples; pos += 512)

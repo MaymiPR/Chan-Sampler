@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+Faster
+- Each Chan Sampler uses about 4 MB of memory instead of about 130 MB until
+  a stretch mode is used (the time stretchers are made the first time one
+  is needed): ten instances in Resample went from about 1.3 GB to 40 MB.
+
+Fixes
+- Switching a playing note from Resample to a stretch mode no longer reads
+  from a stretcher left over from an earlier note; that note carries on
+  resampled, and the next note is stretched.
+
 ## 1.2.1
 
 New
