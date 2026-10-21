@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+New
+- Click CHAN SAMPLER in the top bar for a menu in FL's style: the version,
+  About Chan Sampler (version, plugin format, license, credits), the project
+  on GitHub, Report an Issue and the license.
+
 Downloads
 - Each release has the Windows installer, the macOS installer and the Linux
   tarball (now with the version in its name); the Windows and macOS zips are

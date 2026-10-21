@@ -7,6 +7,31 @@
 namespace
 {
     const juce::String notAvailable = "Not available in Chan Sampler: ";
+    const juce::String repository = "https://github.com/MaymiPR/ChanSampler";
+
+    // The product name in the top bar: a click opens the plugin's own menu
+    // (version, About, the project's links) in FL's menu style.
+    struct TitleButton : juce::Component, juce::SettableTooltipClient
+    {
+        TitleButton()
+        {
+            setMouseCursor (juce::MouseCursor::PointingHandCursor);
+            setTooltip ("About Chan Sampler");
+        }
+        static constexpr float size = 12.5f;
+        static int widthFor (const juce::String& s) { return (int) std::ceil (juce::GlyphArrangement::getStringWidth (fl::font (size, true), s)) + 4; }
+        void paint (juce::Graphics& g) override
+        {
+            g.setFont (fl::font (size, true));
+            g.setColour (isMouseOver() ? fl::colour::tabIcon.brighter (0.35f) : fl::colour::tabIcon);
+            g.drawText (text, getLocalBounds().withTrimmedRight (1), juce::Justification::centredRight);
+        }
+        void mouseEnter (const juce::MouseEvent&) override { repaint(); }
+        void mouseExit (const juce::MouseEvent&) override  { repaint(); }
+        void mouseDown (const juce::MouseEvent&) override  { if (onClick) onClick(); }
+        juce::String text { "CHAN SAMPLER" };
+        std::function<void()> onClick;
+    };
 
     // Plain filled rectangle (top bar, bevels).
     struct Fill : juce::Component
@@ -219,8 +244,10 @@ void ChanSamplerEditor::buildTopBar()
 
     // Product name and loaded-sample summary (FL's channel VOL / PAN / PITCH /
     // RANGE / TRACK belong to the host channel and are left to the host).
-    auto& name = text (bar, "CHAN SAMPLER", 230, 6, 270, 16, 12.5f, true, juce::Justification::centredRight);
-    name.setColour (juce::Label::textColourId, fl::colour::tabIcon);
+    auto title = std::make_unique<TitleButton>();
+    const int titleW = TitleButton::widthFor (title->text);
+    auto& name = own (std::move (title), bar, { 500 - titleW, 6, titleW, 16 });
+    name.onClick = [this, &name] { showAboutMenu (name); };
     sampleInfo = &text (bar, {}, 320, 23, 180, 14, 10.5f, false, juce::Justification::centredRight);
 
     // The plugin's own presets (FL's wrapper has its preset menu here too)
@@ -233,6 +260,30 @@ void ChanSamplerEditor::buildTopBar()
     knob (bar, pid::output, 517, 3, 30, fl::colour::green);
     caption (bar, "OUT", 518, 35, 28, 7);
     sampleInfo->setColour (juce::Label::textColourId, fl::colour::dim);
+}
+
+void ChanSamplerEditor::showAboutMenu (juce::Component& target)
+{
+    const juce::String version = JucePlugin_VersionString;
+    juce::PopupMenu menu;
+    menu.addSectionHeader ("Chan Sampler v" + version);
+    menu.addItem ("About Chan Sampler", [this, version]
+    {
+        const auto format = juce::AudioProcessor::getWrapperTypeDescription (samplerProcessor.wrapperType);
+        fl::showInfo (canvas, "About Chan Sampler", {
+            { "Version", version + (samplerProcessor.wrapperType == juce::AudioProcessor::wrapperType_Undefined ? juce::String() : " (" + juce::String (format) + ")") },
+            { {}, {} },
+            { "What it is", "FL Studio's Channel Sampler as a plugin for any DAW, measured against FL itself" },
+            { "License", "Free software under the GNU Affero General Public License v3" },
+            { "Built with", "JUCE, the VST3 SDK and CLAP; their licenses come with it" },
+            { "Source", repository.fromFirstOccurrenceOf ("https://", false, false) },
+            { {}, {} },
+            { "Note", "An independent project: not made, endorsed or supported by Image-Line. FL Studio is a trademark of Image-Line Software." } });
+    });
+    menu.addItem ("Chan Sampler on GitHub", [] { juce::URL (repository).launchInDefaultBrowser(); });
+    menu.addItem ("Report an Issue", [] { juce::URL (repository + "/issues/new/choose").launchInDefaultBrowser(); });
+    menu.addItem ("License (AGPL-3.0)", [] { juce::URL (repository + "/blob/main/LICENSE").launchInDefaultBrowser(); });
+    fl::showContextMenu (menu, target, false);
 }
 
 void ChanSamplerEditor::buildSampleSheet()

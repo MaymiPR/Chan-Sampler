@@ -42,6 +42,7 @@ private:
     juce::ComboBox& combo (juce::Component& parent, const juce::String& paramId, int x, int y, int w, int h);
     fl::DigiBox& digi (juce::Component& parent, const juce::String& paramId, int x, int y, int w, int h, bool red);
     fl::DigiBox& deadDigi (juce::Component& parent, const juce::String& text, int x, int y, int w, int h, bool red, const juce::String& what);
+    void showAboutMenu (juce::Component& target);
     juce::Label& text (juce::Component& parent, const juce::String& s, int x, int y, int w, int h, float size, bool bold = false,
                        juce::Justification just = juce::Justification::centredLeft);
     fl::Panel& panel (juce::Component& parent, const juce::String& title, int x, int y, int w, int h, int headerInset = 0);

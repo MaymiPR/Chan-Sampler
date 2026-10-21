@@ -52,7 +52,7 @@ endif()
 # define what juce_add_plugin would.
 set(CHANSAMPLER_TOOL_DEFINITIONS
     JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0 JUCE_USE_MP3AUDIOFORMAT=1
-    JucePlugin_Name="Chan Sampler" JucePlugin_IsSynth=1 JucePlugin_WantsMidiInput=1
+    JucePlugin_Name="Chan Sampler" JucePlugin_VersionString="${PROJECT_VERSION}" JucePlugin_IsSynth=1 JucePlugin_WantsMidiInput=1
     JucePlugin_ProducesMidiOutput=0 JucePlugin_IsMidiEffect=0)
 
 # VST3 + Standalone everywhere; AU is only buildable on macOS.

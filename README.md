@@ -123,6 +123,8 @@ check that a download is the published one.
   *Pluck*, *Swell*, *Filter sweep*, *Wobble 1/8*, *Tremolo*, *Vibrato*,
   *808 glide*, *Echo ping-pong 1/8* and *Reverse*.
 - Without the volume envelope, a note plays to the end of the sample, as in FL.
+- Click **CHAN SAMPLER** in the top bar for the version, About, the project
+  page, reporting an issue and the license.
 
 ## Build
 
