@@ -83,6 +83,9 @@ public:
     }
     juce::AudioFormatManager& getFormatManager() { return formatManager; }
 
+    // The loaded sample's length in frames, for the loop knobs' text (before
+    // apvts: its parameters read it).
+    std::atomic<int> loopTextLength { 0 };
     juce::AudioProcessorValueTreeState apvts;
     juce::MidiKeyboardState keyboardState;
 

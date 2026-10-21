@@ -633,7 +633,8 @@ int main()
             void getStateInformation (juce::MemoryBlock&) override {}
             void setStateInformation (const void*, int) override {}
         } host;
-        juce::AudioProcessorValueTreeState apvts (host, nullptr, "P", createParameterLayout());
+        const std::atomic<int> sampleLength { 0 };
+        juce::AudioProcessorValueTreeState apvts (host, nullptr, "P", createParameterLayout (sampleLength));
 
         struct Case { const char* id; double pos; const char* text; };
         const Case cases[] = {

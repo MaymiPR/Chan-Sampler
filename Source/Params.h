@@ -138,7 +138,9 @@ enum class StretchMode { resample, stretch, stretchPro, e3Generic, e3Mono, slice
 // unity), and the output trim supplies the 0.5: -6.0206 dB.
 inline constexpr float defaultOutputDb = -6.0206f;
 
-juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
+// sampleLength: the instance's loaded sample in frames, for the loop point
+// knobs' text (FL shows them as sample positions).
+juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout (const std::atomic<int>& sampleLength);
 
 // FL's Auto stretch mode: plain resampling while nothing needs stretching,
 // "e3 generic" once PITCH, MUL or TIME is set (as FL shows under the menu).
@@ -156,9 +158,6 @@ const juce::StringArray& precomputeParamIDs();
 // FL Studio names MIDI note 60 "C5".
 juce::String flNoteName (int midiNote);
 int parseNoteName (const juce::String& text);
-
-// Length of the loaded sample in frames, for the loop point knobs' text.
-extern std::atomic<int> displaySampleLength;
 
 // Host tempo for the knob menus' "Set > n steps" entries (updated by the processor).
 extern std::atomic<double> displayBpm;

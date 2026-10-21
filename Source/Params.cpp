@@ -6,7 +6,6 @@
 // clipboard) maps to the same value here, and the text matches FL's hint bar.
 // Positions and texts were read from FL itself (nulltest/, docs/EVIDENCE.md).
 
-std::atomic<int> displaySampleLength { 0 };
 std::atomic<double> displayBpm { 130.0 };
 
 float flEnvKnobForSeconds (float seconds)
@@ -300,7 +299,7 @@ const juce::StringArray& precomputeParamIDs()
     return ids;
 }
 
-juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
+juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout (const std::atomic<int>& sampleLength)
 {
     Layout l;
     const juce::NormalisableRange<float> unit { 0.0f, 1.0f }, bipolar { -1.0f, 1.0f };
@@ -323,10 +322,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     addBool  (l, pid::useLoop,   "Use loop points", false);
 
     // Loop points: FL shows sample positions (position = frame / sample length).
-    auto frames = [] (float v, int) { return juce::String (juce::roundToInt (v * (float) displaySampleLength.load())); };
-    auto fromFrames = [] (const juce::String& t)
+    auto frames = [&sampleLength] (float v, int) { return juce::String (juce::roundToInt (v * (float) sampleLength.load())); };
+    auto fromFrames = [&sampleLength] (const juce::String& t)
     {
-        const auto n = displaySampleLength.load();
+        const auto n = sampleLength.load();
         return n > 0 ? (float) (firstNumber (t) / n) : 0.0f;
     };
     addFloat (l, pid::loopStart, "Loop start position", unit, 0.0f, attr (frames, fromFrames));

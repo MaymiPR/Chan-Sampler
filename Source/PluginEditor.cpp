@@ -52,7 +52,6 @@ ChanSamplerEditor::ChanSamplerEditor (ChanSamplerProcessor& p)
     : AudioProcessorEditor (p), samplerProcessor (p), waveform (p)
 {
     setLookAndFeel (&lnf);
-    displaySampleLength.store (p.getSampleLength());   // this instance's sample, for the loop knob texts
 
     canvas.setBounds (0, 0, canvasW, canvasH);
     addAndMakeVisible (canvas);

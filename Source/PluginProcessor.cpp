@@ -3,7 +3,7 @@
 
 ChanSamplerProcessor::ChanSamplerProcessor()
     : AudioProcessor (BusesProperties().withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
-      apvts (*this, nullptr, "STATE", createParameterLayout())
+      apvts (*this, nullptr, "STATE", createParameterLayout (loopTextLength))
 {
     formatManager.registerBasicFormats();
 
@@ -604,7 +604,7 @@ bool ChanSamplerProcessor::loadSample (const juce::File& file)
         const juce::ScopedLock sl (poolLock);
         raw = std::make_shared<const RawSample> (std::move (r));
     }
-    displaySampleLength.store (length);   // loop knob texts are sample positions
+    loopTextLength.store (length);   // loop knob texts are sample positions
 
     const auto loaded = getRaw();
     // FL keeps a tempo with each sample (Detect tempo); an ACID WAV brings its own.
@@ -642,7 +642,7 @@ void ChanSamplerProcessor::removeSample()
         const juce::ScopedLock sl (poolLock);
         raw = std::make_shared<const RawSample>();
     }
-    displaySampleLength.store (0);
+    loopTextLength.store (0);
     rebuildSample();
 }
 

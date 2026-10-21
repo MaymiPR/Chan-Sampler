@@ -7,6 +7,11 @@ New
   About Chan Sampler (version, plugin format, license, credits), the project
   on GitHub, Report an Issue and the license.
 
+Fixes
+- With more than one Chan Sampler in a project, the loop start / end values
+  the DAW shows (automation, generic editor) could be counted against
+  another instance's sample; each now uses its own.
+
 Downloads
 - Each release has the Windows installer, the macOS installer and the Linux
   tarball (now with the version in its name); the Windows and macOS zips are

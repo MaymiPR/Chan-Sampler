@@ -204,11 +204,6 @@ int main (int argc, char** argv)
         if (! ok) ++failures;
     };
 
-    // 0. Projects saved by earlier versions (Tests/data/state-*.bin). First:
-    // the loop position texts follow the last sample loaded in the process.
-    for (int i = 3; i < argc; ++i)
-        checkSavedState (pluginPath, juce::File::getCurrentWorkingDirectory().getChildFile (argv[i]), check);
-
     auto a = load (pluginPath);
     if (a == nullptr) { std::cerr << "cannot load plugin\n"; return 1; }
     int automatable = 0;
@@ -387,6 +382,12 @@ int main (int argc, char** argv)
         const auto yFresh = render (*fresh, 60, note);
         check (maxDiff (yRef, yFresh) < 1.0e-6f, "offline render right after loading a project matches (max diff " + juce::String (maxDiff (yRef, yFresh)) + ")");
     }
+
+    // 6. Projects saved by earlier versions (Tests/data/state-*.bin), in new
+    // instances with no sample: their loop position texts must not follow the
+    // sample loaded above (each instance shows its own).
+    for (int i = 3; i < argc; ++i)
+        checkSavedState (pluginPath, juce::File::getCurrentWorkingDirectory().getChildFile (argv[i]), check);
 
     std::cout << (failures == 0 ? "ALL PASSED\n" : juce::String (failures) + " FAILED\n");
     return failures;
