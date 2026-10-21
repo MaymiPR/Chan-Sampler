@@ -1000,7 +1000,7 @@ void WaveformView::saveAs()
     auto keep = sample;
     chooser->launchAsync (juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles
                               | juce::FileBrowserComponent::warnAboutOverwriting,
-                          [keep] (const juce::FileChooser& fc)
+                          [keep, safe = juce::Component::SafePointer<WaveformView> (this)] (const juce::FileChooser& fc)
                           {
                               auto file = fc.getResult();
                               if (file == juce::File() || keep == nullptr)
@@ -1009,9 +1009,16 @@ void WaveformView::saveAs()
                               file.deleteFile();
                               juce::WavAudioFormat wav;
                               const int channels = keep->mono ? 1 : 2;
-                              std::unique_ptr<juce::OutputStream> stream = std::make_unique<juce::FileOutputStream> (file);
-                              if (auto out = wav.createWriterFor (stream, juce::AudioFormatWriterOptions{}.withSampleRate (keep->sourceRate).withNumChannels (channels).withBitsPerSample (24)))
-                                  out->writeFromAudioSampleBuffer (keep->audio, 0, keep->playEnd);
+                              auto fileStream = std::make_unique<juce::FileOutputStream> (file);
+                              bool saved = false;
+                              if (! fileStream->failedToOpen())
+                              {
+                                  std::unique_ptr<juce::OutputStream> stream = std::move (fileStream);
+                                  if (auto out = wav.createWriterFor (stream, juce::AudioFormatWriterOptions{}.withSampleRate (keep->sourceRate).withNumChannels (channels).withBitsPerSample (24)))
+                                      saved = out->writeFromAudioSampleBuffer (keep->audio, 0, keep->playEnd);
+                              }
+                              if (! saved && safe != nullptr)
+                                  fl::showDialog (*safe, "Chan Sampler", "Could not save " + file.getFullPathName() + ".", true);
                           });
 }
 

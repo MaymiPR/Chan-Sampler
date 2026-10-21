@@ -14,6 +14,12 @@ Fixes
   project keeps the path when saved again, and the sample reloads once the
   file is back. An FL preset (.fst) whose sample can't be found or read
   likewise loads without the previous sample.
+- Saving the sample, an envelope preset or a preset tells you when it fails
+  (a full disk, a read-only folder) instead of failing silently; the
+  preset bar keeps its old name then. Opening a file that isn't a Chan
+  Sampler preset says so, and an unreadable envelope preset too.
+- The locate button's tooltip names Finder on macOS and the file's folder
+  on Linux (it said Explorer everywhere).
 - Switching a playing note from Resample to a stretch mode no longer reads
   from a stretcher left over from an earlier note; that note carries on
   resampled, and the next note is stretched.

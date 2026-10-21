@@ -269,7 +269,13 @@ void ChanSamplerEditor::buildSampleSheet()
     open.setTooltip ("Load sample file");
     open.onClick = [this] { chooseFile(); };
     auto& locate = own (std::make_unique<fl::IconButton> (fl::Icon::locate), file, { 224, 7, 19, 23 });
+   #if JUCE_WINDOWS
     locate.setTooltip ("Show sample file in Explorer");
+   #elif JUCE_MAC
+    locate.setTooltip ("Show sample file in Finder");
+   #else
+    locate.setTooltip ("Show sample file in its folder");
+   #endif
     locate.onClick = [this] { if (samplerProcessor.getSampleFile().existsAsFile()) samplerProcessor.getSampleFile().revealToUser(); };
     auto& remove = own (std::make_unique<fl::IconButton> (fl::Icon::close), file, { 243, 7, 19, 23 });
     remove.setTooltip ("Remove sample");
@@ -770,10 +776,15 @@ void ChanSamplerEditor::showEnvelopeMenu (const juce::String& prefix, juce::Comp
     for (const auto& f : files)
         menu.addItem (f.getFileNameWithoutExtension(), [this, prefix, f]
         {
-            if (auto xml = juce::parseXML (f))
-                for (auto* key : envelopeKeys)
-                    if (xml->hasAttribute (key) && samplerProcessor.apvts.getParameter (pid::env (prefix.toRawUTF8(), key)) != nullptr)
-                        setParam (pid::env (prefix.toRawUTF8(), key), (float) xml->getDoubleAttribute (key));
+            auto xml = juce::parseXML (f);
+            if (xml == nullptr)
+            {
+                fl::showDialog (canvas, "Chan Sampler", "Could not read " + f.getFileName() + ".", true);
+                return;
+            }
+            for (auto* key : envelopeKeys)
+                if (xml->hasAttribute (key) && samplerProcessor.apvts.getParameter (pid::env (prefix.toRawUTF8(), key)) != nullptr)
+                    setParam (pid::env (prefix.toRawUTF8(), key), (float) xml->getDoubleAttribute (key));
         });
     menu.addItem ("Save as...", [this, prefix]
     {
@@ -790,7 +801,8 @@ void ChanSamplerEditor::showEnvelopeMenu (const juce::String& prefix, juce::Comp
                                   for (auto* key : envelopeKeys)
                                       if (auto* p = samplerProcessor.apvts.getParameter (pid::env (prefix.toRawUTF8(), key)))
                                           xml.setAttribute (key, p->convertFrom0to1 (p->getValue()));
-                                  xml.writeTo (file.withFileExtension (".csenv"));
+                                  if (! xml.writeTo (file.withFileExtension (".csenv")))
+                                      fl::showDialog (canvas, "Chan Sampler", "Could not save " + file.withFileExtension (".csenv").getFullPathName() + ".", true);
                               });
     });
     fl::showContextMenu (menu, anchor, false);

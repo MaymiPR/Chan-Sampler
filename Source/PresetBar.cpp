@@ -136,9 +136,9 @@ void PresetBar::showMenu()
 void PresetBar::load (const juce::File& file)
 {
     auto xml = juce::parseXML (file);
-    if (xml == nullptr)
+    if (xml == nullptr || ! xml->hasTagName (processor.apvts.state.getType().toString()))
     {
-        if (onMessage) onMessage ("Could not read " + file.getFileName(), false);
+        if (onMessage) onMessage ("Could not read " + file.getFileName() + ": not a Chan Sampler preset.", false);
         return;
     }
     // A preset without a sample (settings only) keeps the loaded one.
@@ -170,12 +170,16 @@ void PresetBar::saveAs()
                               if (file == juce::File())
                                   return;
                               file = file.withFileExtension (extension);
-                              setCurrentName (file.getFileNameWithoutExtension());
+                              const auto previousName = currentName();
+                              setCurrentName (file.getFileNameWithoutExtension());   // saved with the preset
                               juce::MemoryBlock state;
                               processor.getStateInformation (state);
-                              if (auto xml = juce::AudioProcessor::getXmlFromBinary (state.getData(), (int) state.getSize()))
-                                  if (! xml->writeTo (file))
-                                      if (onMessage) onMessage ("Could not save " + file.getFullPathName(), false);
+                              auto xml = juce::AudioProcessor::getXmlFromBinary (state.getData(), (int) state.getSize());
+                              if (xml == nullptr || ! xml->writeTo (file))
+                              {
+                                  setCurrentName (previousName);
+                                  if (onMessage) onMessage ("Could not save " + file.getFullPathName() + ".", false);
+                              }
                           });
 }
 
