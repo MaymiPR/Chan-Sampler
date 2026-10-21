@@ -52,7 +52,7 @@ namespace dsp
         {
             float delay = 0, attack = 0, hold = 0, decay = 0.5f, sustain = 1, release = 0.2f;   // seconds / level
             float attackK = 0, decayK = 0, releaseK = 0;                                     // curve exponents
-            double tick = 60.0 / (130.0 * 96.0);                                             // song tick, seconds
+            double tick = tickSeconds (130.0);                                               // song tick, seconds
         };
 
         static constexpr double fullRangeSeconds = 389.5 / 44100.0;   // the fastest move, 0 to 1
@@ -234,16 +234,16 @@ namespace dsp
         {
             if (p.amount == 0.0f)
                 return 0.0f;
-            const auto tickSeconds = 60.0 / (juce::jmax (1.0, bpm) * 96.0);
+            const auto tick = tickSeconds (bpm);
             const auto ref = p.tempo ? 120.0 : juce::jmax (1.0, bpm);
             Timing t;
             t.period = juce::jmax (3.0, std::round (p.periodT130 * ref / 130.0));
             t.delay = juce::jmax (0.0, std::round (p.delayT130 * ref / 130.0));
-            t.attackTicks = (p.tempo ? p.attack * 120.0 / juce::jmax (1.0, bpm) : (double) p.attack) / tickSeconds;
+            t.attackTicks = (p.tempo ? p.attack * 120.0 / juce::jmax (1.0, bpm) : (double) p.attack) / tick;
             // Global: knots on the song's ticks, the phase from the song start;
             // the predelay / fade still count from the note start.
-            const auto noteTicks = seconds / tickSeconds;
-            const auto ticks = p.global ? songSeconds / tickSeconds : noteTicks;
+            const auto noteTicks = seconds / tick;
+            const auto ticks = p.global ? songSeconds / tick : noteTicks;
             t.noteOffset = p.global ? ticks - noteTicks : 0.0;   // song tick of the note start
             const auto k = std::floor (ticks);
             // FL holds the first tick's value from the note start until tick 1.

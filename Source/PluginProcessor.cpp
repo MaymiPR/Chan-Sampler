@@ -181,7 +181,7 @@ void ChanSamplerProcessor::applyTempo (EngineParams& p)
     for (auto* t : { &p.panT, &p.volT, &p.xT, &p.yT, &p.pitchT })
     {
         auto& e = t->env;
-        e.tick = 60.0 / (bpm * 96.0);
+        e.tick = tickSeconds (bpm);
         if (t->envTempo)
         {
             const auto k = (float) (120.0 / bpm);

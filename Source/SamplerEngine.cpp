@@ -5,6 +5,11 @@ namespace
 {
     constexpr int controlBlock = 32;
 
+    // FL's song tick in samples, and a song time in ticks (96 per beat:
+    // bpm / 60 * 96 = bpm * 1.6 per second).
+    double tickSamples (double sampleRate, const EngineParams& p) { return sampleRate * 60.0 / (juce::jmax (1.0, p.bpm) * 96.0); }
+    double songTicks (double seconds, const EngineParams& p) { return seconds * juce::jmax (1.0, p.bpm) * 1.6; }
+
     bool pitchLfoPerSample (const EngineParams& p)
     {
         return p.pitchT.lfo.amount != 0.0f && p.stretchMode == StretchMode::resample;
@@ -702,7 +707,7 @@ void SamplerEngine::noteOn (int note, float velocity, NoteMods mods, const Sampl
     const auto loop = loopFrames (s, p);
 
     v = Voice();
-    v.filter.startCompensation ((int) std::lround (sampleRate * 60.0 / (juce::jmax (1.0, p.bpm) * 96.0)));   // LPx2 (measured)
+    v.filter.startCompensation ((int) std::lround (tickSamples (sampleRate, p)));   // LPx2 (measured)
     v.active = true;
     v.note = note;
     v.velocity = velocity;
@@ -737,7 +742,7 @@ void SamplerEngine::noteOn (int note, float velocity, NoteMods mods, const Sampl
     // the LFO and the envelope); the envelope starts that much early (less
     // 13 samples, as it is applied per control block).
     if (p.pitchT.envOn)
-        v.env[4].advance (p.pitchT.env, (float) juce::jmax (0.0, 30.0 / (juce::jmax (1.0, p.bpm) * 96.0) - 13.0 / sampleRate));
+        v.env[4].advance (p.pitchT.env, (float) juce::jmax (0.0, 0.5 * tickSeconds (p.bpm) - 13.0 / sampleRate));
 
     // FL only fades in when playback starts after the first frame. The
     // Transient modes keep the attack and only remove the step: they subtract
@@ -780,10 +785,9 @@ void SamplerEngine::beginGlide (Voice& v, float fromCents, int note, const Engin
     // The event's tick: host events arrive at the sample before a tick that
     // falls between samples, so a tick within a sample counts as this one;
     // off-grid events step at once.
-    const auto ticks = songTimeAt (p, blockPos) * juce::jmax (1.0, p.bpm) * 1.6;
-    const auto tickSamples = sampleRate * 60.0 / (juce::jmax (1.0, p.bpm) * 96.0);
+    const auto ticks = songTicks (songTimeAt (p, blockPos), p);
     const auto nearest = std::round (ticks);
-    v.glideTick0 = std::abs (ticks - nearest) * tickSamples <= 1.0 ? nearest : std::floor (ticks);
+    v.glideTick0 = std::abs (ticks - nearest) * tickSamples (sampleRate, p) <= 1.0 ? nearest : std::floor (ticks);
 }
 
 double SamplerEngine::soundingNote (Voice& v, const EngineParams& p, double songSeconds) const
@@ -794,8 +798,7 @@ double SamplerEngine::soundingNote (Voice& v, const EngineParams& p, double song
     {
         // A step lands on the sample nearest its tick (measured: FL steps half
         // a sample early against the exact tick time).
-        const auto tickSamples = sampleRate * 60.0 / (juce::jmax (1.0, p.bpm) * 96.0);
-        const auto ticks = songSeconds * juce::jmax (1.0, p.bpm) * 1.6 + 0.5 / tickSamples;
+        const auto ticks = songTicks (songSeconds, p) + 0.5 / tickSamples (sampleRate, p);
         const auto due = juce::jmin (v.glideTicks, (int) std::floor (ticks - v.glideTick0) + 1);
         while (v.glideDone < due)
         {
@@ -881,7 +884,7 @@ void SamplerEngine::startKill (Voice& v, const EngineParams& p)
 
 void SamplerEngine::startModKnots (Voice& v, const EngineParams& p)
 {
-    const auto tick = 60.0 / (juce::jmax (1.0, p.bpm) * 96.0);
+    const auto tick = tickSeconds (p.bpm);
     for (int xy = 0; xy < 2; ++xy)
     {
         auto& k = v.knots[xy];
@@ -896,7 +899,7 @@ void SamplerEngine::startModKnots (Voice& v, const EngineParams& p)
 
 float SamplerEngine::modEnvelopeAt (Voice& v, int xy, double t, const EngineParams& p)
 {
-    const auto tick = 60.0 / (juce::jmax (1.0, p.bpm) * 96.0);
+    const auto tick = tickSeconds (p.bpm);
     const auto& ep = (xy == 0 ? p.xT : p.yT).env;
     auto& k = v.knots[xy];
     for (int guard = 0; t >= k.nextKnot && guard < 64; ++guard)
@@ -934,7 +937,7 @@ void SamplerEngine::setupFilterAt (Voice& v, double t, double songT, const Engin
     // FL (measured): Mod X / Y are worked out at each tick of the note (the
     // first tick holding the second knot) and the filter's coefficients move
     // linearly from one tick's to the next.
-    const auto tick = 60.0 / (juce::jmax (1.0, p.bpm) * 96.0);
+    const auto tick = tickSeconds (p.bpm);
     if (p.filterType != FilterType::fastLP)
     {
         t += 0.5 / sampleRate;   // these switch on the sample nearest each tick (measured; the Fast LP does not)
@@ -1023,16 +1026,14 @@ void SamplerEngine::updateControls (Voice& v, int numSamples, const SampleData& 
                      // FL: the pitch envelope and LFO amounts are in cents, raw
                      // -128..128 (measured: full amount = +/-128 cents).
                      + (p.pitchT.envAmt * env[4]
-                        + (pitchLfoPerSample (p) ? 0.0f : dsp::Lfo::at (p.pitchT.lfo, v.lfo[4].getTime() + 30.0 / (juce::jmax (1.0, p.bpm) * 96.0), p.bpm,
-                                                                      v.songLfoStart + (double) numSamples / sampleRate + 30.0 / (juce::jmax (1.0, p.bpm) * 96.0)))) * 1.28f;
+                        + (pitchLfoPerSample (p) ? 0.0f : dsp::Lfo::at (p.pitchT.lfo, v.lfo[4].getTime() + 0.5 * tickSeconds (p.bpm), p.bpm,
+                                                                      v.songLfoStart + (double) numSamples / sampleRate + 0.5 * tickSeconds (p.bpm)))) * 1.28f;
     v.increment = (s.sourceRate / sampleRate) * std::pow (2.0, semis / 12.0);
 
     // Time stretching: target duration from TIME (beats) or the sample's own
     // length, times MUL. Resample plays it like tape (pitch follows speed);
     // the other methods keep duration and pitch independent.
-    const auto srcSeconds = (double) s.playEnd / s.sourceRate;
-    const auto mul = std::abs (p.stretchMul - 1.0f) < 1.0e-4f ? 1.0 : (double) p.stretchMul;
-    const auto speed = (p.stretchTime > 0.01f ? srcSeconds / ((double) p.stretchTime * 60.0 / juce::jmax (1.0, p.bpm)) : 1.0) / mul;
+    const auto speed = stretchSpeed ((double) s.playEnd / s.sourceRate, p.stretchMul, p.stretchTime, p.bpm);
     if (p.stretchMode == StretchMode::resample)
     {
         v.increment *= speed;
@@ -1143,8 +1144,7 @@ void SamplerEngine::renderRange (juce::AudioBuffer<float>& out, int start, int n
                 auto incNow = v.increment, rateNow = v.timeRate;
                 if (pitchLfoPerSample (p))
                 {
-                    const auto tickSeconds = 60.0 / (juce::jmax (1.0, p.bpm) * 96.0);
-                    const auto lead = 0.5 * tickSeconds - 2.5 / sampleRate;
+                    const auto lead = 0.5 * tickSeconds (p.bpm) - 2.5 / sampleRate;
                     v.pitchMul = std::exp2 ((double) dsp::Lfo::at (p.pitchT.lfo, v.volLfoStart + (double) (base + i) / sampleRate + lead, p.bpm,
                                                                           v.songLfoStart + (double) (base + i) / sampleRate + lead) * 1.28 / 12.0);
                     incNow *= v.pitchMul;

@@ -156,9 +156,7 @@ void WaveformView::updateStretchPreview()
     requestedKey = key;
     SampleData::Ptr source = fileSample;
     const auto mode = (StretchMode) key.mode;
-    const auto srcSeconds = (double) source->playEnd / source->sourceRate;
-    const auto mul = std::abs (key.mul - 1.0f) < 1.0e-4f ? 1.0 : (double) key.mul;
-    const auto speed = (key.time > 0.01f ? srcSeconds / ((double) key.time * 60.0 / juce::jmax (1.0, key.bpm)) : 1.0) / mul;
+    const auto speed = stretchSpeed ((double) source->playEnd / source->sourceRate, key.mul, key.time, key.bpm);
     juce::Component::SafePointer<WaveformView> safe (this);
     renderPool.addJob ([this, safe, source, mode, key, speed, generation]
     {

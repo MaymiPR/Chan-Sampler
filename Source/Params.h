@@ -142,6 +142,18 @@ inline constexpr float defaultOutputDb = -6.0206f;
 // knobs' text (FL shows them as sample positions).
 juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout (const std::atomic<int>& sampleLength);
 
+// FL's song tick (96 per beat), which its envelopes, LFOs, glides and filter
+// modulation run on.
+inline double tickSeconds (double bpm) { return 60.0 / (juce::jmax (1.0, bpm) * 96.0); }
+
+// How fast a stretched note reads its sample: TIME (beats at the tempo, 0 =
+// off) sets the length, MUL multiplies it (1 = the sample's own length).
+inline double stretchSpeed (double sampleSeconds, float mul, float timeBeats, double bpm)
+{
+    const auto m = std::abs (mul - 1.0f) < 1.0e-4f ? 1.0 : (double) mul;
+    return (timeBeats > 0.01f ? sampleSeconds / ((double) timeBeats * 60.0 / juce::jmax (1.0, bpm)) : 1.0) / m;
+}
+
 // FL's Auto stretch mode: plain resampling while nothing needs stretching,
 // "e3 generic" once PITCH, MUL or TIME is set (as FL shows under the menu).
 inline StretchMode resolveStretchMode (StretchMode mode, float pitchCents, float mul, float timeBeats)

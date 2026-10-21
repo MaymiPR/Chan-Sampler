@@ -250,15 +250,20 @@ float flTensionToK (float tension)
     return k[i] + (k[i + 1] - k[i]) * f;
 }
 
+namespace
+{
+    const char* const noteNames[] = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
+}
+
 juce::String flNoteName (int midiNote)
 {
-    static const char* names[] = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
+    const auto* const* names = noteNames;
     return juce::String (names[midiNote % 12]) + juce::String (midiNote / 12);
 }
 
 int parseNoteName (const juce::String& text)
 {
-    static const char* names[] = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
+    const auto* const* names = noteNames;
     auto t = text.trim().toUpperCase();
     for (int n = 11; n >= 0; --n)
         if (t.startsWith (names[n]))

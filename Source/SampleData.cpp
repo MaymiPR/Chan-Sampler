@@ -354,6 +354,25 @@ namespace
         }
     }
 
+    // The file's region / slice markers become the view's markers and, with
+    // the sample's start, the slice points (they replace the detected
+    // transients, measured in FL). False when there are none.
+    bool useFileMarkers (SampleData& out, std::vector<int> marks)
+    {
+        if (marks.empty())
+            return false;
+        std::sort (marks.begin(), marks.end());
+        marks.erase (std::unique (marks.begin(), marks.end()), marks.end());
+        out.fileMarkers = marks;
+        marks.push_back (0);
+        std::sort (marks.begin(), marks.end());
+        marks.erase (std::unique (marks.begin(), marks.end()), marks.end());
+        while (! marks.empty() && marks.back() >= out.playEnd)
+            marks.pop_back();
+        out.onsets = std::move (marks);
+        return true;
+    }
+
     // Simple energy-based transient detector for the slice modes.
     std::vector<int> detectOnsets (const juce::AudioBuffer<float>& b)
     {
@@ -419,7 +438,7 @@ namespace
     bool processingOff (const PrecomputeSettings& s)
     {
         return ! s.swapStereo && ! s.reversePolarity && ! s.removeDC && ! s.reverse && s.boost <= 0.0f && ! s.boostClip
-            && std::abs (s.eq) < 1.0e-6f && s.rmMix <= 0.0f && lowpassOff (s.cut, s.res) && s.reverb * 256.0f <= 0.0f
+            && std::abs (s.eq) < 1.0e-6f && s.rmMix <= 0.0f && lowpassOff (s.cut, s.res) && s.reverb <= 0.0f
             && (int) std::round (std::abs (s.stereoDelay) * 2048.0f) <= 0 && std::abs (s.pogo) < 1.0e-4f && ! s.normalize
             && s.trim <= 0.0f && s.fadeIn <= 0.0f && s.fadeOut <= 0.0f && ! s.fadeStereo && s.crossfade <= 0.0f;
     }
@@ -503,17 +522,7 @@ SampleData::Ptr buildProcessedSample (const RawSample& raw, const PrecomputeSett
                 for (auto m : *src)
                     if (m >= 0 && m < converted)
                         marks.push_back (m);
-        if (! marks.empty())
-        {
-            std::sort (marks.begin(), marks.end());
-            marks.erase (std::unique (marks.begin(), marks.end()), marks.end());
-            out->fileMarkers = marks;
-            marks.push_back (0);
-            std::sort (marks.begin(), marks.end());
-            marks.erase (std::unique (marks.begin(), marks.end()), marks.end());
-            out->onsets = std::move (marks);
-        }
-        else
+        if (! useFileMarkers (*out, std::move (marks)))
             out->onsets = detectOnsets (out->audio);
         out->computePeaks();
         return out;
@@ -640,22 +649,8 @@ SampleData::Ptr buildProcessedSample (const RawSample& raw, const PrecomputeSett
     };
     if (s.loadRegions) addMarks (raw.regionMarkers);
     if (s.loadSlices)  addMarks (raw.sliceMarkers);
-    if (! marks.empty())
-    {
-        std::sort (marks.begin(), marks.end());
-        marks.erase (std::unique (marks.begin(), marks.end()), marks.end());
-        out->fileMarkers = marks;
-        marks.push_back (0);
-        std::sort (marks.begin(), marks.end());
-        marks.erase (std::unique (marks.begin(), marks.end()), marks.end());
-        while (! marks.empty() && marks.back() >= out->playEnd)
-            marks.pop_back();
-        out->onsets = std::move (marks);
-    }
-    else
-    {
+    if (! useFileMarkers (*out, std::move (marks)))
         out->onsets = detectOnsets (main);
-    }
     out->audio = std::move (main);
     out->computePeaks();
     return out;
