@@ -143,7 +143,7 @@ namespace
             if (prm->isAutomatable())
                 lines.add (prm->getName (128) + "\t" + prm->getText (prm->getValue(), 128));
         if (! out.replaceWithData (state.getData(), state.getSize())
-            || ! out.withFileExtension (".txt").replaceWithText (lines.joinIntoString ("\n") + "\n"))
+            || ! out.withFileExtension (".txt").replaceWithText (lines.joinIntoString ("\n") + "\n", false, false, "\n"))
             return 1;
         std::cout << "wrote " << out.getFullPathName() << " (" << lines.size() << " parameters)\n";
         return 0;
