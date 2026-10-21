@@ -36,10 +36,10 @@ namespace dsp
         return 0.5f - 0.5f * std::cos (juce::MathConstants<float>::pi * juce::jlimit (0.0f, 1.0f, x));
     }
 
-    // DAHDSR envelope from the INS tab, as FL works it out (measured,
-    // nulltest/probes/env_tick_probe.py, nulltest/probes/env_time_probe.py, nulltest/cases/tempo_env_cases.py): once
-    // per song tick (96 per beat) from the note start, interpolated linearly in
-    // between. Every stage lasts a whole number of ticks, N = ceil (time / tick
+    // DAHDSR envelope from the INS tab, as FL works it out (measured:
+    // nulltest/probes/env_tick_probe.py, env_time_probe.py and
+    // nulltest/cases/tempo_env_cases.py): once per song tick (96 per beat)
+    // from the note start, interpolated linearly in between. Every stage lasts a whole number of ticks, N = ceil (time / tick
     // + 1/2), none for no time. From one tick to the next the level moves at
     // most the full range per 8.83 ms, which is what smooths a jump (a stage
     // with no time). The decay runs the whole curve from 1 to 0 and stops at the
@@ -304,7 +304,8 @@ namespace dsp
     //            r from the measured resonance curve (same as the precomputed filter).
     //  LP/BP/HP/BS : RBJ biquads; f0 and Q interpolated from measured tables.
     //  SVF LP  : Chamberlin state variable filter, f = (26^u - 1) / 25, q = 1 - 0.8 res.
-    //  LPx2 / SVF LPx2 : two stages in series (SVF LPx2 ~ -48 dB null, LPx2 approximate).
+    //  LPx2 / SVF LPx2 : two stages in series (SVF LPx2 nulls exactly; LPx2, with its
+    //            level compensation, at -44 to -63 dB).
     double flOnePoleF (double u);
     double flResonance (double res);
     double flBiquadF0 (double u);   // Hz

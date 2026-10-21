@@ -64,7 +64,6 @@ namespace
         return out;
     }
 
-
     // Measured: gain = 1 + 16 * knob; CLIP is a hard clip at +/-1.
     void boost (juce::AudioBuffer<float>& b, float knob, bool clip)
     {
@@ -137,7 +136,7 @@ namespace
     }
 
     // FL's precomputed reverb, identified from its impulse responses
-    // (nulltest/rvb, docs/EVIDENCE.md); it matches FL to the 16-bit LSB.
+    // (nulltest/probes/rvb, docs/EVIDENCE.md); it matches FL to the 16-bit LSB.
     // Both types are Schroeder reverbs run on each channel separately:
     // parallel combs whose feedback gives every comb the same decay time,
     // T60 = mix / 256 seconds (g = 10^(-3 D / T60)), then a chain of allpasses

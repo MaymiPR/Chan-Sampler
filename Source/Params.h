@@ -19,7 +19,7 @@ namespace pid
     inline constexpr auto loopEnd     = "loopEnd";
     inline constexpr auto pingPong    = "pingPong";
 
-    // SMP > Time stretching (only the PITCH knob is functional: "Resample" mode)
+    // SMP > Time stretching
     inline constexpr auto pitch = "pitch";
     inline constexpr auto stretchMode = "stretchMode";
     inline constexpr auto stretchMul  = "stretchMul";

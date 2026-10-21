@@ -3,10 +3,11 @@
 #include <juce_audio_basics/juce_audio_basics.h>
 #include <tuple>
 
-// The "precomputed" sample: the loaded file with every Tools/Effects process
-// baked in. The manual describes these as processes that replace the sample
-// data rather than realtime effects, so they run once on the message thread and
-// the audio thread only ever reads a finished SampleData.
+// The "precomputed" sample: the loaded file with every Tools / Effects process
+// baked in. FL's manual describes these as processes that replace the sample
+// data rather than realtime effects, so they run once, off the audio thread
+// (when loading, or on the processor's rebuild thread when a setting
+// changes), and the audio thread only ever reads a finished SampleData.
 struct RawSample;
 
 struct SampleData : juce::ReferenceCountedObject

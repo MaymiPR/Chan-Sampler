@@ -272,7 +272,6 @@ private:
             }
             if (attackSample >= 0)
             {
-
                 // The frames over it go 1:1 (the attack is rebuilt as it is),
                 // starting with this one, placed so that the frame with the
                 // attack at its centre is where the stretch puts it (on
@@ -292,10 +291,10 @@ private:
             }
         }
 
-        fft->perform (spec.data(), work.data(), false);   // JUCE's FFT is not in-place
+        fft->perform (spec.data(), work.data(), false);   // spec -> work
         processSpectrum (pos, pitchRatio, formantCents, locked);  // work -> spec
         fft->perform (spec.data(), work.data(), true);
-        float scale = (float) hop / (0.375f * (float) n);   // JUCE scales the inverse FFT; Hann^2 overlaps sum to 0.375 frame / hop
+        float scale = (float) hop / (0.375f * (float) n);   // the inverse FFT is scaled by 1 / N; Hann^2 overlaps sum to 0.375 frame / hop
         if (hybrid && locked)
             scale *= lockGain > 0.0f ? lockGain : (hop > ha ? 1.2f : 1.1f);   // FL's e3 plays the band below the split louder while it holds an attack (see loudestAfter; a note's start: x1.2 stretching, x1.1 squeezing)
         for (int i = 0; i < n; ++i)
@@ -770,11 +769,11 @@ private:
     double synthOffset = 0.0;   // where the output starts in the synthesised stream
     int attackSpan = 1;         // > 1: time attacks like FL's e3 (loudestAfter)
     double attackAlpha = 1.0, attackPitch = 1.0;   // the stretch and pitch ratio in use (attack timing)
-    double windowPhase = 0.0;
+    double windowPhase = 0.0;                      // the last attack's place in the timing grid
     double softShift = 0.0;                        // a soft start's alignment (source samples)
     double hfSoftShift = 0.0;                      // the same for the grains
     double soft15 = 0.0, soft067 = 0.0;            // softStart at x1.5 / x0.667 (44.1 kHz samples): the vocoder
-    double hfSoft15 = 0.0, hfSoft067 = 0.0;        // and the grains                      // the last attack's place in the timing grid
+    double hfSoft15 = 0.0, hfSoft067 = 0.0;        // and the grains
     float attackGain = 0.0f, lockGain = 0.0f;      // the low band's gain while an attack is held (0: by the stretch)
     bool first = true, aligned = false;
 

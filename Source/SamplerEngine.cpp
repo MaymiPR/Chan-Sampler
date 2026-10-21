@@ -120,7 +120,6 @@ namespace
     bool isGranular (StretchMode m) { return m != StretchMode::resample && m != StretchMode::sliceMap; }
     bool resetsAtOnsets (StretchMode m) { return m == StretchMode::sliceStretch || m == StretchMode::e2Transient; }
 
-
     LoopFrames loopFrames (const SampleData& s, const EngineParams& p)
     {
         // The precomputed data says when the crossfade loop applies (no loop set).
@@ -1090,10 +1089,6 @@ void SamplerEngine::renderRange (juce::AudioBuffer<float>& out, int start, int n
     const int total = s.getTotalFrames();
     const auto* srcL = s.audio.getReadPointer (0);
     const auto* srcR = s.audio.getReadPointer (1);
-
-    // When playback reaches the end of the sample FL holds the last value and
-    // fades it out over the declick out-time (measured: 10 ms cosine for
-    // "Out only"), instead of cutting off.
     const int endLimit = s.playEnd;
     const bool granular = isGranular (p.stretchMode);
     const bool sliceMap = p.stretchMode == StretchMode::sliceMap;
@@ -1373,6 +1368,9 @@ void SamplerEngine::renderRange (juce::AudioBuffer<float>& out, int start, int n
                 }
                 else if (! v.holding && (v.pos >= endLimit || v.pos < 0.0))
                 {
+                    // At the end of the sample FL holds the last value and fades
+                    // it out over the declick out-time (measured: 10 ms cosine for
+                    // "Out only"), instead of cutting off.
                     v.holding = true;
                     v.holdL = v.lastL;
                     v.holdR = v.lastR;

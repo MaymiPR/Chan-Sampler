@@ -155,8 +155,6 @@ namespace
         addFloat  (l, p ("LfoAtt"),   target + " LFO attack time",   unit, envPos (20000), percentAttr());
     }
 
-    // Arpeggio time: FL knob positions for 1/4, 1/2, 1, 2 and 4 steps (read
-    // from FL by typing each value and copying the position); 1 = Hold.
     // Arpeggio time (measured in FL): position = (raw - 450) / 997, raw 1447 is
     // Hold. FL plays a whole number of ticks (24 per step):
     // round (3.88852 * 25^p - 1.08184) with p from the integer raw value, which

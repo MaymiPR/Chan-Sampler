@@ -440,8 +440,8 @@ void WaveformView::paint (juce::Graphics& g)
     g.fillRect (wave);
 
     // FL's grid (measured): dark lines every 0.1 s of the sample, every second
-    // darker still (the step grows or shrinks 10x to keep the lines at least
-    // 20 px apart), and two lines at +/-50% of full scale.
+    // darker still (the step grows or shrinks to keep the lines at least 15 px
+    // apart, see below), and two lines at +/-50% of full scale.
     auto drawGrid = [&]
     {
         g.setColour (flview::grid);
@@ -1267,7 +1267,6 @@ void WaveformView::setColourFill (juce::Graphics& g, juce::Rectangle<float> area
 // within about 1 dB on average.
 namespace
 {
-
     juce::Colour spectrumColour (float db)
     {
         // FL's palette by level (measured from a 6 dB ladder of a 3 kHz tone)

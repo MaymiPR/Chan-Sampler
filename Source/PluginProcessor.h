@@ -104,7 +104,6 @@ private:
     float param (const char* id) const { return apvts.getRawParameterValue (id)->load(); }
     float param (const juce::String& id) const { return apvts.getRawParameterValue (id)->load(); }
 
-
     // Rebuilds the precomputed sample off the message thread whenever a
     // precomputed setting changes, so the waveform follows knobs live.
     class RebuildThread : public juce::Thread
@@ -143,13 +142,12 @@ private:
     const uint32_t instanceId = cutgroups::newInstanceId();
     cutgroups::Reader cutReader { instanceId };
     const int instanceNumber = cutgroups::claimNumber();   // FL's channel number for Cut self
-    std::atomic<int> lastCutSelf { -1 };
-
+    std::atomic<int> lastCutSelf { -1 };                  // to see Cut self being switched (timer)
+    std::vector<int> cutOffsets;                          // this block's cuts by other instances
 
     // Sustain pedal: note-offs held while it is down (audio thread only).
     bool sustainDown = false;
-    std::array<bool, 128> sustained {};                   // to see Cut self being switched (timer)
-    std::vector<int> cutOffsets;
+    std::array<bool, 128> sustained {};
     juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> outputGain { 1.0f };
 
     // The audio thread reads currentSample under a try-lock. Every published

@@ -1,9 +1,9 @@
 #pragma once
 
 // FL Sampler's trimmed-sample tail (SMP LENGTH < 100%), measured in FL with
-// clicks at every distance from the cut (nulltest/probes/tail_measure.py): a linear
-// filter over the last 200 frames. Output at distance D from the end
-// = sum over k of trimTailCoef[trimTailStart[D-1] + k] * input at distance D + k.
+// clicks at every distance from the cut (nulltest/probes/tail_measure.py): a
+// linear filter over the last 200 frames. Output at distance D from the end
+// = sum over k < count[D-1] of coef[start[D-1] + k] * input at distance D + k.
 
 namespace trimtail
 {

@@ -3,8 +3,9 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 
-// Visual language modelled on FL Studio's channel settings window.
-// Colours were sampled from the manual's screenshots; all drawing is our own.
+// Visual language modelled on FL Studio's channel settings window: colours
+// and sizes measured from FL 2026's screen (see docs/EVIDENCE.md); all drawing
+// is our own.
 namespace fl
 {
     namespace colour

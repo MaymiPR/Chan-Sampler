@@ -132,7 +132,7 @@ void ChanSamplerProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
             cutgroups::post (instanceId, cutGroup, hostTime < 0 ? -1 : hostTime + start);
     engine.updatePlayhead (audioThreadSample.get());
 
-    // Output trim (default -11.4 dB = a fresh FL Sampler channel's level).
+    // Output trim (default -6.02 dB: FL's level for a plugin channel, see defaultOutputDb).
     outputGain.setTargetValue (juce::Decibels::decibelsToGain (param (pid::output), -47.9f));
     outputGain.applyGain (buffer, buffer.getNumSamples());
 }

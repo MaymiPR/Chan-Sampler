@@ -476,7 +476,7 @@ void TimeStretcher::formantEnvelopes()
         if (k > 0 && k < half)
             spec[(size_t) (n - k)] = v;
     }
-    fft->perform (spec.data(), work.data(), true);   // JUCE scales the inverse
+    fft->perform (spec.data(), work.data(), true);   // scaled by 1 / N
     std::fill (spec.begin(), spec.begin() + quarter, Complex());
     for (int q = 0; q < lifter; ++q)
         spec[(size_t) q] = work[(size_t) q];

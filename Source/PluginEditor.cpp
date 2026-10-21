@@ -468,10 +468,10 @@ juce::Component& ChanSamplerEditor::buildTargetPage (const char* prefix, bool ha
     auto& page = group (insSheet, 0, 0, 452, 240);
     auto id = [prefix] (const char* s) { return pid::env (prefix, s); };
 
-    // Envelope panel (FL has none on the Panning page).
+    // Envelope panel (FL's EnvPanel; none on the Panning page). The header
+    // LED is "Use envelope".
     if (hasEnvelope)
     {
-        // Envelope panel (EnvPanel); the header LED is "Use envelope".
         auto& env = panel (page, "Envelope", 7, 42, 285, 195, 18);
         auto& envMenu = own (std::make_unique<fl::MenuArrow>(), env, { 285 - 16, 2, 12, 16 });
         envMenu.onClick = [this, p = juce::String (prefix), &envMenu] { showEnvelopeMenu (p, envMenu); };
