@@ -7,7 +7,7 @@ nothing else set, and the result is compared with FL's half of the render.
 The offline renderer outputs 1.25 x what the plugin does inside FL (FL's
 channel), so ours is scaled by 0.8; no gain fitting, so levels are checked too.
 
-  python fst_cases.py [name filters...]
+  python -m cases.fst_cases [name filters...]   (from nulltest/)
 """
 import os, sys, struct, subprocess, numpy as np
 from lib import flp, flrender as F, nullfl, wavio, paths

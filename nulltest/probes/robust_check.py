@@ -1,8 +1,10 @@
 """Robustness checks: host sample rates, mono / 16 / 24-bit / 48 kHz files and
 a very long file, through ChanSamplerRender. Reports pitch, level, duration
-and timing."""
-import os, sys, struct, subprocess, time, numpy as np; from lib import wavio
-from lib import paths
+and timing.
+
+    python -m probes.robust_check <output folder>   (from nulltest/)"""
+import os, sys, struct, subprocess, time, numpy as np
+from lib import paths, wavio
 HERE = paths.ROOT
 R = paths.RENDER_TOOL
 out = sys.argv[1]

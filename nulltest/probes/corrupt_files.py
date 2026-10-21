@@ -4,7 +4,7 @@ channel counts and rates, hostile marker / loop chunks, empty files and
 garbage) and loads each through ChanSamplerRender in its own process, so a
 crash or a hang shows per file. Loading may fail; it must not crash or hang.
 
-    python corrupt_files.py <valid files...>
+    python -m probes.corrupt_files <valid files...>   (from nulltest/)
 """
 import os, sys, struct, random, subprocess, tempfile
 from lib import paths

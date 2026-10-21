@@ -55,7 +55,7 @@ for raw in [5000, 10000, 40000]:
 for t, tn in ((0, "A"), (1, "B")):
     for mix in (32, 128, 256):
         for smp in ("signals/impulse.wav", "signals/decay.wav"):
-            CASES.append(dict(name=f"d_rv{tn}{mix}_{smp[:-4]}", sample=smp, fl=[F.dword(139, t * 65536 + mix)],
+            CASES.append(dict(name=f"d_rv{tn}{mix}_{smp.split('/')[-1][:-4]}", sample=smp, fl=[F.dword(139, t * 65536 + mix)],
                               ours={"pcReverbType": t, "pcReverb": mix / 256}))
     CASES.append(dict(name=f"d_rv{tn}200_noise", sample="signals/noise.wav", fl=[F.dword(139, t * 65536 + 200)],
                       ours={"pcReverbType": t, "pcReverb": 200 / 256}))
