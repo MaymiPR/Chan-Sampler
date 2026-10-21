@@ -44,5 +44,5 @@ def run(cases, only=None):
         us = ours(name, c["sample"], c.get("ours", {}), velocity=c.get("vel", 100), beats=c.get("beats", 8), notes=c.get("notes"))
         r = null(fl, us)
         results.append((name, r))
-        print(f"{'NULL' if r < -60 else ('close' if r < -30 else 'DIFF'):5s} {r:7.1f} dB  {name}", flush=True)
+        print(f"{F.verdict(r):5s} {r:7.1f} dB  {name}", flush=True)
     return results

@@ -5,6 +5,7 @@ from lib import wavio, flrender as F
 N = 88200; L = int(sys.argv[1]) if len(sys.argv) > 1 else 40
 lenFrac = 0.0 if L == 40 else (L - 0.5) / N
 rng = np.random.default_rng(1)
+os.makedirs('probe/tail', exist_ok=True)   # the click signals (generated, not in the repository)
 floor = (rng.standard_normal((N, 2)) * 1e-4).astype(np.float32)
 g = 0.399871826171875 / 0.5
 def render(name, d):
@@ -22,4 +23,4 @@ for d in range(1, L + 1):
     for D in range(1, L + 1):
         M[D, d] = y[L - D] / 0.5
     print(d, round(M[d, d], 4), flush=True)
-np.save(f'tail_matrix_{L}.npy', M)
+np.save(f'data/tail_matrix_{L}.npy', M)

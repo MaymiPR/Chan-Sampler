@@ -194,7 +194,7 @@ CASES += [
 # Compressed formats, using samples that ship with FL Studio (copied in when
 # missing; not in the repository). Long samples need the envelope so the note
 # stops before the other half of the render.
-_FLD = r'C:\Program Files\Image-Line\FL Studio 2026\Data\Patches\Misc\Used by demo projects'
+_FLD = os.path.join(paths.FL_PATCHES, 'Misc', 'Used by demo projects')
 for _name, _src in (('fmt_test.flac', r'Astes - Bien Duro\WAEC_Clap_06.flac'),
                     ('fmt_test.ogg', r'Astes - Bien Duro\1.1 Build #1.ogg'),
                     ('fmt_test.mp3', r'Gimbal & Sinan + Futorial - RawFL\Sincinaty_RawFL_Sample_03.mp3')):

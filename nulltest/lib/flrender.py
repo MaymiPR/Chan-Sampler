@@ -4,11 +4,11 @@ render(name, sample, patches) builds a one-note project from the Basic
 template (channel 0 = Sampler playing `sample`), applies `patches` to
 channel 0's events, renders with `FL64.exe /R /Ewav` and returns the audio.
 Results are cached under renders/<name>.wav."""
-import os, struct, subprocess, numpy as np
+import os, struct, subprocess, sys, numpy as np
 from lib import flp, wavio, paths
 from lib.build_project import build
 
-FL = r"C:\Program Files\Image-Line\FL Studio 2026\FL64.exe"
+FL = paths.FL_EXE
 HERE = paths.ROOT
 OUT = os.path.join(HERE, "renders")
 os.makedirs(OUT, exist_ok=True)
@@ -24,6 +24,30 @@ def _channel0(ev):
         if e[0] == 64: ch = flp.val(e[1])
         elif ch == 0: yield i, e
         if ch > 0: return
+
+def fl_running():
+    """True while FL Studio's window is open (Windows)."""
+    if sys.platform != 'win32':
+        return False
+    out = subprocess.run(['tasklist', '/FI', 'IMAGENAME eq FL64.exe'], capture_output=True, text=True).stdout
+    return 'FL64.exe' in out
+
+
+def run_fl(project, wav):
+    """FL's command-line render of project into wav. A running FL swallows it,
+    so refuse then, before the cached wav is touched."""
+    if fl_running():
+        raise RuntimeError('FL Studio is open: close it first (a running FL swallows the command-line render)')
+    if os.path.exists(wav): os.remove(wav)
+    subprocess.run([FL, "/R", "/Ewav", project], timeout=300)
+    if not os.path.exists(wav):
+        raise RuntimeError(f'FL did not render {project}')
+
+
+def verdict(db):
+    """NULL below -60 dB (a match; FL's 16-bit export floor is about -65 to -95), close to -30, else DIFF."""
+    return 'NULL' if db < -60 else ('close' if db < -30 else 'DIFF')
+
 
 def word(eid, value):
     def p(ev):
@@ -74,8 +98,7 @@ def render(name, sample, patches=(), key=60, velocity=100, beats=8, force=False,
     def patch_all(ev):
         for p in patches: p(ev)
     build(proj, paths.signal(sample), patch_all, note_len_beats=beats, key=key, velocity=velocity, notes=notes)
-    if os.path.exists(wav): os.remove(wav)
-    subprocess.run([FL, "/R", "/Ewav", proj], timeout=300)
+    run_fl(proj, wav)
     return wavio.read(wav)[0]
 
 def source(sample):

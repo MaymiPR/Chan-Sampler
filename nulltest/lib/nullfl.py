@@ -4,7 +4,7 @@ Channel 1 is FL's Sampler (patched like flrender cases), channel 2 is Chan
 Sampler (state XML built from the case's parameters). The Sampler plays at
 beat 0, Chan Sampler at beat 16; FL renders once and the two halves are
 subtracted directly, with no gain correction, exactly as heard in FL."""
-import os, struct, subprocess, numpy as np
+import os, struct, numpy as np
 from lib import flrender as F, vstchannel as V, wavio, paths
 
 HERE = paths.ROOT
@@ -34,8 +34,7 @@ def render_pair(name, sample, fl_patches=(), ours=None, notes=None, vel=100, bea
         # echo trails); it sounds after both compared windows.
         all_notes.append((2 * gap + 2, 0.25, 60, 1, 0))   # +2 beats: reverb rings slightly ahead of a note
         V.build_vst_project(proj, paths.signal(sample), ours or {}, all_notes, sampler_patch=patch)
-        if os.path.exists(wav): os.remove(wav)
-        subprocess.run([F.FL, "/R", "/Ewav", proj], timeout=300)
+        F.run_fl(proj, wav)
     y, sr = wavio.read(wav)
     split = int(round(gap * 60.0 / bpm * sr))
     a = y[:split]
@@ -56,5 +55,5 @@ def run(cases, only=None, force=False):
         a, b = render_pair(c["name"], c["sample"], c.get("fl", []), c.get("ours", {}), c.get("notes"), c.get("vel", 100), c.get("beats", 8), force, c.get("gap"), c.get("bpm"))
         d = null_db(a, b)
         res.append((c["name"], d))
-        print(f"{'NULL' if d < -60 else ('close' if d < -30 else 'DIFF'):5s} {d:7.1f} dB  {c['name']}", flush=True)
+        print(f"{F.verdict(d):5s} {d:7.1f} dB  {c['name']}", flush=True)
     return res

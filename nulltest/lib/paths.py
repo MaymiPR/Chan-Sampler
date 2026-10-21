@@ -7,6 +7,11 @@ DATA = os.path.join(ROOT, 'data')         # saved measurements, FL project data
 RENDER_TOOL = os.path.join(ROOT, '..', 'build', 'ChanSamplerRender_artefacts', 'Release',
                            'ChanSamplerRender' + ('.exe' if sys.platform == 'win32' else ''))
 
+# FL Studio 2026: set FL_STUDIO_DIR when it is installed elsewhere.
+FL_DIR = os.environ.get('FL_STUDIO_DIR', r'C:\Program Files\Image-Line\FL Studio 2026')
+FL_EXE = os.path.join(FL_DIR, 'FL64.exe')
+FL_PATCHES = os.path.join(FL_DIR, 'Data', 'Patches')   # FL's own samples (read, never copied here)
+
 
 def signal(name):
     """A sample by name: as given if it exists (absolute, or relative to

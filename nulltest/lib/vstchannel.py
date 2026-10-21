@@ -62,11 +62,7 @@ def build_vst_project(out_path, sample_path, params, notes, sampler_patch=None):
     from lib import build_project as B
     header, ev = flp.read(B.TEMPLATE)
     # channel 0: Sampler playing the same sample (optionally patched)
-    ch = -1
-    for e in ev:
-        if e[0] == 64: ch = flp.val(e[1])
-        if e[0] == 196 and ch == 0:
-            e[1] = bytearray((sample_path + '\0').encode('utf-16le'))
+    B.point_sampler(ev, sample_path)
     # Chan Sampler's channel is built from the unpatched Sampler channel: FL's
     # channel levels (volume / pan) apply to plugin channels too.
     starts = [i for i, e in enumerate(ev) if e[0] == 64]
@@ -76,11 +72,5 @@ def build_vst_project(out_path, sample_path, params, notes, sampler_patch=None):
     starts = [i for i, e in enumerate(ev) if e[0] == 64]
     c1s, c1e = starts[1], starts[2]
     ev[c1s + 1:c1e] = make_vst_channel(c0, sample_path, params)
-    data = b''.join(B.note(int(st * B.PPQ), int(ln * B.PPQ), k, v, c) for st, ln, k, v, c in notes)
-    length = int(max(st + ln for st, ln, *_ in notes) * B.PPQ)
-    first_ch = starts[0]
-    ev[first_ch:first_ch] = [[65, bytearray(struct.pack('<H', 1))], [224, bytearray(data)]]
-    for e in ev:
-        if e[0] == 233:
-            e[1] = bytearray(B.playlist_item(1, length)); break
+    B.add_pattern(ev, notes)
     flp.write(out_path, header, ev)

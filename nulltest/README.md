@@ -6,8 +6,10 @@ through both, one is subtracted from the other, and the residual is reported
 −95 dB). The results are written up in [docs/EVIDENCE.md](../docs/EVIDENCE.md).
 
 Requirements: FL Studio 2026 (closed while rendering: a running FL swallows the
-command-line render), Python 3 with `numpy`, and Release builds of the plugin
-and of `ChanSamplerRender` (see the main README).
+command-line render, so the scripts stop with a message while it is open; set
+`FL_STUDIO_DIR` when it isn't in `C:\Program Files\Image-Line\FL Studio 2026`),
+Python 3 with `numpy`, and Release builds of the plugin and of
+`ChanSamplerRender` (see the main README).
 
 ## Layout
 

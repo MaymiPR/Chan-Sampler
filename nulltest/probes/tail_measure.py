@@ -6,6 +6,7 @@ import numpy as np, os
 from lib import wavio, flrender as F
 N = 88200; cut = 44100; K = 200
 rng = np.random.default_rng(1)
+os.makedirs('probe/tail', exist_ok=True)   # the click signals (generated, not in the repository)
 floor = (rng.standard_normal((N, 2)) * 1e-4).astype(np.float32)
 g = 0.399871826171875 / 0.5            # render gain (full-level click)
 amp = 0.5

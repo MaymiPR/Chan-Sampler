@@ -3,9 +3,9 @@ against Chan Sampler at -1200 ... +1200 cents. FL's own samples are read from
 the FL Studio install (not copied here: they are Image-Line's); elastique is
 proprietary, so these measure closeness (envelope / spectrum distance), not
 nulls."""
-import os, sys; from lib import flrender as F, nullfl
+import os, sys; from lib import flrender as F, nullfl, paths
 
-PACKS = r"C:\Program Files\Image-Line\FL Studio 2026\Data\Patches\Packs"
+PACKS = os.path.join(paths.FL_PATCHES, 'Packs')
 SAMPLES = {
     "k707":   (os.path.join(PACKS, r"Drums\Kicks\707 Kick.wav"), 2),
     "rhodes": (os.path.join(PACKS, r"Instruments\Keyboard\Rhodes\Piano Rhodes (7).wav"), 4),
