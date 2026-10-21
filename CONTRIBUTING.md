@@ -68,14 +68,15 @@ own samples from the FL install.
    build/ChanSamplerHostTest_artefacts/Release/ChanSamplerHostTest "build/ChanSampler_artefacts/Release/VST3/Chan Sampler.vst3" --save-state Tests/data/state-x.y.z.bin
    ```
 
+   If it's identical to the last one (no parameter changed), leave it out.
    A later change that alters how a saved setting reads back fails CI; if
    it's intended (a range FL changed, say), say so in the changelog and update
    the `.txt` beside the old project.
 4. Commit, push, then tag:
 
    ```
-   git tag v1.2.0
-   git push origin v1.2.0
+   git tag v1.2.1
+   git push origin v1.2.1
    ```
 
 The release workflow (`.github/workflows/release.yml`) builds Windows, macOS

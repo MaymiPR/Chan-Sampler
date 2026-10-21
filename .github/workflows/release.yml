@@ -1,9 +1,9 @@
 # Builds Chan Sampler for Windows (VST3 + CLAP + Standalone), macOS (universal
 # AU + VST3 + CLAP + Standalone app) and Linux (VST3 + CLAP + Standalone),
 # validates the plugins, and makes the installers (Windows setup .exe, macOS
-# .pkg) and, for Linux, a tarball. Run it by hand from the Actions tab to get them as
-# downloadable artifacts, or push a version tag (see CONTRIBUTING.md) to also
-# publish them as a GitHub Release with that version's notes from
+# .pkg) and a Linux tarball. Run it by hand from the Actions tab to get them
+# as downloadable artifacts, or push a version tag (see CONTRIBUTING.md) to
+# also publish them as a GitHub Release, with that version's notes from
 # CHANGELOG.md and their SHA-256 checksums. Everyday builds and tests: ci.yml.
 name: Build and release
 
@@ -183,7 +183,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          # This version's section of CHANGELOG.md (stored with CRLF line endings)
+          # This version's section of CHANGELOG.md
           tr -d '\r' < CHANGELOG.md | awk -v v="## $VERSION" '$0 == v {on = 1; next} /^## / {on = 0} on' > notes.md
           [ -s notes.md ] || echo "Chan Sampler $VERSION" > notes.md
           FILES=$(find artifacts -type f \( -name '*.exe' -o -name '*.pkg' -o -name '*.tar.gz' \))

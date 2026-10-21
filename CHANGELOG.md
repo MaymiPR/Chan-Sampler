@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.2.1
 
 New
 - Click CHAN SAMPLER in the top bar for a menu in FL's style: the version,
@@ -19,15 +19,13 @@ Downloads
   Chan Sampler (THIRD-PARTY-NOTICES.txt).
 
 Other
-- The code builds without compiler warnings on Linux (deprecated JUCE calls
-  replaced, unused code removed).
-- Every build is checked to load a project saved by 1.2.0 with every setting
-  unchanged (and each release from now on adds its own).
-- The repository: code changes are built and tested automatically (Linux on
-  every push, Windows on pull requests), a contributor guide
-  (CONTRIBUTING.md), the null-test tools in folders (with the stretch-mode
-  measurements of 1.2.0 and a generator for their test signals), LF line
-  endings.
+- Every build is now checked to open a project saved by 1.2.0 with every
+  setting unchanged; each release from here on adds its own.
+- No compiler warnings on Linux (deprecated JUCE calls replaced, unused code
+  removed).
+- For contributors: changes are built and tested automatically, a
+  contributor guide (CONTRIBUTING.md), the null-test tools in folders with a
+  generator for the stretch-mode test signals, LF line endings.
 
 ## 1.2.0
 
