@@ -38,6 +38,9 @@ set(CHANSAMPLER_SOURCES
     Source/SampleExchange.cpp
     Source/TempoDetect.cpp
     Source/WaveformView.cpp)
+if(APPLE)
+    list(APPEND CHANSAMPLER_SOURCES Source/SampleExchangeMac.mm)   # the macOS clipboard is Objective-C++
+endif()
 
 # Two of JUCE's recommended GCC / Clang warnings flag patterns this code uses
 # on purpose: switches over a few cases with a default, and exact float
@@ -97,7 +100,17 @@ target_compile_definitions(ChanSampler PUBLIC
     JUCE_VST3_CAN_REPLACE_VST2=0
     JUCE_USE_MP3AUDIOFORMAT=1)
 
-# Offline engine tests: build target ChanSamplerTests and run it.
+target_link_libraries(ChanSampler
+    PRIVATE
+        juce::juce_audio_utils
+        juce::juce_dsp
+    PUBLIC
+        juce::juce_recommended_config_flags
+        juce::juce_recommended_lto_flags
+        juce::juce_recommended_warning_flags
+        chansampler_warnings)
+
+# The developer tools (CONTRIBUTING.md). Offline engine tests: build target ChanSamplerTests and run it.
 juce_add_console_app(ChanSamplerTests PRODUCT_NAME "ChanSamplerTests")
 target_sources(ChanSamplerTests PRIVATE Tests/EngineTests.cpp ${CHANSAMPLER_ENGINE_SOURCES})
 target_compile_definitions(ChanSamplerTests PRIVATE JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0)
@@ -126,17 +139,8 @@ target_link_libraries(ChanSamplerSnapshot PRIVATE
     juce::juce_dsp
     juce::juce_recommended_config_flags)
 
-target_link_libraries(ChanSampler
-    PRIVATE
-        juce::juce_audio_utils
-        juce::juce_dsp
-    PUBLIC
-        juce::juce_recommended_config_flags
-        juce::juce_recommended_lto_flags
-        juce::juce_recommended_warning_flags
-        chansampler_warnings)
-
-# Hosts the built VST3 like a DAW and checks automation, MIDI, save / reload and editor size.
+# Hosts the built VST3 like a DAW: automation, MIDI, save / reload, editor size,
+# and projects saved by earlier releases (Tests/data).
 juce_add_console_app(ChanSamplerHostTest PRODUCT_NAME "ChanSamplerHostTest")
 target_sources(ChanSamplerHostTest PRIVATE Tests/HostTool.cpp)
 target_compile_definitions(ChanSamplerHostTest PRIVATE JUCE_PLUGINHOST_VST3=1 JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0)
@@ -146,10 +150,3 @@ target_link_libraries(ChanSamplerHostTest PRIVATE
     juce::juce_recommended_config_flags
     juce::juce_recommended_warning_flags
     chansampler_warnings)
-
-# The macOS clipboard (Source/SampleExchange.cpp) is Objective-C++.
-if(APPLE)
-    foreach(target ChanSampler ChanSamplerRender ChanSamplerSnapshot)
-        target_sources(${target} PRIVATE Source/SampleExchangeMac.mm)
-    endforeach()
-endif()

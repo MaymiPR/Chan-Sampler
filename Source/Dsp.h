@@ -60,7 +60,6 @@ namespace dsp
         void noteOn()  { stage = Stage::delay; ticks = 0; phase = 0; from = to = out = 0; segment = 0; pending = true; releaseNext = false; ended = false; }
         void reset()   { stage = Stage::idle; from = to = out = 0; pending = false; }
         bool isIdle() const noexcept     { return stage == Stage::idle && ! pending && from == 0.0f && to == 0.0f; }
-        bool isReleased() const noexcept { return stage == Stage::release || stage == Stage::idle || releaseNext; }
         // The release has reached the tick where it is silent (the level may
         // still be moving there). FL ends the voice there with its declick fade.
         bool hasEnded() const noexcept   { return ended; }
@@ -217,14 +216,14 @@ namespace dsp
             bool tempo = false, global = false;
         };
 
-        void noteOn() { time = 0; depth = 0; }
+        void noteOn() { time = 0; }
 
         // Returns amount * fade * wave, in -1..1, at the end of the step.
         // songSeconds: the song position at the end of the step (Global).
         float advance (const Params& p, float seconds, double bpm, double songSeconds)
         {
             time += (double) seconds;
-            return at (p, time, bpm, songSeconds, &depth);
+            return at (p, time, bpm, songSeconds);
         }
 
         // Seconds since the note started (after the last advance()).
@@ -232,13 +231,10 @@ namespace dsp
 
         // The value at a time since the note started (and song position, for
         // Global), for per-sample use.
-        static float at (const Params& p, double seconds, double bpm, double songSeconds, float* depthOut = nullptr)
+        static float at (const Params& p, double seconds, double bpm, double songSeconds)
         {
             if (p.amount == 0.0f)
-            {
-                if (depthOut != nullptr) *depthOut = 0.0f;
                 return 0.0f;
-            }
             const auto tickSeconds = 60.0 / (juce::jmax (1.0, bpm) * 96.0);
             const auto ref = p.tempo ? 120.0 : juce::jmax (1.0, bpm);
             Timing t;
@@ -255,24 +251,19 @@ namespace dsp
             const auto first = p.global ? k : juce::jmax (1.0, k);
             const auto a = valueAt (p, t, first), b = valueAt (p, t, k + 1.0);
             const auto f = (float) (ticks - k);
-            if (depthOut != nullptr) *depthOut = std::abs (a.depth + (b.depth - a.depth) * f);
-            return a.value + (b.value - a.value) * f;
+            return a + (b - a) * f;
         }
 
-        // amount * fade-in from the last advance() call.
-        float getDepth() const noexcept { return depth; }
-
     private:
-        struct Knot { float value, depth; };
         struct Timing { double period = 416, delay = 0, attackTicks = 0, noteOffset = 0; };
 
-        static Knot valueAt (const Params& p, const Timing& tm, double tick)
+        static float valueAt (const Params& p, const Timing& tm, double tick)
         {
             // ticks since the predelay ended, counted from the note start
             const auto sinceDelay = tick - tm.noteOffset - tm.delay;
             // (Global without predelay: running from the note's first sample, measured)
             if (sinceDelay < 0.0 && ! (p.global && tm.delay <= 0.0))
-                return { 0.0f, 0.0f };
+                return 0.0f;
             // phase: from the end of the predelay, or from the song start (Global)
             auto t = p.global ? tick : sinceDelay;
             if (t < 0.0) t = 0.0;
@@ -302,11 +293,10 @@ namespace dsp
                     break;
                 }
             }
-            return { p.amount * fade * wave, p.amount * fade };
+            return p.amount * fade * wave;
         }
 
         double time = 0;
-        float depth = 0;
     };
 
     // FL's channel filter, measured type by type (nulltest/, docs/EVIDENCE.md).
