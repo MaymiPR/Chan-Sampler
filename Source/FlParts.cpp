@@ -712,7 +712,7 @@ namespace
     double flDragPixels (const juce::String& id)
     {
         static const std::map<juce::String, double> table {
-            { pid::pitch, 192.0 }, { pid::stretchMul, 400.0 },
+            { pid::pitch, 192.0 }, { pid::stretchMul, 400.0 }, { pid::stretchTime, 768.0 },
             { pid::startOffset, 2048.0 }, { pid::loopStart, 1600.0 }, { pid::loopEnd, 1600.0 },
             { pid::pcStart, 1024.0 }, { pid::pcLength, 1024.0 },
             { pid::cutoff, 512.0 }, { pid::resonance, 512.0 }, { pid::fineTune, 400.0 },
@@ -750,6 +750,15 @@ ParamKnob::ParamKnob (juce::RangedAudioParameter& p, SliderStyle style)
         for (int semitone = -12; semitone <= 12; ++semitone)
             if (semitone != 0)
                 detents.push_back (p.convertTo0to1 ((float) semitone * 100.0f));
+    if (p.getParameterID() == pid::stretchTime)
+    {
+        // TIME (measured in FL 2026, its hint read pixel by pixel): one 16th
+        // step per pixel, whole steps only, and the 20 px hold at every bar
+        // (1:00:00 from 16 to 36 px, 2:00:00 at 52 px, 3:00:00 at 88 px).
+        snapSteps = range.end * 4.0;
+        for (float bar = 4.0f; bar < range.end; bar += 4.0f)
+            detents.push_back (p.convertTo0to1 (bar));
+    }
     if (! isRotary())
         setSliderSnapsToMousePosition (false);            // sliders drag from where they are, like knobs
     menu.beforeEdit = [this] { if (onDragStart != nullptr) onDragStart(); };
@@ -839,7 +848,8 @@ void ParamKnob::mouseDrag (const juce::MouseEvent& e)
         }
     }
     dragPos = juce::jlimit (0.0, 1.0, dragPos);
-    setValue (proportionOfLengthToValue (dragPos), juce::sendNotificationSync);
+    const auto shown = snapSteps > 0.0 ? std::round (dragPos * snapSteps) / snapSteps : dragPos;
+    setValue (proportionOfLengthToValue (shown), juce::sendNotificationSync);
 }
 
 ParamDigiBox::ParamDigiBox (juce::RangedAudioParameter& p, bool redStyle)

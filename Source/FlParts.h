@@ -115,6 +115,7 @@ private:
     std::vector<double> detents;   // positions 0..1
     double dragPixels = 256.0;     // drag for the whole range (FL's, per control)
     double dragPos = 0.0;
+    double snapSteps = 0.0;        // > 0: a drag sets whole steps of the range (TIME: 16ths)
     juce::Point<float> lastMouse;
     int holding = -1;              // index into detents while held
     float heldPx = 0.0f;           // drag so far while held (signed)

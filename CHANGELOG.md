@@ -45,6 +45,10 @@ Fixes
   ahead of time and repeats the stretched loop, where Chan Sampler stretched
   the loop again on every pass (a looped Rhodes: 10-14 dB from FL's
   spectrum, now 2.5-4). Loops up to about 0.7 s long once stretched.
+- The TIME knob turns like FL's: one 16th step per pixel, whole steps only,
+  and a short hold at every bar. It moved three times as fast and in
+  fractions of a step, so a small turn squeezed a sample into a sliver of
+  a beat where FL's lands on whole steps.
 
 ## 1.2.1
 
