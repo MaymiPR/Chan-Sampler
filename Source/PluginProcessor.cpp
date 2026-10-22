@@ -444,7 +444,8 @@ namespace
     // What a RIFF / WAVE file says about itself, whichever reader decodes it
     // (FL's compressed WAVs hold Ogg Vorbis, which the Ogg reader reads
     // without the WAV's chunks): the first "fmt " chunk's format tag, the
-    // first "smpl" loop, the ACID tempo, the cue points (FL's "regions") and
+    // first "smpl" loop, the root note ("inst" / "smpl"), the ACID tempo, the
+    // cue points (FL's "regions") and
     // the ACID "strc" chunk (FL's "slice markers": a 28-byte header with the
     // entry count, then 24-byte entries whose second field is the position in
     // frames). One pass over the chunks.
@@ -453,6 +454,7 @@ namespace
         bool riffWave = false;
         juce::uint16 formatTag = 1;   // 1 PCM, 3 float, 0xfffe extensible, others compressed
         int loopStart = -1, loopEnd = -1;
+        int instNote = -1, unityNote = -1;   // as stored (-1: no chunk)
         double acidTempo = 0;
         std::vector<int> regions, slices;
     };
@@ -478,16 +480,23 @@ namespace
                 w.formatTag = (juce::uint16) in.readShort();
                 formatRead = true;
             }
-            else if (id == (int) juce::ByteOrder::littleEndianInt ("smpl") && size >= 60)
+            else if (id == (int) juce::ByteOrder::littleEndianInt ("smpl") && size >= 36)
             {
-                // 36-byte header (loop count at 28), then 24-byte loops: id, type, start, end, ...
-                in.setPosition (in.getPosition() + 28);
-                if (in.readInt() > 0)
+                // 36-byte header (MIDI unity note at 12, loop count at 28), then
+                // 24-byte loops: id, type, start, end, ...
+                in.setPosition (in.getPosition() + 12);
+                w.unityNote = in.readInt();
+                in.setPosition (in.getPosition() + 12);
+                if (in.readInt() > 0 && size >= 60)
                 {
                     in.setPosition (in.getPosition() + 4 + 8);
                     w.loopStart = in.readInt();
                     w.loopEnd = in.readInt();
                 }
+            }
+            else if (id == (int) juce::ByteOrder::littleEndianInt ("inst") && size >= 7)
+            {
+                w.instNote = (int) (juce::uint8) in.readByte();   // the unshifted note
             }
             else if (id == (int) juce::ByteOrder::littleEndianInt ("acid") && size >= 24)
             {
@@ -671,6 +680,16 @@ bool ChanSamplerProcessor::loadSample (const juce::File& file)
         auto* p = apvts.getParameter (id);
         p->setValueNotifyingHost (p->convertTo0to1 (value));
     };
+    // The root note comes with the sample (measured in FL 2026 by loading
+    // files into its Sampler): the "inst" chunk's note, else the "smpl"
+    // chunk's MIDI unity note when it is a note (0..127; some files hold
+    // note x 256 there, which FL ignores), else C5. A restored project or
+    // preset puts its own root back afterwards.
+    {
+        const auto valid = [] (int n) { return n >= 0 && n <= 127; };
+        const int stored = valid (wav.instNote) ? wav.instNote : (valid (wav.unityNote) ? wav.unityNote : 60);
+        set (pid::rootNote, (float) (file.hasFileExtension (".wav;.wave") ? stored : 60));
+    }
     // A file's own loop points become the loop markers; Use loop points is
     // left as the user set it (FL does not switch it on).
     if (loaded->embeddedLoopStart >= 0 && loaded->embeddedLoopEnd > loaded->embeddedLoopStart)

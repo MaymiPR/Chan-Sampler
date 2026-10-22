@@ -45,6 +45,10 @@ Fixes
   ahead of time and repeats the stretched loop, where Chan Sampler stretched
   the loop again on every pass (a looped Rhodes: 10-14 dB from FL's
   spectrum, now 2.5-4). Loops up to about 0.7 s long once stretched.
+- Loading a sample sets the root note it stores, as FL does: the WAV's
+  "inst" note, else its "smpl" root note, else C5 (FL's piano and bass
+  multisamples, for example, now play in tune). Projects and presets keep
+  their own root note; factory presets keep the sample's.
 - The TIME knob turns like FL's: one 16th step per pixel, whole steps only,
   and a short hold at every bar. It moved three times as fast and in
   fractions of a step, so a small turn squeezed a sample into a sliver of

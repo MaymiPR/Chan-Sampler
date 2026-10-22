@@ -3,7 +3,10 @@
 
 void applyFactoryPreset (ChanSamplerProcessor& processor, const FactoryPreset& preset)
 {
+    // The sample stays, and its root note with it.
+    const auto root = processor.apvts.getRawParameterValue (pid::rootNote)->load();
     processor.resetParameters();
+    processor.apvts.getParameter (pid::rootNote)->setValueNotifyingHost (processor.apvts.getParameter (pid::rootNote)->convertTo0to1 (root));
     for (auto& [id, value] : preset.values)
     {
         auto* rp = processor.apvts.getParameter (id);

@@ -8,7 +8,7 @@
 // FL's plugin wrapper passes on unchanged as the MIDI velocity (so 1-127).
 //
 // Other commands (each described where it is handled below):
-//   loadcheck <sample>                 a file's loop points don't switch looping on
+//   loadcheck <sample>                 a file's loop points don't switch looping on; prints its root note
 //   stretchtest <in> <out> <cents> [mode] [speed]   the stretcher alone on a file
 //   tempotest <sample>                 Detect tempo's estimate and FL's ranges
 //   reloadtest <a> <b> <copy>          a sample changed on disk reloads, settings kept
@@ -182,7 +182,8 @@ int main (int argc, char** argv)
         if (! p.loadSample (juce::File (juce::String (argv[2]))))
             return 1;
         std::cout << "useLoop " << use->getCurrentValueAsText() << ", loopStart " << p.apvts.getParameter (pid::loopStart)->getCurrentValueAsText()
-                  << ", loopEnd " << p.apvts.getParameter (pid::loopEnd)->getCurrentValueAsText() << "\n";
+                  << ", loopEnd " << p.apvts.getParameter (pid::loopEnd)->getCurrentValueAsText()
+                  << ", root " << p.apvts.getParameter (pid::rootNote)->getCurrentValueAsText() << "\n";
         return use->getValue() < 0.5f ? 0 : 2;
     }
     if (argc >= 5 && juce::String (argv[1]) == "stretchtest")
@@ -452,6 +453,13 @@ int main (int argc, char** argv)
     {
         std::cerr << proc.getLoadError() << "\n";
         return 1;
+    }
+    else
+    {
+        // As in an FL project (the null tests' other half): the root stays C5
+        // unless set, whatever root the file stores.
+        auto* root = proc.apvts.getParameter (pid::rootNote);
+        root->setValueNotifyingHost (root->convertTo0to1 (60.0f));
     }
 
     juce::StringArray lines;

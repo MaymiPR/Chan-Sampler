@@ -316,7 +316,9 @@ flpreset::Result flpreset::import (ChanSamplerProcessor& processor, const juce::
     }
 
     // Root note (only stored when not C5)
+    // FL writes the root only when it isn't C5 (and the preset's root wins over the file's).
     if (auto* e = get (135)) set (pid::rootNote, (float) juce::jlimit (0, 127, (int) e->value()));
+    else set (pid::rootNote, 60.0f);
 
     // Sample flags (143): 2 load regions, 4 load slice markers, 8 use loop points
     if (auto* e = get (143))
