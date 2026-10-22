@@ -110,7 +110,7 @@ void TimeStretcher::configure (StretchMode mode, double sourceRate)
         case StretchMode::e2Mono:       useGrains (128, 0, true); break;
         case StretchMode::e2Speech:     useGrains (384, 384, false); break;
         case StretchMode::sliceStretch: useWsola (1024, 256); break;    // restarted at each slice
-        case StretchMode::stretchPro:   useVocoder (4096, 1.6f, true);  break;
+        case StretchMode::stretchPro:   useVocoder (2048, 1.5f, true);  break;   // Stretch + formants (FL's two differ only with PITCH)
         case StretchMode::stretch:
         case StretchMode::e2Transient:
         case StretchMode::e2Generic:
@@ -134,14 +134,14 @@ void TimeStretcher::configure (StretchMode mode, double sourceRate)
     switch (mode)
     {
         case StretchMode::stretch:     soft15 = 57.0;  soft067 = 405.0; break;
-        case StretchMode::stretchPro:  soft15 = -25.0; soft067 = 450.0; break;
+        case StretchMode::stretchPro:  soft15 = 12.0;  soft067 = 267.0; break;
         case StretchMode::e2Transient: soft15 = -50.0; soft067 = 30.0;  break;
         case StretchMode::e2Generic:   soft15 = -157.0; soft067 = -30.0; hfSoft15 = 112.0; hfSoft067 = 96.0; break;
         default: break;
     }
     hybrid = mode == StretchMode::e3Generic || mode == StretchMode::autoMode || mode == StretchMode::e2Generic
-          || mode == StretchMode::e2Transient || mode == StretchMode::stretch;
-    hfBand = hybrid && mode != StretchMode::e2Transient && mode != StretchMode::stretch;
+          || mode == StretchMode::e2Transient || mode == StretchMode::stretch || mode == StretchMode::stretchPro;
+    hfBand = hybrid && mode != StretchMode::e2Transient && mode != StretchMode::stretch && mode != StretchMode::stretchPro;
     grainsOnly = algo == Algo::grains;
     // e3 times an attack by its peak, the grains by its start.
     hfScale = scale;
@@ -468,7 +468,7 @@ void TimeStretcher::formantEnvelopes()
     // FFT; both are real and even). Only the first n / 64 coefficients are
     // kept, so the envelope is smooth: it is evaluated every 4th bin by a
     // quarter-size FFT and interpolated in between.
-    const int n = frame, half = n / 2, quarter = n / 4, lifter = juce::jmax (8, n / 64);
+    const int n = frame, half = n / 2, quarter = n / 4, lifter = juce::jmax (8, juce::roundToInt (64.0 * hfScale));
     for (int k = 0; k <= half; ++k)
     {
         const Complex v (std::log (mag[0][(size_t) k] + 1.0e-7f), std::log (mag[1][(size_t) k] + 1.0e-7f));

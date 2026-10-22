@@ -30,6 +30,17 @@ Fixes
 - Loop points saved in a compressed WAV (FL's own library samples, Ogg
   inside a WAV) are read: such a sample now loops like in FL instead of
   playing once. Its ACID tempo is read too.
+- Stretched far (MUL x4, or TIME stretching as much), drum hits no longer
+  sound early in the stretch modes (they came 20-35 ms early at x4 and up
+  to 130 ms beyond); they now land within a few milliseconds.
+- Stretch Pro sounds much closer to FL's: it now stretches like Stretch
+  (as FL's two modes do) and keeps the voice's formants when pitched, so
+  drums are no longer smeared and washy (distance to FL's renders 2.92 /
+  4.34 -> 1.94 / 3.77 dB; a drum loop at x4: 7.4 / 11.0 -> 3.4 / 3.4).
+
+Changed
+- Use loop points is on by default, as in FL: a sample with its own loop
+  points loops as soon as it is loaded. Saved projects keep their setting.
 
 ## 1.2.1
 

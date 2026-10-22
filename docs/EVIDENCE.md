@@ -131,8 +131,9 @@ distance to FL's renders (`nulltest/stretch/`, `nulltest/E3_NOTES.md`).
 - **Ours** (Source/TimeStretch.cpp, own code): pitch-synchronous grains for
   e3 / e2 mono and e2 speech; e3's vocoder (and e3's high-band grains for e2
   generic) for Stretch / e2 generic / e2 transient; WSOLA for slice stretch;
-  Stretch Pro = 4096-point vocoder with cepstral formant preservation and
-  FORMANT shift (+/-1200 cents, centre = preserve).
+  Stretch Pro = Stretch's vocoder (2048 points, e3's attack handling) with
+  cepstral formant preservation (64-sample lifter) and FORMANT shift
+  (+/-1200 cents, centre = preserve).
 - **FL's other modes, measured** (FL renders of clicks, noise and saws at MUL
   x1.5 / x0.667, and of a kick, a Rhodes, a voice and two drum loops at -700
   / +700 cents and x1.5 / x0.667):
@@ -154,7 +155,8 @@ distance to FL's renders (`nulltest/stretch/`, `nulltest/E3_NOTES.md`).
   -> 2.06 / 5.10, e2 speech 2.33 / 3.25 -> 1.88 / 2.70, e2 transient 4.95 /
   3.83 -> 2.45 / 3.07, Stretch 2.12 / 2.82 -> 1.77 / 2.04, e2 generic 2.57 /
   2.87 -> 2.55 / 2.85 (e3 generic 1.73 / 1.99; Stretch Pro unchanged at
-  2.93 / 4.37). Log-spectrogram distance to FL's renders 7-10 dB.
+  2.93 / 4.37, now 1.94 / 3.77, below). Log-spectrogram distance to FL's
+  renders 7-10 dB.
 - **e3 pitch** (nulltest/cases/e3_pitch_cases.py: FL's 707 Kick, a Rhodes, a
   voice, two drum loops, -1200 ... +1200 cents, in FL): FL's e3 on noise
   plays resampled stretches of the source with constant offsets for 400-700
@@ -172,9 +174,27 @@ distance to FL's renders (`nulltest/stretch/`, `nulltest/E3_NOTES.md`).
   click nulls at −22…−43 dB after a level fit; a note's start is 1:1 from
   its first sample (in-FL +600 cents: -37 dB over the first 256 samples).
   Sustained tonal material stays uncorrelated (≈0 dB).
+- **Large MUL** (1 kHz clicks every 0.5 s, our stretcher alone): attacks
+  sounded early from x4 on (e3 generic / Stretch / Stretch Pro -19 / -25 /
+  -35 ms at x4, -67 / -76 / -131 ms at x6), as the 1:1 frames before an
+  attack could reach back only one frame. An attack seen too early now
+  waits for a later frame: within 3 ms from x0.25 to x6 (Stretch Pro x6:
+  -12 ms). FL's drum loop at x4 lands within 15 ms of on time in all three
+  modes.
+- **Stretch Pro** (after 1.2.1): FL's Stretch and Stretch Pro differ only with
+  PITCH (MUL alone: their envelopes 0.54 dB apart over the 20 cases), and
+  FL's Stretch Pro matched our Stretch better (1.84 / 2.17) than our 4096-
+  point Stretch Pro (2.79 / 2.88). Stretch Pro now runs Stretch's vocoder
+  plus the formant envelope, its lifter fixed in time (64 samples, as
+  before) so the smaller frame keeps the same envelope; its soft start was
+  re-fitted to FL's (-76 / -56 / -44 / -84 samples, ours within 4). The 20
+  cases: 2.92 / 4.34 -> 1.94 / 3.77; a drum loop at MUL x0.5 / x2 / x4:
+  4.12 / 4.55, 3.94 / 4.32, 7.44 / 11.01 -> 2.66 / 2.76, 3.01 / 2.50, 3.35
+  / 3.36; MUL-only cases 2.79 / 2.88 -> 1.84 / 2.17, PITCH-only 3.05 / 5.80
+  -> 2.04 / 5.37.
 
 Evidence: nulltest/stretch/stretch_check.py, nulltest/stretch/stretch_vs_fl.py,
-e3_clicks.wav.
+nulltest/stretch/real_material.py, e3_clicks.wav.
 
 ## FL Sampler presets (.fst)
 
@@ -222,7 +242,7 @@ FL defaults: Use loop points on, loop START = END = 0 (0 = no loop); the sample 
 - `ChanSamplerHostTest <Chan Sampler.vst3> nulltest/signals/sine.wav Tests/data/state-*.bin` (it expects that 2 s sine) hosts the built VST3 through JUCE's VST3 hosting, as a DAW does: 135 automatable parameters (plus JUCE's MIDI-CC pass-through parameters); volume automation mid-note; pitch bend; MIDI CCs 1, 7, 10 and 11 leave the sound alone (map them to parameters in the host) and the sustain pedal (CC64) holds note-offs (FL handles the pedal itself); save / reload into a new instance restores every parameter (host and plugin side), the sample and the editor size, and plays bit-identically; host rate changes keep the pitch; offline rendering right after a change or a project load uses the new sample; a stretch mode chosen while playing plays stretched; a project without its sample plays nothing and keeps the path; projects saved by earlier releases load with every setting unchanged. All pass; CI runs it on every push.
 - `ChanSamplerRender statetest <sample>`: in-process round trip of all 160 parameters, sample and window width, bit-identical audio.
 - `nulltest/probes/robust_check.py`: 44.1 / 48 / 96 kHz hosts with stereo float, mono 16-bit, stereo 24-bit and 48 kHz files all play at the right pitch and length; a 10-minute file loads and plays in 0.4 s.
-- CPU (`ChanSamplerRender bench`, one core, % of real time, 32 / 64 looping voices): Resample 14 / 35, Stretch 18 / 42, Stretch Pro 25 / 53, e3 generic and Auto 16 / 36 (vocoder below 1.485 kHz, phase work on those bins only, + high-band grains; 37 / 83 in 1.1.0), e2 generic 16 / 36, e2 transient 19 / 43, e3 mono 6 / 12, e2 mono 6 / 12, e2 speech 5 / 11, slice stretch 10 / 27, slice map 12 / 23 (the bench's notes run from C2 up to B5, and a stretcher's work grows with the note's pitch ratio). Most of the stretch modes' time is FFTs: the stretcher uses its own (Source/FastFFT.h, radix-4 Stockham on split arrays with SIMD butterflies; JUCE's results to -133 dB, 3-3.6x faster than JUCE's fallback FFT at 256..8192 points, the twiddle tables shared between voices), which took e3 generic from 29 / 67 to 16 / 36; the high band's filter skips blocks of digital silence. The phase vocoder (Stretch Pro, e3 / e2 generic and transient) packs both channels into one complex FFT each way, keeps phases as unit phasors so only spectral peaks need an angle, and rebuilds Stretch Pro's formant envelope (64 cepstral coefficients) with a quarter-size FFT: Stretch Pro went from 39 / 118 to 19 / 54, the other vocoder modes from 26 / 77 to 14 / 40. Its output matches the earlier code to -95 dB at the start of a note; the earlier code's phase accumulator lost precision as notes went on (-41 dB after 3.6 s), the phasors do not. Automating cutoff, resonance, pan, volume and fine tune every block adds 0.3–0.4% (16 voices: 5.1 → 5.5% Resample, 6.1 → 6.4% Stretch Pro). The editor scales as vectors (Retina / high-DPI sharp; the waveform is computed at the screen's physical resolution).
+- CPU (`ChanSamplerRender bench`, one core, % of real time, 32 / 64 looping voices): Resample 14 / 35, Stretch 18 / 42, Stretch Pro 25 / 53 (28 / 64 with Stretch's vocoder, measured in a run where Stretch took 21 / 48), e3 generic and Auto 16 / 36 (vocoder below 1.485 kHz, phase work on those bins only, + high-band grains; 37 / 83 in 1.1.0), e2 generic 16 / 36, e2 transient 19 / 43, e3 mono 6 / 12, e2 mono 6 / 12, e2 speech 5 / 11, slice stretch 10 / 27, slice map 12 / 23 (the bench's notes run from C2 up to B5, and a stretcher's work grows with the note's pitch ratio). Most of the stretch modes' time is FFTs: the stretcher uses its own (Source/FastFFT.h, radix-4 Stockham on split arrays with SIMD butterflies; JUCE's results to -133 dB, 3-3.6x faster than JUCE's fallback FFT at 256..8192 points, the twiddle tables shared between voices), which took e3 generic from 29 / 67 to 16 / 36; the high band's filter skips blocks of digital silence. The phase vocoder (Stretch Pro, e3 / e2 generic and transient) packs both channels into one complex FFT each way, keeps phases as unit phasors so only spectral peaks need an angle, and rebuilds Stretch Pro's formant envelope (64 cepstral coefficients) with a quarter-size FFT: Stretch Pro went from 39 / 118 to 19 / 54, the other vocoder modes from 26 / 77 to 14 / 40. Its output matches the earlier code to -95 dB at the start of a note; the earlier code's phase accumulator lost precision as notes went on (-41 dB after 3.6 s), the phasors do not. Automating cutoff, resonance, pan, volume and fine tune every block adds 0.3–0.4% (16 voices: 5.1 → 5.5% Resample, 6.1 → 6.4% Stretch Pro). The editor scales as vectors (Retina / high-DPI sharp; the waveform is computed at the screen's physical resolution).
 - Memory (one instance, peak private bytes): about 4 MB in Resample; about 130 MB once a stretch mode is used, almost all of it the 64 voices' time stretchers, which are made the first time a stretch mode is needed (earlier versions made them up front in every instance).
 - Fixed while testing: the stretch modes stopped after one pass of a loop (the stretcher's read position is now folded into the loop on every pass, forward and ping-pong). FL's linked loop START / END now apply to the user's edits only (knobs, menu, sample view); host automation sets the values it shows, and the engine treats an END below START as START.
 

@@ -301,8 +301,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout (const
     addBool  (l, pid::loadRegions, "Load regions", true);
     addBool  (l, pid::loadSlices,  "Load slice markers", false);
     addFloat (l, pid::startOffset, "Sample start offset", unit, 0.0f, percentAttr());
-    // FL Sampler defaults: Use loop points off, START = END = 0 (no loop set).
-    addBool  (l, pid::useLoop,   "Use loop points", false);
+    // FL Sampler defaults: Use loop points on, START = END = 0 (no loop set),
+    // so a sample's own loop plays as soon as it is loaded.
+    addBool  (l, pid::useLoop,   "Use loop points", true);
 
     // Loop points: FL shows sample positions (position = frame / sample length).
     auto frames = [&sampleLength] (float v, int) { return juce::String (juce::roundToInt (v * (float) sampleLength.load())); };

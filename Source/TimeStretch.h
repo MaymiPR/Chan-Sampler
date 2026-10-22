@@ -283,11 +283,25 @@ private:
                 const double stretched = (attackPos - startPos) * alphaNow + attackShift (std::log2 (pitchRatio)) * pitchRatio + synthOffset;
                 const int ahead = juce::jmax (0, (int) std::round ((stretched - 0.5 * frame - synthPos) / hop));   // frames to the centred one
                 const double centreStart = attackPos + (synthPos + (double) ahead * hop) - stretched;
-                apos = juce::jmax ((double) (pos - frame), centreStart - (double) ahead * hop);   // may step back: the source is read by position
-                lockFrames = ahead + 1;   // up to the one centred on it
-                locked = true;
-                pos = (int) std::floor (apos);
-                readWindow();
+                // The 1:1 frames may step back a frame (the source is read by
+                // position). Stretched far (x4 and more) the attack is seen
+                // longer before it is due than that allows: keep stretching
+                // and lock on a later frame, while it is still seen (block 4
+                // onwards), or it would sound early (x6: 70-130 ms).
+                const bool fits = centreStart - (double) ahead * hop >= (double) (pos - frame);
+                const bool lastSeen = attackAt * block - ha < 4 * block;   // the next frame won't detect it
+                if (fits || lastSeen)
+                {
+                    apos = juce::jmax ((double) (pos - frame), centreStart - (double) ahead * hop);
+                    lockFrames = ahead + 1;   // up to the one centred on it
+                    locked = true;
+                    pos = (int) std::floor (apos);
+                    readWindow();
+                }
+                else
+                {
+                    lockGain = 0.0f;
+                }
             }
         }
 
