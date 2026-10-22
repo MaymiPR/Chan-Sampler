@@ -49,6 +49,11 @@ Fixes
   "inst" note, else its "smpl" root note, else C5 (FL's piano and bass
   multisamples, for example, now play in tune). Projects and presets keep
   their own root note; factory presets keep the sample's.
+- Stretched more than 20 times (TIME on a short sample: three bars of a
+  0.24 s bass is x25), the stretch modes ran out of sample early and fell
+  silent, which the sample view showed as a shortened waveform; they now
+  last the whole TIME, as FL's do (a 707 kick at TIME 16 beats: 7.38 s in
+  both).
 - The sample view's bit-depth badge reads 32 while it shows a stretched
   copy (e3 / e2 / slice / Auto), as FL's does.
 - The TIME knob turns like FL's: one 16th step per pixel, whole steps only,

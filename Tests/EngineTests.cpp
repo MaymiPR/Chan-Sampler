@@ -299,6 +299,14 @@ int main()
         auto beats = render (*oneSec, t, 3 * sec, { { 0, on (60) }, { (int) (2.5 * sec), off (60) } });
         check (std::abs (lastSound (beats) - 2 * sec) < sec / 20, "TIME 4 beats at 120 BPM lasts 2 s", juce::String (lastSound (beats)));
 
+        // Stretched far past x20 (FL's TIME reaches 48 bars): it still lasts the whole TIME.
+        auto far = t;
+        far.stretchMode = StretchMode::e3Generic;
+        far.stretchTime = 48.0f;   // 24 s at 120 BPM: x24
+        auto longNote = render (*oneSec, far, 25 * sec, { { 0, on (60) } });
+        check (std::abs (lastSound (longNote) - 24 * sec) < sec / 4 && rms (longNote, 22 * sec, 23 * sec) > 0.05f,
+               "TIME stretching x24 lasts the whole TIME", juce::String ((double) lastSound (longNote) / sec, 2) + " s");
+
         // e3 / e2 loops repeat the stretched loop exactly, a loop x MUL long (as FL's do).
         auto e = params();
         e.stretchMode = StretchMode::e3Generic;

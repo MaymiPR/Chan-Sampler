@@ -174,6 +174,7 @@ distance to FL's renders (`nulltest/stretch/`, `nulltest/E3_NOTES.md`).
   click nulls at −22…−43 dB after a level fit; a note's start is 1:1 from
   its first sample (in-FL +600 cents: -37 dB over the first 256 samples).
   Sustained tonal material stays uncorrelated (≈0 dB).
+- **Far stretches**: the stretcher clamped the stretch to x20, so past that (TIME on a short sample) it read the source too fast and ended early (a 1 s sine at x24 fell silent at 20.3 s; BASS_EfEm_C2 at about x25 left the last fifth of the view flat). It now allows 1/4096 ... x4096; FL fills the TIME too (the 707 Kick at TIME 16 beats, x25: 7.38 s in FL and ours). At such stretches FL's e3 and Stretch start a kick about 10 dB quieter than ours for the first 0.15 s.
 - **Large MUL** (1 kHz clicks every 0.5 s, our stretcher alone): attacks
   sounded early from x4 on (e3 generic / Stretch / Stretch Pro -19 / -25 /
   -35 ms at x4, -67 / -76 / -131 ms at x6), as the 1:1 frames before an

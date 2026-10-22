@@ -54,7 +54,8 @@ public:
     template <typename Reader>
     void next (Reader&& read, double increment, double timeRate, float formantCents, float& outL, float& outR)
     {
-        const double alpha = juce::jlimit (0.05, 20.0, increment / juce::jmax (1.0e-6, timeRate));
+        // Up to FL's TIME range on short samples (48 bars of a 0.2 s hit is x400 and more).
+        const double alpha = juce::jlimit (1.0 / 4096.0, 4096.0, increment / juce::jmax (1.0e-9, timeRate));
         if (! aligned)
         {
             // Measured with clicks: the vocoder's output would run early by a
