@@ -192,6 +192,7 @@ distance to FL's renders (`nulltest/stretch/`, `nulltest/E3_NOTES.md`).
   4.12 / 4.55, 3.94 / 4.32, 7.44 / 11.01 -> 2.66 / 2.76, 3.01 / 2.50, 3.35
   / 3.36; MUL-only cases 2.79 / 2.88 -> 1.84 / 2.17, PITCH-only 3.05 / 5.80
   -> 2.04 / 5.37.
+- **Fitting Stretch / Stretch Pro to FL** (after 1.2.1): 168 FL renders (707 kick / snare / open hat, DL Groover, DL Ninety, a sung "ah", HIP_Bass, e3_loop; MUL x0.5 ... x4, PITCH +/-7 and +/-12 semitones, MUL x2 + 7 semitones), our stretcher alone on FL's decode of each, scored by envelope + band-spectrum + fine-spectrum distance, coordinate search over frame size, transient threshold, overlap, the hop rule, the start / attack gains, attack holding, e3's high-band grains and (Stretch Pro) the formant lifter, correction limit and how far the envelope follows the pitch, with DL Ninety and the snare held out. The settings in use were already at the optimum: the best candidates gained 0.5% (Stretch) and 1.7% (Stretch Pro, its envelope following the pitch by a quarter), and made the held-out sources worse, so nothing changed. A 4096-point frame trades envelope (2.15 -> 3.13 dB) for spectrum (fine 5.62 -> 4.94); e3's high-band grains lose in both modes. The remaining distance is the engine itself (FL's Stretch and Stretch Pro are zplane's elastique; FL's credits and changelog).
 - **Loops in e3 / e2** (FL renders of a Rhodes with a 253-frame loop): once
   in the loop FL's output repeats exactly (residual -99 to -120 dB) every
   loop x MUL samples (127 / 506 / 1012 at x0.5 / x2 / x4) in e3 generic, e3
