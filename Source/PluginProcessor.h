@@ -8,6 +8,8 @@
 #include <juce_audio_formats/juce_audio_formats.h>
 #include <array>
 #include <mutex>
+#include <string_view>
+#include <unordered_map>
 
 #include "CutGroups.h"
 #include "Params.h"
@@ -113,8 +115,15 @@ private:
     PrecomputeSettings readPrecomputeSettings() const;
     EngineParams readEngineParams() const;
     static void applyTempo (EngineParams&);
-    float param (const char* id) const { return apvts.getRawParameterValue (id)->load(); }
-    float param (const juce::String& id) const { return apvts.getRawParameterValue (id)->load(); }
+    // Parameter values by ID without building a juce::String or searching
+    // the tree (the audio thread reads about 120 a block): looked up once.
+    std::atomic<float>* rawParam (std::string_view id) const
+    {
+        const auto it = rawParams.find (id);
+        return it != rawParams.end() ? it->second : nullptr;
+    }
+    float param (const char* id) const { return rawParam (id)->load(); }
+    float param (const juce::String& id) const { return rawParam (id.toRawUTF8())->load(); }
 
     // Rebuilds the precomputed sample off the message thread whenever a
     // precomputed setting changes, so the waveform follows knobs live.
@@ -141,6 +150,7 @@ private:
         ChanSamplerProcessor& owner;
     };
 
+    std::unordered_map<std::string_view, std::atomic<float>*> rawParams;   // views of the parameters' own IDs
     juce::AudioFormatManager formatManager;
     std::shared_ptr<const RawSample> raw = std::make_shared<RawSample>();
     // Rebuilds run one at a time; one with the same file and settings as the

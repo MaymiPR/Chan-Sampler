@@ -181,6 +181,12 @@ private:
         float cutBase = 1, resBase = 0;   // unmodulated cutoff / resonance
 
         bool stretched = false;   // plays through its voice's stretcher (decided at note-on)
+        // e3 / e2 loops as FL plays them (it stretches the sample ahead of
+        // time): the loop's first pass is stretched straight through,
+        // recorded in the voice's loop take and repeated. takeLen = 0 while
+        // recording; the loop recorded, to see it moved.
+        bool takeLoop = false;
+        int takeLen = 0, takeAt = 0, takeStart = 0, takeEnd = 0;
         int onsetIdx = 0;         // next transient for the slice modes
         double slicePos = -1;     // slice map: read head inside the current slice
         int sliceFade = 0;
@@ -238,6 +244,11 @@ private:
 
     std::array<Voice, maxVoices> voices;
     std::array<std::unique_ptr<TimeStretcher>, maxVoices> stretchers;   // one per voice, see ensureStretchers ()
+    // Per voice, made with the stretchers: a stretched loop's first pass
+    // (0.74 s at 44.1 kHz; longer loops fold into the stretcher as before).
+    static constexpr int loopTakeFrames = 32768;
+    struct LoopTake { std::vector<float> l, r; };
+    std::array<LoopTake, maxVoices> loopTakes;
     std::atomic<bool> stretchersReady { false };
     std::mutex stretcherLock;   // ensureStretchers () only, never the audio thread
     std::atomic<float> playhead { -1.0f };

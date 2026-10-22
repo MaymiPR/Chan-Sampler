@@ -298,6 +298,20 @@ int main()
         t.stretchTime = 4.0f;    // 4 beats at 120 BPM = 2 s
         auto beats = render (*oneSec, t, 3 * sec, { { 0, on (60) }, { (int) (2.5 * sec), off (60) } });
         check (std::abs (lastSound (beats) - 2 * sec) < sec / 20, "TIME 4 beats at 120 BPM lasts 2 s", juce::String (lastSound (beats)));
+
+        // e3 / e2 loops repeat the stretched loop exactly, a loop x MUL long (as FL's do).
+        auto e = params();
+        e.stretchMode = StretchMode::e3Generic;
+        e.stretchMul = 2.0f;
+        e.useLoop = true;
+        e.loopStart = 0.3f;
+        e.loopEnd = 0.31f;
+        auto looped = render (*oneSec, e, 3 * sec, { { 0, on (60) } });
+        const int loopLen = (int) std::lround (0.31 * sec) + 1 - (int) std::lround (0.3 * sec);
+        float worst = 0.0f;
+        for (int i = 2 * sec; i < 2 * sec + 4000; ++i)
+            worst = juce::jmax (worst, std::abs (looped[(size_t) i] - looped[(size_t) (i + 2 * loopLen)]));
+        check (worst < 1.0e-6f && rms (looped, 2 * sec, 3 * sec) > 0.05f, "e3 loop repeats every loop x MUL", juce::String (worst));
         check (std::abs (frequency (beats, sec / 10, sec) - 440) < 8, "TIME stretch keeps pitch", juce::String (frequency (beats, sec / 10, sec), 1));
     }
 

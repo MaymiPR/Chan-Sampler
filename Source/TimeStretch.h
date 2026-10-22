@@ -196,13 +196,16 @@ private:
         auto pos = (int) std::floor (apos);
         constexpr int block = 128;
         float blockEnergy[64] = {};
+        bool monoFrame = true;   // both channels the same: the spectral work is done once
         auto readWindow = [&]
         {
             std::fill (std::begin (blockEnergy), std::end (blockEnergy), 0.0f);
+            monoFrame = true;
             for (int i = 0; i < n; ++i)
             {
                 float l, r;
                 read (pos + i, l, r);
+                monoFrame = monoFrame && l == r;
                 power[(size_t) i] = l * l + r * r;
                 blockEnergy[juce::jmin (63, i / block)] += power[(size_t) i];
                 spec[(size_t) i] = { l * window[(size_t) i], r * window[(size_t) i] };
@@ -306,7 +309,7 @@ private:
         }
 
         fft->perform (spec.data(), work.data(), false);   // spec -> work
-        processSpectrum (pos, pitchRatio, formantCents, locked);  // work -> spec
+        processSpectrum (pos, pitchRatio, formantCents, locked, monoFrame);  // work -> spec
         fft->perform (spec.data(), work.data(), true);
         float scale = (float) hop / (0.375f * (float) n);   // the inverse FFT is scaled by 1 / N; Hann^2 overlaps sum to 0.375 frame / hop
         if (hybrid && locked)
@@ -765,7 +768,7 @@ private:
         }
     }
 
-    void processSpectrum (int pos, double pitchRatio, float formantCents, bool attack);
+    void processSpectrum (int pos, double pitchRatio, float formantCents, bool attack, bool mono);
     void phaseLock (int channel, int analysisHop, bool transient);
     void formantEnvelopes();
     void emit (float gain);

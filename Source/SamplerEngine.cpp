@@ -57,8 +57,10 @@ namespace
 
         // Reads both channels at fractional position pos; `at` maps an index
         // into the buffer (loop wrap / clamping), negative indices are silent.
+        // When every tap lies in [0, wrapFrom), where `at` is the identity, the
+        // taps are read directly and their sines come from one phasor.
         template <typename At>
-        void read (const float* l, const float* r, double pos, double ratio, At&& at, float& outL, float& outR) const
+        void read (const float* l, const float* r, double pos, double ratio, At&& at, float& outL, float& outR, int wrapFrom = 0) const
         {
             const int base = (int) std::floor (pos);
             const double frac = pos - base;
@@ -71,6 +73,45 @@ namespace
             }
             const double c = ratio > 1.0 ? 1.0 / ratio : 1.0;
             double sl = 0.0, sr = 0.0;
+            if (base - halfTaps + 1 >= 0 && base + halfTaps < wrapFrom)
+            {
+                // sin (pi c d) for d = frac + 14 ... frac - 15: a phasor turned by -pi c per tap
+                const double pc = juce::MathConstants<double>::pi * c;
+                double stepC = 1.0, stepS = 0.0, zc = 0.0, zs = 0.0;
+                if (c != 1.0)
+                {
+                    stepC = std::cos (pc);
+                    stepS = -std::sin (pc);
+                    const double x0 = pc * (pos - (base - halfTaps + 1));
+                    zc = std::cos (x0);
+                    zs = std::sin (x0);
+                }
+                for (int j = -halfTaps + 1; j <= halfTaps; ++j)
+                {
+                    const int idx = base + j;
+                    const double d = pos - idx;
+                    double k;
+                    if (c == 1.0)
+                        k = lookup (kernel, d);
+                    else
+                    {
+                        // The two taps next to pos divide by a d that can be tiny:
+                        // their sines exactly (the phasor's 1e-15 would be amplified).
+                        const double sn = std::abs (d) < 1.0 ? std::sin (pc * d) : zs;
+                        k = (d == 0.0 ? c : sn / (juce::MathConstants<double>::pi * d)) * lookup (window, d);
+                        const double t = zc * stepC - zs * stepS;
+                        zs = zs * stepC + zc * stepS;
+                        zc = t;
+                    }
+                    if (k == 0.0)
+                        continue;
+                    sl += k * l[idx];
+                    sr += k * r[idx];
+                }
+                outL = (float) sl;
+                outR = (float) sr;
+                return;
+            }
             for (int j = -halfTaps + 1; j <= halfTaps; ++j)
             {
                 const int idx = base + j;
@@ -123,6 +164,23 @@ namespace
     struct LoopFrames { int start, end; bool valid; };
 
     bool resetsAtOnsets (StretchMode m) { return m == StretchMode::sliceStretch || m == StretchMode::e2Transient; }
+
+    // FL stretches the sample ahead of time in e3 / e2 and loops the stretched
+    // copy: once in the loop its output repeats exactly, a loop x MUL long
+    // (measured: a 253-frame loop repeats every 127 / 506 / 1012 samples at
+    // x0.5 / x2 / x4, residual below -99 dB). Resample, Stretch and Stretch Pro
+    // stretch in real time; the slice modes restart at each slice.
+    bool repeatsLoopTake (StretchMode m)
+    {
+        switch (m)
+        {
+            case StretchMode::e3Generic: case StretchMode::e3Mono: case StretchMode::autoMode:
+            case StretchMode::e2Generic: case StretchMode::e2Transient: case StretchMode::e2Mono: case StretchMode::e2Speech:
+                return true;
+            default:
+                return false;
+        }
+    }
 
     LoopFrames loopFrames (const SampleData& s, const EngineParams& p)
     {
@@ -196,6 +254,11 @@ void SamplerEngine::ensureStretchers()
     for (auto& s : stretchers)
         if (s == nullptr)
             s = std::make_unique<TimeStretcher>();
+    for (auto& t : loopTakes)
+    {
+        t.l.resize ((size_t) loopTakeFrames);
+        t.r.resize ((size_t) loopTakeFrames);
+    }
     stretchersReady.store (true, std::memory_order_release);
 }
 
@@ -733,6 +796,9 @@ void SamplerEngine::noteOn (int note, float velocity, NoteMods mods, const Sampl
         st.sourceToOutputRateScale = sampleRate / s.sourceRate;
         st.reset (v.pos);
     }
+    v.takeLoop = v.stretched && repeatsLoopTake (p.stretchMode) && loop.valid && ! p.pingPong && v.pos <= loop.start;
+    v.takeStart = loop.start;
+    v.takeEnd = loop.end;
     v.onsetIdx = 0;
     while (v.onsetIdx < (int) s.onsets.size() && s.onsets[(size_t) v.onsetIdx] <= (int) v.pos)
         ++v.onsetIdx;
@@ -1108,6 +1174,7 @@ void SamplerEngine::renderRange (juce::AudioBuffer<float>& out, int start, int n
 
     auto* outL = out.getWritePointer (0);
     auto* outR = out.getNumChannels() > 1 ? out.getWritePointer (1) : nullptr;
+    const auto& interp = flInterpolator();
 
     for (auto& v : voices)
     {
@@ -1149,6 +1216,7 @@ void SamplerEngine::renderRange (juce::AudioBuffer<float>& out, int start, int n
                         k -= loop.end - loop.start;
                     return juce::jlimit (0, total - 1, k);
                 };
+                const int atIsIndexBelow = looping && ! p.pingPong ? juce::jmin (loop.end, total) : total;   // `at` is the identity there
                 // Pitch LFO in Resample, per sample: FL's pitch follows the
                 // tick-interpolated LFO half a tick early, less 2.5 samples
                 // (fitted to FL renders: -68 dB against -34 dB for a per-tick step).
@@ -1178,7 +1246,7 @@ void SamplerEngine::renderRange (juce::AudioBuffer<float>& out, int start, int n
                     // Past the end FL keeps interpolating at the advancing
                     // position with the neighbours clamped (measured with TIME
                     // at fractional speeds), while the declick fades it out.
-                    flInterpolator().read (srcL, srcR, v.pos, incNow, at, l, r);
+                    interp.read (srcL, srcR, v.pos, incNow, at, l, r, atIsIndexBelow);
                 }
                 else if (v.holding)
                 {
@@ -1189,27 +1257,50 @@ void SamplerEngine::renderRange (juce::AudioBuffer<float>& out, int start, int n
                 {
                     // Time stretching (TimeStretch.h): pitch from the key, length
                     // from MUL / TIME. Past the sample end the source is silent.
-                    auto read = [&] (int k, float& sl, float& sr)
+                    const auto voiceIndex = (size_t) (&v - voices.data());
+                    if (v.takeLoop && (loop.start != v.takeStart || loop.end != v.takeEnd || p.pingPong
+                                       || (loop.end - loop.start) / v.timeRate + 2.0 > loopTakeFrames))
+                        v.takeLoop = false;   // the loop moved (or no longer fits): fold as below from here on
+                    const bool take = v.takeLoop && looping;
+                    auto& lt = loopTakes[voiceIndex];
+                    if (take && v.takeLen > 0)
                     {
-                        if (k < 0 || (k >= s.playEnd && ! looping))
+                        l = lt.l[(size_t) v.takeAt];
+                        r = lt.r[(size_t) v.takeAt];
+                        if (++v.takeAt >= v.takeLen)
+                            v.takeAt = 0;
+                    }
+                    else
+                    {
+                        const bool fold = looping && ! take;
+                        auto read = [&] (int k, float& sl, float& sr)
                         {
-                            sl = sr = 0.0f;
-                            return;
-                        }
-                        // The stretcher's read position keeps counting up, so
-                        // fold it into the loop however many passes it has made.
-                        if (looping && k >= loop.end)
+                            if (k < 0 || (k >= s.playEnd && ! fold))
+                            {
+                                sl = sr = 0.0f;
+                                return;
+                            }
+                            // The stretcher's read position keeps counting up, so
+                            // fold it into the loop however many passes it has made.
+                            if (fold && k >= loop.end)
+                            {
+                                const int len = juce::jmax (1, loop.end - loop.start);
+                                const int passes = (k - loop.start) / len;
+                                const int offset = (k - loop.start) % len;
+                                k = (p.pingPong && (passes % 2 == 1)) ? loop.end - 1 - offset : loop.start + offset;
+                            }
+                            const int m = juce::jlimit (0, total - 1, k);
+                            sl = srcL[m];
+                            sr = srcR[m];
+                        };
+                        stretchers[voiceIndex]->next (read, v.increment, v.timeRate, p.formant, l, r);
+                        if (take && v.pos >= loop.start && v.takeAt < loopTakeFrames)
                         {
-                            const int len = juce::jmax (1, loop.end - loop.start);
-                            const int passes = (k - loop.start) / len;
-                            const int offset = (k - loop.start) % len;
-                            k = (p.pingPong && (passes % 2 == 1)) ? loop.end - 1 - offset : loop.start + offset;
+                            lt.l[(size_t) v.takeAt] = l;
+                            lt.r[(size_t) v.takeAt] = r;
+                            ++v.takeAt;
                         }
-                        const int m = juce::jlimit (0, total - 1, k);
-                        sl = srcL[m];
-                        sr = srcR[m];
-                    };
-                    stretchers[(size_t) (&v - voices.data())]->next (read, v.increment, v.timeRate, p.formant, l, r);
+                    }
                     v.lastL = l;
                     v.lastR = r;
                 }
@@ -1222,7 +1313,7 @@ void SamplerEngine::renderRange (juce::AudioBuffer<float>& out, int start, int n
                         const int nextOnset = v.onsetIdx < (int) s.onsets.size() ? s.onsets[(size_t) v.onsetIdx] : s.playEnd;
                         if (v.slicePos < nextOnset)
                         {
-                            flInterpolator().read (srcL, srcR, v.slicePos, v.increment, at, l, r);
+                            interp.read (srcL, srcR, v.slicePos, v.increment, at, l, r, atIsIndexBelow);
                             const int fadeLen = juce::jmax (1, (int) (0.002 * sampleRate));
                             if (v.sliceFade < fadeLen)
                             {
@@ -1238,7 +1329,7 @@ void SamplerEngine::renderRange (juce::AudioBuffer<float>& out, int start, int n
                 }
                 else
                 {
-                    flInterpolator().read (srcL, srcR, v.pos, incNow, at, l, r);
+                    interp.read (srcL, srcR, v.pos, incNow, at, l, r, atIsIndexBelow);
                     v.lastL = l;
                     v.lastR = r;
                 }
@@ -1358,6 +1449,11 @@ void SamplerEngine::renderRange (juce::AudioBuffer<float>& out, int start, int n
                 {
                     if (! p.pingPong)
                     {
+                        if (v.takeLoop && v.takeLen == 0 && v.pos >= loop.end && v.takeAt > 0)
+                        {
+                            v.takeLen = v.takeAt;   // the first pass is recorded: repeat it
+                            v.takeAt = 0;
+                        }
                         while (v.pos >= loop.end)
                         {
                             v.pos -= loop.end - loop.start;

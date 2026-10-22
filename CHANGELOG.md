@@ -6,6 +6,10 @@ Faster
 - Each Chan Sampler uses about 4 MB of memory instead of about 130 MB until
   a stretch mode is used (the time stretchers are made the first time one
   is needed): ten instances in Resample went from about 1.3 GB to 40 MB.
+- Less CPU: Resample and Slice map about a quarter less (the interpolator's
+  sines), and Stretch, Stretch Pro and e2 transient about a quarter less on
+  mono samples (one channel's spectral work, copied). The audio thread no
+  longer builds strings to read the parameters.
 
 Fixes
 - Loading a project or preset no longer keeps the sample that was loaded
@@ -37,10 +41,10 @@ Fixes
   (as FL's two modes do) and keeps the voice's formants when pitched, so
   drums are no longer smeared and washy (distance to FL's renders 2.92 /
   4.34 -> 1.94 / 3.77 dB; a drum loop at x4: 7.4 / 11.0 -> 3.4 / 3.4).
-
-Changed
-- Use loop points is on by default, as in FL: a sample with its own loop
-  points loops as soon as it is loaded. Saved projects keep their setting.
+- Loops in the e3 and e2 modes play like FL's: FL stretches the sample
+  ahead of time and repeats the stretched loop, where Chan Sampler stretched
+  the loop again on every pass (a looped Rhodes: 10-14 dB from FL's
+  spectrum, now 2.5-4). Loops up to about 0.7 s long once stretched.
 
 ## 1.2.1
 

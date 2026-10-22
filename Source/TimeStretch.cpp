@@ -290,9 +290,11 @@ namespace
     }
 }
 
-void TimeStretcher::processSpectrum (int pos, double pitchRatio, float formantCents, bool attack)
+void TimeStretcher::processSpectrum (int pos, double pitchRatio, float formantCents, bool attack, bool mono)
 {
     const int n = frame, half = n / 2;
+    // A mono frame: channel 1 is channel 0 (copied, so its state stays exact).
+    const int channels = mono ? 1 : 2;
 
     // Split the packed FFT (left + i right) into the two channels' spectra.
     for (int k = 0; k <= half; ++k)
@@ -307,9 +309,14 @@ void TimeStretcher::processSpectrum (int pos, double pitchRatio, float formantCe
         mag[0][(size_t) k] = std::sqrt (l.real() * l.real() + l.imag() * l.imag());
         mag[1][(size_t) k] = std::sqrt (r.real() * r.real() + r.imag() * r.imag());
     }
+    if (mono)
+    {
+        std::copy (bins[0].begin(), bins[0].begin() + half + 1, bins[1].begin());
+        std::copy (mag[0].begin(), mag[0].begin() + half + 1, mag[1].begin());
+    }
 
     const int analysisHop = juce::jmax (1, pos - prevPos);
-    for (int c = 0; c < 2; ++c)
+    for (int c = 0; c < channels; ++c)
     {
         // Transients (spectral flux jump): take the analysis phases as they
         // are, which keeps attacks sharp instead of smearing them.
@@ -322,7 +329,7 @@ void TimeStretcher::processSpectrum (int pos, double pitchRatio, float formantCe
         phaseLock (c, analysisHop, first || attack || rise / total > transientThreshold);
     }
     if (lowBins > 0)   // e3 generic: the vocoder makes only the band below the split
-        for (int c = 0; c < 2; ++c)
+        for (int c = 0; c < channels; ++c)
             std::fill (out[c].begin() + lowBins, out[c].begin() + half + 1, std::complex<float>());
 
     // Formants (Stretch Pro): the voice resamples this signal by pitchRatio,
@@ -333,7 +340,7 @@ void TimeStretcher::processSpectrum (int pos, double pitchRatio, float formantCe
     {
         formantEnvelopes();
         const auto warp = (float) (pitchRatio / std::pow (2.0, (double) formantCents / 1200.0));
-        for (int c = 0; c < 2; ++c)
+        for (int c = 0; c < channels; ++c)
         {
             const auto& env = envelope[c];
             // The correction moves energy between bands; keep the frame's total.
@@ -359,6 +366,12 @@ void TimeStretcher::processSpectrum (int pos, double pitchRatio, float formantCe
             for (int k = 0; k <= half; ++k)
                 out[c][(size_t) k] *= corr[(size_t) k] * norm;
         }
+    }
+
+    if (mono)
+    {
+        std::copy (synth[0].begin(), synth[0].begin() + half + 1, synth[1].begin());
+        std::copy (out[0].begin(), out[0].begin() + half + 1, out[1].begin());
     }
 
     // Pack the two synthesis spectra for one inverse FFT (left + i right).

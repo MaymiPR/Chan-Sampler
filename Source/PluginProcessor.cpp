@@ -1,11 +1,15 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include <cstring>
 
 ChanSamplerProcessor::ChanSamplerProcessor()
     : AudioProcessor (BusesProperties().withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
       apvts (*this, nullptr, "STATE", createParameterLayout (loopTextLength))
 {
     formatManager.registerBasicFormats();
+    for (auto* p : getParameters())
+        if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (p))
+            rawParams[std::string_view (ranged->paramID.toRawUTF8())] = apvts.getRawParameterValue (ranged->paramID);
 
     for (auto& id : precomputeParamIDs())
         apvts.addParameterListener (id, this);
@@ -201,9 +205,19 @@ EngineParams ChanSamplerProcessor::readEngineParams() const
 {
     auto target = [this] (const char* prefix)
     {
-        auto get = [this, prefix] (const char* s) { return param (pid::env (prefix, s)); };
+        // prefix + name in a local buffer (no allocation on the audio thread)
+        auto id = [prefix] (const char* s)
+        {
+            std::array<char, 48> buf {};
+            const auto n = std::strlen (prefix), m = std::strlen (s);
+            jassert (n + m < buf.size());
+            std::memcpy (buf.data(), prefix, n);
+            std::memcpy (buf.data() + n, s, juce::jmin (m, buf.size() - 1 - n));
+            return buf;
+        };
+        auto get = [this, &id] (const char* s) { return rawParam (id (s).data())->load(); };
         EngineParams::Target t;
-        if (apvts.getParameter (pid::env (prefix, "EnvOn")) == nullptr)
+        if (rawParam (id ("EnvOn").data()) == nullptr)
         {
             t.envOn = false;   // no envelope on this target (Panning)
         }
@@ -211,7 +225,7 @@ EngineParams ChanSamplerProcessor::readEngineParams() const
         {
             t.envOn    = get ("EnvOn") > 0.5f;
             t.envTempo = get ("EnvTempo") > 0.5f;
-            if (auto* amt = apvts.getRawParameterValue (pid::env (prefix, "EnvAmt")))
+            if (auto* amt = rawParam (id ("EnvAmt").data()))
                 t.envAmt = amt->load();
             t.env.delay    = flEnvSeconds (get ("Del"));
             // Measured: the minimum raw attack (100, position 0) is instant.
