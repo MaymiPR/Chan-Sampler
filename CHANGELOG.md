@@ -49,6 +49,8 @@ Fixes
   "inst" note, else its "smpl" root note, else C5 (FL's piano and bass
   multisamples, for example, now play in tune). Projects and presets keep
   their own root note; factory presets keep the sample's.
+- The sample view's bit-depth badge reads 32 while it shows a stretched
+  copy (e3 / e2 / slice / Auto), as FL's does.
 - The TIME knob turns like FL's: one 16th step per pixel, whole steps only,
   and a short hold at every bar. It moved three times as fast and in
   fractions of a step, so a small turn squeezed a sample into a sliver of

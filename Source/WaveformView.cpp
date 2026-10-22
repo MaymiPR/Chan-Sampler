@@ -51,7 +51,7 @@ namespace
         SampleData::Ptr out = new SampleData();
         out->sourceRate = s.sourceRate;
         out->mono = s.mono;
-        out->fileBits = s.fileBits;
+        out->fileBits = 32;   // FL's badge shows its stretched copy as 32-bit (float), the plain file as it is
         out->lengthTrimmed = s.lengthTrimmed;
         out->audio.setSize (2, outFrames);
         out->playEnd = outFrames;
