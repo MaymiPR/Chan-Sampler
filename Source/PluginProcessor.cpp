@@ -428,8 +428,9 @@ SampleData::Ptr ChanSamplerProcessor::getSampleForDisplay() const
 namespace
 {
     // What a RIFF / WAVE file says about itself, whichever reader decodes it
-    // (FL's compressed WAVs hold Ogg Vorbis, which the Ogg reader reads): the
-    // first "fmt " chunk's format tag, the cue points (FL's "regions") and
+    // (FL's compressed WAVs hold Ogg Vorbis, which the Ogg reader reads
+    // without the WAV's chunks): the first "fmt " chunk's format tag, the
+    // first "smpl" loop, the ACID tempo, the cue points (FL's "regions") and
     // the ACID "strc" chunk (FL's "slice markers": a 28-byte header with the
     // entry count, then 24-byte entries whose second field is the position in
     // frames). One pass over the chunks.
@@ -437,6 +438,8 @@ namespace
     {
         bool riffWave = false;
         juce::uint16 formatTag = 1;   // 1 PCM, 3 float, 0xfffe extensible, others compressed
+        int loopStart = -1, loopEnd = -1;
+        double acidTempo = 0;
         std::vector<int> regions, slices;
     };
 
@@ -460,6 +463,22 @@ namespace
             {
                 w.formatTag = (juce::uint16) in.readShort();
                 formatRead = true;
+            }
+            else if (id == (int) juce::ByteOrder::littleEndianInt ("smpl") && size >= 60)
+            {
+                // 36-byte header (loop count at 28), then 24-byte loops: id, type, start, end, ...
+                in.setPosition (in.getPosition() + 28);
+                if (in.readInt() > 0)
+                {
+                    in.setPosition (in.getPosition() + 4 + 8);
+                    w.loopStart = in.readInt();
+                    w.loopEnd = in.readInt();
+                }
+            }
+            else if (id == (int) juce::ByteOrder::littleEndianInt ("acid") && size >= 24)
+            {
+                in.setPosition (in.getPosition() + 20);   // flags, root note, two reserved, beats, meter
+                w.acidTempo = (double) in.readFloat();
             }
             else if (id == (int) juce::ByteOrder::littleEndianInt ("cue ") && size >= 4)
             {
@@ -617,7 +636,12 @@ bool ChanSamplerProcessor::loadSample (const juce::File& file)
         r.embeddedLoopStart = md.getValue ("Loop0Start", "-1").getIntValue();
         r.embeddedLoopEnd   = md.getValue ("Loop0End",   "-1").getIntValue();
     }
-    r.fileTempo = juce::jmax (0.0, md.getValue (juce::WavAudioFormat::acidTempo, "0").getDoubleValue());
+    else if (wav.loopStart >= 0)   // a compressed WAV (FL's own samples): read from the chunks
+    {
+        r.embeddedLoopStart = wav.loopStart;
+        r.embeddedLoopEnd   = wav.loopEnd;
+    }
+    r.fileTempo = juce::jmax (0.0, md.getValue (juce::WavAudioFormat::acidTempo, juce::String (wav.acidTempo)).getDoubleValue());
 
     {
         const juce::ScopedLock sl (poolLock);

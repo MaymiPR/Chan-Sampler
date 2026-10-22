@@ -38,13 +38,13 @@ namespace
 {
     // The sample as a note at the root key plays it with these stretch
     // settings, at the sample's own rate (the engine's own maths: pitch ratio
-    // from PITCH, speed from TIME / MUL; Resample changes both together).
+    // from PITCH, speed from TIME / MUL; Slice map resamples, changing both).
     SampleData::Ptr renderStretched (const SampleData& s, StretchMode mode, double cents, double speed, float formant,
                                      const std::atomic<int>& generation, int myGeneration)
     {
         const int inFrames = juce::jmax (1, s.playEnd);
         const double ratio = std::pow (2.0, cents / 1200.0);
-        const bool resample = mode == StretchMode::resample || mode == StretchMode::sliceMap;
+        const bool resample = mode == StretchMode::sliceMap;
         const double sourceStep = resample ? speed * ratio : speed;   // source frames per output frame
         const auto outFrames = (int) juce::jlimit (1.0, 30.0 * 60.0 * s.sourceRate, std::round ((double) inFrames / sourceStep));
 
@@ -121,10 +121,14 @@ void WaveformView::updateStretchPreview()
     const auto key = stretchKey();
     if (key == shownKey || key == requestedKey || fileSample == nullptr || fileSample->playEnd <= 0)
         return;
-    const bool plain = std::abs (key.cents) < 0.5f && std::abs (key.mul - 1.0f) < 1.0e-4f && key.time <= 0.01f;
+    // FL draws the precomputed modes (e3, e2, slice, Auto) as they play;
+    // Resample, Stretch and Stretch Pro play in real time and FL draws the file.
+    const auto keyMode = (StretchMode) key.mode;
+    const bool realtime = keyMode == StretchMode::resample || keyMode == StretchMode::stretch || keyMode == StretchMode::stretchPro;
+    const bool plain = realtime || (std::abs (key.cents) < 0.5f && std::abs (key.mul - 1.0f) < 1.0e-4f && key.time <= 0.01f);
     if (plain)
     {
-        // Nothing stretched: the file's sample as it is.
+        // Nothing stretched, or a real-time mode: the file's sample as it is.
         ++renderGeneration;
         shownKey = key;
         requestedKey = {};

@@ -23,6 +23,13 @@ Fixes
 - Switching a playing note from Resample to a stretch mode no longer reads
   from a stretcher left over from an earlier note; that note carries on
   resampled, and the next note is stretched.
+- In Resample, Stretch and Stretch Pro the sample view shows the file as it
+  is, whatever PITCH, MUL and TIME say, as FL does (it redrew the
+  stretched sound). The e3, e2, slice and Auto modes still show the
+  sample as it plays, as in FL.
+- Loop points saved in a compressed WAV (FL's own library samples, Ogg
+  inside a WAV) are read: such a sample now loops like in FL instead of
+  playing once. Its ACID tempo is read too.
 
 ## 1.2.1
 
