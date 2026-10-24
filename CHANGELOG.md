@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+New
+- The sample menu's keyboard shortcuts, as in FL: Ctrl+C / Ctrl+V (Cmd on
+  macOS) copy and paste the sample's audio while the window is active, and
+  the underlined letters choose an entry while a menu is open (the knob menus'
+  too).
+
 Faster
 - Stretch and e2 transient use about 9% less CPU, Stretch Pro about 6%, e2
   generic and e3 generic 3-5%, on stereo samples as well as mono; the sound

@@ -80,6 +80,7 @@ namespace fl
         int getPopupMenuColumnSeparatorWidthWithOptions (const juce::PopupMenu::Options&) override;
         int getPopupMenuBorderSizeWithOptions (const juce::PopupMenu::Options&) override { return 1; }
         juce::PopupMenu::Options getOptionsForComboBoxPopupMenu (juce::ComboBox&, juce::Label&) override;
+        void preparePopupMenuWindow (juce::Component&) override;   // armed menus: their underlined letters choose
         juce::Typeface::Ptr getTypefaceForFont (const juce::Font&) override;
     };
 
@@ -115,6 +116,11 @@ namespace fl
     // look, ticks for on/off entries and thin separators (measured from FL's
     // sample right-click menu).
     void showContextMenu (juce::PopupMenu&, juce::Component& target, bool atMouse);
+    // Makes the next menu shown answer to its underlined letters ("&Reload":
+    // R), as FL's menus do. showContextMenu does it itself.
+    void armMenuLetters (const juce::PopupMenu&);
+    // The text FL shows beside an entry for a Ctrl shortcut ("Ctrl+C"; Cmd on macOS).
+    juce::String commandShortcutText (char key);
     // The component property that marks a menu's target as such a context menu.
     inline constexpr const char* contextMenuProperty = "flContextMenu";
 

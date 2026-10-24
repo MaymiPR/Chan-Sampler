@@ -646,6 +646,7 @@ void ParamMenu::show()
         m.addItem ("&Type in value...", [this, ok] { if (ok()) typeIn(); });
 
     m.setLookAndFeel (&owner.getLookAndFeel());   // otherwise JUCE uses its default look
+    fl::armMenuLetters (m);
     m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&owner).withMousePosition());
 }
 

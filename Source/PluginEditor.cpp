@@ -97,12 +97,34 @@ ChanSamplerEditor::ChanSamplerEditor (ChanSamplerProcessor& p)
 ChanSamplerEditor::~ChanSamplerEditor()
 {
     samplerProcessor.removeChangeListener (this);
+    if (keyWindow != nullptr)
+        keyWindow->removeKeyListener (this);
     setLookAndFeel (nullptr);
 }
 
 void ChanSamplerEditor::paint (juce::Graphics& g)
 {
     g.fillAll (fl::colour::sheet);
+}
+
+// FL's Ctrl+C / Ctrl+V, heard on the window that holds the editor (the
+// editor itself in a plugin, the app's window standalone); every other key
+// goes on to the host.
+void ChanSamplerEditor::parentHierarchyChanged()
+{
+    auto* top = getTopLevelComponent();
+    if (top == keyWindow)
+        return;
+    if (keyWindow != nullptr)
+        keyWindow->removeKeyListener (this);
+    keyWindow = top;
+    if (keyWindow != nullptr)
+        keyWindow->addKeyListener (this);
+}
+
+bool ChanSamplerEditor::keyPressed (const juce::KeyPress& key, juce::Component*)
+{
+    return waveform.keyShortcut (key);
 }
 
 void ChanSamplerEditor::resized()

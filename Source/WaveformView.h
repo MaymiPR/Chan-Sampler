@@ -38,6 +38,10 @@ public:
     // the sample's (0 = no tempo) and is passed to done (TIME > Autodetect).
     void detectTempo (std::function<void (double bpm)> done);
 
+    // FL's sample shortcuts Ctrl+C / Ctrl+V (Cmd on macOS): copy or paste the
+    // audio. True when the key is one of them.
+    bool keyShortcut (const juce::KeyPress&);
+
     // True while the sample is being dragged out (the editor ignores it as a drop).
     bool isDraggingSampleOut() const noexcept { return draggingOut; }
 

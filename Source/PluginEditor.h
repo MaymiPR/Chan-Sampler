@@ -13,7 +13,8 @@
 // on a 563 x 446 canvas that is scaled to the window size.
 class ChanSamplerEditor : public juce::AudioProcessorEditor,
                           public juce::FileDragAndDropTarget,
-                          private juce::ChangeListener
+                          private juce::ChangeListener,
+                          private juce::KeyListener
 {
 public:
     explicit ChanSamplerEditor (ChanSamplerProcessor&);
@@ -21,6 +22,7 @@ public:
 
     void paint (juce::Graphics&) override;
     void resized() override;
+    void parentHierarchyChanged() override;
 
     bool isInterestedInFileDrag (const juce::StringArray& files) override;
 
@@ -79,6 +81,8 @@ private:
     juce::Component canvas, smpSheet, insSheet, funcSheet;
     std::vector<std::unique_ptr<juce::Component>> owned;
     WaveformView waveform;
+    bool keyPressed (const juce::KeyPress&, juce::Component*) override;
+    juce::Component::SafePointer<juce::Component> keyWindow;   // where keyPressed listens
     juce::Label* fileName = nullptr;
     juce::Label* sampleInfo = nullptr;
     fl::IconTabs* sheetTabs = nullptr;

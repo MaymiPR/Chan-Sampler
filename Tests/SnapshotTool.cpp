@@ -77,7 +77,7 @@ int main (int argc, char** argv)
                 g.reduceClipRegion (0, 0, w, h);
                 lnf.drawPopupMenuBackgroundWithOptions (g, w, h, o);
                 int yy = 1;
-                for (auto& [text, kind] : rows)   // 0 item, 1 highlighted, 2 header, 3 disabled, 4 separator, 5 ticked, 6 ticked + disabled, 7 submenu
+                for (auto& [text, kind] : rows)   // 0 item, 1 highlighted, 2 header, 3 disabled, 4 separator, 5 ticked, 6 ticked + disabled, 7 submenu, 8 Ctrl+C, 9 Ctrl+V disabled
                 {
                     if (kind == 4)
                     {
@@ -94,7 +94,9 @@ int main (int argc, char** argv)
                         continue;
                     }
                     juce::PopupMenu::Item item (text);
-                    item.isEnabled = kind != 3 && kind != 6;
+                    item.isEnabled = kind != 3 && kind != 6 && kind != 9;
+                    if (kind == 8 || kind == 9)
+                        item.shortcutKeyDescription = fl::commandShortcutText (kind == 8 ? 'c' : 'v');
                     item.isTicked = kind == 5 || kind == 6;
                     if (kind == 7)
                         item.subMenu = std::make_unique<juce::PopupMenu>();
@@ -106,7 +108,8 @@ int main (int argc, char** argv)
                                              { "Elastique", 2 }, { "e3 generic", 0 }, { "e3 mono", 0 }, { "Special", 2 },
                                              { "Slice stretch", 0 }, { "Slice map", 0 } });
             drawMenu (130, 10, 112, rmOpts, { { "&Reset", 0 }, { "&Copy value", 1 }, { "Paste &value", 3 }, { "&Type in value...", 0 } });
-            drawMenu (260, 10, 190, ctxOpts, { { "Reload", 0 }, { "Save as...", 1 }, { "Locate file", 0 }, { "", 4 }, { "Get properties", 0 }, { "", 4 },
+            drawMenu (260, 10, 190, ctxOpts, { { "&Reload", 0 }, { "&Save as...", 1 }, { "Locate file", 0 }, { "&Copy", 8 }, { "&Paste", 9 }, { "", 4 },
+                                               { "&Detect tempo", 0 }, { "&Get properties", 0 }, { "", 4 },
                                                { "Spectrum view", 5 }, { "Multichannel waveform view", 6 }, { "Colorful waveforms", 7 } });
         }   // Direct2D draws when the Graphics goes away
         juce::File out { juce::String (argv[2]) };

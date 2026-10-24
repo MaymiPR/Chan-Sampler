@@ -878,14 +878,24 @@ void WaveformView::showMenu()
     juce::PopupMenu menu;
     // FL's sample menu (FL 2026), without its host-only entries (audio
     // editor, pitch corrector, time warper, open in a new channel).
-    menu.addItem ("Reload", hasFile, false, [this] { processor.reloadSample(); });
-    menu.addItem ("Save as...", hasAudio, false, [this] { saveAs(); });
+    // FL's underlined letters choose an entry while the menu is open; Copy and
+    // Paste also answer to Ctrl+C / Ctrl+V in the window (keyShortcut).
+    auto withShortcut = [] (const char* text, char key, bool enabled, std::function<void()> action)
+    {
+        juce::PopupMenu::Item item (text);
+        item.isEnabled = enabled;
+        item.action = std::move (action);
+        item.shortcutKeyDescription = fl::commandShortcutText (key);
+        return item;
+    };
+    menu.addItem ("&Reload", hasFile, false, [this] { processor.reloadSample(); });
+    menu.addItem ("&Save as...", hasAudio, false, [this] { saveAs(); });
     menu.addItem ("Locate file", hasFile, false, [this] { processor.getSampleFile().revealToUser(); });
-    menu.addItem ("Copy", hasAudio, false, [this] { copySample(); });
-    menu.addItem ("Paste", exchange::clipboardHasAudio(), false, [this] { pasteSample(); });
+    menu.addItem (withShortcut ("&Copy", 'c', hasAudio, [this] { copySample(); }));
+    menu.addItem (withShortcut ("&Paste", 'v', exchange::clipboardHasAudio(), [this] { pasteSample(); }));
     menu.addSeparator();
-    menu.addItem ("Detect tempo", hasAudio, false, [this] { detectTempo ({}); });
-    menu.addItem ("Get properties", hasAudio, false, [this] { showProperties(); });
+    menu.addItem ("&Detect tempo", hasAudio, false, [this] { detectTempo ({}); });
+    menu.addItem ("&Get properties", hasAudio, false, [this] { showProperties(); });
     menu.addSeparator();
     menu.addItem ("Spectrum view", true, spectrumView(), [this]
     {
@@ -976,6 +986,23 @@ void WaveformView::detectTempo (std::function<void (double)> done)
             default: apply (0.0); break;
         }
     });
+}
+
+bool WaveformView::keyShortcut (const juce::KeyPress& key)
+{
+    if (key == juce::KeyPress ('c', juce::ModifierKeys::commandModifier, 0))
+    {
+        if (sample != nullptr && sample->getTotalFrames() > 0)
+            copySample();
+        return true;
+    }
+    if (key == juce::KeyPress ('v', juce::ModifierKeys::commandModifier, 0))
+    {
+        if (exchange::clipboardHasAudio())
+            pasteSample();
+        return true;
+    }
+    return false;
 }
 
 void WaveformView::copySample()

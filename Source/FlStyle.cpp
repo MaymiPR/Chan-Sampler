@@ -117,6 +117,71 @@ namespace
         index = t.indexOfChar ('&');
         return index < 0 ? t : t.substring (0, index) + t.substring (index + 1);
     }
+
+    // The underlined letters of the menu about to open (armMenuLetters), handed
+    // to its window when JUCE prepares it; the window owns them from then on.
+    struct MenuLetters final : juce::KeyListener, juce::ComponentListener
+    {
+        std::vector<std::pair<juce::juce_wchar, std::function<void()>>> entries;
+
+        bool keyPressed (const juce::KeyPress& key, juce::Component*) override
+        {
+            const auto mods = key.getModifiers();
+            if (mods.isCommandDown() || mods.isCtrlDown() || mods.isAltDown())
+                return false;
+            const auto c = juce::CharacterFunctions::toLowerCase (key.getTextCharacter());
+            for (auto& [letter, action] : entries)
+                if (letter == c)
+                {
+                    auto chosen = action;
+                    juce::PopupMenu::dismissAllActiveMenus();
+                    juce::MessageManager::callAsync (std::move (chosen));
+                    return true;
+                }
+            return false;
+        }
+
+        void componentBeingDeleted (juce::Component& c) override
+        {
+            c.removeKeyListener (this);
+            c.removeComponentListener (this);
+            delete this;
+        }
+    };
+    std::unique_ptr<MenuLetters> armedLetters;
+}
+
+void armMenuLetters (const juce::PopupMenu& menu)
+{
+    auto letters = std::make_unique<MenuLetters>();
+    for (juce::PopupMenu::MenuItemIterator it (menu); it.next();)
+    {
+        const auto& item = it.getItem();
+        int acc = -1;
+        const auto text = stripAccelerator (item.text, acc);
+        if (acc >= 0 && acc < text.length() && item.isEnabled && item.action != nullptr && item.subMenu == nullptr)
+            letters->entries.emplace_back (juce::CharacterFunctions::toLowerCase (text[acc]), item.action);
+    }
+    armedLetters = letters->entries.empty() ? nullptr : std::move (letters);
+}
+
+juce::String commandShortcutText (char key)
+{
+   #if JUCE_MAC
+    const juce::String prefix ("Cmd+");
+   #else
+    const juce::String prefix ("Ctrl+");
+   #endif
+    return prefix + juce::String::charToString (juce::CharacterFunctions::toUpperCase ((juce::juce_wchar) key));
+}
+
+void LookAndFeel::preparePopupMenuWindow (juce::Component& window)
+{
+    if (armedLetters == nullptr)
+        return;
+    auto* letters = armedLetters.release();   // deleted with the window
+    window.addKeyListener (letters);
+    window.addComponentListener (letters);
 }
 
 void LookAndFeel::drawPopupMenuBackgroundWithOptions (juce::Graphics& g, int w, int h, const juce::PopupMenu::Options& o)
@@ -222,6 +287,16 @@ void LookAndFeel::drawPopupMenuItemWithOptions (juce::Graphics& g, const juce::R
     g.setFont (f);
     const auto textArea = area.withTrimmedLeft (dd ? 4 : 16).withTrimmedRight (dd ? 2 : 12);
     g.drawText (text, textArea, juce::Justification::centredLeft, true);
+
+    // FL's shortcut text: right-aligned, italic, a little dimmer (FL capture: #A0A5A4)
+    if (item.shortcutKeyDescription.isNotEmpty() && ! dd)
+    {
+        g.setColour (item.isEnabled ? juce::Colour (0xffa0a5a4) : rmDisabled);
+        g.setFont (f.italicised());
+        g.drawText (item.shortcutKeyDescription, area.withTrimmedRight (14), juce::Justification::centredRight, false);
+        g.setFont (f);
+        g.setColour (col);
+    }
 
     // FL underlines the shortcut letter of its knob menu entries with a dotted line.
     if (acc >= 0 && acc < text.length())
@@ -702,6 +777,7 @@ void showContextMenu (juce::PopupMenu& menu, juce::Component& target, bool atMou
 {
     target.getProperties().set (contextMenuProperty, true);
     menu.setLookAndFeel (&target.getLookAndFeel());   // otherwise JUCE uses its default look
+    armMenuLetters (menu);
     auto options = juce::PopupMenu::Options().withTargetComponent (&target);
     menu.showMenuAsync (atMouse ? options.withMousePosition() : options);
 }
