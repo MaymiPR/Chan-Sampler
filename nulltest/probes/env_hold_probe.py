@@ -15,7 +15,9 @@ def case(att, hold, bpm, flags):
     y = F.render(f"ehp_{att}_{hold}_{bpm}_{flags}", "signals/dc20.wav", patches, velocity=100, beats=4)[:, 0] / 0.097412109375
     v, T = knots(y[: int(3.5 * 60 / bpm * 44100)], bpm)
     top = int(np.argmax(v > 0.9995))
-    end = top + int(np.argmax(v[top:] < 0.9995)) - 1
+    # The tick-value fit rings slightly (to 0.9995) just before a sharp fall,
+    # so the hold's last tick is the one before the first clearly lower one.
+    end = top + int(np.argmax(v[top:] < 0.99)) - 1
     return top, end
 
 # Params.cpp flEnvSeconds (the six-tempo table, log (t - c) interpolation)

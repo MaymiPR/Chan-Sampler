@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+Fixes
+- The volume, filter and pitch envelopes' hold and decay start on FL's tick
+  after an attack (FL's attack sometimes lasts a tick longer, from its
+  rounding): the default envelope nulls to about -80 dB at any tempo, from
+  -45 to -54 dB.
+
 ## 1.2.3
 
 New

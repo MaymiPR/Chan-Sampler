@@ -149,13 +149,32 @@ namespace dsp
             out = from;
         }
 
+        // FL steps the attack by adding 1 / N per tick in single precision and
+        // ends it once the sum reaches 1: N ticks, or one more when the float
+        // sum falls short (N = 12, 23, 28, 49 ... at full level for that tick).
+        // Measured: right for all 26 attack lengths in the hold runs of
+        // nulltest/probes/env_hold_probe.py (double precision gets 13 wrong).
+        int attackTicks (int n)
+        {
+            if (n != attackStepsFor)
+            {
+                attackStepsFor = n;
+                attackSteps = 0;
+                const float step = 1.0f / (float) n;
+                for (float sum = 0.0f; sum < 1.0f && attackSteps < 4 * n + 4; ++attackSteps)
+                    sum += step;
+            }
+            return attackSteps;
+        }
+
         // The level at the next tick, then one tick on. The delay and the
         // attack end are rounded from the note start, the hold's ticks are its
         // own and its last tick is where the decay starts (or, with no decay
         // time, the last tick before the fall); the decay's ticks are its own
-        // (it runs at a rate down to the sustain level). Measured over 74
-        // attack / hold / tempo combinations (nulltest/probes/env_hold_probe.py), this
-        // gets FL's hold end exactly in 48 and within a tick in the rest.
+        // (it runs at a rate down to the sustain level). Measured over 225
+        // attack / hold / tempo combinations (nulltest/probes/env_hold_probe.py,
+        // with the attack's float steps): 221 exact, the rest holds within
+        // 0.03 tick of a half tick, where the time table's precision decides.
         float level (const Params& p)
         {
             if (stage == Stage::idle)
@@ -171,9 +190,11 @@ namespace dsp
             const int k = ticks++;
             const int delayEnd = stageTicks (p.delay, p);
             const int attackEnd = p.attack > 0 ? stageTicks (p.delay + p.attack, p) : delayEnd;
-            const int holdEnd = attackEnd + stageTicks (p.hold, p);
+            const int attackFull = attackEnd > delayEnd ? delayEnd + attackTicks (attackEnd - delayEnd) : delayEnd;   // FL's float steps
+            const int holdEnd = attackFull + stageTicks (p.hold, p);
             if (k < delayEnd)  { stage = Stage::delay; return 0.0f; }
             if (k < attackEnd) { stage = Stage::attack; return tensionCurve ((float) (k - delayEnd) / (float) (attackEnd - delayEnd), p.attackK); }
+            if (k < attackFull) { stage = Stage::attack; return 1.0f; }
             if (k < holdEnd)   { stage = Stage::hold; return 1.0f; }
             if (stage != Stage::sustain)
             {
@@ -188,6 +209,7 @@ namespace dsp
 
         Stage stage = Stage::idle;
         int ticks = 0;                 // the next tick (from the note start)
+        int attackStepsFor = -1, attackSteps = 0;   // attackTicks' cache
         double releaseTicks = 0;       // the same for the release (it can start between ticks)
         double phase = 0;              // seconds since the last tick
         double segment = 0;            // where the current line starts (a release between ticks)
