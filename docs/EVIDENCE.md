@@ -263,7 +263,7 @@ FL defaults: Use loop points off in a new Sampler channel (on in the channels of
 
 ## Known gaps (diff / approximate)
 
-As of 1.2.1:
+As of 1.2.2:
 
 - **Time-stretch modes:** our own algorithms (pitch-synchronous grains, phase vocoder, e3's band split; see [Time stretching](#time-stretching-against-fls-renders)). FL's elastique is proprietary, so they match FL in duration, pitch, attack timing and character, not sample for sample. Resample with TIME nulls.
 - **Envelope hold end after another timed stage:** FL's rounding of a hold that follows an attack matches a single rule in 48 of 74 measured combinations (nulltest/probes/env_hold_probe.py) and is a tick off in the rest; neither separate nor cumulative rounding explains all of them. A tick off at the hold's end: −45…−54 dB (the default envelope at 65, 100 and 160 BPM, Tempo off). Above raw 47500 the table points are known to ±2 ms only (FL's per-tick steps drift slightly over thousands of ticks).

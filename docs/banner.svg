@@ -42,7 +42,7 @@
     <g font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" text-anchor="middle">
       <text x="640" y="132" font-size="88" font-weight="700" fill="#4df1b1" letter-spacing="3">CHAN SAMPLER</text>
       <text x="640" y="180" font-size="28" fill="#cfd1d2">FL Studio's Channel Sampler, in any DAW</text>
-      <text x="640" y="378" font-size="20" fill="#8a8d8f" letter-spacing="1">VST3 · AU · Standalone   ·   Windows &amp; macOS   ·   Free and open source</text>
+      <text x="640" y="378" font-size="20" fill="#8a8d8f" letter-spacing="1">VST3 · CLAP · AU · Standalone   ·   Windows, macOS &amp; Linux   ·   Free and open source</text>
     </g>
   </g>
 </svg>

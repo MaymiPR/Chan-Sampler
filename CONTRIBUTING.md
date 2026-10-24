@@ -53,6 +53,19 @@ own samples from the FL install.
 - Keep the audio thread allocation-free and lock-free.
 - A behaviour change gets a line in `CHANGELOG.md` under `## Unreleased`,
   written for users.
+- Dependencies are pinned to commits: JUCE by `CHANSAMPLER_JUCE_COMMIT` (the
+  commit its tag pointed to; configuring stops if the tag moves),
+  clap-juce-extensions by its `GIT_TAG`, the workflow actions by SHA with the
+  version in a comment. Update the pin with the version.
+
+## Repository protection
+
+`main` and the `v*` release tags can't be deleted or force-pushed, and release
+tags can't be moved (GitHub rulesets). Secret scanning with push protection,
+Dependabot alerts and private vulnerability reports are on (see
+`SECURITY.md`); Actions may run GitHub's own actions only, with read-only
+tokens except the release job, and outside contributors' pull requests wait
+for approval before CI runs.
 
 ## Making a release
 
