@@ -187,6 +187,20 @@ int main()
         check (rms (v, sec / 2, sec / 2 + 4800) < 1.0e-4f, "env on: release silences note");
     }
 
+    // Arpeggio TIME "Hold": the first note only, until every key is up (FL).
+    {
+        auto longSample = buildProcessedSample (sine (4.0), plain);
+        auto p = params();
+        p.arpDir = 1;
+        p.arpTime = 0.0f;
+        p.arpGate = 0.5f;
+        auto v = render (*longSample, p, 3 * sec, { { 0, on (60) }, { 0, on (64) }, { sec / 2, on (67) },
+                                                    { sec, off (60) }, { 2 * sec, off (64) }, { 2 * sec, off (67) } });
+        const auto f = frequency (v, sec + sec / 4, 2 * sec - 2400);
+        check (std::abs (f - 440) < 5, "arp Hold keeps the first note", juce::String (f, 1) + " Hz");
+        check (rms (v, 2 * sec + 4800, 3 * sec) < 1.0e-4f, "arp Hold ends when every key is up");
+    }
+
     // Looping sustains past the sample's length.
     {
         auto shortSample = buildProcessedSample (sine (0.25), plain);

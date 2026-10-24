@@ -33,3 +33,15 @@ for raw in (-2, 0, 1, 5, 10):
     c["fl"].append(F.params(48, '<i', raw)); c["ours"]["arpChord"] = raw + 2
     CASES.append(c)
 c = arp("a_slide", 1); c["fl"].append(F.params(60, '<B', 1)); c["ours"]["arpSlide"] = 1; CASES.append(c)
+
+# TIME "Hold" (raw 1447, our knob 1): the first step only, until every key is up
+# (probes/arp_hold_probe.py). Keys added later and GATE change nothing.
+HOLD = [F.params(52, '<i', 1447)]
+for name, notes, extra, ours in (
+        ("a_hold", CHORD, [], {}),
+        ("a_hold_down", CHORD, [F.params(40, '<i', 2)], {"arpDir": 2}),
+        ("a_hold_stagger", [(0, 8, 60, 100), (2, 6, 64, 100), (4, 4, 67, 100), (10, 4, 60, 100), (10, 4, 64, 100)], [], {}),
+        ("a_hold_gate", CHORD, [F.params(56, '<i', 24)], {"arpGate": 0.5})):
+    c = arp(name, 1, notes=notes)
+    c["fl"] += HOLD + extra; c["ours"].update(arpTime=1.0, **ours)
+    CASES.append(c)

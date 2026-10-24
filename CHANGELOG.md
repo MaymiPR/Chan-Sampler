@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+Fixes
+- Arpeggiator TIME "Hold" now works as in FL: the arpeggio's first note
+  plays and holds until every key is up (it used to step once a bar).
+
 ## 1.2.2
 
 Faster

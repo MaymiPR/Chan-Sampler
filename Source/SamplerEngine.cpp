@@ -492,14 +492,19 @@ void SamplerEngine::advanceArp (int64_t until, const EngineParams& p)
         return;
 
     // Measured in FL: step k starts at round (k * step) samples after the
-    // first (not a rounded step added up). TIME "Hold" is approximated as one
-    // note per bar.
-    const auto step = samplesPerStep (p) * (p.arpTime > 0.0f ? (double) p.arpTime : 16.0);
-    auto advance = [this, step]
+    // first (not a rounded step added up). TIME "Hold": only the first step
+    // plays, ignoring GATE, keys pressed later and the sample running out,
+    // until every key is up (nulltest/probes/arp_hold_probe.py).
+    const bool hold = p.arpTime <= 0.0f;
+    const auto step = samplesPerStep (p) * (hold ? 1.0 : (double) p.arpTime);
+    auto advance = [this, step, hold]
     {
         ++arpSteps;
-        arpNextStep = juce::jmax (arpNextStep + 1, arpStart + (int64_t) std::llround ((double) arpSteps * step));
+        arpNextStep = hold ? std::numeric_limits<int64_t>::max()
+                           : juce::jmax (arpNextStep + 1, arpStart + (int64_t) std::llround ((double) arpSteps * step));
     };
+    if (! hold && arpNextStep == std::numeric_limits<int64_t>::max())   // TIME turned off Hold
+        arpNextStep = juce::jmax (until, arpStart + (int64_t) std::llround ((double) arpSteps * step));
     while (arpNextStep <= until)
     {
         // Sequence: chord notes ascending, repeated per octave over the range.
@@ -591,12 +596,15 @@ void SamplerEngine::advanceArp (int64_t until, const EngineParams& p)
         mods.arp = true;
         mods.legatoOnly = p.arpSlide && arpIndex > 0;
         playNoteOn (arpNextStep, note, heldVel.empty() ? 1.0f : heldVel.back(), mods, p);
-        NoteMods offMods;
-        offMods.arp = true;
-        // The gate ends on the same absolute grid as the steps, so a full gate
-        // ends exactly where the next step starts.
-        const auto offTime = arpStart + (int64_t) std::llround (((double) arpSteps + juce::jlimit (0.05, 1.0, (double) p.arpGate)) * step);
-        schedule ({ juce::jmax (arpNextStep + 1, offTime), false, note, 0.0f, offMods });
+        if (! hold)
+        {
+            NoteMods offMods;
+            offMods.arp = true;
+            // The gate ends on the same absolute grid as the steps, so a full
+            // gate ends exactly where the next step starts.
+            const auto offTime = arpStart + (int64_t) std::llround (((double) arpSteps + juce::jlimit (0.05, 1.0, (double) p.arpGate)) * step);
+            schedule ({ juce::jmax (arpNextStep + 1, offTime), false, note, 0.0f, offMods });
+        }
 
         ++arpIndex;
         advance();
