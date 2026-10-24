@@ -16,6 +16,8 @@ Faster
 Fixes
 - Arpeggiator TIME "Hold" now works as in FL: the arpeggio's first note
   plays and holds until every key is up (it used to step once a bar).
+- The spectrum view is closer to FL's on real sounds: it was about 2 dB
+  too dark.
 - SMP LENGTH trims now end on the frame FL ends on (they were often a frame
   long, from rounding), and a trim that lands in silence fades where the
   sound stops, as in FL: the trim cases null about 15 dB deeper.

@@ -1354,11 +1354,14 @@ void WaveformView::drawSpectrum (juce::Graphics& g, juce::Rectangle<float> area)
         const int shortLen = juce::jmax (16, (int) std::lround (328.0 * rateScale));
         const double longSigma = 152.0 * rateScale;
         const int longLen = (int) std::lround (8.0 * longSigma);
-        int specOrder = 11;   // 2048 points at 44.1 / 48 kHz
+        // 4096 points at 44.1 / 48 kHz: a row shows the loudest of its bins, and
+        // FL's rows on dense real sounds need that fine a grid (2048 points
+        // read 2 dB dark on real samples: 2.6 against 1.8 dB per 4 x 8 block).
+        int specOrder = 12;
         while ((1 << specOrder) < longLen)
             ++specOrder;
         const int specSize = 1 << specOrder;
-        const int peakSpan = juce::jmax (1, (int) std::lround (32.0 * (44100.0 / 2048.0) / (sr / specSize)));
+        const int peakSpan = juce::jmax (1, (int) std::lround (32.0 * (44100.0 / 4096.0) / (sr / specSize)));
         const int bins = specSize / 2;
 
         std::vector<float> shortWin ((size_t) shortLen), longWin ((size_t) longLen);
