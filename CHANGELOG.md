@@ -10,6 +10,8 @@ Faster
 Fixes
 - Arpeggiator TIME "Hold" now works as in FL: the arpeggio's first note
   plays and holds until every key is up (it used to step once a bar).
+- The LPx2 filter near maximum resonance matches FL at the start of each note:
+  its level settles over two ticks there, as in FL, instead of one.
 
 ## 1.2.2
 

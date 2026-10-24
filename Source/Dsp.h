@@ -305,7 +305,7 @@ namespace dsp
     //  LP/BP/HP/BS : RBJ biquads; f0 and Q interpolated from measured tables.
     //  SVF LP  : Chamberlin state variable filter, f = (26^u - 1) / 25, q = 1 - 0.8 res.
     //  LPx2 / SVF LPx2 : two stages in series (SVF LPx2 nulls exactly; LPx2, with its
-    //            level compensation, at -44 to -63 dB).
+    //            level compensation, at -44 to -63 dB; slew-limited from unity at a note's start).
     double flOnePoleF (double u);
     double flResonance (double res);
     double flBiquadF0 (double u);   // Hz
@@ -315,8 +315,18 @@ namespace dsp
     class VoiceFilter
     {
     public:
-        // A note starts at unity and reaches the LPx2 compensation after a tick.
-        void startCompensation (int tickSamples) { compNow = 1.0; compLeft = juce::jmax (1, tickSamples); }
+        // A note starts at unity and glides to the LPx2 compensation tick by
+        // tick, linearly within each, moving at most maxStepPerTick per tick
+        // (FL's envelope slew: one tick at maximum resonance isn't enough).
+        void startCompensation (int tickSamples, double maxStepPerTick)
+        {
+            compNow = 1.0;
+            compTick = juce::jmax (1, tickSamples);
+            compStep = maxStepPerTick;
+            compLeft = 0;
+            gliding = true;
+            compStarted = false;
+        }
 
         void reset()
         {
@@ -393,10 +403,21 @@ namespace dsp
                 case FilterType::lpx2:
                 {
                     const auto y = biquad (st[ch + 2], biquad (st[ch], x)) * compNow;
-                    if (ch == 1)   // once per sample: glide to the compensation over the first tick
+                    if (ch == 1)   // once per sample
                     {
-                        if (compLeft > 0) { compNow += (comp - compNow) / compLeft; --compLeft; }
-                        else              compNow = comp;
+                        if (gliding && compLeft == 0)   // a tick starts: its target
+                        {
+                            if (compStarted && compTo == comp)
+                                gliding = false;
+                            else
+                            {
+                                compTo = std::abs (comp - compNow) <= compStep ? comp : compNow + (comp > compNow ? compStep : -compStep);
+                                compLeft = compTick;
+                                compStarted = true;
+                            }
+                        }
+                        if (gliding) { compNow += (compTo - compNow) / compLeft; --compLeft; }
+                        else         compNow = comp;
                     }
                     return (float) y;
                 }
@@ -424,8 +445,9 @@ namespace dsp
         }
 
         FilterType type = FilterType::fastLP;
-        double comp = 1, compNow = 1;   // LPx2 level compensation: target, current
-        int compLeft = 0;                // samples left in the first-tick glide
+        double comp = 1, compNow = 1, compTo = 1, compStep = 1;   // LPx2 level compensation: target, current, this tick's end, slew per tick
+        int compLeft = 0, compTick = 1;                           // samples left in this tick, tick length
+        bool gliding = false, compStarted = false;
         double f = 1, r = 0, q = 1, q2 = 1, b0 = 1, b1 = 0, b2 = 0, a1 = 0, a2 = 0;
         State st[4];   // [0..1] first stage L/R, [2..3] second stage L/R
     };

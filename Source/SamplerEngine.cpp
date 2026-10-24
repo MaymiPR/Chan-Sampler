@@ -788,7 +788,8 @@ void SamplerEngine::noteOn (int note, float velocity, NoteMods mods, const Sampl
     const auto loop = loopFrames (s, p);
 
     v = Voice();
-    v.filter.startCompensation ((int) std::lround (tickSamples (sampleRate, p)));   // LPx2 (measured)
+    v.filter.startCompensation ((int) std::lround (tickSamples (sampleRate, p)),   // LPx2 (measured)
+                                tickSeconds (p.bpm) / dsp::Envelope::fullRangeSeconds);
     v.active = true;
     v.note = note;
     v.velocity = velocity;
