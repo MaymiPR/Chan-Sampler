@@ -16,6 +16,9 @@ Faster
 Fixes
 - Arpeggiator TIME "Hold" now works as in FL: the arpeggio's first note
   plays and holds until every key is up (it used to step once a bar).
+- SMP LENGTH trims now end on the frame FL ends on (they were often a frame
+  long, from rounding), and a trim that lands in silence fades where the
+  sound stops, as in FL: the trim cases null about 15 dB deeper.
 - The LPx2 filter near maximum resonance matches FL at the start of each note:
   its level settles over two ticks there, as in FL, instead of one.
 

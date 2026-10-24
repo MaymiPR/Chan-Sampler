@@ -4,6 +4,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
 
 // Every process here was measured against FL Studio's Sampler by rendering
 // test projects through FL and null-testing (nulltest/, docs/EVIDENCE.md).
@@ -405,8 +407,21 @@ namespace
 
 double trimKnobToFraction (float knob)
 {
-    // FL 2026 stores Sample Start / Length as plain fractions (doubles).
-    return juce::jlimit (0.0, 1.0, (double) knob);
+    // FL 2026 stores Sample Start / Length as plain fractions (doubles), and
+    // its rounding of fraction x frames depends on the exact double (0.05 x
+    // 88200 is 4410 frames, 0.3 x 88200 rounds up to 26461). The parameter is
+    // a float, so take the shortest decimal that reads back as it (0.05f is
+    // 0.05): the double FL holds for the same value (0.05f itself would give 4411).
+    const auto f = juce::jlimit (0.0f, 1.0f, knob);
+    for (int digits = 1; digits <= 9; ++digits)
+    {
+        char text[32];
+        std::snprintf (text, sizeof (text), "%.*g", digits, (double) f);
+        const auto d = std::strtod (text, nullptr);
+        if ((float) d == f)
+            return juce::jlimit (0.0, 1.0, d);
+    }
+    return (double) f;
 }
 
 void SampleData::computePeaks()
@@ -489,8 +504,8 @@ SampleData::Ptr buildProcessedSample (const RawSample& raw, const PrecomputeSett
         }
 
     // 2. Sample Start / Length with FL's short trim fades (measured in FL):
-    // start = round (start * (N - 1)), length = ceil (fraction * what remains), at
-    // least 40 frames; a fade shorter than the table is compressed to fit.
+    // start = round (start * (N - 1)), length as below, at least 40 frames; a
+    // fade shorter than the table is compressed to fit.
     // A start exactly between two frames (e.g. 50%) rounds up for the play
     // position but down for the length count, so FL's segment then runs one
     // frame past the end of the sample (silence; measured, with Reverse too).
@@ -498,13 +513,19 @@ SampleData::Ptr buildProcessedSample (const RawSample& raw, const PrecomputeSett
     const int start = juce::jlimit (0, converted - 1, (int) std::floor (startPos + 0.5));
     const int remaining = converted - juce::jlimit (0, converted - 1, (int) std::ceil (startPos - 0.5));
     constexpr int minLength = 40;
-    const int len = juce::jlimit (juce::jmin (minLength, remaining), remaining,
-                                  (int) std::ceil (trimKnobToFraction (s.length) * remaining));   // FL rounds up
+    // Length: the fraction of the span from the exact start position to the
+    // last frame, rounded half to even, one frame more reversed (fitted to
+    // FL's end in 85 forward and 15 reversed in-FL trims of noise, all exact).
+    // 100% is the whole remainder, untrimmed.
+    const auto lengthFraction = trimKnobToFraction (s.length);
+    const auto span = (int) std::nearbyint (lengthFraction * ((converted - 1) - startPos));
+    const int len = lengthFraction >= 1.0 ? remaining
+                                          : juce::jlimit (juce::jmin (minLength, remaining), remaining, span + (s.reverse ? 1 : 0));
     // FL's shortest segment (LENGTH at its minimum) carries two silent frames
     // after its 40 (measured: forwards the end holds silence, reversed it
     // starts two frames late).
     const bool atMinimum = len == minLength && len < remaining
-                        && (int) std::ceil (trimKnobToFraction (s.length) * remaining) < minLength;
+                        && span < minLength;
     const int bufLen = len + (atMinimum ? 2 : 0);
 
     // Nothing to process (the usual case): play the file's own audio, without
@@ -532,6 +553,23 @@ SampleData::Ptr buildProcessedSample (const RawSample& raw, const PrecomputeSett
     main.clear();
     for (int ch = 0; ch < 2; ++ch)
         main.copyFrom (ch, 0, whole, wholeChannel (s.swapStereo ? 1 - ch : ch), start, juce::jmin (len, converted - start));
+    // A segment that Length cuts short ends, for FL's end filter, at its last
+    // sound: trailing digital silence is left out (measured on a trim landing
+    // in a gap of silence: FL fades where the sound stops, -77 dB against
+    // FL's render, not inside the silence, -49 dB).
+    int end = len;
+    if (len < remaining)
+    {
+        int last = -1;
+        for (int ch = 0; ch < 2; ++ch)
+        {
+            const auto* d = main.getReadPointer (ch);
+            for (int i = juce::jmin (len, converted - start) - 1; i > last; --i)
+                if (d[i] != 0.0f) { last = i; break; }
+        }
+        if (last >= 0)
+            end = last + 1;
+    }
     b.setSize (0, 0);   // the converted copy is no longer needed
     if (s.reversePolarity)
         for (int ch = 0; ch < 2; ++ch)
@@ -569,18 +607,18 @@ SampleData::Ptr buildProcessedSample (const RawSample& raw, const PrecomputeSett
             // FL's trimmed end is a linear filter over the last frames, not a
             // plain fade (measured, TrimTail.h): each output mixes the input
             // from its own position back to about twice its distance from the end.
-            const int tailLen = juce::jmin (len, trimtail::size);
+            const int tailLen = juce::jmin (end, trimtail::size);
             float in[trimtail::size + 1] {};
             for (int dist = 1; dist <= tailLen; ++dist)
-                in[dist] = d[len - dist];
-            if (len == trimtail::shortSize)   // FL's shortest segment has its own table
+                in[dist] = d[end - dist];
+            if (end == trimtail::shortSize && len == trimtail::shortSize)   // FL's shortest segment has its own table
             {
                 for (int dist = 1; dist <= len; ++dist)
                 {
                     float acc = 0.0f;
                     for (int k = 1; k <= len; ++k)
                         acc += trimtail::short40[(dist - 1) * len + (k - 1)] * in[k];
-                    d[len - dist] = acc;
+                    d[end - dist] = acc;
                 }
             }
             else
@@ -592,7 +630,7 @@ SampleData::Ptr buildProcessedSample (const RawSample& raw, const PrecomputeSett
                     float acc = 0.0f;
                     for (int k = 0; k < count; ++k)
                         acc += c[k] * in[dist + k];
-                    d[len - dist] = acc;
+                    d[end - dist] = acc;
                 }
             }
         }

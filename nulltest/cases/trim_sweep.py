@@ -15,3 +15,11 @@ def sweep(sample="signals/noise.wav"):
     return C
 
 CASES = sweep()
+
+# Other content and levels: FL's trims don't depend on the level (noise_q and
+# sine_small null like noise and sine); loud.wav at START 0.8 / LENGTH 0.3 cuts
+# in a gap of silence, where FL fades at the end of the sound.
+for smp in ('noise.wav', 'noise_q.wav', 'loud.wav', 'decay.wav', 'sine.wav', 'sine_small.wav'):
+    for st, ln in ((0.5, 0.05), (0.0, 0.05), (0.8, 0.3)):
+        CASES.append(dict(name=f"tl_{smp.split('.')[0]}_s{st}_l{ln}", sample='signals/' + smp,
+                          fl=[F.params(128, '<d', st), F.params(136, '<d', ln)], ours={"pcStart": st, "pcLength": ln}))
