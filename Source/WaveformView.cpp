@@ -990,13 +990,21 @@ void WaveformView::detectTempo (std::function<void (double)> done)
 
 bool WaveformView::keyShortcut (const juce::KeyPress& key)
 {
-    if (key == juce::KeyPress ('c', juce::ModifierKeys::commandModifier, 0))
+    // Windows hands Ctrl + a letter over as its control character (Ctrl+C = 3).
+    const auto mods = key.getModifiers();
+    if (! mods.isCommandDown() || mods.isShiftDown() || mods.isAltDown())
+        return false;
+    auto code = key.getKeyCode();
+    if (code >= 1 && code <= 26)
+        code += 'a' - 1;
+    code = (int) juce::CharacterFunctions::toLowerCase ((juce::juce_wchar) code);
+    if (code == 'c')
     {
         if (sample != nullptr && sample->getTotalFrames() > 0)
             copySample();
         return true;
     }
-    if (key == juce::KeyPress ('v', juce::ModifierKeys::commandModifier, 0))
+    if (code == 'v')
     {
         if (exchange::clipboardHasAudio())
             pasteSample();
