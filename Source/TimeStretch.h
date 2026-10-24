@@ -200,16 +200,33 @@ private:
         bool monoFrame = true;   // both channels the same: the spectral work is done once
         auto readWindow = [&]
         {
-            std::fill (std::begin (blockEnergy), std::end (blockEnergy), 0.0f);
-            monoFrame = true;
+            bool same = true;
             for (int i = 0; i < n; ++i)
             {
                 float l, r;
                 read (pos + i, l, r);
-                monoFrame = monoFrame && l == r;
+                same &= l == r;
                 power[(size_t) i] = l * l + r * r;
-                blockEnergy[juce::jmin (63, i / block)] += power[(size_t) i];
                 spec[(size_t) i] = { l * window[(size_t) i], r * window[(size_t) i] };
+            }
+            monoFrame = same;
+        };
+        // Each block's energy, summed in sample order (only attack detection
+        // needs it). The blocks' sums are independent: run them side by side.
+        auto sumBlocks = [&]
+        {
+            std::fill (std::begin (blockEnergy), std::end (blockEnergy), 0.0f);
+            const int blocks = n / block;
+            if (n % block == 0 && blocks <= 64)
+            {
+                for (int i = 0; i < block; ++i)
+                    for (int b = 0; b < blocks; ++b)
+                        blockEnergy[b] += power[(size_t) (b * block + i)];
+            }
+            else
+            {
+                for (int i = 0; i < n; ++i)
+                    blockEnergy[juce::jmin (63, i / block)] += power[(size_t) i];
             }
         };
         readWindow();
@@ -255,6 +272,7 @@ private:
             // before it, then the attack to the sample (FL's e3 puts each
             // one at the same place, measured with clicks): the first sample
             // over a tenth of the attack block's peak level.
+            sumBlocks();
             int attackAt = -1;
             for (int b = 4; b < juce::jmin (64, n / block) && attackAt < 0; ++b)
             {

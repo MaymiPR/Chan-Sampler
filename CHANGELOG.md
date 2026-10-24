@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+Faster
+- Stretch and e2 transient use about 9% less CPU, Stretch Pro about 6%, e2
+  generic and e3 generic 3-5%, on stereo samples as well as mono; the sound
+  is bit-for-bit the same.
+
 Fixes
 - Arpeggiator TIME "Hold" now works as in FL: the arpeggio's first note
   plays and holds until every key is up (it used to step once a bar).
