@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.2.3
 
 New
 - The sample menu's keyboard shortcuts, as in FL: Ctrl+C / Ctrl+V (Cmd on
