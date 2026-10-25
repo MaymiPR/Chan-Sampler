@@ -204,6 +204,28 @@ distance to FL's renders (`nulltest/stretch/`, `nulltest/E3_NOTES.md`).
   3.75 / 2.52 / 3.05 dB (e3 generic, x2 / x0.5 / x4); e2 generic, e3 mono
   and e2 speech 1.5-6.1. Resample, Stretch and Stretch Pro loop in real
   time in FL too (period = the loop, 253).
+- **Stretch-ratio grid (after 1.2.3):** FL stretches by the ratio rounded
+  down to a grid and resamples the rest: e3 generic (and Auto) and e2
+  transient 1/512, e2 generic 1/256 (the e3 / e2 mono and e2 speech grains
+  don't drift; Stretch / Stretch Pro unclear). Its read interpolator dulls
+  the treble with the fractional position, so the 15-20 kHz level ripples
+  at exactly the drift, |MUL / grid ratio - 1| x 44100 Hz: predicted to
+  within 1 % over 25 MUL settings (e3; 7 for e2 generic), none where MUL is
+  on the grid (x1.5, x2, x0.75, x0.5). Chan Sampler does the same. Against
+  FL: e3 generic's 30 in-FL pitch cases null -1.21 -> -3.06 dB raw, -2.72 ->
+  -4.44 dB fitted (the Rhodes -11 ... -17.6 dB at every pitch), spectrum
+  2.02 -> 1.99; real material (stretcher alone) e2 transient -1.16 -> -2.31
+  dB and e2 generic -1.00 -> -2.45 dB fitted.
+- **e3's grain period (after 1.2.3):** measured from the upper band only
+  (an echo only below the split leaves the splices random), the strongest
+  correlation wins (of two echoes the stronger, at equal strength either),
+  with no floor (a 0.2 echo still sets most splices) and a lean to the
+  middle of the 40..512 range: FL's splices on noise span 132 / 215 / 283 /
+  337 / 397 samples (10th..90th percentile). Chan Sampler had a 0.3 floor
+  and fell back to a fixed 256 on noise and weak periodicity: splices every
+  256 samples, a 20 dB flutter in the treble's modulation spectrum where FL
+  has 3 dB; now 3-4 dB. FL's exact choice on noise is still not reproduced
+  (21% of splices). nulltest/stretch/ratio_grid.py, E3_NOTES.md round 9.
 
 Evidence: nulltest/stretch/stretch_check.py, nulltest/stretch/stretch_vs_fl.py,
 nulltest/stretch/real_material.py, e3_clicks.wav.

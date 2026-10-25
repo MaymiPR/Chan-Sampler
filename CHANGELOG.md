@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+Closer to FL
+- e3 generic, Auto, e2 generic and e2 transient stretch at FL's internal
+  ratio grid and resample the rest, as FL does: e3 generic's in-FL pitch
+  cases null about 2 dB deeper on average (most on sustained tones such as
+  a Rhodes), and when squeezing, the treble now ripples like FL's.
+- e3 generic splices its upper band at irregular, FL-like periods on noisy
+  sounds (hats, cymbals) instead of every 256 samples, which added a
+  periodic flutter.
+
 Fixes
 - The volume, filter and pitch envelopes' hold and decay start on FL's tick
   after an attack (FL's attack sometimes lasts a tick longer, from its

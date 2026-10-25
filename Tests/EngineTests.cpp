@@ -556,10 +556,10 @@ int main()
             };
             struct Row { StretchMode mode; const char* name; int lags[4]; };
             const Row rows[] = {
-                { StretchMode::e3Generic,   "e3 generic",    { -4, -24, 8, 20 } },
+                { StretchMode::e3Generic,   "e3 generic",    { -20, 4, 12, 4 } },
                 { StretchMode::stretch,     "Stretch",       { -144, -148, -104, -216 } },
                 { StretchMode::stretchPro,  "Stretch Pro",   { -76, -56, -44, -84 } },
-                { StretchMode::e2Generic,   "e2 generic",    { -148, -88, -72, -60 } },
+                { StretchMode::e2Generic,   "e2 generic",    { -168, -36, -84, -56 } },
                 { StretchMode::e2Transient, "e2 transient",  { 20, 104, 12, 164 } },
                 { StretchMode::e3Mono,      "e3 mono",       { 4, -20, 12, 12 } },
                 { StretchMode::e2Mono,      "e2 mono",       { 0, -12, 0, 0 } },

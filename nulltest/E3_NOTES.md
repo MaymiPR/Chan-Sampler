@@ -242,9 +242,42 @@ reproduce these measurements are in stretch/ (see README.md).
   attack (x0.667: up then down to x0.7) and keeps x1.1 (0.132 either way).
   Neutral on real material.
 
+## Ratio grid and period estimator (round 9, after 1.2.3)
+
+- **Ratio grid.** FL's e3 stretches by floor(MUL x 512) / 512 and resamples
+  the remainder (e2 transient the same, e2 generic 1/256). Found from a
+  15-20 kHz level ripple FL makes on noise: its rate is the drift
+  |MUL / grid - 1| x 44100 Hz, predicted to 1% at 25 settings (25-28 dB
+  peaks; none at grid ratios). Rounding to nearest fails; so does a grid on
+  the speed. It is the read interpolator's treble loss following the
+  fractional position (round 4's Catmull/Lagrange). In the plugin: the
+  stretcher runs at the grid ratio, the FIFO is read at increment x
+  grid / wanted. In FL (30 pitch cases): null raw -1.21 -> -3.06, fitted
+  -2.72 -> -4.44; envelope 1.64 -> 1.64; spectrum 2.02 -> 1.99. Over whole
+  renders (cases/e3_pitch_cases.py) the Rhodes at +-300 / -700 gains 3-4 dB,
+  the vocal -300 2.1 dB; the vocal -700 loses 2.9 dB (1.0 -> 3.9); the rest
+  moves within 0.4 dB.
+- **Period estimator.** Noise plus echoes, FL's splice jumps
+  (ratio_grid.py's tracker, refined per splice): upper band only (an echo
+  only below 1.4 kHz gives random jumps); the stronger of two echoes wins;
+  a 0.1 echo sets 20% of splices, 0.2 78%, 0.35 all (no floor); an echo
+  that changes delay mid-file changes the splices from one near the change
+  (window around the splice). On noise FL's jumps span 132 / 215 / 283 /
+  337 / 397 (10..90th pct): a lean to mid-range lags. Ours had a 0.3 floor
+  and used its 256 fallback on all noise (a 20 dB treble flutter at the
+  splice rate); now no floor and a mid-range pull (score - 0.04 ((L - mid) /
+  half)^2): 139 / 184 / 255 / 336 / 397. Exact choice on noise: best 21% of
+  splices (window 512 at the splice + 128, any normalised correlation; the
+  envelope, the cepstrum and period-length windows do worse). FL decides the
+  jump before it is due (jump size correlates 0.76 with the drift at the
+  jump), so its estimate is made earlier; when is not known.
+- Soft start re-measured (e3_am): the grains alone now need +60 source
+  samples at x0.667 (cleared at an attack): e3 soft-start error 28 -> 9
+  samples mean over the four cases.
+
 ## Open
 
-- The period estimator (range, method, resolution).
+- The period estimator's exact choice on noise (when it is made; 21% now).
 - Grain window shape, how analysis marks are placed.
 - The low band's frame / hop / phase handling.
 - The transient gain rule.

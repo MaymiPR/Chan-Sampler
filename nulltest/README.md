@@ -88,6 +88,7 @@ FL rendered).
 | `e3_attacks.py` | e3 generic's attack timing on bursts stepped through FL's 512-sample grid (PITCH and MUL), shaped bursts, and the low band's gain while an attack is held |
 | `soft_start.py` | where each mode puts a note that starts softly (no attack) |
 | `e3_parity.py` | single-sample clicks at exactly ±1200 cents |
+| `ratio_grid.py` | FL's stretch-ratio grid (the treble ripple's rate per MUL) and e3's splice sizes on noise, FL against ours |
 | `metrics.py`, `common.py` | the distances, the mode table, our stretcher run on its own |
 
 FL's own samples are read from the FL install, never copied here.

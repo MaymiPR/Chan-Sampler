@@ -55,7 +55,13 @@ public:
     void next (Reader&& read, double increment, double timeRate, float formantCents, float& outL, float& outR)
     {
         // Up to FL's TIME range on short samples (48 bars of a 0.2 s hit is x400 and more).
-        const double alpha = juce::jlimit (1.0 / 4096.0, 4096.0, increment / juce::jmax (1.0e-9, timeRate));
+        const double wanted = juce::jlimit (1.0 / 4096.0, 4096.0, increment / juce::jmax (1.0e-9, timeRate));
+        // FL stretches by the ratio rounded down to its grid (e3 generic and
+        // e2 transient 1/512, e2 generic 1/256) and resamples the rest:
+        // measured over 25 MUL settings (7 for e2 generic), the treble ripple
+        // its read interpolator makes runs at exactly that drift; ratios on
+        // the grid (x1.5, x2 ...) don't drift.
+        const double alpha = ratioSteps > 0 ? juce::jmax (1.0 / ratioSteps, std::floor (wanted * ratioSteps) / ratioSteps) : wanted;
         if (! aligned)
         {
             // Measured with clicks: the vocoder's output would run early by a
@@ -85,7 +91,7 @@ public:
         outR = cubic (fifoR, i, t);
         // The grains are made at the output's pitch (PSOLA), so the FIFO is
         // only resampled between the source's and the output's rates.
-        readPos += algo == Algo::grains && psola ? 1.0 / sourceToOutputRateScale : increment;
+        readPos += algo == Algo::grains && psola ? 1.0 / sourceToOutputRateScale : increment * (alpha / wanted);
     }
 
     // Pitch ratio = increment * this (output rate / source rate).
@@ -314,6 +320,10 @@ private:
                 const bool lastSeen = attackAt * block - ha < 4 * block;   // the next frame won't detect it
                 if (fits || lastSeen)
                 {
+                    // The grains' soft-start latency is for a soft start
+                    // only: from an attack on they keep its timing.
+                    hfIdeal -= hfSoftShift;
+                    hfSoftShift = 0.0;
                     apos = juce::jmax ((double) (pos - frame), centreStart - (double) ahead * hop);
                     lockFrames = ahead + 1;   // up to the one centred on it
                     locked = true;
@@ -604,7 +614,10 @@ private:
         double eSeg = 0.0;
         for (int i = 0; i < W; ++i)
             eSeg += (double) hfSeg[(size_t) (lo + i)] * hfSeg[(size_t) (lo + i)];
-        double bestScore = 0.3;
+        // e3 generic takes the best lag however weak (FL: a 0.2 echo still
+        // sets most splices, plain noise gives random ones, never a fixed
+        // fallback); the other modes keep a floor (not measured in FL).
+        double bestScore = e3Estimator ? -1.0 : 0.3;
         for (int l = lo; l <= hi; ++l)
         {
             if (l > lo)
@@ -612,7 +625,12 @@ private:
                       - (double) hfSeg[(size_t) (l - 1)] * hfSeg[(size_t) (l - 1)];
             const double score = hfWork[(size_t) l].real() / std::sqrt (eRef * juce::jmax (1.0e-12, eSeg));
             hfScore[(size_t) l] = (float) score;
-            if (score > bestScore) { bestScore = score; hfEstPeriod = l; }
+            // e3 generic leans to the middle of the range: FL's lags on noise
+            // spread as 132 / 215 / 283 / 337 / 397 (10th..90th percentile),
+            // not evenly over 40..512 (fitted on 1059 splices).
+            const double mid = 0.5 * (lo + hi), half = 0.5 * (hi - lo);
+            const double ranked = e3Estimator ? score - hfLagPull * ((l - mid) / half) * ((l - mid) / half) : score;
+            if (ranked > bestScore) { bestScore = ranked; hfEstPeriod = l; }
         }
         if (grainsOnly)
         {
@@ -833,8 +851,11 @@ private:
     static constexpr float hfPi = juce::MathConstants<float>::pi;
     static constexpr int hfRingSize = 1 << 15, hfRingMask = hfRingSize - 1;
     bool hybrid = false, hfBand = false, grainsOnly = false, psola = true, hfStarted = false;
+    int ratioSteps = 0;          // FL's stretch-ratio grid (steps per unit), 0 = none
+    bool e3Estimator = false;    // e3 generic's grain period search (FL's, measured)
     int lowBins = 0;                       // vocoder bins kept (below the split)
     int hfWindow = 1024, hfMinPeriod = 90, hfMaxPeriod = 600, hfFallback = 256, hfEstOrder = 11, hfHalfKernel = 1023;
+    double hfLagPull = 0.04;   // e3 generic's pull towards mid-range lags
     int hfFilterOrder = 12, hfBlock = 2048, hfCacheLo = 0, hfCacheHi = 0, hfEstPeriod = 256, hfEstOffset = 8;
     double hfEstPos = -1.0e9, hfEstReuse = 128.0, hfScale = 1.0;
     static constexpr int hfCacheSize = 1 << 15, hfEnergySlots = 1 << 12;

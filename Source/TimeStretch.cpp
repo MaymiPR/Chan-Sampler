@@ -137,11 +137,15 @@ void TimeStretcher::configure (StretchMode mode, double sourceRate)
         case StretchMode::stretchPro:  soft15 = 12.0;  soft067 = 267.0; break;
         case StretchMode::e2Transient: soft15 = -50.0; soft067 = 30.0;  break;
         case StretchMode::e2Generic:   soft15 = -157.0; soft067 = -30.0; hfSoft15 = 112.0; hfSoft067 = 96.0; break;
+        case StretchMode::e3Generic:
+        case StretchMode::autoMode:    hfSoft067 = 60.0; break;   // the grains, with the 1/512 ratio grid (measured with e3_am)
         default: break;
     }
     hybrid = mode == StretchMode::e3Generic || mode == StretchMode::autoMode || mode == StretchMode::e2Generic
           || mode == StretchMode::e2Transient || mode == StretchMode::stretch || mode == StretchMode::stretchPro;
     hfBand = hybrid && mode != StretchMode::e2Transient && mode != StretchMode::stretch && mode != StretchMode::stretchPro;
+    e3Estimator = mode == StretchMode::e3Generic || mode == StretchMode::autoMode;
+    ratioSteps = e3Estimator || mode == StretchMode::e2Transient ? 512 : mode == StretchMode::e2Generic ? 256 : 0;
     grainsOnly = algo == Algo::grains;
     // e3 times an attack by its peak, the grains by its start.
     hfScale = scale;
