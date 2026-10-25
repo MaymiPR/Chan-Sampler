@@ -203,7 +203,7 @@ juce::ToggleButton& ChanSamplerEditor::led (juce::Component& parent, const juce:
 
 juce::ComboBox& ChanSamplerEditor::combo (juce::Component& parent, const juce::String& paramId, int x, int y, int w, int h)
 {
-    auto& c = own (std::make_unique<juce::ComboBox>(), parent, comboBounds (x, y, w, h));
+    auto& c = own (std::make_unique<fl::ComboBox>(), parent, comboBounds (x, y, w, h));
     if (auto* choice = dynamic_cast<juce::AudioParameterChoice*> (samplerProcessor.apvts.getParameter (paramId)))
     {
         c.addItemList (choice->choices, 1);
@@ -338,17 +338,17 @@ void ChanSamplerEditor::buildSampleSheet()
 
     // Playback (FL's LoopPanel: knobs left, switches right)
     auto& playback = panel (sheet, "Playback", 7, 168, 270, 79);
-    knob (playback, pid::startOffset, 21, 26, 34);
-    caption (playback, "START OFFSET", 8, 63, 60, 9);
+    knob (playback, pid::startOffset, 17, 26, 34);
+    caption (playback, "START OFFSET", 4, 63, 60, 9);
     static_cast<ParamKnob&> (knob (playback, pid::loopStart, 70, 26, 34)).onUserChange = [this] { samplerProcessor.applyLoopLink (pid::loopStart); };
     caption (playback, "START", 57, 63, 60, 9);
     // FL: the link symbol sits between START and END (START carries END along).
-    text (playback, juce::String::charToString ((juce::juce_wchar) 0x21bb), 103, 31, 24, 24, 16.0f, false, juce::Justification::centred);
-    static_cast<ParamKnob&> (knob (playback, pid::loopEnd, 126, 26, 34)).onUserChange = [this] { samplerProcessor.applyLoopLink (pid::loopEnd); };
-    caption (playback, "END", 113, 63, 60, 9);
+    text (playback, juce::String::charToString ((juce::juce_wchar) 0x21bb), 97, 31, 24, 24, 16.0f, false, juce::Justification::centred);
+    static_cast<ParamKnob&> (knob (playback, pid::loopEnd, 112, 26, 34)).onUserChange = [this] { samplerProcessor.applyLoopLink (pid::loopEnd); };
+    caption (playback, "END", 99, 63, 60, 9);
     // FL draws these two lights 3 px further left and 1 px higher than its other switches (measured).
-    led (playback, pid::useLoop, "Use loop points", 162, 25, 103, 21);
-    led (playback, pid::pingPong, "Ping pong loop", 162, 45, 103, 21);
+    led (playback, pid::useLoop, "Use loop points", 162, 23, 103, 21);
+    led (playback, pid::pingPong, "Ping pong loop", 162, 43, 103, 21);
 
     // Time stretching (FL's StretchPanel layout)
     auto& stretch = panel (sheet, "Time stretching", 283, 7, 270, 76);
@@ -369,7 +369,7 @@ void ChanSamplerEditor::buildSampleSheet()
         pk.onUserChange = [&pk, toAuto] { if (! pk.isMouseButtonDown()) toAuto(); };   // the wheel and the menu
     }
     caption (stretch, "PITCH", 10, 61, 28, 7);
-    knob (stretch, pid::stretchMul, 52, 26, 32);   caption (stretch, "MUL", 54, 61, 28, 7);
+    knob (stretch, pid::stretchMul, 52, 26, 32);   caption (stretch, "MUL", 56, 61, 28, 7);
     {
         auto& t = static_cast<ParamKnob&> (knob (stretch, pid::stretchTime, 88, 26, 32));
         t.menu.noTypeIn = true;   // as FL's TIME menu
@@ -488,7 +488,7 @@ void ChanSamplerEditor::buildSampleSheet()
     own (std::make_unique<Fill> (fl::colour::sheet, 2.0f), effects, { 4, 2, 42, 69 });   // FL: a sheet-coloured well behind BOOST and CLIP (measured)
     knob (effects, pid::pcBoost, 7, 5, 34);          caption (effects, "BOOST", 10, 42, 28, 7);
     led (effects, pid::pcBoostClip, "CLIP", 3, 55, 38, 13).getProperties().set ("captionStyle", true);   // FL: an 11 px light with a knob caption
-    knob (effects, pid::pcEq, 49, 5, 34);            caption (effects, "EQ", 52, 42, 28, 7);
+    knob (effects, pid::pcEq, 49, 5, 34);            caption (effects, "EQ", 54, 42, 28, 7);
     knob (effects, pid::pcRmMix, 97, 5, 34);         caption (effects, "RM MIX", 100, 42, 28, 7);
     knob (effects, pid::pcRmFreq, 137, 5, 34);       caption (effects, "RM FREQ", 137, 42, 34, 7);
     knob (effects, pid::pcCut, 188, 4, 34);          caption (effects, "CUT", 191, 42, 28, 7);
@@ -517,7 +517,7 @@ juce::Component& ChanSamplerEditor::buildTargetPage (const char* prefix, bool ha
     if (hasEnvelope)
     {
         auto& env = panel (page, "Envelope", 7, 42, 287, 195, 16);
-        auto& envMenu = own (std::make_unique<fl::MenuArrow>(), env, { 285 - 16, 2, 12, 16 });
+        auto& envMenu = own (std::make_unique<fl::MenuArrow>(), env, { 285 - 17, 6, 12, 16 });
         envMenu.onClick = [this, p = juce::String (prefix), &envMenu] { showEnvelopeMenu (p, envMenu); };
         auto* envOn = samplerProcessor.apvts.getParameter (id ("EnvOn"));
         // FL turns an envelope on as soon as one of its knobs is edited.
@@ -551,7 +551,7 @@ juce::Component& ChanSamplerEditor::buildTargetPage (const char* prefix, bool ha
             caption (env, "AMT", 248, 152, 28, 7);
         }
         // FL: "Tempo" (tempo-based times) at the bottom right
-        auto& envTempo = led (env, id ("EnvTempo"), "Tempo", 222, 172, 60, 18);
+        auto& envTempo = led (env, id ("EnvTempo"), "Tempo", 229, 170, 60, 18);
         envTempo.setTooltip ("Tempo-based time");
         envTempo.getProperties().set ("textFirst", true);
     }
@@ -575,15 +575,15 @@ juce::Component& ChanSamplerEditor::buildTargetPage (const char* prefix, bool ha
     paramAttachments.push_back (std::move (shapeAttachment));
 
     own (std::make_unique<LfoDisplay> (samplerProcessor.apvts, prefix), lfo, { 6, 26, 132, 83 });
-    lfoKnob (lfo, id ("LfoDel"),   6,   125, 30);  caption (lfo, "DELAY", 7,   158, 28, 7);
-    lfoKnob (lfo, id ("LfoAtt"),   40,  125, 30);  caption (lfo, "ATT",   41,  158, 28, 7);
-    lfoKnob (lfo, id ("LfoAmt"),   74,  125, 30);  caption (lfo, "AMT",   75,  158, 28, 7);
-    lfoKnob (lfo, id ("LfoSpeed"), 108, 125, 30);  caption (lfo, "SPEED", 109, 158, 28, 7);
+    lfoKnob (lfo, id ("LfoDel"),   6,   115, 30);  caption (lfo, "DELAY", 7,   148, 28, 7);
+    lfoKnob (lfo, id ("LfoAtt"),   40,  115, 30);  caption (lfo, "ATT",   41,  148, 28, 7);
+    lfoKnob (lfo, id ("LfoAmt"),   74,  115, 30);  caption (lfo, "AMT",   75,  148, 28, 7);
+    lfoKnob (lfo, id ("LfoSpeed"), 108, 115, 30);  caption (lfo, "SPEED", 109, 148, 28, 7);
     // FL: "Tempo" (tempo-based speed / times) and "Global" (song-wide phase)
-    auto& lfoTempo = led (lfo, id ("LfoTempo"), "Tempo", 18, 172, 58, 18);
+    auto& lfoTempo = led (lfo, id ("LfoTempo"), "Tempo", 32, 170, 58, 18);
     lfoTempo.setTooltip ("Tempo-based time");
     lfoTempo.getProperties().set ("textFirst", true);
-    auto& lfoGlobal = led (lfo, id ("LfoGlobal"), "Global", 80, 172, 60, 18);
+    auto& lfoGlobal = led (lfo, id ("LfoGlobal"), "Global", 90, 168, 60, 18);
     lfoGlobal.setTooltip ("Global / retriggered LFO phase");
     lfoGlobal.getProperties().set ("textFirst", true);
 
@@ -619,7 +619,7 @@ void ChanSamplerEditor::buildInsSheet()
     knob (filter, pid::cutoff, 5, 22, 66, fl::colour::bigDot);
     knob (filter, pid::resonance, 32, 87, 66, fl::colour::bigDotGold);
     caption (filter, "MOD Y", 4, 145, 37, 9, 9.5f);
-    combo (filter, pid::filterType, 5, 167, 90, 23);
+    combo (filter, pid::filterType, 5, 168, 90, 23);
 
     own (std::make_unique<RootNotePanel> (samplerProcessor.apvts, samplerProcessor.keyboardState), insSheet, { 7, 245, 546, 137 });
 }
@@ -634,7 +634,7 @@ void ChanSamplerEditor::buildFuncSheet()
     knob (levels, pid::xOfs,   90,  26, 38, fl::colour::knobYellow);  caption (levels, "MOD X", 90,  69, 38, 9);
     knob (levels, pid::yOfs,   132, 26, 38);  caption (levels, "MOD Y", 132, 69, 38, 9);
 
-    auto& poly = panel (sheet, "Polyphony", 191, 7, 176, 100);
+    auto& poly = panel (sheet, "Polyphony", 191, 7, 240, 100);
     text (poly, "Max", 7, 30, 26, 23, 11.7f);
     digi (poly, pid::maxPoly, 33, 30, 32, 23, false);
     auto& slide = knob (poly, pid::slide, 82, 26, 30);
@@ -642,35 +642,44 @@ void ChanSamplerEditor::buildFuncSheet()
     led (poly, pid::porta, "Porta", 3, 74, 56, 19);
     led (poly, pid::mono,  "Mono",  59, 74, 56, 19);
     {
-        // As in FL, SLIDE is greyed out until Mono or Porta is on.
+        // As in FL, SLIDE is greyed out until Mono or Porta is on. The states
+        // come from the attachments' own values: a parameter's listeners run
+        // before its raw value is stored, so reading that lagged a click.
         auto& apvts = samplerProcessor.apvts;
-        auto update = [&slide, &slideCap, &apvts]
+        auto states = std::make_shared<std::array<bool, 2>> ();
+        auto update = [&slide, &slideCap, states]
         {
-            const bool on = apvts.getRawParameterValue (pid::mono)->load() > 0.5f
-                         || apvts.getRawParameterValue (pid::porta)->load() > 0.5f;
+            const bool on = (*states)[0] || (*states)[1];
             slide.setEnabled (on);
             slideCap.setEnabled (on);
         };
-        for (auto* id : { pid::mono, pid::porta })
-            paramAttachments.push_back (std::make_unique<juce::ParameterAttachment> (*apvts.getParameter (id), [update] (float) { update(); }));
+        const char* ids[] = { pid::mono, pid::porta };
+        for (size_t i = 0; i < 2; ++i)
+        {
+            (*states)[i] = apvts.getRawParameterValue (ids[i])->load() > 0.5f;
+            paramAttachments.push_back (std::make_unique<juce::ParameterAttachment> (*apvts.getParameter (ids[i]),
+                [update, states, i] (float v) { (*states)[i] = v > 0.5f; update(); }));
+        }
         update();
     }
 
     // Tracking: Vol (velocity) / Key pages
-    auto& tracking = panel (sheet, "Tracking", 375, 7, 178, 100, 52);
-    auto& velPage = group (tracking, 0, 0, 176, 100);
-    auto& keyPage = group (tracking, 0, 0, 176, 100);
+    auto& tracking = panel (sheet, "Tracking", 437, 7, 116, 100, 52);
+    auto& velPage = group (tracking, 0, 0, 116, 100);
+    auto& keyPage = group (tracking, 0, 0, 116, 100);
     keyPage.setVisible (false);
     for (auto [page, ids] : { std::pair<juce::Component*, std::array<const char*, 4>> { &velPage, { pid::velPan, pid::velX, pid::velY, pid::velMid } },
                               std::pair<juce::Component*, std::array<const char*, 4>> { &keyPage, { pid::keyPan, pid::keyX, pid::keyY, pid::keyMid } } })
     {
-        knob (*page, ids[0], 14, 26, 30, fl::colour::knobTeal);   caption (*page, "PAN",   15,  59, 28, 7);
-        knob (*page, ids[1], 72, 26, 30, fl::colour::knobYellow);   caption (*page, "MOD X", 73,  59, 28, 7);
-        knob (*page, ids[2], 130, 26, 30, fl::colour::knobBlue);  caption (*page, "MOD Y", 131, 59, 28, 7);
-        text (*page, "Mid", 74, 76, 28, 14, 11.5f);
-        hslider (*page, ids[3], 95, 74, 77, 22);
+        // FL's layout (measured): PAN, then MOD X and MOD Y close together, "Mid" in 10 px with the 69 px slider
+        knob (*page, ids[0], 6,  26, 30, fl::colour::knobTeal);   caption (*page, "PAN",   6,  59, 30, 7);
+        knob (*page, ids[1], 46, 26, 30, fl::colour::knobYellow); caption (*page, "MOD X", 46, 59, 30, 7);
+        knob (*page, ids[2], 78, 26, 30, fl::colour::knobBlue);   caption (*page, "MOD Y", 78, 59, 30, 7);
+        text (*page, "Mid", 13, 76, 28, 14, 10.0f);
+        hslider (*page, ids[3], 33, 74, 77, 22);
     }
     auto& trackTabs = own (std::make_unique<fl::TextTabs> (juce::StringArray { "Vol", "Key" }, 11.5f, true), tracking, { 0, 0, 52, 19 });
+    trackTabs.nudges = { 1, 0 };   // FL: Vol a pixel further right (measured)
     trackTabs.setTooltip ("Velocity / keyboard tracking");
     trackTabs.onChange = [&velPage, &keyPage] (int i)
     {
@@ -682,9 +691,9 @@ void ChanSamplerEditor::buildFuncSheet()
     // Group (FL 2026 layout): Cut / By group numbers, shared with other Chan
     // Sampler instances in the host (CutGroups.h), and Cut self.
     auto& groupPanel = panel (sheet, "Group", 7, 115, 69, 122);
-    text (groupPanel, "Cut", 5, 28, 26, 22, 11.7f);
+    text (groupPanel, "Cut", 2, 29, 26, 22, 11.7f, false, juce::Justification::centredRight);
     digi (groupPanel, pid::cutGroup, 30, 29, 32, 23, false).setTooltip ("Cut group: notes on this instance cut instances whose By is this number");
-    text (groupPanel, "By", 5, 56, 26, 22, 11.7f);
+    text (groupPanel, "By", 2, 58, 26, 22, 11.7f, false, juce::Justification::centredRight);
     digi (groupPanel, pid::cutBy, 30, 58, 32, 23, false).setTooltip ("Cut by group: this instance is cut by instances whose Cut is this number");
     auto& cutSelf = own (std::make_unique<juce::TextButton> ("Cut self"), groupPanel, { 4, 88, 61, 31 });
     cutSelf.setClickingTogglesState (true);
@@ -695,8 +704,9 @@ void ChanSamplerEditor::buildFuncSheet()
     // Arpeggiator: the direction selector sits in the header, as in FL.
     auto& arpPanel = panel (sheet, "Arpeggiator", 82, 115, 231, 122, 150);
     // FL draws the directions as symbols: off, up, down, up/down, sticky, random.
-    auto& arpDir = own (std::make_unique<fl::TextTabs> (juce::StringArray { juce::String (juce::CharPointer_UTF8 ("\xe2\x9c\x95")), juce::String (juce::CharPointer_UTF8 ("\xe2\x96\xb2")), juce::String (juce::CharPointer_UTF8 ("\xe2\x96\xbc")), juce::String (juce::CharPointer_UTF8 ("\xe2\x86\x95")), juce::String (juce::CharPointer_UTF8 ("\xe2\x87\x95")), "?" }, 10.0f, true),
-                        arpPanel, { 0, 0, 150, 19 });
+    auto& arpDir = own (std::make_unique<fl::IconTabs> (std::vector<fl::Icon> { fl::Icon::arpOff, fl::Icon::arpUp, fl::Icon::arpDown, fl::Icon::arpUpDown, fl::Icon::arpSticky, fl::Icon::arpRandom }, false),
+                        arpPanel, { 0, 0, 114, 19 });
+    arpDir.selectedColour = fl::colour::text;   // FL: the chosen symbol sits on a dark box, all of them light
     arpDir.setTooltip ("Arpeggio direction: off, up, down, up/down, up/down (ends twice), random");
     auto* dirParam = samplerProcessor.apvts.getParameter (pid::arpDir);
     auto dirAttachment = std::make_unique<juce::ParameterAttachment> (*dirParam,
@@ -706,15 +716,15 @@ void ChanSamplerEditor::buildFuncSheet()
     dirAttachment->sendInitialUpdate();
     paramAttachments.push_back (std::move (dirAttachment));
 
-    knob (arpPanel, pid::arpTime, 6,  28, 32);  caption (arpPanel, "TIME", 8,  63, 28, 7);
-    knob (arpPanel, pid::arpGate, 44, 28, 32);  caption (arpPanel, "GATE", 46, 63, 28, 7);
+    knob (arpPanel, pid::arpTime, 6,  26, 30);  caption (arpPanel, "TIME", 6,  59, 30, 7);
+    knob (arpPanel, pid::arpGate, 40, 26, 30);  caption (arpPanel, "GATE", 40, 59, 30, 7);
     text (arpPanel, "Range", 78, 30, 40, 23, 11.7f);
     digi (arpPanel, pid::arpRange, 115, 30, 26, 23, false);
     text (arpPanel, "Repeat", 158, 30, 44, 23, 11.7f);
     digi (arpPanel, pid::arpRepeat, 198, 30, 26, 23, false);
-    led (arpPanel, pid::arpSlide, "Slide", 4, 88, 60, 21);
-    text (arpPanel, "Chord", 66, 87, 40, 23, 11.7f);
-    auto& chordBox = own (std::make_unique<juce::ComboBox>(), arpPanel, comboBounds (106, 87, 118, 23));
+    led (arpPanel, pid::arpSlide, "Slide", 3, 84, 60, 21);
+    text (arpPanel, "Chord", 80, 84, 40, 23, 11.7f);
+    auto& chordBox = own (std::make_unique<fl::ComboBox>(), arpPanel, comboBounds (116, 84, 106, 23));
     {
         chordBox.addSectionHeading ("Automatic");
         chordBox.addItem ("Auto", 1);
@@ -743,18 +753,19 @@ void ChanSamplerEditor::buildFuncSheet()
     const std::tuple<const char*, const char*, juce::Colour> echoKnobs[] = {
         { pid::echoFeed, "FEED", fl::colour::green }, { pid::echoPan, "PAN", fl::colour::knobTeal }, { pid::echoX, "MOD X", fl::colour::knobYellow },
         { pid::echoY, "MOD Y", fl::colour::knobBlue }, { pid::echoPitch, "PITCH", fl::colour::knobPink }, { pid::echoTime, "TIME", fl::colour::amber } };
-    int kx = 6;
+    const int echoX[] = { 6, 38, 80, 112, 154, 196 };   // FL (measured): FEED / PAN and MOD X / MOD Y sit in pairs
+    int k = 0;
     for (auto [pidName, label, ring] : echoKnobs)
     {
-        knob (echoPanel, pidName, kx, 28, 30, ring);
-        caption (echoPanel, label, kx + 1, 61, 28, 7);
-        kx += 38;
+        knob (echoPanel, pidName, echoX[k], 26, 30, ring);
+        caption (echoPanel, label, echoX[k], 59, 30, 7);
+        ++k;
     }
-    text (echoPanel, "Echoes", 8, 86, 48, 23, 11.7f);
+    text (echoPanel, "Echoes", 8, 84, 48, 23, 11.7f);
     digi (echoPanel, pid::echoCount, 48, 85, 32, 23, false);
     // FL stacks the two switches on the right.
-    led (echoPanel, pid::echoPing, "Ping pong", 140, 80, 88, 18);
-    led (echoPanel, pid::echoFat,  "Fat mode",  140, 100, 88, 18);
+    led (echoPanel, pid::echoPing, "Ping pong", 158, 76, 71, 18).getProperties().set ("textFirst", true);   // FL: the lights at the right (measured)
+    led (echoPanel, pid::echoFat,  "Fat mode",  163, 96, 66, 18).getProperties().set ("textFirst", true);
 
     own (std::make_unique<RootNotePanel> (samplerProcessor.apvts, samplerProcessor.keyboardState), sheet, { 7, 245, 546, 137 });
 }

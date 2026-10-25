@@ -26,6 +26,16 @@ Look
   pixel grid; the effects view gets FL's well behind BOOST, its small CLIP
   switch and the A / B reverb pill; the panels reach FL's right edge; the
   keyboard glides when scrolled and the preset arrows flash when clicked.
+- Third pass: every label, knob and switch audited against FL's pixels and
+  moved onto FL's positions (Tracking is FL's own panel and layout, the
+  arpeggiator's directions are FL's symbols, its and the echo's rows sit
+  where FL's do, Cut / By right-aligned, Fine tune at the right, the LFO
+  knobs 10 px higher); hover highlights fade in and out on knobs, filter
+  knobs (measured hovered shading), sliders, digi wheels, drop-down arrows
+  and panel menu arrows; Cut self sits pressed when on instead of lighting.
+
+Fixed
+- SLIDE greyed and ungreyed one click behind Porta / Mono.
 
 Closer to FL
 - e3 generic, Auto, e2 generic and e2 transient stretch at FL's internal

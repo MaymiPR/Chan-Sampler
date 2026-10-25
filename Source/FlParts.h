@@ -106,8 +106,11 @@ public:
     void mouseDrag (const juce::MouseEvent&) override;
     void mouseUp (const juce::MouseEvent&) override;
     void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
+    void mouseEnter (const juce::MouseEvent& e) override { hover.setTarget (true); juce::Slider::mouseEnter (e); }
+    void mouseExit (const juce::MouseEvent& e) override { hover.setTarget (false); juce::Slider::mouseExit (e); }
 
 private:
+    fl::HoverFade hover { *this };
     // FL's drag detents (measured in FL 2026): a two-sided control holds at its
     // centre, and PITCH at every semitone, for 20 px of drag when a drag
     // arrives there; a drag that starts on one leaves at once.

@@ -177,10 +177,47 @@ namespace fl
     // rendered per pixel (FL's bevels and glows are not path shapes).
     // pos: 0..1; zeroPos: where the value arc starts (0 for one-sided knobs,
     // 0.5 for two-sided ones). A knob larger than 50 px is FL's filter knob.
-    void drawKnob (juce::Graphics&, juce::Rectangle<float> area, float pos, float zeroPos, juce::Colour arc, bool enabled, bool hover = false);
+    // hover: how far the control's hover highlight has faded in (0..1).
+    void drawKnob (juce::Graphics&, juce::Rectangle<float> area, float pos, float zeroPos, juce::Colour arc, bool enabled, float hover = 0.0f);
     void drawLed (juce::Graphics&, juce::Rectangle<float> area, bool on, bool enabled, bool green = false);
     // The round slider thumb with its coloured line (FL's fine tune / Mid sliders).
-    void drawSliderThumb (juce::Graphics&, juce::Rectangle<float> area, juce::Colour line, bool enabled, bool hover = false);
+    void drawSliderThumb (juce::Graphics&, juce::Rectangle<float> area, juce::Colour line, bool enabled, float hover = 0.0f);
+
+    // FL eases a control's hover highlight in and out rather than switching
+    // it. A control owns one of these, tells it when the mouse enters and
+    // leaves, and the drawing reads the amount through the component's
+    // "hover" property. The quarter-life (hoverFadeStep per 60 Hz frame) is
+    // not measured in FL.
+    inline constexpr float hoverFadeStep = 0.2f;
+    class HoverFade : private juce::Timer
+    {
+    public:
+        explicit HoverFade (juce::Component& c) : owner (c) {}
+        void setTarget (bool over)
+        {
+            target = over ? 1.0f : 0.0f;
+            if (amount != target)
+                startTimerHz (60);
+        }
+        float get() const noexcept { return amount; }
+
+    private:
+        void timerCallback() override
+        {
+            amount += (target - amount) * hoverFadeStep;
+            if (std::abs (target - amount) < 0.02f)
+            {
+                amount = target;
+                stopTimer();
+            }
+            owner.getProperties().set ("hover", amount);
+            owner.repaint();
+        }
+        juce::Component& owner;
+        float amount = 0.0f, target = 0.0f;
+    };
+    // The hover amount of a component: its fade if it has one, else 1 under the mouse.
+    float hoverOf (const juce::Component&);
     // FL's push button (Reset, Cut self, A / B); nothing changes under the mouse, pressed it sinks.
     void drawButton (juce::Graphics&, juce::Rectangle<int> area, bool lit, bool highlighted, bool down, bool enabled);
 
@@ -250,10 +287,24 @@ namespace fl
         void paint (juce::Graphics&) override;
         void valueChanged() override { repaint(); }
         void setFixedText (const juce::String& t) { fixedText = t; repaint(); }
+        void mouseEnter (const juce::MouseEvent& e) override { hover.setTarget (true); juce::Slider::mouseEnter (e); }
+        void mouseExit (const juce::MouseEvent& e) override { hover.setTarget (false); juce::Slider::mouseExit (e); }
 
     private:
         bool red;
         juce::String fixedText;
+        HoverFade hover { *this };
+    };
+
+    // A drop-down field whose arrow fades up under the mouse (as FL's does).
+    class ComboBox : public juce::ComboBox
+    {
+    public:
+        void mouseEnter (const juce::MouseEvent& e) override { hover.setTarget (true); juce::ComboBox::mouseEnter (e); }
+        void mouseExit (const juce::MouseEvent& e) override { hover.setTarget (false); juce::ComboBox::mouseExit (e); }
+
+    private:
+        HoverFade hover { *this };
     };
 
     // FL's grey context menus (sample view, presets): shown with the plugin's
@@ -285,7 +336,8 @@ namespace fl
     using InfoRows = std::vector<std::pair<juce::String, juce::String>>;
     void showInfo (juce::Component& owner, const juce::String& title, const InfoRows& rows);
 
-    enum class Icon { sampler, envelope, wrench, valve, sine, triangle, square, folder, locate, close };
+    enum class Icon { sampler, envelope, wrench, valve, sine, triangle, square, folder, locate, close,
+                      arpOff, arpUp, arpDown, arpUpDown, arpSticky, arpRandom };
     // Draws an icon as FL draws it, at FL's size, centred in area.
     void drawIcon (juce::Graphics&, Icon, juce::Rectangle<float> area, juce::Colour);
 
@@ -296,6 +348,11 @@ namespace fl
     public:
         MenuArrow() : juce::Button ({}) {}
         void paintButton (juce::Graphics&, bool highlighted, bool down) override;
+        void mouseEnter (const juce::MouseEvent& e) override { hover.setTarget (true); juce::Button::mouseEnter (e); }
+        void mouseExit (const juce::MouseEvent& e) override { hover.setTarget (false); juce::Button::mouseExit (e); }
+
+    private:
+        HoverFade hover { *this };
     };
 
     // FL's upright A / B switch (the effects view's reverb type): toggled
@@ -344,6 +401,7 @@ namespace fl
         void setSelected (int index, bool notify = true);
         int getSelected() const noexcept { return selected; }
         std::function<void (int)> onChange;
+        std::vector<int> nudges;   // per item: moves it that many px (FL's spacing is not uniform)
 
         void paint (juce::Graphics&) override;
         void mouseDown (const juce::MouseEvent&) override;

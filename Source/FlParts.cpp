@@ -542,7 +542,7 @@ RootNotePanel::RootNotePanel (juce::AudioProcessorValueTreeState& s, juce::MidiK
     fine.setTooltip ("Fine tuning");
 
     hint.setFont (fl::font (10.5f));
-    hint.setJustificationType (juce::Justification::centredRight);
+    hint.setJustificationType (juce::Justification::centredLeft);
     hint.setColour (juce::Label::textColourId, fl::colour::dim);
 
     for (auto* c : std::initializer_list<juce::Component*> { &resetButton, &fineLabel, &fine, &hint, &keyboard })
@@ -550,9 +550,10 @@ RootNotePanel::RootNotePanel (juce::AudioProcessorValueTreeState& s, juce::MidiK
 
     // Layout from FL's KeybPanel (544 x 137)
     resetButton.setBounds (4, 23, 46, 21);
-    fineLabel.setBounds (58, 23, 56, 21);
-    fine.setBounds (114, 24, 113, 22);   // FL's track is 104 px long (measured)
-    hint.setBounds (290, 23, 248, 21);
+    // FL puts "Fine tune" and its 104 px track at the right (measured); the hint takes the room before them
+    fineLabel.setBounds (263, 23, 56, 21);
+    fine.setBounds (316, 24, 113, 22);
+    hint.setBounds (56, 23, 196, 21);
     keyboard.setBounds (0, 48, 544, 89);
 
     startTimerHz (10);
