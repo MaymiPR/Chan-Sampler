@@ -54,12 +54,15 @@ namespace
     float clamp01 (float v) { return juce::jlimit (0.0f, 1.0f, v); }
 
     // Renders area through fn (logical pixel coordinates relative to area,
-    // returning the pixel's colour and coverage) at the screen's pixel scale,
-    // so the result stays crisp when the window is scaled.
+    // returning the pixel's colour and coverage) at the screen's pixel scale
+    // and on its pixel grid, so the result stays crisp when the window is
+    // scaled.
     template <typename Fn>
     void drawPixels (juce::Graphics& g, juce::Rectangle<float> area, float alpha, Fn fn)
     {
         const auto scale = juce::jmax (1.0f, g.getInternalContext().getPhysicalPixelScaleFactor());
+        // snap the image to whole screen pixels: a fractional start would be resampled
+        area.setPosition (std::round (area.getX() * scale) / scale, std::round (area.getY() * scale) / scale);
         const int w = juce::jmax (1, juce::roundToInt (area.getWidth() * scale)), h = juce::jmax (1, juce::roundToInt (area.getHeight() * scale));
         juce::Image img (juce::Image::ARGB, w, h, true);
         {
@@ -845,20 +848,20 @@ void DigiBox::paint (juce::Graphics& g)
 //==============================================================================
 namespace
 {
-    // Each icon's traced pixels (FlIcons.h) and where FL puts its top-left
+    // Each icon's traced outline (FlIcons.h) and where FL puts its top-left
     // inside its cell: the sheet tabs' 44 x 45 px cells, the effects view's
     // 26 x 18 px cells (which get FL's small wrench), the LFO's 23 x 19 px cells.
-    struct IconPlace { const IconPixels* pixels; int dx, dy; };
+    struct IconPlace { const IconShape* shape; int dx, dy; };
 
     IconPlace iconPlace (Icon icon, bool smallCell)
     {
         switch (icon)
         {
             case Icon::sampler:  return { &samplerIcon, 8, 12 };
-            case Icon::envelope: return { &envelopeIcon, 10, 10 };
-            case Icon::wrench:   return smallCell ? IconPlace { &fxWrenchIcon, 5, 3 } : IconPlace { &wrenchIcon, 12, 13 };
+            case Icon::envelope: return { &envelopeIcon, 11, 10 };
+            case Icon::wrench:   return smallCell ? IconPlace { &fxWrenchIcon, 6, 3 } : IconPlace { &wrenchIcon, 12, 13 };
             case Icon::valve:    return { &valveIcon, 6, 2 };
-            case Icon::sine:     return { &sineIcon, 5, 5 };
+            case Icon::sine:     return { &sineIcon, 6, 5 };
             case Icon::triangle: return { &triangleIcon, 6, 5 };
             case Icon::square:   return { &squareIcon, 7, 6 };
             default:             return { nullptr, 0, 0 };   // file buttons: IconButton draws them
@@ -868,18 +871,102 @@ namespace
 
 void drawIcon (juce::Graphics& g, Icon icon, juce::Rectangle<float> cell, juce::Colour c)
 {
-    // FL's icons are bitmaps: each is drawn pixel for pixel as traced from
-    // FL's screen, the soft edge pixels at half strength.
+    // Each icon is the smoothed outline of FL's pixels, filled with
+    // anti-aliasing, so it matches FL at 100 % and scales cleanly.
     const auto place = iconPlace (icon, cell.getHeight() < 24.0f);
-    if (place.pixels == nullptr)
+    if (place.shape == nullptr)
         return;
     const auto x0 = std::floor (cell.getX()) + (float) place.dx, y0 = std::floor (cell.getY()) + (float) place.dy;
     g.setColour (c);
-    for (auto& r : place.pixels->solid)
-        g.fillRect (x0 + (float) r.x, y0 + (float) r.y, (float) r.w, 1.0f);
-    g.setColour (c.withMultipliedAlpha (0.45f));
-    for (auto& r : place.pixels->soft)
-        g.fillRect (x0 + (float) r.x, y0 + (float) r.y, (float) r.w, 1.0f);
+    auto at = [x0, y0] (float x, float y) { return juce::Point<float> (x0 + x, y0 + y); };
+    auto stroke = [&g] (const juce::Path& path, float width)
+    {
+        g.strokePath (path, juce::PathStrokeType (width, juce::PathStrokeType::curved, juce::PathStrokeType::butt));
+    };
+    // The line icons are strokes through the centres of FL's pixels (their
+    // outlines would come out lumpy): the envelope's rings and legs, the LFO
+    // shapes, and the effects view's tube.
+    switch (icon)
+    {
+        case Icon::envelope:
+        {
+            juce::Path p;
+            for (auto centre : { at (7.0f, 3.0f), at (3.0f, 21.0f), at (20.0f, 21.0f) })
+                p.addEllipse (juce::Rectangle<float> (5.0f, 5.0f).withCentre (centre));
+            p.startNewSubPath (at (5.0f, 6.0f));
+            p.quadraticTo (at (4.5f, 12.0f), at (3.2f, 18.3f));
+            p.startNewSubPath (at (8.0f, 6.5f));
+            p.quadraticTo (at (8.5f, 14.0f), at (17.8f, 19.2f));
+            stroke (p, 1.3f);
+            return;
+        }
+        case Icon::sine:
+        {
+            static const float ys[13] = { 4.45f, 2.96f, 1.19f, 0.67f, 1.35f, 3.19f, 5.7f, 8.16f, 9.83f, 10.3f, 9.61f, 7.71f, 6.33f };
+            juce::Path p;
+            for (int i = 0; i < 13; ++i)
+                i == 0 ? p.startNewSubPath (at (0.5f, ys[i])) : p.lineTo (at ((float) i + 0.5f, ys[i]));
+            stroke (p, 1.2f);
+            return;
+        }
+        case Icon::triangle:
+        {
+            juce::Path p;
+            p.startNewSubPath (at (0.5f, 6.0f));
+            p.lineTo (at (4.0f, 1.6f));
+            p.lineTo (at (9.0f, 9.3f));
+            p.lineTo (at (12.5f, 4.9f));
+            stroke (p, 1.2f);
+            return;
+        }
+        case Icon::square:
+        {
+            juce::Path p;
+            p.startNewSubPath (at (1.0f, 9.0f));
+            p.lineTo (at (1.0f, 0.5f));
+            p.lineTo (at (5.0f, 0.5f));
+            p.lineTo (at (5.0f, 8.5f));
+            p.lineTo (at (10.0f, 8.5f));
+            p.lineTo (at (10.0f, 0.0f));
+            stroke (p, 1.6f);
+            return;
+        }
+        case Icon::valve:
+        {
+            // a tube: filled pointed top, outlined body with its filament, a base
+            juce::Path tip;
+            tip.addTriangle (at (3.5f, 0.0f), at (7.5f, 4.2f), at (0.5f, 4.2f));
+            g.fillPath (tip);
+            juce::Path body;
+            body.startNewSubPath (at (0.5f, 4.0f));
+            body.lineTo (at (0.5f, 10.5f));
+            body.lineTo (at (7.5f, 10.5f));
+            body.lineTo (at (7.5f, 4.0f));
+            stroke (body, 1.0f);
+            juce::Path filament;
+            filament.startNewSubPath (at (2.5f, 10.0f));
+            filament.lineTo (at (2.5f, 6.5f));
+            filament.lineTo (at (5.5f, 6.5f));
+            filament.lineTo (at (5.5f, 10.0f));
+            stroke (filament, 1.0f);
+            g.fillRoundedRectangle (juce::Rectangle<float> (at (1.0f, 11.3f), at (7.0f, 14.0f)), 1.2f);
+            return;
+        }
+        default:
+            break;
+    }
+    juce::Path p;
+    for (auto& loop : place.shape->loops)
+    {
+        for (size_t i = 0; i < loop.size(); ++i)
+        {
+            const juce::Point<float> pt (x0 + loop[i].x, y0 + loop[i].y);
+            if (i == 0) p.startNewSubPath (pt); else p.lineTo (pt);
+        }
+        p.closeSubPath();
+    }
+    p.setUsingNonZeroWinding (false);   // the loops around holes run the other way
+    g.fillPath (p);
 }
 
 void IconButton::paintButton (juce::Graphics& g, bool highlighted, bool down)
