@@ -332,6 +332,39 @@ reproduce these measurements are in stretch/ (see README.md).
   x1.5): restarted at 96 ... 352, kept at 0 and 416 ... 480. Steady tones
   are restarted everywhere. The rule (grid range and decay) is not found.
 
+## Swell onsets (round 11, not solved)
+
+Measured at x2 (FL's ratio grid: after a restart at P FL plays the source
+with phase -w P, offset 0, calibrated on the click probe to 1.6 deg); the
+restart frame's own bias fits best with a 2048-sample frame.
+
+- FL's onset detection is level-free: the vocal at -12 / +6 dB and a swell
+  at -20 dB restart where they did at 0 dB. A note that starts in digital
+  silence and swells: FL's low band is digital silence until its first
+  restart frame fades in.
+- Treble alone (a 3-16 kHz noise swell over steady low tones) gives no clean
+  restart: the low band restarts on its own onsets.
+- Five equal steady tones under swells (-60 dB, +2 / 3 / 4 / 5 / 8 dB per 128,
+  then full; t0 stepped 32 through 512; lowband.py swell): FL restarts on the
+  tone sum's peaks. Every restart window starts on 512 k + 148 from the
+  note's start (the click probe's onset + 660 with the onset on the grid).
+  In the middle of the grid cycle (about the range where attacks are timed
+  by their peak) FL restarts twice: a first restart, then ~730 samples later
+  a second one; elsewhere once. The first restart sits a nearly fixed time
+  after t0 per rate (about +3800 / 2750 / 1960 / 1590 / 1050 samples, i.e.
+  where the swell is near -40 dB at 5 dB / 128, later in level for slower
+  swells).
+- Not fitted by: a level crossing (sample or 64 ... 512-sample blocks on the
+  note's grid, any threshold and offset: <= 48 / 80 first restarts), a
+  look-ahead level ratio, a block energy-jump rule (first or last), FL's
+  attack-timing window (round 7) with a per-rate onset (6-12 / 15), frame
+  energies of 512 ... 4096 samples (<= 45 / 75).
+- The vocal: picking the first low-band sample within 90% amplitude of the
+  window's loudest (from our own onset) nulls the in-FL vocal cases well
+  (offline 18 cases: +1.17 -> -0.03 dB) but matches FL's restart in only 6 of
+  32 paddings (our onset follows our frame grid, FL's a 512 grid from the
+  note's start): a coincidence of the test file's position, not used.
+
 ## Open
 
 - The period estimator's exact choice on noise (when it is made; 21% now).
@@ -339,5 +372,6 @@ reproduce these measurements are in stretch/ (see README.md).
 - When FL skips the low band's restart (decaying attacks, by grid range),
   and the note start's (the sine's restart near 1035, the saws' scatter).
 - FL's onset on a slow swell (the "ah": ~320 against our 603), which sets
-  both its restart and (round 8) its timing.
+  both its restart and (round 8) its timing; and its second restart in the
+  peak-timed part of the grid (round 11).
 - The transient gain rule.
