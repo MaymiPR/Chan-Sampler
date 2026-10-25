@@ -180,20 +180,20 @@ void EnvelopeDisplay::paint (juce::Graphics& g)
 
     // FL draws the curve at full brightness whether or not the envelope is on;
     // when it is on the points grow to show they can be dragged.
-    const auto lineColour = fl::colour::envLine;
-    g.setColour (lineColour);
-    g.strokePath (p, juce::PathStrokeType (1.6f));
+    g.setColour (fl::colour::envLine);
+    g.strokePath (p, juce::PathStrokeType (1.5f));
 
+    // FL's points: 8 px rings with a dark green fill
     const auto pts = points (gm);
     for (int i = 0; i < 5; ++i)
     {
         const bool hot = on && (i == hovered || i == dragging);
-        const auto size = on ? 7.0f : 5.5f;
+        const auto size = on ? 9.0f : 8.0f;
         const auto dot = juce::Rectangle<float> (size, size).withCentre (pts[(size_t) i]);
-        g.setColour (hot ? lineColour : fl::colour::well);
+        g.setColour (hot ? fl::colour::envPoint : fl::colour::envPointFill);
         g.fillEllipse (dot);
-        g.setColour (lineColour);
-        g.drawEllipse (dot, 1.4f);
+        g.setColour (fl::colour::envPoint);
+        g.drawEllipse (dot, 1.2f);
     }
 }
 
@@ -264,7 +264,7 @@ void LfoDisplay::paint (juce::Graphics& g)
         if (i == 0) p.startNewSubPath (pt); else p.lineTo (pt);
     }
     g.setColour (fl::colour::envLine);
-    g.strokePath (p, juce::PathStrokeType (1.6f));
+    g.strokePath (p, juce::PathStrokeType (1.5f));
 }
 
 //==============================================================================
@@ -276,9 +276,9 @@ RootKeyboard::RootKeyboard (juce::AudioProcessorValueTreeState& s, juce::MidiKey
 
 float RootKeyboard::noteX (int note) const
 {
-    // White keys every 90/7 px; black keys at FL's own offsets in the octave.
+    // White keys every 13 px; black keys at FL's own offsets in the octave.
     static const float whiteIndex[12] = { 0, 0, 1, 1, 2, 3, 3, 4, 4, 5, 5, 6 };
-    static const float blackX[12]     = { 0, 7, 0, 22, 0, 0, 46, 0, 60, 0, 74, 0 };
+    static const float blackX[12]     = { 0, 8, 0, 23, 0, 0, 47, 0, 61, 0, 75, 0 };
     const float octave = (float) (note / 12) * octaveW;
     const int n = note % 12;
     return octave + (isBlack (note) ? blackX[n] : whiteIndex[n] * whiteW);
@@ -316,7 +316,7 @@ juce::Rectangle<float> RootKeyboard::thumbBounds() const
 {
     const auto track = (float) getWidth() - 2.0f * arrowW - thumbW;
     const auto f = maxScroll() > 0.0f ? scroll / maxScroll() : 0.0f;
-    return { arrowW + f * track, keysBottom + 5.0f, thumbW, 5.0f };
+    return { arrowW + f * track, keysBottom + 6.0f, thumbW, 3.0f };
 }
 
 int RootKeyboard::noteAt (juce::Point<float> p) const
@@ -338,10 +338,13 @@ void RootKeyboard::paint (juce::Graphics& g)
 {
     const int root = (int) apvts.getRawParameterValue (pid::rootNote)->load();
     const auto w = (float) getWidth();
-    const juce::Colour strip { 0xffbabec5 }, rule { 0xffa3a7ae }, whiteTop { 0xffbabec5 }, whiteBottom { 0xffcfd3da },
-                       cKey { 0xffbabec5 }, rootBlue { 0xff77a9e6 }, labelText { 0xff26292c }, rootText { 0xff1f4f9e };
+    // FL 2026's keyboard, pixel by pixel: a flat label strip, a rule, white
+    // keys shading lighter downwards (no borders between them; C keys and the
+    // root are flat), black keys with a dark outline, a lit left edge, a
+    // front face and a lip, and a shadow row under them.
+    using namespace fl::key;
+    const juce::Colour rootBlue = fl::key::root, labelText = fl::key::label, rootText = fl::key::rootLabel;
 
-    // Label strip, rule, white keys (no borders between them in FL; C keys are flat and darker)
     g.setColour (strip);
     g.fillRect (0.0f, 0.0f, w, labelH);
     g.setColour (rule);
@@ -349,7 +352,8 @@ void RootKeyboard::paint (juce::Graphics& g)
     g.setGradientFill (juce::ColourGradient (whiteTop, 0.0f, keysTop, whiteBottom, 0.0f, keysBottom, false));
     g.fillRect (0.0f, keysTop, w, keysBottom - keysTop);
 
-    auto pressed = [this] (int n, juce::Colour c) { return state.isNoteOn (1, n) ? c.interpolatedWith (fl::colour::amber, 0.55f) : c; };
+    // FL (measured): a played key turns orange
+    auto pressedKey = [this] (int n, juce::Colour c) { return state.isNoteOn (1, n) ? fl::key::pressed : c; };
     for (int n = 0; n < 128; ++n)
     {
         if (isBlack (n))
@@ -359,24 +363,24 @@ void RootKeyboard::paint (juce::Graphics& g)
             continue;
         if (n == root)
         {
-            g.setColour (pressed (n, rootBlue));
+            g.setColour (pressedKey (n, rootBlue));
             g.fillRect (x, 0.0f, whiteW, keysBottom);
         }
         else if (n % 12 == 0 || state.isNoteOn (1, n))
         {
-            g.setColour (pressed (n, cKey));
+            g.setColour (pressedKey (n, whiteTop));
             g.fillRect (x, keysTop, whiteW, keysBottom - keysTop);
         }
         if (n % 12 == 0 || n == root)
         {
             g.setColour (n == root ? rootText : labelText);
-            g.setFont (fl::font (11.0f));
+            g.setFont (fl::font (10.5f));
             g.drawText (flNoteName (n), juce::Rectangle<float> (x + 1.0f, 0.0f, octaveW, labelH), juce::Justification::centredLeft, false);
         }
     }
 
-    // Black keys: outlined, a lighter left edge, darkest at the top, with FL's
-    // bevelled lip and a thin shadow below.
+    // Black keys (8 x 40 from the rule down): outline; a 5 px body lightening
+    // over 27 rows, two fading rows, a 6 row front face, the lip, 3 dark rows.
     for (int n = 0; n < 128; ++n)
     {
         if (! isBlack (n))
@@ -385,35 +389,37 @@ void RootKeyboard::paint (juce::Graphics& g)
         if (x + blackW < 0.0f || x > w)
             continue;
         const auto top = labelH;
-        auto body = n == root ? rootBlue : juce::Colour (0xff3a3b3c);
-        g.setColour (juce::Colour (0xffa2a5ab));
-        g.fillRect (x, top + blackH, blackW, 1.0f);
-        g.setColour (juce::Colour (0xff2f3031));
+        const auto body = n == root ? rootBlue : blackTop, bodyEnd = n == root ? rootBlue : blackBottom;
+        g.setColour (blackEdge);
         g.fillRect (x, top, blackW, blackH);
-        g.setGradientFill (juce::ColourGradient (pressed (n, body), 0.0f, top, pressed (n, n == root ? rootBlue : juce::Colour (0xff575859)), 0.0f, top + 28.0f, false));
-        g.fillRect (x + 1.0f, top + 1.0f, blackW - 2.0f, 28.0f);
-        g.setColour (juce::Colour (0xff575859));
-        g.fillRect (x + 1.0f, top + 1.0f, 1.0f, 28.0f);
-        g.setColour (juce::Colour (0xff545556));
-        g.fillRect (x + 1.0f, top + 29.0f, blackW - 2.0f, 2.0f);
-        g.setColour (juce::Colour (0xff575859));
-        g.fillRect (x + 1.0f, top + 36.0f, blackW - 2.0f, 1.0f);
+        g.setGradientFill (juce::ColourGradient (pressedKey (n, body), 0.0f, top + 1.0f, pressedKey (n, bodyEnd), 0.0f, top + 28.0f, false));
+        g.fillRect (x + 1.0f, top + 1.0f, 5.0f, 27.0f);
+        g.setColour (pressedKey (n, n == root ? rootBlue : blackFade));
+        g.fillRect (x + 1.0f, top + 28.0f, 5.0f, 1.0f);
+        g.setColour (pressedKey (n, n == root ? rootBlue : blackTop));
+        g.fillRect (x + 1.0f, top + 29.0f, 5.0f, 1.0f);
+        g.setGradientFill (juce::ColourGradient (blackLitTop, 0.0f, top + 11.0f, blackLitBottom, 0.0f, top + 37.0f, false));
+        g.fillRect (x + 1.0f, top + 11.0f, 1.0f, 26.0f);
+        g.setColour (blackBottom);
+        g.fillRect (x + 1.0f, top + 36.0f, 5.0f, 1.0f);
+        g.setColour (blackShadow);
+        g.fillRect (x, top + blackH, blackW, 1.0f);
     }
 
-    // Scroll bar: arrows at the ends and FL's short grip.
+    // Scroll bar: a flat strip with 2 px chevrons at the ends and FL's thin grip.
     const auto barH = (float) getHeight() - keysBottom;
-    g.setColour (juce::Colour (0xff3f4042));
+    g.setColour (bar);
     g.fillRect (0.0f, keysBottom, w, barH);
-    g.setColour (juce::Colour (0xff2b2c2e));
-    const auto cy = keysBottom + barH * 0.5f;
+    g.setColour (barArrow);
+    const auto cy = keysBottom + 7.5f;
     juce::Path arrows;
-    arrows.startNewSubPath (11.0f, cy - 3.0f);  arrows.lineTo (8.0f, cy);  arrows.lineTo (11.0f, cy + 3.0f);
-    arrows.startNewSubPath (w - 11.0f, cy - 3.0f);  arrows.lineTo (w - 8.0f, cy);  arrows.lineTo (w - 11.0f, cy + 3.0f);
-    g.strokePath (arrows, juce::PathStrokeType (1.2f));
+    arrows.startNewSubPath (10.5f, cy - 3.5f);  arrows.lineTo (7.0f, cy);  arrows.lineTo (10.5f, cy + 3.5f);
+    arrows.startNewSubPath (w - 10.5f, cy - 3.5f);  arrows.lineTo (w - 7.0f, cy);  arrows.lineTo (w - 10.5f, cy + 3.5f);
+    g.strokePath (arrows, juce::PathStrokeType (1.6f));
     const auto t = thumbBounds();
-    g.setColour (juce::Colour (0xff252628));
-    g.fillRoundedRectangle (t.withSizeKeepingCentre (t.getWidth(), 3.0f), 1.5f);
-    g.setColour (juce::Colour (0xff202123));
+    g.setColour (grip);
+    g.fillRoundedRectangle (t, 1.5f);
+    g.setColour (gripLine);
     g.fillRect (t.withSizeKeepingCentre (t.getWidth() - 2.0f, 1.0f));
 }
 
@@ -511,7 +517,7 @@ RootNotePanel::RootNotePanel (juce::AudioProcessorValueTreeState& s, juce::MidiK
     fine.setDoubleClickReturnValue (true, 0.0);
     fine.setTooltip ("Fine tuning");
 
-    hint.setFont (fl::font (11.0f));
+    hint.setFont (fl::font (10.5f));
     hint.setJustificationType (juce::Justification::centredRight);
     hint.setColour (juce::Label::textColourId, fl::colour::dim);
 

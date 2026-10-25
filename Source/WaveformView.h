@@ -49,7 +49,7 @@ private:
     enum class Marker { none, start, loopStart, loopEnd, scrollThumb };
     // FL's sample view (measured from FL 2026): an 8 px strip, the view, then an
     // 18 px zoom / scroll bar with 14 px arrow buttons.
-    static constexpr float topH = 8.0f, scrollH = 18.0f, buttonW = 14.0f;
+    static constexpr float topH = 2.0f, waveH = 107.0f, scrollH = 18.0f, buttonW = 14.0f;
 
     void timerCallback() override;
     float getValue (const char* id) const;

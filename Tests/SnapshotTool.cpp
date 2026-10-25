@@ -48,7 +48,7 @@ int main (int argc, char** argv)
     if (juce::String (argv[1]) == "fontwidth")
     {
         for (bool bold : { false, true })
-            std::cout << (bold ? "bold " : "plain ") << juce::GlyphArrangement::getStringWidth (fl::font (100.0f, bold), fl::fontReferenceText) / 100.0f << "\n";
+            std::cout << (bold ? "bold " : "plain ") << juce::GlyphArrangement::getStringWidth (fl::font (90.0f, bold), fl::fontReferenceText) / 100.0f << "\n";
         return 0;
     }
 

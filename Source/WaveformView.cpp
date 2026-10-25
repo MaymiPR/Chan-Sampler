@@ -189,8 +189,11 @@ void WaveformView::setValue (const char* id, float value)
     p->setValueNotifyingHost (p->convertTo0to1 (juce::jlimit (0.0f, 1.0f, value)));
 }
 
-juce::Rectangle<float> WaveformView::waveArea() const   { return getLocalBounds().toFloat().withTrimmedTop (topH).withTrimmedBottom (scrollH); }
-juce::Rectangle<float> WaveformView::scrollArea() const { return getLocalBounds().toFloat().removeFromBottom (scrollH); }
+// FL 2026's geometry (pixels): a dark line, the 107 px view inset 1 px from
+// the left with a dark line under it and a dark column at its right, then
+// the 18 px bar; the rows below the bar show the sheet.
+juce::Rectangle<float> WaveformView::waveArea() const   { return { 1.0f, topH, (float) getWidth() - 2.0f, waveH }; }
+juce::Rectangle<float> WaveformView::scrollArea() const { return { 1.0f, topH + waveH + 1.0f, (float) getWidth() - 1.0f, scrollH }; }
 
 float WaveformView::fracToX (float frac) const
 {
@@ -270,23 +273,8 @@ void WaveformView::timerCallback()
     }
 }
 
-// FL 2026's sample view colours (sampled from FL screenshots).
-namespace flview
-{
-    const juce::Colour frame      { 0xff202324 };   // strip above the view, around the bar
-    const juce::Colour bg         { 0xff1b1d1e };
-    const juce::Colour grid       { 0xff131516 };   // 0.1 s (or 10x finer / coarser) and the +/-50% lines
-    const juce::Colour gridMajor  { 0xff090b0c };   // the next power of ten (whole seconds)
-    const juce::Colour gridMajorEdge { 0xff17191a };   // 1 px each side of it
-    const juce::Colour waveMono   { 0xfff6feff };
-    const juce::Colour waveStereo { 0xfff2eded };
-    const juce::Colour watermark  { 0xff41464b };
-    const juce::Colour barDark    { 0xff101213 };
-    const juce::Colour barLight   { 0xff313334 };
-    const juce::Colour track      { 0xff282a2b };
-    const juce::Colour overview   { 0xffa3a5a6 };
-    const juce::Colour arrow      { 0xff6a6d6f };
-}
+// FL 2026's sample view colours live with the other tokens in FlStyle.h.
+namespace flview = fl::view;
 
 juce::Colour WaveformView::waveColour() const
 {
@@ -440,6 +428,11 @@ void WaveformView::paint (juce::Graphics& g)
     g.fillAll (flview::frame);
     g.setColour (flview::bg);
     g.fillRect (wave);
+    g.setColour (flview::gridMajor);
+    g.fillRect (wave.getX(), wave.getY() - 1.0f, wave.getWidth(), 1.0f);
+    g.fillRect (wave.getX(), wave.getBottom(), wave.getWidth(), 1.0f);
+    g.setColour (flview::viewEdge);
+    g.fillRect (wave.getRight(), wave.getY(), 1.0f, wave.getHeight());
 
     // FL's grid (measured): dark lines every 0.1 s of the sample, every second
     // darker still (the step grows or shrinks to keep the lines at least 15 px
@@ -452,17 +445,17 @@ void WaveformView::paint (juce::Graphics& g)
         const double seconds = sample != nullptr && sample->getTotalFrames() > 0 ? sample->getTotalFrames() / sample->sourceRate : 1.0;
         const double t0 = viewStart * seconds, t1 = viewEnd * seconds;
         const double pps = wave.getWidth() / juce::jmax (1.0e-9, t1 - t0);
-        // The finest step at least 15 px apart: powers of ten, and from 0.1 s
-        // up also 2 and 5 times (FL: 0.1 s at 27 and 36 px rather than 0.05 s
-        // at 18 px; 0.2 s where 0.1 s would be 9 px). The next power of ten
-        // is drawn darker with a soft edge each side.
+        // The finest step at least 12 px apart: powers of ten, and from 0.1 s
+        // up also 2 and 5 times (FL: 0.1 s at 13.6, 27 and 36 px rather than
+        // 0.05 s at 18 px; 0.2 s where 0.1 s would be 9 px). The next power
+        // of ten is drawn darker with a soft edge each side.
         double decade = 0.0001, step = decade;
         for (;;)
         {
             const bool fine = decade < 0.05;
-            if (decade * pps >= 15.0)                  { step = decade;        break; }
-            if (! fine && 2.0 * decade * pps >= 15.0)  { step = 2.0 * decade;  break; }
-            if (! fine && 5.0 * decade * pps >= 15.0)  { step = 5.0 * decade;  break; }
+            if (decade * pps >= 12.0)                  { step = decade;        break; }
+            if (! fine && 2.0 * decade * pps >= 12.0)  { step = 2.0 * decade;  break; }
+            if (! fine && 5.0 * decade * pps >= 12.0)  { step = 5.0 * decade;  break; }
             decade *= 10.0;
         }
         const double major = decade * 10.0;
@@ -487,7 +480,7 @@ void WaveformView::paint (juce::Graphics& g)
     auto drawWatermark = [&g, wave]
     {
         g.setColour (flview::watermark);
-        g.setFont (fl::font (22.0f));
+        g.setFont (fl::font (20.0f));
         g.drawText ("Sampler", wave.reduced (8.0f, 4.0f), juce::Justification::topRight, false);
     };
 
@@ -496,7 +489,7 @@ void WaveformView::paint (juce::Graphics& g)
         drawGrid();
         drawWatermark();
         g.setColour (fl::colour::dim);
-        g.setFont (fl::font (12.0f));
+        g.setFont (fl::font (10.8f));
         const auto raw = processor.getRaw();
         if (raw->missing)
             g.drawFittedText ((raw->file.existsAsFile() ? "Can't read the project's sample:\n" : "The project's sample was not found:\n")
@@ -594,7 +587,7 @@ void WaveformView::paint (juce::Graphics& g)
             g.fillRect (iconR.getX() - 0.5f, iconR.getY() - 1.0f, 2.0f, 2.0f);
             g.fillRect (iconR.getRight() - 1.5f, iconR.getY() - 1.0f, 2.0f, 2.0f);
         }
-        g.setFont (fl::font (11.5f));
+        g.setFont (fl::font (10.35f));
         g.drawText (sample->fileBits <= 16 ? "16" : "32", juce::Rectangle<float> (iconR.getX() - 26.0f, iconR.getY() - 2.0f, 21.0f, 13.0f),
                     juce::Justification::centredRight, false);
     }
@@ -608,7 +601,7 @@ void WaveformView::paint (juce::Graphics& g)
         g.drawVerticalLine ((int) sx, wave.getY(), wave.getBottom());
         g.setColour (fl::colour::startGold);
         g.fillRect (sx, wave.getY(), 4.0f, flagH);
-        g.setFont (fl::font (11.5f));
+        g.setFont (fl::font (10.35f));
         g.drawText ("Start", juce::Rectangle<float> (sx + 6.0f, wave.getY(), 40.0f, flagH), juce::Justification::centredLeft, false);
     }
 
@@ -634,7 +627,7 @@ void WaveformView::paint (juce::Graphics& g)
         startTab.addQuadrilateral (x0, bottom - tabH, x0 + tabW, bottom - tabH + cut, x0 + tabW, bottom, x0, bottom);
         g.fillPath (startTab);
 
-        const auto label = fl::font (11.0f);
+        const auto label = fl::font (9.9f);
         const auto labelW = juce::GlyphArrangement::getStringWidth (label, "Loop");
         if (x1 - x0 >= labelW + 12.0f)
         {

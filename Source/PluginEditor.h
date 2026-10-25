@@ -38,6 +38,7 @@ private:
                         juce::Colour ring = fl::colour::amber);
     juce::Slider& hslider (juce::Component& parent, const juce::String& paramId, int x, int y, int w, int h);
     juce::Label& caption (juce::Component& parent, const juce::String& text, int x, int y, int w, int h);
+    static juce::Rectangle<int> comboBounds (int x, int y, int w, int h);
     juce::ToggleButton& led (juce::Component& parent, const juce::String& paramId, const juce::String& text, int x, int y, int w, int h);
     juce::ComboBox& combo (juce::Component& parent, const juce::String& paramId, int x, int y, int w, int h);
     fl::DigiBox& digi (juce::Component& parent, const juce::String& paramId, int x, int y, int w, int h, bool red);

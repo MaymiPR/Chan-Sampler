@@ -149,9 +149,10 @@ public:
     void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
 
 private:
-    // FL's layout: 14 px label strip, a 1 px rule, 59 px keys, a 15 px scroll bar.
-    static constexpr float octaveW = 90.0f, whiteW = octaveW / 7.0f, labelH = 14.0f, keysTop = 15.0f,
-                           keysBottom = 74.0f, blackW = 7.0f, blackH = 40.0f, arrowW = 13.0f, thumbW = 57.0f;
+    // FL's layout (pixels): a 15 px label strip, a 1 px rule, 59 px keys on
+    // 91 px octaves (white keys 13 px, black 8 x 40), a 15 px scroll bar.
+    static constexpr float octaveW = 91.0f, whiteW = 13.0f, labelH = 15.0f, keysTop = 16.0f,
+                           keysBottom = 75.0f, blackW = 8.0f, blackH = 40.0f, arrowW = 13.0f, thumbW = 57.0f;
 
     void timerCallback() override;
     int noteAt (juce::Point<float>) const;

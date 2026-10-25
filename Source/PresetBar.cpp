@@ -39,7 +39,7 @@ void PresetBar::paint (juce::Graphics& g)
     const auto r = getLocalBounds().toFloat();
     g.setColour (fl::colour::well);
     g.fillRoundedRectangle (r, 2.0f);
-    g.setColour (juce::Colour (0xff3a3d3f));
+    g.setColour (fl::colour::fieldEdge);
     g.drawRoundedRectangle (r.reduced (0.5f), 2.0f, 1.0f);
 
     g.setColour (fl::colour::dim);
@@ -56,7 +56,7 @@ void PresetBar::paint (juce::Graphics& g)
 
     const auto name = currentName();
     g.setColour (name.isEmpty() ? fl::colour::dim : juce::Colours::white.withAlpha (0.85f));
-    g.setFont (fl::font (12.0f));
+    g.setFont (fl::font (10.8f));
     g.drawText (name.isEmpty() ? juce::String ("Presets") : name,
                 r.withTrimmedLeft (17.0f).withTrimmedRight (17.0f), juce::Justification::centred, true);
 }

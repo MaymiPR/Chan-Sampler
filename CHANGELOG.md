@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+Look
+- Every control is drawn as FL Studio 2026 draws it, pixel by pixel from
+  captures of its channel settings window (the layout stays as it was):
+  knobs with FL's bevel, body shading, value dot and full-turn arc in FL's
+  per-control colours; the filter knobs' brushed body, wide bevel and tick
+  marks; the round switches with their lit glow; drop-down fields, push
+  buttons, digi wheels and the fine tune / Mid sliders; panel header tabs
+  with FL's slant and dark edges; FL's sheet, panel and text colours and
+  its 11.7 px / 7 px bold Segoe UI sizes; the sheet, LFO and effects icons
+  traced from FL; the keyboard's 91 px octaves and 8 px black keys; the
+  sample view's frame, 0.1 s grid at 13.6 px and plain-grey overview. Hover
+  and pressed states follow FL too: knobs and the digi wheel lighten under
+  the mouse (the wheel's triangles go), buttons and file buttons sink a
+  pixel when pressed, nothing else reacts to hovering.
+
 Closer to FL
 - e3 generic, Auto, e2 generic and e2 transient stretch at FL's internal
   ratio grid and resample the rest, as FL does: e3 generic's in-FL pitch
