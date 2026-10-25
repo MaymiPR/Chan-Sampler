@@ -10,6 +10,12 @@ Closer to FL
 - e3 generic splices its upper band at irregular, FL-like periods on noisy
   sounds (hats, cymbals) instead of every 256 samples, which added a
   periodic flutter.
+- e3 generic and Auto restart the phases of the band below 1.485 kHz after
+  an attack the way FL does (from that band's loudest point a little after
+  the attack), so sustained sound after a hit lines up with FL's: the
+  in-FL pitch cases null 0.2 dB deeper on average and a sung vowel up a
+  fifth 10 dB deeper; the same vowel down 3 or up 12 semitones nulls worse,
+  as FL finds a slow swell's start earlier than Chan Sampler does.
 
 Fixes
 - The volume, filter and pitch envelopes' hold and decay start on FL's tick

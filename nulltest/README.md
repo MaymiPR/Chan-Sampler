@@ -89,6 +89,7 @@ FL rendered).
 | `soft_start.py` | where each mode puts a note that starts softly (no attack) |
 | `e3_parity.py` | single-sample clicks at exactly ±1200 cents |
 | `ratio_grid.py` | FL's stretch-ratio grid (the treble ripple's rate per MUL) and e3's splice sizes on noise, FL against ours |
+| `lowband.py` | e3's band below the split after an attack: where FL restarts its phases (steady tones switched on by a click), and an in-FL case's low-band phase delay over time |
 | `metrics.py`, `common.py` | the distances, the mode table, our stretcher run on its own |
 
 FL's own samples are read from the FL install, never copied here.

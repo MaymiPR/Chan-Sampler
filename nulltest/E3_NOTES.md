@@ -275,9 +275,69 @@ reproduce these measurements are in stretch/ (see README.md).
   samples at x0.667 (cleared at an attack): e3 soft-start error 28 -> 9
   samples mean over the four cases.
 
+## Low band after an attack (round 10)
+
+- **Method.** Between restarts a phase vocoder's steady partial keeps one
+  phase relation to the source, set where its phases were last restarted:
+  a restart from the source frame at P, played where the stretch puts P,
+  turns a partial of frequency w by -w (stretch - 1) P against ours. So the
+  low band's phase against ours locates FL's restart (several inharmonic
+  tones make it unambiguous); the cross-spectrum of FL's low band and ours
+  gives it as a phase delay on real material (stretch/lowband.py case).
+- **Note start.** Saws: FL's harmonics come out scattered +-10 deg against
+  the source (x1.5), set in the first ~2000 output samples, then steady;
+  the scatter scales with stretch - 1 (x2: double, x0.667: -2/3); ours has
+  none. A lone sine (no treble): FL plays a 1:1 copy for ~1100 output
+  samples (x2), then crossfades (level dips to 0.13 where the phases
+  oppose) into a vocoder restarted near source 1035 (x1.5, x2) or not at
+  all (x0.667, x1.231 at some frequencies); chaotic between 330 and 400 Hz.
+  Not modelled.
+- **Attacks: the rule.** Five steady tones (211 ... 1129 Hz) switched on by a
+  treble click, the onset stepped 16 samples through 512 (lowband.py
+  probe): FL restarts from the loudest sample of the band below the split
+  in [onset + 660, onset + 1172), 20 earlier where the timing grid times
+  attacks by their peak, played where the stretch puts it. The restart
+  lands on the tone sum's loudest peaks (5140, 5667; window start boundary
+  644..676 after the onset at x0.667, x1.5 and +700 cents; length 495 ...
+  1863). A treble click train rising through the window does not move it
+  (the loudest point is the low band's). Same structure at x2.
+- **A sung "ah" (+700 cents, the stretcher alone):** FL's restart is at its
+  sample 1470 (ours: no restart, the attack's own phases at 1373); with it
+  the band below 1.3 kHz nulls -14.2 dB (was +4.7). The point does not move
+  with level (-12 / +6 dB). Padded with 0..496 samples of silence, FL's
+  point flips between the swell's peaks (1474 for pads 0-48, 1366 for
+  64-368, 1479 for 384-496): under the rule FL's onset is at about sample
+  320 of the swell, ours 603 (our detector needs an 8x block-energy jump).
+  No block-energy rule fitted the 32 pads (relative rules fail on the
+  leading silence; the best fits sit on the boundary).
+- **In the plugin:** at each vocoder attack lock (e3 generic, Auto) the
+  restart point is found as above and, from the first unlocked frame
+  centred at or after where it plays, the partials are turned by -w (stretch
+  - 1)(restart - attack) (the phase advance of each peak, the locked bins
+  following). Probe against FL: within 3 samples of FL's restart over most
+  of the grid at x0.667 and +700, and 1-3 deg at onsets 208-464 at x1.5 (was
+  50-60 deg); at x2 two stretches of the grid miss. In FL (30 pitch
+  cases): null raw -3.06 -> -3.30, fitted -4.44 -> -4.57; envelope 1.64 ->
+  1.70, spectrum 1.99 -> 2.02. Vocal +700 4.5 -> -5.5 dB, groove -700 / -300
+  / +300 by 1-2 dB, the loop by ~1 dB; vocal -300 -0.6 -> 4.6 and +1200
+  -3.4 -> 1.2 (our onset on the swell), groove +700 -1.1 -> 0.4.
+- **When it plays:** the probe's crossfade is where the attack's 1:1 copy
+  reaches the restart point (x1.5: predicted 7288, measured mid-point 7272),
+  not where the stretch puts it; but on the loops the stretch-map time
+  nulls better (offline, 18 cases: 1.16 against 1.44 dB), so that is used.
+- **Skipped restarts:** FL does not always restart. The groove's hit at
+  44085 (+700): FL follows ours-before. The loop's two hits repeat every
+  41340 samples: the same hit is restarted at onset mod 512 = 66 and 132
+  and not at 260 ... 450 (PITCH). The probe with tones decaying (tau 3000,
+  x1.5): restarted at 96 ... 352, kept at 0 and 416 ... 480. Steady tones
+  are restarted everywhere. The rule (grid range and decay) is not found.
+
 ## Open
 
 - The period estimator's exact choice on noise (when it is made; 21% now).
 - Grain window shape, how analysis marks are placed.
-- The low band's frame / hop / phase handling.
+- When FL skips the low band's restart (decaying attacks, by grid range),
+  and the note start's (the sine's restart near 1035, the saws' scatter).
+- FL's onset on a slow swell (the "ah": ~320 against our 603), which sets
+  both its restart and (round 8) its timing.
 - The transient gain rule.

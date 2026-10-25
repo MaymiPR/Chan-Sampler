@@ -226,6 +226,26 @@ distance to FL's renders (`nulltest/stretch/`, `nulltest/E3_NOTES.md`).
   256 samples, a 20 dB flutter in the treble's modulation spectrum where FL
   has 3 dB; now 3-4 dB. FL's exact choice on noise is still not reproduced
   (21% of splices). nulltest/stretch/ratio_grid.py, E3_NOTES.md round 9.
+- **e3's band below the split after an attack (after 1.2.3):** FL's low band
+  is a phase vocoder whose steady partials keep one phase relation to the
+  source until the next restart, so the phase of FL's low band against ours
+  locates where FL restarts it. Steady tones switched on by a treble click
+  (onset stepped 16 samples through 512; MUL x0.667, x1.5, x2 and +700
+  cents): FL restarts the phases from the low band's loudest sample 660 ...
+  1172 samples after the attack's start (20 earlier where the timing grid
+  times attacks by their peak), played where the stretch puts it; the tones
+  name that sample to within a sample, the same at all four settings. Ours
+  kept the attack's own phases; it now turns its partials as FL's restart
+  would. Our offline build against FL's renders of these tones: within 3
+  samples of FL's restart over most of the grid at x0.667 and +700 cents, 1-3
+  degrees in the middle of it at x1.5 (was 50-60). A sung "ah" stretched alone nulls 14 dB
+  below the split once its restart matches (+4.7 dB before). In FL (30 pitch
+  cases): null -3.06 -> -3.30 dB raw, -4.44 -> -4.57 fitted; envelope 1.64 ->
+  1.70, spectrum 1.99 -> 2.02 (the drum loop, where FL skips some
+  restarts). Not modelled yet: FL skips the restart on some decaying attacks
+  by their place in the grid, and finds a swell's start earlier than ours
+  (the "ah": about sample 320 against our 603), which costs the vocal at
+  -300 and +1200 cents. nulltest/stretch/lowband.py, E3_NOTES.md round 10.
 
 Evidence: nulltest/stretch/stretch_check.py, nulltest/stretch/stretch_vs_fl.py,
 nulltest/stretch/real_material.py, e3_clicks.wav.

@@ -455,6 +455,47 @@ int main()
             check (std::abs (lagLow - 2) <= 3 && std::abs (lagAll - 2) <= 3, "e3: steady sound on time", "low band " + juce::String (lagLow) + ", all " + juce::String (lagAll) + " samples");
         }
 
+        // After an attack the low band restarts its phases from its loudest
+        // point 660 ... 1172 samples after the attack's start, played where
+        // the stretch puts it (FL's e3, measured). Steady low tones switched
+        // on by a treble click, stretched x1.5; a small bump in that range
+        // moves only that point, so the tones come out turned by frequency x
+        // (stretch - 1) x how far it moved.
+        {
+            constexpr int onset = 4320;
+            const double hz[] = { 211.3, 389.7, 617.1, 877.9, 1129.3 }, phase[] = { 0.3, 2.1, 4.4, 1.2, 5.6 };
+            std::vector<float> tones ((size_t) (2 * n44), 0.0f);
+            for (int i = onset; i < 2 * n44; ++i)
+                for (int k = 0; k < 5; ++k)
+                    tones[(size_t) i] += 0.08f * (float) std::sin (juce::MathConstants<double>::twoPi * hz[k] * i / sr44 + phase[k]);
+            for (int i = 0; i < 32; ++i)
+                tones[(size_t) (onset + i)] += (i % 2 == 0 ? 0.5f : -0.5f);
+            int loudest = onset + 660;
+            for (int i = onset + 660; i < onset + 1172; ++i)
+                if (std::abs (tones[(size_t) i]) > std::abs (tones[(size_t) loudest])) loudest = i;
+            auto bumped = tones;
+            const int bump = loudest > onset + 1000 ? onset + 760 : onset + 1060;
+            for (int i = -24; i <= 24; ++i)
+                bumped[(size_t) (bump + i)] += 0.3f * (float) (0.5 + 0.5 * std::cos (juce::MathConstants<double>::pi * i / 24.0)) * (tones[(size_t) bump] < 0.0f ? -1.0f : 1.0f);
+            auto a = stretch (tones, 0.0, StretchMode::e3Generic, 1.0 / 1.5), b = stretch (bumped, 0.0, StretchMode::e3Generic, 1.0 / 1.5);
+            double worst = 0.0;
+            for (int k = 0; k < 5; ++k)
+            {
+                std::complex<double> za, zb;
+                for (int i = 30000; i < 38192; ++i)
+                {
+                    const auto w = 0.5 - 0.5 * std::cos (juce::MathConstants<double>::twoPi * (i - 30000) / 8192.0);
+                    const auto e = std::polar (w, -juce::MathConstants<double>::twoPi * hz[k] * i / sr44);
+                    za += (double) a[(size_t) i] * e;
+                    zb += (double) b[(size_t) i] * e;
+                }
+                const auto want = -juce::MathConstants<double>::twoPi * hz[k] * 0.5 * (bump - loudest) / sr44;
+                worst = juce::jmax (worst, std::abs (std::arg (zb / za * std::polar (1.0, -want))));
+            }
+            check (worst < juce::degreesToRadians (6.0), "e3: low band restarts from its loudest point after an attack",
+                   "worst tone " + juce::String (juce::radiansToDegrees (worst), 1) + " deg off");
+        }
+
         // The mono modes (PSOLA, measured in FL): clicks on time at full level
         // when stretching and squeezing, and PITCH moves the partials but not
         // the spectral envelope (a voice keeps its formants).

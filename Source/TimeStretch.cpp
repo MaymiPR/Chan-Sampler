@@ -202,6 +202,7 @@ void TimeStretcher::reset (double sourcePos)
     apos = idealPos = startPos = sourcePos;
     lockFrames = 0;
     synthOffset = 0.0;
+    rephaseShift = phaseShift = 0.0;
     synthPos = 0.0;
     hop = baseHop;
     framesDone = 0;
@@ -426,7 +427,9 @@ void TimeStretcher::phaseLock (int c, int analysisHop, bool transient)
         const auto d = mulConj (x[(size_t) k], prevBins[c][(size_t) k]);
         const auto expected = twoPi * (float) k * (float) analysisHop / (float) n;
         const auto dev = wrapPhase (std::atan2 (d.imag(), d.real()) - expected);
-        const auto turn = (twoPi * (float) k / (float) n + dev / (float) analysisHop) * (float) hop;
+        auto turn = (twoPi * (float) k / (float) n + dev / (float) analysisHop) * (float) hop;
+        if (phaseShift != 0.0)   // a low-band restart (scheduleRephase): turned by -frequency x the shift
+            turn *= (float) (1.0 - phaseShift / hop);
         s[(size_t) k] = normalised (mul (s[(size_t) k], Complex (std::cos (turn), std::sin (turn))));
     };
 

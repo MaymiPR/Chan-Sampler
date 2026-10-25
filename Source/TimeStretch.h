@@ -286,7 +286,7 @@ private:
                 if (blockEnergy[b] > 8.0f * before + 1.0e-4f * block)
                     attackAt = b;
             }
-            int attackSample = -1;
+            int attackSample = -1, attackOnset = -1;
             if (attackAt >= 0)
             {
                 float peak = 0.0f;
@@ -295,7 +295,9 @@ private:
                 attackSample = attackAt * block;
                 for (int i = (attackAt - 1) * block; i < (attackAt + 1) * block; ++i)
                     if (power[(size_t) i] > 0.01f * peak) { attackSample = i; break; }
+                attackOnset = attackSample;
                 attackSample = loudestAfter (read, pos + attackSample) - pos;
+                attackReach = searchSpan;
                 lockGain = attackGain;
             }
             if (attackSample >= 0)
@@ -324,6 +326,8 @@ private:
                     // only: from an attack on they keep its timing.
                     hfIdeal -= hfSoftShift;
                     hfSoftShift = 0.0;
+                    if (e3Estimator)
+                        scheduleRephase (read, pos + attackOnset, attackPos, alphaNow);
                     apos = juce::jmax ((double) (pos - frame), centreStart - (double) ahead * hop);
                     lockFrames = ahead + 1;   // up to the one centred on it
                     locked = true;
@@ -337,8 +341,14 @@ private:
             }
         }
 
+        if (! locked && rephaseShift != 0.0 && synthPos - hop + 0.5 * frame >= rephaseAt)
+        {
+            phaseShift = rephaseShift;
+            rephaseShift = 0.0;
+        }
         fft->perform (spec.data(), work.data(), false);   // spec -> work
         processSpectrum (pos, pitchRatio, formantCents, locked, monoFrame);  // work -> spec
+        phaseShift = 0.0;
         fft->perform (spec.data(), work.data(), true);
         float scale = (float) hop / (0.375f * (float) n);   // the inverse FFT is scaled by 1 / N; Hann^2 overlaps sum to 0.375 frame / hop
         if (hybrid && locked)
@@ -366,6 +376,44 @@ private:
             apos += juce::jlimit (0.25 * ha, 4.0 * ha, ha + 0.25 * (idealPos - apos));
         }
         emit (1.0f);
+    }
+
+    // FL's e3 restarts the low band's phases after an attack from its own
+    // loudest point: the loudest sample below the split 660 to 1172 samples
+    // after the attack's start (20 earlier when the attack is timed by its
+    // peak), played where the stretch puts it (measured with steady tones
+    // switched on by a click, x0.667 ... x2 and +700 cents: to the sample
+    // over most of the grid; FL skips it for some decaying attacks, by where
+    // they sit in the grid, not modelled; nulltest/E3_NOTES.md, round 10).
+    // Ours keep the attack's phases (its frames are 1:1); from where the
+    // restarted frame would play, every partial is turned by its frequency x
+    // the difference in position (see phaseLock).
+    template <typename Reader>
+    void scheduleRephase (Reader& read, double onset, double attackPos, double alphaNow)
+    {
+        const int lo = (int) std::lround (onset + 660.0 * hfScale), hi = lo + juce::roundToInt (512.0 * hfScale);
+        hfEnsure (read, lo, hi);
+        float best = -1.0f;
+        int at = lo;
+        for (int i = lo; i < hi; ++i)
+        {
+            float l, r;
+            read (i, l, r);
+            const auto slot = (size_t) (i & (hfCacheSize - 1));
+            l -= hfCacheL[slot];
+            r -= hfCacheR[slot];
+            if (l * l + r * r > best)
+            {
+                best = l * l + r * r;
+                at = i;
+            }
+        }
+        // Timed by its peak: where the grid's search reaches 469 samples (the
+        // stepped bursts' peak), whether or not the loudest sample is late.
+        const bool byPeak = attackReach > juce::roundToInt (469.0 * hfScale);
+        const double restart = at - (byPeak ? 20.0 * hfScale : 0.0);
+        rephaseShift = (alphaNow - 1.0) * (restart - attackPos);
+        rephaseAt = synthOffset + (restart - startPos) * alphaNow;
     }
 
     // Where an attack sounds against the source, in output samples, by the
@@ -525,6 +573,7 @@ private:
             const double rel = under - startPos;
             const double end = startPos + offset + grid * std::ceil ((rel + gap - offset) / grid);
             span = juce::jlimit (1, 4096, (int) std::lround (end - start));
+            searchSpan = span;
             // Where the attack sits in the grid sets how much louder FL's low
             // band plays it (measured: 64 bursts stepped through the grid).
             windowPhase = std::fmod (std::fmod (rel - (offset - gap), grid) + grid, grid) / hfScale;
@@ -821,6 +870,8 @@ private:
     int prevPos = 0, lockFrames = 0, framesDone = 0;
     double startPos = 0.0;
     double synthOffset = 0.0;   // where the output starts in the synthesised stream
+    double rephaseShift = 0.0, rephaseAt = 0.0;   // a pending low-band restart (scheduleRephase): its shift and where it plays
+    double phaseShift = 0.0;                      // this frame's: synthesis phases turned by -frequency x it
     int attackSpan = 1;         // > 1: time attacks like FL's e3 (loudestAfter)
     double attackAlpha = 1.0, attackPitch = 1.0;   // the stretch and pitch ratio in use (attack timing)
     double windowPhase = 0.0;                      // the last attack's place in the timing grid
@@ -829,6 +880,7 @@ private:
     double soft15 = 0.0, soft067 = 0.0;            // softStart at x1.5 / x0.667 (44.1 kHz samples): the vocoder
     double hfSoft15 = 0.0, hfSoft067 = 0.0;        // and the grains
     float attackGain = 0.0f, lockGain = 0.0f;      // the low band's gain while an attack is held (0: by the stretch)
+    int searchSpan = 0, attackReach = 0;           // loudestAfter's last search length; the vocoder attack's
     bool first = true, aligned = false;
 
     FastFFT::Scratch fftScratch { 13 };
