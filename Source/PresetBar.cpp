@@ -42,9 +42,10 @@ void PresetBar::paint (juce::Graphics& g)
     g.setColour (fl::colour::fieldEdge);
     g.drawRoundedRectangle (r.reduced (0.5f), 2.0f, 1.0f);
 
-    g.setColour (fl::colour::dim);
     for (int side = 0; side < 2; ++side)
     {
+        // a clicked arrow lights up white and fades back (not measured in FL)
+        g.setColour (fl::colour::dim.interpolatedWith (juce::Colours::white, flash[side]));
         const auto a = side == 0 ? leftArrow() : rightArrow();
         const auto d = side == 0 ? 1.0f : -1.0f;
         juce::Path chevron;
@@ -63,9 +64,29 @@ void PresetBar::paint (juce::Graphics& g)
 
 void PresetBar::mouseDown (const juce::MouseEvent& e)
 {
-    if (leftArrow().contains (e.position))       step (-1);
-    else if (rightArrow().contains (e.position)) step (1);
-    else                                         showMenu();
+    const int side = leftArrow().contains (e.position) ? 0 : rightArrow().contains (e.position) ? 1 : -1;
+    if (side < 0)
+    {
+        showMenu();
+        return;
+    }
+    flash[side] = 1.0f;
+    startTimerHz (60);
+    repaint();
+    step (side == 0 ? -1 : 1);
+}
+
+void PresetBar::timerCallback()
+{
+    bool fading = false;
+    for (auto& f : flash)
+    {
+        f = juce::jmax (0.0f, f - 1.0f / 15.0f);   // gone in a quarter second
+        fading = fading || f > 0.0f;
+    }
+    if (! fading)
+        startTimerHz (4);
+    repaint();
 }
 
 void PresetBar::step (int delta)

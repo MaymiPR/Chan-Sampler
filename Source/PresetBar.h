@@ -28,7 +28,7 @@ public:
     std::function<void (const juce::String&, bool)> onMessage;
 
 private:
-    void timerCallback() override { repaint(); }
+    void timerCallback() override;
     juce::Array<juce::File> presetFiles() const;
     juce::String currentName() const;
     void setCurrentName (const juce::String&);
@@ -44,4 +44,5 @@ private:
 
     ChanSamplerProcessor& processor;
     std::unique_ptr<juce::FileChooser> chooser;
+    float flash[2] = { 0.0f, 0.0f };   // the arrows' click flash, fading
 };

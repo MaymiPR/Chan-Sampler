@@ -37,7 +37,7 @@ private:
     juce::Slider& knob (juce::Component& parent, const juce::String& paramId, int x, int y, int size,
                         juce::Colour ring = fl::colour::amber);
     juce::Slider& hslider (juce::Component& parent, const juce::String& paramId, int x, int y, int w, int h);
-    juce::Label& caption (juce::Component& parent, const juce::String& text, int x, int y, int w, int h);
+    juce::Label& caption (juce::Component& parent, const juce::String& text, int x, int y, int w, int h, float em = 7.0f);
     static juce::Rectangle<int> comboBounds (int x, int y, int w, int h);
     juce::ToggleButton& led (juce::Component& parent, const juce::String& paramId, const juce::String& text, int x, int y, int w, int h);
     juce::ComboBox& combo (juce::Component& parent, const juce::String& paramId, int x, int y, int w, int h);
@@ -88,6 +88,7 @@ private:
     juce::Label* sampleInfo = nullptr;
     fl::IconTabs* sheetTabs = nullptr;
     fl::TextTabs* targetTabs = nullptr;
+    fl::IconTabs* fxTabs = nullptr;         // Precomputed effects: Tools / Effects
     bool rememberSize = false;   // set once the editor has its initial size
 
     std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>> sliderAttachments;

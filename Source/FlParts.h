@@ -158,13 +158,15 @@ private:
     int noteAt (juce::Point<float>) const;
     float noteX (int note) const;           // left edge in keyboard pixels (before scrolling)
     float maxScroll() const;
-    void setScroll (float px);
+    void setScroll (float px);      // glides there
+    void setScrollNow (float px);   // jumps there (dragging the bar)
     juce::Rectangle<float> thumbBounds() const;
     static bool isBlack (int note) { const int n = note % 12; return n == 1 || n == 3 || n == 6 || n == 8 || n == 10; }
 
     juce::AudioProcessorValueTreeState& apvts;
     juce::MidiKeyboardState& state;
-    float scroll = 0.0f;
+    float scroll = 0.0f, target = 0.0f;
+    bool animating = false;
     bool placed = false;
     float dragFrom = -1.0f, scrollFrom = 0.0f;   // dragging the scroll thumb
     int playing = -1;

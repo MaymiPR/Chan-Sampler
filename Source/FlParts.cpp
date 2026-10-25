@@ -291,10 +291,23 @@ float RootKeyboard::maxScroll() const
 
 void RootKeyboard::setScroll (float px)
 {
-    const auto s = juce::jlimit (0.0f, maxScroll(), px);
-    if (s != scroll)
+    // The keyboard glides to its new place, as FL's smooth scrolling does:
+    // an exponential ease that closes a tenth of the remaining distance every
+    // 60 Hz frame (not measured in FL).
+    target = juce::jlimit (0.0f, maxScroll(), px);
+    if (std::abs (target - scroll) > 0.5f && ! animating)
     {
-        scroll = s;
+        animating = true;
+        startTimerHz (60);
+    }
+}
+
+void RootKeyboard::setScrollNow (float px)
+{
+    target = juce::jlimit (0.0f, maxScroll(), px);
+    if (target != scroll)
+    {
+        scroll = target;
         repaint();
     }
 }
@@ -308,7 +321,7 @@ void RootKeyboard::resized()
         placed = true;
         const int root = (int) apvts.getRawParameterValue (pid::rootNote)->load();
         scroll = -1.0f;
-        setScroll (noteX (root - root % 12) - 267.0f);
+        setScrollNow (noteX (root - root % 12) - 267.0f);
     }
 }
 
@@ -431,7 +444,7 @@ void RootKeyboard::mouseDown (const juce::MouseEvent& e)
         const auto t = thumbBounds().withY (keysBottom).withHeight ((float) getHeight() - keysBottom);
         if (e.position.x < arrowW)                     setScroll (scroll - octaveW);
         else if (e.position.x > getWidth() - arrowW)   setScroll (scroll + octaveW);
-        else if (t.contains (e.position))              { dragFrom = e.position.x; scrollFrom = scroll; }
+        else if (t.contains (e.position))              { dragFrom = e.position.x; scrollFrom = target; }
         else                                           setScroll (scroll + (e.position.x < t.getX() ? -1.0f : 1.0f) * (float) getWidth() * 0.8f);
         return;
     }
@@ -457,7 +470,7 @@ void RootKeyboard::mouseDrag (const juce::MouseEvent& e)
     {
         const auto track = (float) getWidth() - 2.0f * arrowW - thumbW;
         if (track > 0.0f)
-            setScroll (scrollFrom + (e.position.x - dragFrom) / track * maxScroll());
+            setScrollNow (scrollFrom + (e.position.x - dragFrom) / track * maxScroll());
         return;
     }
     if (playing < 0)
@@ -482,11 +495,22 @@ void RootKeyboard::mouseUp (const juce::MouseEvent&)
 void RootKeyboard::mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails& wheel)
 {
     const auto d = std::abs (wheel.deltaX) > std::abs (wheel.deltaY) ? wheel.deltaX : wheel.deltaY;
-    setScroll (scroll - d * octaveW * 2.0f);
+    setScroll (target - d * octaveW * 2.0f);
 }
 
 void RootKeyboard::timerCallback()
 {
+    if (animating)
+    {
+        scroll += (target - scroll) * 0.19f;   // 1 - exp (-1/60 s / 80 ms)
+        if (std::abs (target - scroll) < 0.5f)
+        {
+            scroll = target;
+            animating = false;
+            startTimerHz (30);
+        }
+        repaint();
+    }
     const int root = (int) apvts.getRawParameterValue (pid::rootNote)->load();
     bool changed = root != lastRoot;
     for (int n = 0; n < 128; ++n)
@@ -525,9 +549,9 @@ RootNotePanel::RootNotePanel (juce::AudioProcessorValueTreeState& s, juce::MidiK
         addAndMakeVisible (c);
 
     // Layout from FL's KeybPanel (544 x 137)
-    resetButton.setBounds (3, 23, 46, 21);
+    resetButton.setBounds (4, 23, 46, 21);
     fineLabel.setBounds (58, 23, 56, 21);
-    fine.setBounds (114, 24, 170, 22);
+    fine.setBounds (114, 24, 113, 22);   // FL's track is 104 px long (measured)
     hint.setBounds (290, 23, 248, 21);
     keyboard.setBounds (0, 48, 544, 89);
 

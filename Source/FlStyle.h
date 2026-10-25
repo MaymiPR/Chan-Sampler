@@ -51,6 +51,9 @@ namespace fl
         const juce::Colour ledOnRing      { 0xff5c5e5e };
         const juce::Colour ledGreenCentre { 0xff8fe86a };   // the green variant (FL's channel ON light)
         const juce::Colour ledGreenEdge   { 0xffe4ffd8 };
+        const juce::Colour ledSmallTop    { 0xff4c4e4f };   // the 11 px switch's disc (CLIP): lit top, dark foot
+        const juce::Colour ledSmallMid    { 0xff313435 };
+        const juce::Colour ledSmallBottom { 0xff191b1c };
 
         // Text
         const juce::Colour title     { 0xffd4d4d4 };   // panel titles
@@ -75,13 +78,22 @@ namespace fl
         const juce::Colour comboArrow     { 0xff686c6e };
         const juce::Colour comboText      { 0xffd0d0d0 };
 
-        // Push buttons (Reset, Cut self, A / B)
-        const juce::Colour buttonFrame  { 0xff141717 };
-        const juce::Colour buttonCorner { 0xff1e2121 };
-        const juce::Colour buttonInner  { 0xff262729 };   // lighter inner edge
-        const juce::Colour buttonTop    { 0xff1f2022 };   // fill, darkening downwards
-        const juce::Colour buttonBottom { 0xff18191b };
-        const juce::Colour buttonText   { 0xffc4c6c8 };
+        // Push buttons (Reset, Cut self), measured
+        const juce::Colour buttonFrame       { 0xff141717 };
+        const juce::Colour buttonCornerOuter { 0xff1e2121 };   // the rounded corners' two shades
+        const juce::Colour buttonCornerInner { 0xff161919 };
+        const juce::Colour buttonEdgeTop     { 0xff262729 };   // light inner edge along the top
+        const juce::Colour buttonEdgeBottom  { 0xff1b1c1e };   // inner row at the bottom
+        const juce::Colour buttonSideTop     { 0xff252628 };   // inner edges down the sides, fading
+        const juce::Colour buttonSideBottom  { 0xff1b1c1e };
+        const juce::Colour buttonTop         { 0xff202123 };   // fill, darkening downwards
+        const juce::Colour buttonBottom      { 0xff18191b };
+        const juce::Colour buttonText        { 0xffc4c6c8 };
+        // The A / B reverb switch: an upright pill
+        const juce::Colour pillEdge     { 0xff3c464b };
+        const juce::Colour pillInside   { 0xff1d1f1f };
+        const juce::Colour pillKnob     { 0xffa6abaf };
+        const juce::Colour pillKnobEdge { 0xffb9bec2 };
 
         // Digital value boxes
         const juce::Colour digiTop    { 0xff5e6366 };
@@ -93,14 +105,13 @@ namespace fl
         const juce::Colour digiRed    { 0xff8c424a };   // FL's red variant (pitch range)
 
         // Sliders
-        const juce::Colour sliderTrack  { 0xff171a1a };   // the groove's edges
-        const juce::Colour sliderGroove { 0xff1d2020 };   // its floor
-        const juce::Colour sliderTick   { 0xff1a1d1d };
-        const juce::Colour thumbTop     { 0xff737677 };   // the round thumb, lit from above
-        const juce::Colour thumbBody    { 0xff0f1213 };
-        const juce::Colour thumbBottom  { 0xff535657 };
-        const juce::Colour thumbEdge    { 0xff171a1b };
-        const juce::Colour thumbRed     { 0xffff4e60 };   // the fine tune thumb's line
+        const juce::Colour sliderTrack   { 0xff171a1a };   // the groove's edges
+        const juce::Colour sliderGroove  { 0xff1d2020 };   // its floor
+        const juce::Colour sliderTick    { 0xff171a1a };   // the 1 px ticks below it
+        const juce::Colour sliderTickTop { 0xff1c1f1f };   // their top pixel
+        const juce::Colour sliderBand    { 0xff202323 };   // the strip the ticks stand on
+        const juce::Colour sliderBandTop { 0xff202424 };
+        const juce::Colour thumbRed      { 0xffff4e60 };   // the fine tune thumb's line (the ball's shading is in FlStyle.cpp)
 
         // Sample view
         const juce::Colour fieldEdge  { 0xff3a3d3f };   // the preset bar's outline
@@ -189,6 +200,7 @@ namespace fl
         void drawButtonBackground (juce::Graphics&, juce::Button&, const juce::Colour&, bool highlighted, bool down) override;
         void drawButtonText (juce::Graphics&, juce::TextButton&, bool highlighted, bool down) override;
         juce::Font getTextButtonFont (juce::TextButton&, int buttonHeight) override;
+        void drawLabel (juce::Graphics&, juce::Label&) override;
         juce::Font getPopupMenuFont() override;
         // The value popup shown while a knob turns: drawn like the knob menus.
         void drawBubble (juce::Graphics&, juce::BubbleComponent&, const juce::Point<float>& tip, const juce::Rectangle<float>& body) override;
@@ -283,6 +295,15 @@ namespace fl
     {
     public:
         MenuArrow() : juce::Button ({}) {}
+        void paintButton (juce::Graphics&, bool highlighted, bool down) override;
+    };
+
+    // FL's upright A / B switch (the effects view's reverb type): toggled
+    // state B puts the knob at the bottom.
+    class SlideSwitch : public juce::Button
+    {
+    public:
+        SlideSwitch() : juce::Button ({}) { setClickingTogglesState (true); }
         void paintButton (juce::Graphics&, bool highlighted, bool down) override;
     };
 

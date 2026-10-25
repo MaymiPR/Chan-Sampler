@@ -16,6 +16,16 @@ Look
   and pressed states follow FL too: knobs and the digi wheel lighten under
   the mouse (the wheel's triangles go), buttons and file buttons sink a
   pixel when pressed, nothing else reacts to hovering.
+- Second pass from the same captures: the filter knobs' shading is read
+  from FL's screen and interpolated (brushed body, bevel lit from above,
+  shadow); the slider thumbs are fitted balls with FL's lit rim, glow and
+  foot light over FL's tick strip; the digi wheels get FL's soft-edged box
+  and its light from the left; push buttons (Reset, Cut self, the file
+  buttons) get FL's frame, edges and sizes; the icons are traced from FL's
+  anti-aliased pixels to a fraction of a pixel; knob captions sit on the
+  pixel grid; the effects view gets FL's well behind BOOST, its small CLIP
+  switch and the A / B reverb pill; the panels reach FL's right edge; the
+  keyboard glides when scrolled and the preset arrows flash when clicked.
 
 Closer to FL
 - e3 generic, Auto, e2 generic and e2 transient stretch at FL's internal

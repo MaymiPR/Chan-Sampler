@@ -1,4 +1,5 @@
 #include "FlStyle.h"
+#include "FlBigKnob.h"
 #include "FlIcons.h"
 
 namespace fl
@@ -137,56 +138,51 @@ namespace
         });
     }
 
-    // FL's filter knob (66 px): a brushed body with two lit lobes, a dark
-    // rim, a wide bevel lit from above with a shadow at its lower right, a
-    // faint ring around it and nine tick marks every 40 degrees. It sweeps
-    // 320 degrees; the dot (green on MOD X, gold on MOD Y) rides on the bevel.
+    // FL's filter knob (66 px). Its shading (the brushed body with its lit
+    // lobes, the bevel lit from above, the shadow at its foot) is measured from
+    // FL's screen in polar coordinates (FlBigKnob.h) and interpolated, so it
+    // comes out as FL draws it at any scale. The knob sweeps 320 degrees; the
+    // dot (green on MOD X, gold on MOD Y) rides at 22.5 px; nine 1 px tick
+    // marks sit every 40 degrees from 29.5 to 36 px out.
     void renderBigKnob (juce::Graphics& g, juce::Rectangle<float> area, float pos, juce::Colour dotColour, bool hover, float alpha)
     {
         const float lift = hover ? 52.0f : 0.0f;   // FL lights the body up under the mouse (measured: the lobes nearly double)
         const auto cx = area.getWidth() * 0.5f, cy = area.getHeight() * 0.5f;
         const auto R = juce::jmin (cx, cy);          // 33 at FL's size
         const auto k = R / 33.0f;
-        // body luma by angle (every 30 degrees from straight down, clockwise), at 14 and 16.5 px out
-        static const float inner[12] = { 61, 80, 31, 31, 42, 54, 79, 131, 70, 32, 23, 22 };
-        static const float edge[12]  = { 61, 89, 37, 21, 28, 42, 64, 128, 75, 31, 20, 19 };
-        auto table = [] (const float* t, float th)
-        {
-            const auto a = (th + juce::MathConstants<float>::pi) / (juce::MathConstants<float>::pi / 6.0f);   // 0..12
-            const int i = (int) std::floor (a);
-            const auto f = a - (float) i;
-            return t[i % 12] * (1.0f - f) + t[(i + 1) % 12] * f;
-        };
         const auto ang = juce::degreesToRadians (-160.0f + 320.0f * pos);
-        const auto dotX = cx + 22.4f * k * std::sin (ang), dotY = cy - 22.4f * k * std::cos (ang);
-        const Rgb ringDark = rgb (colour::bigRingDark), panel = rgb (colour::panel), dot = rgb (dotColour);
+        const auto dotX = cx + 22.5f * k * std::sin (ang), dotY = cy - 22.5f * k * std::cos (ang);
+        const Rgb panel = rgb (colour::panel), dot = rgb (dotColour);
+        auto shade = [] (float r, float deg)
+        {
+            // bilinear in the measured table: 0.5 px rings, 5 degree spokes
+            const auto ri = juce::jlimit (0.0f, (float) (bigKnobRadii - 1), r * 2.0f);
+            const auto ai = (deg + 180.0f) / 5.0f;
+            const int r0 = (int) ri, r1 = juce::jmin (r0 + 1, bigKnobRadii - 1);
+            const int a0 = (((int) std::floor (ai)) % bigKnobAngles + bigKnobAngles) % bigKnobAngles, a1 = (a0 + 1) % bigKnobAngles;
+            const auto fr = ri - (float) r0, fa = ai - std::floor (ai);
+            const auto row = [&] (int rr) { return (float) bigKnobLuma[rr][a0] * (1.0f - fa) + (float) bigKnobLuma[rr][a1] * fa; };
+            return row (r0) * (1.0f - fr) + row (r1) * fr;
+        };
 
         drawPixels (g, area, alpha, [&] (float x, float y, float& coverage) -> Rgb
         {
             const auto p = polar (x, y, cx, cy);
             const auto r = p.r / k;
-            coverage = 1.0f;
-            // body with its lobes, growing from the centre outwards
-            const auto s = juce::jmin (1.0f, r / 14.0f);
-            const auto lobe = r < 15.5f ? table (inner, p.th) : table (edge, p.th);
-            const auto luma = 36.0f + (lobe - 36.0f) * s + (r < 17.0f ? lift : r < 18.5f ? lift * 0.3f : 0.0f);
-            Rgb c = r < 29.0f ? Rgb { luma - 1.0f, luma, luma + 0.5f } : panel;
-            // the bevel: lit from above, dark elsewhere, a touch of light at the bottom
-            Rgb bevel = ringDark + (68.0f * std::pow (clamp01 (p.cosv), 1.5f) + 13.0f * clamp01 (-p.cosv) * clamp01 (-p.cosv));
-            c = lerp (c, bevel, cov (r, 18.5f, 23.5f));
-            // dark ring with a shadow towards the lower right, then a faint ring
-            const auto shadow = clamp01 (std::cos (p.th - juce::degreesToRadians (135.0f)));
-            c = lerp (c, panel + (-1.0f - 21.0f * shadow), cov (r, 23.5f, 26.5f));
-            c = lerp (c, panel + -3.0f, cov (r, 26.5f, 29.0f));
-            // tick marks: 1 px lines from 30 to 35.5 px out, every 40 degrees
             const auto deg = juce::radiansToDegrees (p.th);
+            coverage = 1.0f;
+            auto luma = shade (juce::jmin (r, 30.0f), deg);
+            luma += r < 17.0f ? lift : r < 18.5f ? lift * 0.3f : 0.0f;
+            Rgb c { luma + bigKnobTint[0], luma + bigKnobTint[1], luma + bigKnobTint[2] };
+            c = lerp (c, panel, (r - 29.5f) / 1.0f);   // the table ends at the panel colour
+            // tick marks: 1 px lines from 29.5 to 36 px out, every 40 degrees
             const auto nearest = std::round (deg / 40.0f) * 40.0f;
             if (std::abs (nearest) <= 160.0f && r >= 29.5f && r < 36.0f)
             {
                 const auto across = r * std::sin (juce::degreesToRadians (deg - nearest));
                 c = lerp (c, panel + -6.0f, cov (across, -0.5f, 0.5f));
             }
-            // the green dot on the bevel
+            // the dot on the bevel
             const auto dd = std::hypot (x - dotX, y - dotY);
             c = lerp (c, dot, 0.6f * cov (dd, 0.0f, 1.1f * k));
             if (r > 36.5f)
@@ -203,7 +199,9 @@ namespace
         const auto S = juce::jmin (area.getWidth(), area.getHeight());
         const auto k = S / 15.0f;
         const auto cx = area.getWidth() * 0.5f, cy = area.getHeight() * 0.5f;
-        const auto ri = 4.61f * k, ringIn = 6.06f * k, ringOut = 7.56f * k;
+        // FL's 11 px switch (CLIP, measured) has a 5 px disc, a 1 px gap and a 2 px ring
+        const bool small = S < 13.0f;
+        const auto ri = small ? 2.5f : 4.61f * k, ringIn = small ? 3.5f : 6.06f * k, ringOut = small ? 5.5f : 7.56f * k;
         const Rgb ring = rgb (on ? colour::ledOnRing : colour::ledRing), gap = rgb (on ? colour::ledOnGap : colour::ledGap);
         const Rgb innerTop = rgb (colour::ledInnerTop), innerBottom = rgb (colour::ledInnerBottom);
         const Rgb onCentre = rgb (green ? colour::ledGreenCentre : colour::ledOnCentre), onBottom = rgb (green ? colour::ledGreenEdge : colour::ledOnBottom),
@@ -215,7 +213,14 @@ namespace
             coverage = cov (p.r, 0.0f, ringOut);
             const auto dy = (y - cy) / ri;
             Rgb inner;
-            if (! on)
+            if (! on && small)
+            {
+                // lit along its top, darkest along its bottom (measured: 4c, 31, 19)
+                const auto t = (dy + 1.0f) * 0.5f;
+                inner = lerp (rgb (colour::ledSmallTop), rgb (colour::ledSmallMid), clamp01 (t * 2.0f));
+                inner = lerp (inner, rgb (colour::ledSmallBottom), clamp01 ((t - 0.5f) * 2.0f));
+            }
+            else if (! on)
             {
                 inner = lerp (innerTop, innerBottom, (dy + 1.0f) * 0.5f);
                 inner = inner + 31.2f * std::pow (clamp01 (p.cosv), 1.55f) * clamp01 ((p.r - 3.15f * k) / (ri - 3.15f * k));
@@ -233,28 +238,55 @@ namespace
         });
     }
 
-    // FL's slider thumb: a 17 px round button, lit along the top and bottom,
-    // dark in the middle, with a 1 px coloured line down its centre.
+    // FL's slider thumb: an 18 x 17 px ball with a dark rim, a lit band just
+    // inside the rim at the top with a glow spreading down from it, a bright
+    // spot at the bottom, a 1 px coloured line down its middle (lit a touch
+    // either side), and a soft shadow on the ticks below. The shading is a
+    // least-squares fit to FL's pixels (docs/EVIDENCE.md "Skin").
     void renderThumb (juce::Graphics& g, juce::Rectangle<float> area, juce::Colour line, bool hover, float alpha)
     {
         const float lift = hover ? 12.0f : 0.0f;   // FL brightens the rims under the mouse
-        const auto cx = area.getWidth() * 0.5f, cy = area.getHeight() * 0.5f;
-        const auto R = juce::jmin (cx, cy);
-        const Rgb top = rgb (colour::thumbTop), body = rgb (colour::thumbBody), bottom = rgb (colour::thumbBottom), edge = rgb (colour::thumbEdge), lineC = rgb (line);
+        constexpr float rx = 9.181f, ry = 9.096f, rimW = 1.717f, rimTop = 23.914f, rimSide = 21.812f,
+                        bodyTop = 55.175f, bodyMid = 21.582f, bodyBot = 8.453f, hiA = 31.676f, hiP = 0.652f, hiIn = 1.983f, hiW = 0.847f,
+                        glowA = 55.725f, glowS = 4.873f, botA = 45.570f, botSx = 2.521f, botSy = 2.861f, botOff = 1.664f, haloA = 3.027f, sideK = 7.021f;
+        // the ball is centred 9.5 px in and 8.5 px down: 19 x 17 px with the shadow rows below
+        const auto cx = 9.5f, cy = 8.5f;
+        const Rgb lineC = rgb (line);
         drawPixels (g, area, alpha, [&] (float x, float y, float& coverage) -> Rgb
         {
-            const auto p = polar (x, y, cx, cy);
-            coverage = cov (p.r, 0.0f, R);
-            const auto t = clamp01 ((y - cy) / R * 0.5f + 0.5f);   // 0 at the top, 1 at the bottom
-            // the body: lit at the top, darkest just below the middle, lit again at the bottom
-            const auto u = t < 0.55f ? std::pow ((0.55f - t) / 0.55f, 1.6f) : std::pow ((t - 0.55f) / 0.45f, 2.0f);
-            Rgb c = lerp (body, t < 0.55f ? top : bottom, u);
-            // the rim: dark at the sides, the top and bottom lights run to the edge
-            const auto rim = lerp (edge, (p.cosv > 0.0f ? top : bottom) + lift, std::pow (std::abs (p.cosv), 1.2f));
-            c = lerp (c, rim, cov (p.r, R - 1.0f, R));
-            // the line: 1 px wide, from 0.6 R above the centre to 0.5 R below
-            const auto dx = x - cx;
-            c = lerp (c, lineC, cov (dx, -0.5f, 0.5f) * cov (y - cy, -0.62f * R, 0.5f * R));
+            const auto dx = x - cx, dy = y - cy;
+            const auto d = std::hypot (dx, dy);
+            const auto r = std::hypot (dx / rx, dy / ry);
+            const auto cosv = -dy / juce::jmax (d, 1.0e-6f);
+            const auto cosUp = clamp01 (cosv);
+            coverage = clamp01 ((1.0f - r) * ry + 0.5f);
+            if (coverage <= 0.0f)
+            {
+                // the shadow on the ticks below the ball
+                if (dy > 7.5f && d < 13.2f)
+                {
+                    const auto dark = (14.0f - (d - 8.5f) * 1.5f) * clamp01 ((13.2f - d) / 0.8f) * clamp01 (dy - 7.5f);
+                    coverage = clamp01 (dark / 34.0f);
+                    return Rgb { 0.0f, 0.0f, 0.0f };
+                }
+                return Rgb { 0.0f, 0.0f, 0.0f };
+            }
+            const auto t = clamp01 (dy / ry * 0.5f + 0.5f);
+            auto body = t < 0.5f ? bodyTop + (bodyMid - bodyTop) * t / 0.5f : bodyMid + (bodyBot - bodyMid) * (t - 0.5f) / 0.5f;
+            body += sideK * (1.0f - std::abs (dx) / rx);
+            const auto edgeIn = (1.0f - r) * ry;
+            const auto rim = clamp01 (rimW - edgeIn + 0.5f);
+            const auto rimL = rimTop * std::abs (cosv) + rimSide * (1.0f - std::abs (cosv)) + lift;
+            auto luma = body * (1.0f - rim) + rimL * rim;
+            const auto lit = (hiA + lift) * std::pow (cosUp, hiP) * std::exp (-juce::square ((edgeIn - hiIn) / hiW));
+            const auto glow = glowA * std::pow (cosUp, 8.0f) * std::exp (-juce::jmax (edgeIn - hiIn, 0.0f) / glowS);
+            const auto bot = botA * std::exp (-(dx * dx / (botSx * botSx) + juce::square (dy - ry + botOff) / (botSy * botSy)));
+            luma += (lit + glow) * (1.0f - rim * cosUp) + bot;
+            if (std::abs (std::abs (dx) - 1.0f) < 0.01f && dy >= -4.5f && dy <= 5.5f)
+                luma += haloA;
+            Rgb c { luma - 2.0f, luma + 1.0f, luma + 2.0f };
+            // the line: 1 px wide, from 4 px above the centre to 5 below, its end pixels half covered
+            c = lerp (c, lineC, cov (dx, -0.5f, 0.5f) * cov (dy, -4.0f, 5.0f));
             return c;
         });
     }
@@ -262,7 +294,7 @@ namespace
 
 void drawKnob (juce::Graphics& g, juce::Rectangle<float> area, float pos, float zeroPos, juce::Colour arc, bool enabled, bool hover)
 {
-    const auto alpha = enabled ? 1.0f : 0.4f;
+    const auto alpha = enabled ? 1.0f : 0.39f;   // FL (measured): a greyed knob is the knob at 39 % over the panel
     if (juce::jmin (area.getWidth(), area.getHeight()) > 50.0f)
         renderBigKnob (g, area, pos, arc, hover && enabled, alpha);
     else
@@ -281,29 +313,42 @@ void drawSliderThumb (juce::Graphics& g, juce::Rectangle<float> area, juce::Colo
 
 void drawButton (juce::Graphics& g, juce::Rectangle<int> area, bool lit, bool highlighted, bool down, bool enabled)
 {
-    // FL's push button: a 1 px dark frame with its corners cut, a lighter
-    // inner edge along the top and sides, a fill darkening downwards.
-    // FL (measured): nothing changes under the mouse; pressed, the frame
-    // darkens, the inner light edge goes dark and the label drops a pixel.
+    // FL's push button (measured from Reset and Cut self): a 1 px dark frame
+    // with rounded corners, a light inner edge along the top, inner edges down
+    // the sides fading from that light to the fill's foot, a fill darkening
+    // downwards, and a slightly lighter inner row at the bottom. Nothing
+    // changes under the mouse; pressed, it darkens and the label drops a pixel.
     juce::ignoreUnused (highlighted);
     const auto alpha = enabled ? 1.0f : 0.45f;
     const auto b = area.toFloat();
     auto shade = [down] (juce::Colour c) { return down ? c.darker (0.5f) : c; };
-    g.setColour (shade (colour::buttonFrame).withMultipliedAlpha (alpha));
+    auto col = [&] (juce::Colour c) { g.setColour (shade (c).withMultipliedAlpha (alpha)); };
+    col (colour::buttonFrame);
     g.fillRect (b.reduced (1.0f, 0.0f));
     g.fillRect (b.reduced (0.0f, 1.0f));
-    g.setColour (shade (colour::buttonCorner).withMultipliedAlpha (alpha));
+    col (colour::buttonCornerOuter);
     for (auto corner : { b.getTopLeft(), b.getTopRight().translated (-1.0f, 0.0f), b.getBottomLeft().translated (0.0f, -1.0f), b.getBottomRight().translated (-1.0f, -1.0f) })
         g.fillRect (corner.x, corner.y, 1.0f, 1.0f);
-    g.setColour ((down ? colour::buttonFrame : colour::buttonInner).withMultipliedAlpha (alpha));
-    g.fillRect (b.reduced (1.0f));
-    auto inner = b.reduced (2.0f);
+    col (colour::buttonCornerInner);
+    for (auto corner : { b.getTopLeft().translated (1.0f, 0.0f), b.getTopLeft().translated (0.0f, 1.0f),
+                         b.getTopRight().translated (-2.0f, 0.0f), b.getTopRight().translated (-1.0f, 1.0f),
+                         b.getBottomLeft().translated (1.0f, -1.0f), b.getBottomLeft().translated (0.0f, -2.0f),
+                         b.getBottomRight().translated (-2.0f, -1.0f), b.getBottomRight().translated (-1.0f, -2.0f) })
+        g.fillRect (corner.x, corner.y, 1.0f, 1.0f);
+
+    const auto inner = b.reduced (1.0f);
     const auto top = lit ? colour::amber.darker (0.4f) : colour::buttonTop, bottom = lit ? colour::amber.darker (0.6f) : colour::buttonBottom;
-    g.setGradientFill (juce::ColourGradient (top.withMultipliedAlpha (alpha), 0.0f, inner.getY(),
-                                             bottom.withMultipliedAlpha (alpha), 0.0f, inner.getBottom(), false));
-    g.fillRect (inner.withTrimmedBottom (1.0f));
-    g.setColour (colour::buttonBottom.brighter (0.1f).withMultipliedAlpha (alpha));
-    g.fillRect (inner.removeFromBottom (1.0f));
+    g.setGradientFill (juce::ColourGradient (shade (top).withMultipliedAlpha (alpha), 0.0f, inner.getY() + 1.0f,
+                                             shade (bottom).withMultipliedAlpha (alpha), 0.0f, inner.getBottom() - 1.0f, false));
+    g.fillRect (inner.reduced (1.0f));
+    col (colour::buttonEdgeTop);
+    g.fillRect (inner.withHeight (1.0f));
+    col (colour::buttonEdgeBottom);
+    g.fillRect (inner.withTrimmedTop (inner.getHeight() - 1.0f));
+    g.setGradientFill (juce::ColourGradient (shade (colour::buttonSideTop).withMultipliedAlpha (alpha), 0.0f, inner.getY() + 1.0f,
+                                             shade (colour::buttonSideBottom).withMultipliedAlpha (alpha), 0.0f, inner.getBottom() - 1.0f, false));
+    g.fillRect (inner.getX(), inner.getY() + 1.0f, 1.0f, inner.getHeight() - 2.0f);
+    g.fillRect (inner.getRight() - 1.0f, inner.getY() + 1.0f, 1.0f, inner.getHeight() - 2.0f);
 }
 
 //==============================================================================
@@ -578,53 +623,77 @@ void LookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int w, int 
     drawKnob (g, area, pos, bipolar ? 0.5f : 0.0f, slider.findColour (juce::Slider::rotarySliderFillColourId), slider.isEnabled(), slider.isMouseOverOrDragging());
 }
 
-void LookAndFeel::drawLinearSlider (juce::Graphics& g, int x, int y, int w, int h, float pos, float,
+void LookAndFeel::drawLinearSlider (juce::Graphics& g, int x, int y, int w, int h, float, float,
                                     float, juce::Slider::SliderStyle, juce::Slider& slider)
 {
-    // FL's horizontal slider (fine tune, tracking Mid): a 4 px rounded groove,
-    // a fill from the default position in the thumb's colour, tick marks
-    // below, and the round thumb with its coloured line.
+    // FL's horizontal slider (fine tune, tracking Mid), measured: a 4 px
+    // rounded groove 4.5 px in from the control's ends with a 2 px floor 3 px
+    // inside it, a fill from the default position to the thumb (orange for a
+    // one-sided range, red from the middle for a two-sided one), the ball
+    // thumb, and a strip of 1 px ticks 10 px below the groove, every 6 px
+    // (one-sided) or 12 px (two-sided), on a slightly darker band that stops
+    // a pixel short of each tick. The control is 22 px tall: the thumb's 17
+    // rows at its top, the groove at rows 7 to 10, the ticks at 17 to 21.
     const auto alpha = slider.isEnabled() ? 1.0f : 0.4f;
-    const auto area = juce::Rectangle<float> ((float) x, (float) y, (float) w, (float) h);
-    const auto midY = std::floor (area.getCentreY());
-    const auto left = area.getX() + 4.0f, right = area.getRight() - 4.0f;
-    // FL: a two-sided range (fine tune) fills from the middle with a red
-    // line on the thumb; a one-sided one (Mid) from the left in orange.
+    const auto top = (float) y + std::floor ((float) (h - 22) * 0.5f);
+    const auto trackTop = top + 7.0f;
+    const auto outer = juce::Rectangle<float> ((float) x + 4.5f, trackTop, (float) w - 9.0f, 4.0f);
+    const auto inner = outer.reduced (3.0f, 1.0f);
     const bool bipolar = std::abs (slider.getMinimum() + slider.getMaximum()) < 1.0e-6 * std::abs (slider.getMaximum());
     const auto line = bipolar ? colour::thumbRed : colour::amber;
+    const auto pos = (float) slider.valueToProportionOfLength (slider.getValue());
+    // the thumb's line (1 px) and the ball centred on it
+    const auto lineX = std::floor (outer.getX() + 9.5f + pos * (outer.getWidth() - 19.0f));
 
     g.setColour (colour::sliderTrack.withMultipliedAlpha (alpha));
-    g.fillRoundedRectangle (left, midY - 2.0f, right - left, 4.0f, 2.0f);
+    g.fillRoundedRectangle (outer, 2.0f);
     g.setColour (colour::sliderGroove.withMultipliedAlpha (alpha));
-    g.fillRect (left + 1.0f, midY - 1.0f, right - left - 2.0f, 2.0f);
-
-    // FL's ticks: every eighth of a two-sided track, every tenth otherwise
-    const int divisions = bipolar ? 8 : 10;
-    g.setColour (colour::sliderTick.withMultipliedAlpha (alpha));
-    for (int i = 0; i <= divisions; ++i)
-    {
-        const auto tx = std::floor (left + 3.0f + (right - left - 6.0f) * (float) i / (float) divisions);
-        g.fillRect (tx, midY + 5.0f, 1.0f, 5.0f);
-    }
-
-    const auto defaultPos = bipolar ? 0.5f : 0.0f;
-    const auto defX = left + (right - left) * defaultPos;
-    if (std::abs (pos - defX) > 1.0f)
+    g.fillRect (inner);
+    const auto defX = bipolar ? std::floor (outer.getCentreX()) : inner.getX();
+    if (std::abs (lineX + 0.5f - defX) > 1.0f)
     {
         g.setColour (line.withMultipliedAlpha (alpha));
-        g.fillRect (juce::Rectangle<float>::leftTopRightBottom (juce::jmin (defX, pos), midY - 1.0f, juce::jmax (defX, pos), midY + 1.0f));
+        g.fillRect (juce::Rectangle<float>::leftTopRightBottom (juce::jmin (defX, lineX + 0.5f), inner.getY(), juce::jmax (defX, lineX + 0.5f), inner.getBottom()));
     }
 
-    const auto thumb = juce::Rectangle<float> (17.0f, 17.0f).withCentre ({ std::floor (pos) + 0.5f, midY + 0.5f });
-    // a shadow row under the thumb
-    g.setColour (juce::Colours::black.withAlpha (0.25f * alpha));
-    g.fillRect (thumb.getX() + 3.0f, thumb.getBottom() - 1.0f, thumb.getWidth() - 6.0f, 1.0f);
-    drawSliderThumb (g, thumb, line, slider.isEnabled(), slider.isMouseOverOrDragging());
+    // the tick strip
+    const int divisions = bipolar ? 8 : 10;
+    const auto bandY = trackTop + 10.0f;
+    const auto firstTick = std::floor (outer.getX() + 3.5f), step = (outer.getWidth() - 8.0f) / (float) divisions;
+    g.setColour (colour::sliderBandTop.withMultipliedAlpha (alpha));
+    g.fillRect (firstTick + 1.0f, bandY, step * (float) divisions - 1.0f, 1.0f);
+    g.setColour (colour::sliderBand.withMultipliedAlpha (alpha));
+    g.fillRect (firstTick + 1.0f, bandY + 1.0f, step * (float) divisions - 1.0f, 4.0f);
+    for (int i = 0; i <= divisions; ++i)
+    {
+        const auto tx = std::floor (firstTick + step * (float) i);
+        g.setColour (colour::panel.withMultipliedAlpha (alpha));
+        g.fillRect (tx - 1.0f, bandY, 3.0f, 5.0f);
+        g.setColour (colour::sliderTickTop.withMultipliedAlpha (alpha));
+        g.fillRect (tx, bandY, 1.0f, 1.0f);
+        g.setColour (colour::sliderTick.withMultipliedAlpha (alpha));
+        g.fillRect (tx, bandY + 1.0f, 1.0f, 4.0f);
+    }
+
+    // the ball (19 x 17 px) with its shadow rows below it
+    drawSliderThumb (g, { lineX - 9.0f, top, 19.0f, 23.0f }, line, slider.isEnabled(), slider.isMouseOverOrDragging());
 }
 
 void LookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton& b, bool, bool)
 {
     const auto bounds = b.getLocalBounds().toFloat();
+    // "captionStyle": FL's small switch with a knob-caption label (CLIP in the
+    // effects view, measured): an 11 px light 5 px in and 1 px down, the 7 px
+    // bold caption 21 px in with its baseline 9 px down.
+    if ((bool) b.getProperties()["captionStyle"])
+    {
+        drawLed (g, { bounds.getX() + 5.0f, bounds.getY() + 1.0f, 11.0f, 11.0f }, b.getToggleState(), b.isEnabled(), (bool) b.getProperties()["greenLed"]);
+        g.setColour (b.isEnabled() ? colour::caption : colour::dim);
+        juce::GlyphArrangement ga;
+        ga.addLineOfText (font (7.0f, true), b.getButtonText(), bounds.getX() + 21.0f, bounds.getY() + 9.0f);
+        ga.draw (g);
+        return;
+    }
     // FL's switch: a 15 px light at 4 px from the left, the label 19 px in.
     const auto ledSize = juce::jmin (bounds.getHeight() - 2.0f, 15.0f);
     // "textFirst": FL's label-then-LED switches (envelope / LFO Tempo, Global)
@@ -699,9 +768,31 @@ void LookAndFeel::drawButtonText (juce::Graphics& g, juce::TextButton& b, bool, 
     g.drawText (b.getButtonText(), b.getLocalBounds().withTrimmedBottom (1).translated (0, down ? 1 : 0), juce::Justification::centred, true);
 }
 
-juce::Font LookAndFeel::getTextButtonFont (juce::TextButton&, int buttonHeight)
+juce::Font LookAndFeel::getTextButtonFont (juce::TextButton& b, int buttonHeight)
 {
-    return font (juce::jmin (11.0f, (float) buttonHeight * 0.55f));
+    // FL's Reset is set in 11 px; its taller Cut self button in 12.4 px (measured)
+    const auto em = (bool) b.getProperties()["bigText"] ? 12.0f : 11.0f;
+    return font (juce::jmin (em, (float) buttonHeight * 0.55f));
+}
+
+void LookAndFeel::drawLabel (juce::Graphics& g, juce::Label& label)
+{
+    // "captionBaseline": FL's knob captions sit on the pixel grid, their
+    // baseline on the label's last row; drawn from a whole-pixel start so the
+    // bold caps come out as crisp as FL's.
+    if (! (bool) label.getProperties()["captionBaseline"])
+    {
+        LookAndFeel_V4::drawLabel (g, label);
+        return;
+    }
+    const auto f = label.getFont();
+    const auto area = label.getLocalBounds().toFloat();
+    const auto textW = juce::GlyphArrangement::getStringWidth (f, label.getText());
+    const auto x = std::round (area.getCentreX() - textW * 0.5f);
+    g.setColour (label.findColour (juce::Label::textColourId).withMultipliedAlpha (label.isEnabled() ? 1.0f : 0.5f));
+    juce::GlyphArrangement ga;
+    ga.addLineOfText (f, label.getText(), x, area.getBottom());
+    ga.draw (g);
 }
 
 void LookAndFeel::drawBubble (juce::Graphics& g, juce::BubbleComponent& bubble, const juce::Point<float>&, const juce::Rectangle<float>& body)
@@ -808,43 +899,64 @@ DigiBox::DigiBox (bool redStyle) : red (redStyle)
 
 void DigiBox::paint (juce::Graphics& g)
 {
-    // FL's digi wheel: a grey rounded box lit from the top left with a dark
-    // bottom edge, dark up / down triangles at the right, the number in a
-    // large light font (an empty box shows three short dashes).
+    // FL's digi wheel (measured, docs/EVIDENCE.md "Skin"): a grey box with
+    // soft edges (a rounded rectangle of radius 4.7 feathered over 1.7 px) lit
+    // from its left middle, the light falling off elliptically; dark up / down
+    // triangles 5 px from the right; the number in a large light font, or
+    // three short dashes when the box is empty. Under the mouse the box
+    // lightens a little and the triangles go.
     const auto alpha = isEnabled() ? 1.0f : 0.5f;
-    const auto r = getLocalBounds().toFloat().withTrimmedLeft (2.0f).withTrimmedRight (1.0f).withTrimmedTop (1.0f);
-    // FL (measured): under the mouse the box lightens a little and the triangles go
+    const auto b = getLocalBounds().toFloat();
+    const auto box = juce::Rectangle<float> (b.getX() + 2.81f, b.getY() + 0.67f, b.getWidth() - 3.58f, b.getHeight() - 1.34f);
     const bool hover = isEnabled() && isMouseOverOrDragging();
-    auto lit = [hover] (juce::Colour c) { return hover ? c.brighter (0.13f) : c; };
-    const auto top = lit (red ? colour::digiRed.brighter (0.15f) : colour::digiTop), bottom = lit (red ? colour::digiRed.darker (0.25f) : colour::digiBottom);
-    g.setColour (colour::digiEdge.withMultipliedAlpha (alpha));
-    g.fillRoundedRectangle (r, 3.0f);
-    g.setGradientFill (juce::ColourGradient (top.withMultipliedAlpha (alpha), r.getX(), r.getY(),
-                                             bottom.withMultipliedAlpha (alpha), r.getRight(), r.getBottom(), false));
-    g.fillRoundedRectangle (r.withTrimmedBottom (1.0f), 3.0f);
+    const float lift = hover ? 12.0f : 0.0f;
+    const auto fillAt = [&] (float x, float y)
+    {
+        const auto dx = x - (box.getX() + 0.23f), dy = (y - (box.getY() + 10.84f)) * 2.676f;
+        return 95.86f + lift - 0.459f * std::hypot (dx, dy);
+    };
+    {
+        const Rgb redTop = rgb (colour::digiRed.brighter (0.15f)), redBottom = rgb (colour::digiRed.darker (0.25f));
+        drawPixels (g, b, alpha, [&] (float x, float y, float& coverage) -> Rgb
+        {
+            const auto cxm = juce::jlimit (box.getX() + 4.654f, box.getRight() - 4.654f, x), cym = juce::jlimit (box.getY() + 4.654f, box.getBottom() - 4.654f, y);
+            const auto d = std::hypot (x - cxm, y - cym) - 4.654f;
+            coverage = clamp01 (0.5f - d / 1.731f);
+            if (red)
+                return lerp (redTop, redBottom, (y - box.getY()) / box.getHeight()) + lift;
+            const auto l = fillAt (x, y);
+            return Rgb { l, l + 5.0f, l + 8.0f };
+        });
+    }
 
-    // the triangles: 5 px wide, 3 rows each, 5 px in from the right edge
+    // the triangles: 1, 3 and 5 px rows, 6 rows apart, 5 px in from the right
     g.setColour (colour::digiArrow.withMultipliedAlpha (alpha));
-    const auto cx = std::floor (r.getRight()) - 6.0f, cy = std::floor (r.getCentreY());
+    const auto ax = std::floor (box.getRight()) - 6.0f, ay = std::round (box.getY());
     for (int i = 0; i < (hover ? 0 : 3); ++i)
     {
         const auto wdt = 1.0f + 2.0f * (float) i;
-        g.fillRect (cx - (float) i, cy - 4.0f + (float) i, wdt, 1.0f);
-        g.fillRect (cx - (float) i, cy + 3.0f - (float) i, wdt, 1.0f);
+        g.setColour (colour::digiArrow.withMultipliedAlpha (alpha * (i == 0 ? 0.9f : 1.0f)));
+        g.fillRect (ax - (float) i, ay + 6.0f + (float) i, wdt, 1.0f);
+        g.fillRect (ax - (float) i, ay + 14.0f - (float) i, wdt, 1.0f);
     }
 
     const auto text = fixedText.isNotEmpty() ? fixedText : getTextFromValue (getValue());
     if (text.containsOnly ("-") && text.isNotEmpty())
     {
-        g.setColour (colour::digiNone.withMultipliedAlpha (alpha));
-        const auto x0 = std::floor (r.getCentreX()) - 5.0f;
+        // three 1.5 px dashes 3 px apart on the middle row, starting 10.5 px in
+        const auto x0 = std::round (box.getX()) + 9.0f, cy = ay + 10.0f;
         for (int i = 0; i < 3; ++i)
-            g.fillRect (x0 + 3.0f * (float) i, cy, 2.0f, 1.0f);
+        {
+            g.setColour (colour::digiNone.withMultipliedAlpha (alpha * 0.55f));
+            g.fillRect (x0 + 3.0f * (float) i, cy, 1.0f, 1.0f);
+            g.setColour (colour::digiNone.withMultipliedAlpha (alpha));
+            g.fillRect (x0 + 3.0f * (float) i + 1.0f, cy, 1.0f, 1.0f);
+        }
         return;
     }
     g.setColour (colour::digiText.withMultipliedAlpha (alpha));
     g.setFont (font (18.0f));
-    g.drawText (text, r.withTrimmedRight (2.0f).withTrimmedBottom (1.0f), juce::Justification::centred, false);
+    g.drawText (text, box.withTrimmedRight (4.0f).withTrimmedBottom (3.0f).withTrimmedLeft (1.0f), juce::Justification::centred, false);
 }
 
 //==============================================================================
@@ -860,8 +972,8 @@ namespace
         switch (icon)
         {
             case Icon::sampler:  return { &samplerIcon, 8, 12 };
-            case Icon::envelope: return { &envelopeIcon, 11, 10 };
-            case Icon::wrench:   return smallCell ? IconPlace { &fxWrenchIcon, 6, 3 } : IconPlace { &wrenchIcon, 12, 13 };
+            case Icon::envelope: return { &envelopeIcon, 10, 10 };
+            case Icon::wrench:   return smallCell ? IconPlace { &fxWrenchIcon, 7, 2 } : IconPlace { &wrenchIcon, 12, 13 };
             case Icon::valve:    return { &valveIcon, 6, 2 };
             case Icon::sine:     return { &sineIcon, 6, 5 };
             case Icon::triangle: return { &triangleIcon, 6, 5 };
@@ -885,54 +997,9 @@ void drawIcon (juce::Graphics& g, Icon icon, juce::Rectangle<float> cell, juce::
     {
         g.strokePath (path, juce::PathStrokeType (width, juce::PathStrokeType::curved, juce::PathStrokeType::butt));
     };
-    // The line icons are strokes through the centres of FL's pixels (their
-    // outlines would come out lumpy): the envelope's rings and legs, the LFO
-    // shapes, and the effects view's tube.
+    // The valve is shaded (a lit tube), not a flat glyph: it is drawn as strokes.
     switch (icon)
     {
-        case Icon::envelope:
-        {
-            juce::Path p;
-            for (auto centre : { at (7.0f, 3.0f), at (3.0f, 21.0f), at (20.0f, 21.0f) })
-                p.addEllipse (juce::Rectangle<float> (5.0f, 5.0f).withCentre (centre));
-            p.startNewSubPath (at (5.0f, 6.0f));
-            p.quadraticTo (at (4.5f, 12.0f), at (3.2f, 18.3f));
-            p.startNewSubPath (at (8.0f, 6.5f));
-            p.quadraticTo (at (8.5f, 14.0f), at (17.8f, 19.2f));
-            stroke (p, 1.3f);
-            return;
-        }
-        case Icon::sine:
-        {
-            static const float ys[13] = { 4.45f, 2.96f, 1.19f, 0.67f, 1.35f, 3.19f, 5.7f, 8.16f, 9.83f, 10.3f, 9.61f, 7.71f, 6.33f };
-            juce::Path p;
-            for (int i = 0; i < 13; ++i)
-                i == 0 ? p.startNewSubPath (at (0.5f, ys[i])) : p.lineTo (at ((float) i + 0.5f, ys[i]));
-            stroke (p, 1.2f);
-            return;
-        }
-        case Icon::triangle:
-        {
-            juce::Path p;
-            p.startNewSubPath (at (0.5f, 6.0f));
-            p.lineTo (at (4.0f, 1.6f));
-            p.lineTo (at (9.0f, 9.3f));
-            p.lineTo (at (12.5f, 4.9f));
-            stroke (p, 1.2f);
-            return;
-        }
-        case Icon::square:
-        {
-            juce::Path p;
-            p.startNewSubPath (at (1.0f, 9.0f));
-            p.lineTo (at (1.0f, 0.5f));
-            p.lineTo (at (5.0f, 0.5f));
-            p.lineTo (at (5.0f, 8.5f));
-            p.lineTo (at (10.0f, 8.5f));
-            p.lineTo (at (10.0f, 0.0f));
-            stroke (p, 1.6f);
-            return;
-        }
         case Icon::valve:
         {
             // a tube: filled pointed top, outlined body with its filament, a base
@@ -971,21 +1038,39 @@ void drawIcon (juce::Graphics& g, Icon icon, juce::Rectangle<float> cell, juce::
     g.fillPath (p);
 }
 
+
+//==============================================================================
+void SlideSwitch::paintButton (juce::Graphics& g, bool, bool)
+{
+    // FL's A / B reverb switch (measured): a 14 x 27 px upright pill with a
+    // 1 px grey outline and a dark inside, a 12 px light grey knob at its top
+    // (A) or bottom (B), the letters beside it.
+    const auto alpha = isEnabled() ? 1.0f : 0.45f;
+    const auto pill = juce::Rectangle<float> (0.0f, 0.0f, 14.0f, 27.0f);
+    g.setColour (colour::pillEdge.withMultipliedAlpha (alpha));
+    g.fillRoundedRectangle (pill, 7.0f);
+    g.setColour (colour::pillInside.withMultipliedAlpha (alpha));
+    g.fillRoundedRectangle (pill.reduced (1.0f), 6.0f);
+    const auto knob = juce::Rectangle<float> (1.0f, getToggleState() ? 14.0f : 1.0f, 12.0f, 12.0f);
+    g.setColour (colour::pillKnobEdge.withMultipliedAlpha (alpha));
+    g.fillEllipse (knob);
+    g.setColour (colour::pillKnob.withMultipliedAlpha (alpha));
+    g.fillEllipse (knob.reduced (1.0f));
+    g.setColour (colour::text.withMultipliedAlpha (alpha));
+    juce::GlyphArrangement ga;
+    ga.addLineOfText (font (11.1f), "A", 17.0f, 11.0f);
+    ga.addLineOfText (font (11.1f), "B", 17.0f, 26.0f);
+    ga.draw (g);
+}
+
 void IconButton::paintButton (juce::Graphics& g, bool highlighted, bool down)
 {
     // FL's file buttons (measured pixel by pixel from FL 2026): a 1 px dark
     // frame, a 1 px lighter inner edge, a fill darkening downwards, and thin
     // 1 px line icons at fixed positions.
     const auto b = getLocalBounds().toFloat();
-    const auto w = b.getWidth(), h = b.getHeight();
-    juce::ignoreUnused (highlighted);   // FL: nothing changes under the mouse
-    auto shade = [down] (juce::Colour c) { return down ? c.darker (0.3f) : c; };
-    g.setColour (shade (colour::buttonFrame));
-    g.fillRect (b);
-    g.setGradientFill (juce::ColourGradient (shade (juce::Colour (0xff282b2c)), 0.0f, 1.0f, shade (juce::Colour (0xff1e2121)), 0.0f, h - 1.0f, false));
-    g.fillRect (b.reduced (1.0f));
-    g.setGradientFill (juce::ColourGradient (shade (juce::Colour (0xff202324)), 0.0f, 1.0f, shade (juce::Colour (0xff171a1a)), 0.0f, h - 1.0f, false));
-    g.fillRect (b.reduced (2.0f));
+    const auto w = b.getWidth();
+    drawButton (g, getLocalBounds(), false, highlighted, down, isEnabled());   // FL: the same push button as Reset
 
     const auto c = isEnabled() ? juce::Colour (0xffdfe4e5) : colour::dim;
     g.setColour (c);
