@@ -89,6 +89,7 @@ private:
     fl::IconTabs* sheetTabs = nullptr;
     fl::TextTabs* targetTabs = nullptr;
     fl::IconTabs* fxTabs = nullptr;         // Precomputed effects: Tools / Effects
+    juce::Slider* loopKnobs[2] = { nullptr, nullptr };   // START / END: locked without a sample
     bool rememberSize = false;   // set once the editor has its initial size
 
     std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>> sliderAttachments;

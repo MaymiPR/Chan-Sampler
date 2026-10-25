@@ -227,6 +227,12 @@ namespace
                 inner = lerp (innerTop, innerBottom, (dy + 1.0f) * 0.5f);
                 inner = inner + 31.2f * std::pow (clamp01 (p.cosv), 1.55f) * clamp01 ((p.r - 3.15f * k) / (ri - 3.15f * k));
             }
+            else if (small)
+            {
+                // lit (measured): #EC744D in the middle to a lighter foot, a cream specular on the top row
+                inner = lerp (onCentre, rgb (colour::ledSmallOnBottom), std::pow (clamp01 ((dy + 1.0f) * 0.5f), 1.4f));
+                inner = lerp (inner, onTop, std::pow (clamp01 (p.cosv), 2.0f) * clamp01 ((p.r / ri - 0.45f) / 0.35f));
+            }
             else
             {
                 inner = lerp (onCentre, onBottom, std::pow (clamp01 ((dy + 1.0f) * 0.5f), 1.43f));
@@ -310,6 +316,26 @@ float hoverOf (const juce::Component& c)
     return c.isMouseOverOrDragging() ? 1.0f : 0.0f;
 }
 
+float turnOf (const juce::Component& c)
+{
+    if (const auto* v = c.getProperties().getVarPointer ("turn"))
+        return (float) (double) *v;
+    return 0.0f;
+}
+
+void drawTurnArrow (juce::Graphics& g, juce::Point<float> c, float turn, juce::Colour colour)
+{
+    // the right-pointing triangle is 4 x 9 px, the down-pointing one 7 x 4 (measured)
+    const auto a = juce::MathConstants<float>::halfPi * turn;
+    const auto cs = std::cos (a), sn = std::sin (a);
+    const auto wide = 1.0f - 0.22f * turn;   // 9 px across the base turning to 7
+    auto pt = [&] (float x, float y) { y *= wide; return juce::Point<float> (c.x + x * cs - y * sn, c.y + x * sn + y * cs); };
+    juce::Path p;
+    p.addTriangle (pt (-2.0f, -4.5f), pt (-2.0f, 4.5f), pt (2.0f, 0.0f));
+    g.setColour (colour);
+    g.fillPath (p);
+}
+
 void drawLed (juce::Graphics& g, juce::Rectangle<float> area, bool on, bool enabled, bool green)
 {
     renderLed (g, area, on, green, enabled ? 1.0f : 0.45f);
@@ -326,12 +352,13 @@ void drawButton (juce::Graphics& g, juce::Rectangle<int> area, bool lit, bool hi
     // with rounded corners, a light inner edge along the top, inner edges down
     // the sides fading from that light to the fill's foot, a fill darkening
     // downwards, and a slightly lighter inner row at the bottom. Nothing
-    // changes under the mouse; pressed, it darkens and the label drops a pixel.
+    // changes under the mouse; while pressed it darkens a little and the
+    // label drops a pixel, both instantly (measured frame by frame).
     juce::ignoreUnused (highlighted);
     const auto alpha = enabled ? 1.0f : 0.45f;
     const auto b = area.toFloat();
-    down = down || lit;   // a toggled button (Cut self) stays sunk; FL does not light it
-    auto shade = [down] (juce::Colour c) { return down ? c.darker (0.5f) : c; };
+    juce::ignoreUnused (lit);   // FL (measured): a toggled Cut self looks exactly like an untoggled one
+    auto shade = [down] (juce::Colour c) { return down ? c.darker (0.15f) : c; };   // pressed: the frame goes 14 -> 10, the fill 1c -> 1a (measured)
     auto col = [&] (juce::Colour c) { g.setColour (shade (c).withMultipliedAlpha (alpha)); };
     col (colour::buttonFrame);
     g.fillRect (b.reduced (1.0f, 0.0f));
@@ -693,11 +720,11 @@ void LookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton& b, bo
 {
     const auto bounds = b.getLocalBounds().toFloat();
     // "captionStyle": FL's small switch with a knob-caption label (CLIP in the
-    // effects view, measured): an 11 px light 5 px in and 1 px down, the 7 px
+    // effects view, measured): an 11 px light 5 px in and 2 px down, the 7 px
     // bold caption 21 px in with its baseline 9 px down.
     if ((bool) b.getProperties()["captionStyle"])
     {
-        drawLed (g, { bounds.getX() + 5.0f, bounds.getY() + 1.0f, 11.0f, 11.0f }, b.getToggleState(), b.isEnabled(), (bool) b.getProperties()["greenLed"]);
+        drawLed (g, { bounds.getX() + 5.0f, bounds.getY() + 2.0f, 11.0f, 11.0f }, b.getToggleState(), b.isEnabled(), (bool) b.getProperties()["greenLed"]);
         g.setColour (b.isEnabled() ? colour::caption : colour::dim);
         juce::GlyphArrangement ga;
         ga.addLineOfText (font (7.0f, true), b.getButtonText(), bounds.getX() + 21.0f, bounds.getY() + 9.0f);
@@ -742,16 +769,11 @@ void LookAndFeel::drawComboBox (juce::Graphics& g, int w, int h, bool, int, int,
     g.setColour (colour::comboInnerBottom.withMultipliedAlpha (alpha));
     g.fillRect (inner.removeFromBottom (1.0f));
 
-    // Right-pointing arrow, 4 x 7 px; it points down while the list is open (as in FL).
-    juce::Path arrow;
-    const auto ax = (float) w - 6.0f, ay = std::floor ((float) h * 0.5f);
-    if (box.isPopupActive())
-        arrow.addTriangle (ax - 3.5f, ay - 1.5f, ax + 3.5f, ay - 1.5f, ax, ay + 2.5f);
-    else
-        arrow.addTriangle (ax - 2.0f, ay - 3.5f, ax - 2.0f, ay + 3.5f, ax + 2.0f, ay);
-    const auto arrowColour = box.isPopupActive() ? colour::icon : colour::comboArrow.interpolatedWith (colour::icon, hoverOf (box));
-    g.setColour (arrowColour.withMultipliedAlpha (alpha));
-    g.fillPath (arrow);
+    // The arrow 6 px from the right: it points right, and turns to point down
+    // (brightening) under the mouse and while the list is open (measured).
+    const auto turn = box.isPopupActive() ? 1.0f : turnOf (box);
+    drawTurnArrow (g, { (float) w - 5.5f, std::floor ((float) h * 0.5f) + 0.5f }, turn,
+                   colour::comboArrow.interpolatedWith (colour::icon, turn).withMultipliedAlpha (alpha));
 }
 
 juce::Font LookAndFeel::getComboBoxFont (juce::ComboBox& box)
@@ -848,13 +870,29 @@ Panel::Panel (const juce::String& t, int inset) : title (t), headerInset (inset)
 
 void MenuArrow::paintButton (juce::Graphics& g, bool highlighted, bool down)
 {
-    // FL: a 5 x 8 px light triangle; it brightens under the mouse (faded in)
     juce::ignoreUnused (highlighted);
-    const auto c = getLocalBounds().toFloat().getCentre();
-    juce::Path p;
-    p.addTriangle (c.x - 2.5f, c.y - 4.0f, c.x - 2.5f, c.y + 4.0f, c.x + 2.5f, c.y);
-    g.setColour (colour::icon.interpolatedWith (juce::Colours::white, down ? 1.0f : hoverOf (*this)));
-    g.fillPath (p);
+    const auto t = down ? 1.0f : turnOf (*this);
+    const auto b = getLocalBounds().toFloat();
+    if (! boxed)
+    {
+        // the echo panel's: a light triangle that turns down under the mouse
+        drawTurnArrow (g, b.getCentre(), t, colour::icon);
+        return;
+    }
+    // the envelope's: at rest a light triangle at the right of its 20 x 20 px
+    // cell; under the mouse an amber frame (2 px, the inner pixel dimmer,
+    // radius 5) grows in while the triangle turns down, moves to the middle
+    // and turns amber
+    if (t > 0.0f)
+    {
+        const auto frame = b.withSizeKeepingCentre (20.0f, 20.0f);
+        g.setColour (colour::amber.withAlpha (t));
+        g.drawRoundedRectangle (frame.reduced (0.5f), 5.0f, 1.0f);
+        g.setColour (colour::amber.darker (0.35f).withAlpha (t));
+        g.drawRoundedRectangle (frame.reduced (1.5f), 4.0f, 1.0f);
+    }
+    const auto centre = juce::Point<float> (b.getCentreX() + 9.0f * (1.0f - t), b.getCentreY());
+    drawTurnArrow (g, centre, t, colour::icon.interpolatedWith (colour::amber, t));
 }
 
 void Panel::paint (juce::Graphics& g)
@@ -969,7 +1007,7 @@ void DigiBox::paint (juce::Graphics& g)
     }
     g.setColour (colour::digiText.withMultipliedAlpha (alpha));
     g.setFont (font (18.0f));
-    g.drawText (text, box.withTrimmedLeft (3.0f).withTrimmedBottom (3.0f), juce::Justification::centred, false);   // FL centres the digits 1.5 px right of the box's middle
+    g.drawText (text, box.withTrimmedRight (8.0f).withTrimmedBottom (3.0f), juce::Justification::centred, false);   // centred between the box's left edge and the triangles
 }
 
 //==============================================================================
@@ -998,6 +1036,7 @@ namespace
             case Icon::arpUpDown: return { &arpUpDownIcon, 7, 5 };
             case Icon::arpSticky: return { &arpStickyIcon, 6, 3 };
             case Icon::arpRandom: return { &arpRandomIcon, 6, 4 };
+            case Icon::link:      return { &linkIcon, 0, 0 };
             default:             return { nullptr, 0, 0 };   // file buttons: IconButton draws them
         }
     }

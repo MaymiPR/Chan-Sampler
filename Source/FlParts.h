@@ -109,8 +109,13 @@ public:
     void mouseEnter (const juce::MouseEvent& e) override { hover.setTarget (true); juce::Slider::mouseEnter (e); }
     void mouseExit (const juce::MouseEvent& e) override { hover.setTarget (false); juce::Slider::mouseExit (e); }
 
+    // Locked, the knob keeps its look but ignores the mouse (FL's START and
+    // END without a sample: measured, they do not grey out).
+    void setLocked (bool l) { locked = l; }
+
 private:
     fl::HoverFade hover { *this };
+    bool locked = false;
     // FL's drag detents (measured in FL 2026): a two-sided control holds at its
     // centre, and PITCH at every semitone, for 20 px of drag when a drag
     // arrives there; a drag that starts on one leaves at once.

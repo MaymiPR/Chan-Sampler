@@ -340,11 +340,13 @@ void ChanSamplerEditor::buildSampleSheet()
     auto& playback = panel (sheet, "Playback", 7, 168, 270, 79);
     knob (playback, pid::startOffset, 17, 26, 34);
     caption (playback, "START OFFSET", 4, 63, 60, 9);
-    static_cast<ParamKnob&> (knob (playback, pid::loopStart, 70, 26, 34)).onUserChange = [this] { samplerProcessor.applyLoopLink (pid::loopStart); };
+    loopKnobs[0] = &knob (playback, pid::loopStart, 70, 26, 34);
+    static_cast<ParamKnob&> (*loopKnobs[0]).onUserChange = [this] { samplerProcessor.applyLoopLink (pid::loopStart); };
     caption (playback, "START", 57, 63, 60, 9);
-    // FL: the link symbol sits between START and END (START carries END along).
-    text (playback, juce::String::charToString ((juce::juce_wchar) 0x21bb), 97, 31, 24, 24, 16.0f, false, juce::Justification::centred);
-    static_cast<ParamKnob&> (knob (playback, pid::loopEnd, 112, 26, 34)).onUserChange = [this] { samplerProcessor.applyLoopLink (pid::loopEnd); };
+    // FL: the link symbol sits on the caption row between START and END (START carries END along).
+    own (std::make_unique<fl::IconView> (fl::Icon::link, fl::colour::caption), playback, { 104, 64, 9, 9 });
+    loopKnobs[1] = &knob (playback, pid::loopEnd, 112, 26, 34);
+    static_cast<ParamKnob&> (*loopKnobs[1]).onUserChange = [this] { samplerProcessor.applyLoopLink (pid::loopEnd); };
     caption (playback, "END", 99, 63, 60, 9);
     // FL draws these two lights 3 px further left and 1 px higher than its other switches (measured).
     led (playback, pid::useLoop, "Use loop points", 162, 23, 103, 21);
@@ -517,7 +519,7 @@ juce::Component& ChanSamplerEditor::buildTargetPage (const char* prefix, bool ha
     if (hasEnvelope)
     {
         auto& env = panel (page, "Envelope", 7, 42, 287, 195, 16);
-        auto& envMenu = own (std::make_unique<fl::MenuArrow>(), env, { 285 - 17, 6, 12, 16 });
+        auto& envMenu = own (std::make_unique<fl::MenuArrow> (true), env, { 262, 3, 20, 20 });
         envMenu.onClick = [this, p = juce::String (prefix), &envMenu] { showEnvelopeMenu (p, envMenu); };
         auto* envOn = samplerProcessor.apvts.getParameter (id ("EnvOn"));
         // FL turns an envelope on as soon as one of its knobs is edited.
@@ -634,7 +636,7 @@ void ChanSamplerEditor::buildFuncSheet()
     knob (levels, pid::xOfs,   90,  26, 38, fl::colour::knobYellow);  caption (levels, "MOD X", 90,  69, 38, 9);
     knob (levels, pid::yOfs,   132, 26, 38);  caption (levels, "MOD Y", 132, 69, 38, 9);
 
-    auto& poly = panel (sheet, "Polyphony", 191, 7, 240, 100);
+    auto& poly = panel (sheet, "Polyphony", 191, 7, 178, 100);
     text (poly, "Max", 7, 30, 26, 23, 11.7f);
     digi (poly, pid::maxPoly, 33, 30, 32, 23, false);
     auto& slide = knob (poly, pid::slide, 82, 26, 30);
@@ -664,19 +666,19 @@ void ChanSamplerEditor::buildFuncSheet()
     }
 
     // Tracking: Vol (velocity) / Key pages
-    auto& tracking = panel (sheet, "Tracking", 437, 7, 116, 100, 52);
-    auto& velPage = group (tracking, 0, 0, 116, 100);
-    auto& keyPage = group (tracking, 0, 0, 116, 100);
+    auto& tracking = panel (sheet, "Tracking", 376, 7, 177, 100, 52);
+    auto& velPage = group (tracking, 0, 0, 177, 100);
+    auto& keyPage = group (tracking, 0, 0, 177, 100);
     keyPage.setVisible (false);
     for (auto [page, ids] : { std::pair<juce::Component*, std::array<const char*, 4>> { &velPage, { pid::velPan, pid::velX, pid::velY, pid::velMid } },
                               std::pair<juce::Component*, std::array<const char*, 4>> { &keyPage, { pid::keyPan, pid::keyX, pid::keyY, pid::keyMid } } })
     {
-        // FL's layout (measured): PAN, then MOD X and MOD Y close together, "Mid" in 10 px with the 69 px slider
-        knob (*page, ids[0], 6,  26, 30, fl::colour::knobTeal);   caption (*page, "PAN",   6,  59, 30, 7);
-        knob (*page, ids[1], 46, 26, 30, fl::colour::knobYellow); caption (*page, "MOD X", 46, 59, 30, 7);
-        knob (*page, ids[2], 78, 26, 30, fl::colour::knobBlue);   caption (*page, "MOD Y", 78, 59, 30, 7);
+        // FL's controls spread over the panel's width (Polyphony and Tracking share the row equally here)
+        knob (*page, ids[0], 12,  26, 30, fl::colour::knobTeal);   caption (*page, "PAN",   12,  59, 30, 7);
+        knob (*page, ids[1], 73,  26, 30, fl::colour::knobYellow); caption (*page, "MOD X", 73,  59, 30, 7);
+        knob (*page, ids[2], 134, 26, 30, fl::colour::knobBlue);   caption (*page, "MOD Y", 134, 59, 30, 7);
         text (*page, "Mid", 13, 76, 28, 14, 10.0f);
-        hslider (*page, ids[3], 33, 74, 77, 22);
+        hslider (*page, ids[3], 33, 74, 141, 22);
     }
     auto& trackTabs = own (std::make_unique<fl::TextTabs> (juce::StringArray { "Vol", "Key" }, 11.5f, true), tracking, { 0, 0, 52, 19 });
     trackTabs.nudges = { 1, 0 };   // FL: Vol a pixel further right (measured)
@@ -892,6 +894,10 @@ void ChanSamplerEditor::refreshSample()
 {
     waveform.setSample (samplerProcessor.getSampleForDisplay());
     const auto raw = samplerProcessor.getRaw();
+    // FL: START and END cannot be turned without a sample (they keep their look)
+    for (auto* k : loopKnobs)
+        if (k != nullptr)
+            static_cast<ParamKnob*> (k)->setLocked (raw->file == juce::File() || raw->missing);
     if (fileName != nullptr)
     {
         fileName->setText (raw->file == juce::File() ? juce::String() : raw->file.getFileName() + (raw->missing ? " (missing)" : ""), juce::dontSendNotification);

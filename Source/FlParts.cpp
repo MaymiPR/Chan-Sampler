@@ -291,9 +291,8 @@ float RootKeyboard::maxScroll() const
 
 void RootKeyboard::setScroll (float px)
 {
-    // The keyboard glides to its new place, as FL's smooth scrolling does:
-    // an exponential ease that closes a tenth of the remaining distance every
-    // 60 Hz frame (not measured in FL).
+    // The keyboard glides to its new place, as FL's smooth scrolling does
+    // (measured: an exponential ease with a 42 ms time constant).
     target = juce::jlimit (0.0f, maxScroll(), px);
     if (std::abs (target - scroll) > 0.5f && ! animating)
     {
@@ -495,14 +494,14 @@ void RootKeyboard::mouseUp (const juce::MouseEvent&)
 void RootKeyboard::mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails& wheel)
 {
     const auto d = std::abs (wheel.deltaX) > std::abs (wheel.deltaY) ? wheel.deltaX : wheel.deltaY;
-    setScroll (target - d * octaveW * 2.0f);
+    setScroll (target - d * 47.0f);   // FL (measured): 22 px per wheel notch (JUCE gives 0.47 a notch)
 }
 
 void RootKeyboard::timerCallback()
 {
     if (animating)
     {
-        scroll += (target - scroll) * 0.19f;   // 1 - exp (-1/60 s / 80 ms)
+        scroll += (target - scroll) * 0.33f;   // FL (measured): the glide closes with a 42 ms time constant
         if (std::abs (target - scroll) < 0.5f)
         {
             scroll = target;
@@ -805,6 +804,8 @@ ParamKnob::ParamKnob (juce::RangedAudioParameter& p, SliderStyle style)
 
 void ParamKnob::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& w)
 {
+    if (locked)
+        return;
     wheelActive = true;
     juce::Slider::mouseWheelMove (e, w);
     wheelActive = false;
@@ -812,6 +813,8 @@ void ParamKnob::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWhee
 
 void ParamKnob::mouseDown (const juce::MouseEvent& e)
 {
+    if (locked)
+        return;
     if (e.mods.isPopupMenu())
     {
         menu.show();
@@ -834,6 +837,8 @@ void ParamKnob::mouseUp (const juce::MouseEvent& e)
 
 void ParamKnob::mouseDrag (const juce::MouseEvent& e)
 {
+    if (locked)
+        return;
     if (e.mods.isPopupMenu() || ! isEnabled())
         return;
 

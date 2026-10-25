@@ -54,6 +54,7 @@ namespace fl
         const juce::Colour ledSmallTop    { 0xff4c4e4f };   // the 11 px switch's disc (CLIP): lit top, dark foot
         const juce::Colour ledSmallMid    { 0xff313435 };
         const juce::Colour ledSmallBottom { 0xff191b1c };
+        const juce::Colour ledSmallOnBottom { 0xfff5b795 };   // lit: the foot of its disc
 
         // Text
         const juce::Colour title     { 0xffd4d4d4 };   // panel titles
@@ -184,11 +185,13 @@ namespace fl
     void drawSliderThumb (juce::Graphics&, juce::Rectangle<float> area, juce::Colour line, bool enabled, float hover = 0.0f);
 
     // FL eases a control's hover highlight in and out rather than switching
-    // it. A control owns one of these, tells it when the mouse enters and
+    // it (measured frame by frame in FL 2026): in, an exponential that is half
+    // way after 60 ms and 90 % after 170 ms; out, a straight fade over about
+    // 300 ms. A control owns one of these, tells it when the mouse enters and
     // leaves, and the drawing reads the amount through the component's
-    // "hover" property. The quarter-life (hoverFadeStep per 60 Hz frame) is
-    // not measured in FL.
-    inline constexpr float hoverFadeStep = 0.2f;
+    // "hover" property.
+    inline constexpr float hoverFadeIn = 0.2f;           // of the remaining distance per 60 Hz frame
+    inline constexpr float hoverFadeOut = 1.0f / 18.0f;   // per frame
     class HoverFade : private juce::Timer
     {
     public:
@@ -204,8 +207,11 @@ namespace fl
     private:
         void timerCallback() override
         {
-            amount += (target - amount) * hoverFadeStep;
-            if (std::abs (target - amount) < 0.02f)
+            if (target > amount)
+                amount += (target - amount) * hoverFadeIn;
+            else
+                amount -= hoverFadeOut;
+            if (std::abs (target - amount) < 0.02f || amount < 0.0f)
             {
                 amount = target;
                 stopTimer();
@@ -216,6 +222,44 @@ namespace fl
         juce::Component& owner;
         float amount = 0.0f, target = 0.0f;
     };
+
+    // FL's small arrows (drop-down fields, panel menus) turn from pointing
+    // right to pointing down under the mouse: measured, they wait about 50 ms
+    // and then turn over 100 ms, and turn back the same way. The amount
+    // (0 right .. 1 down) is read through the component's "turn" property.
+    class ArrowTurn : private juce::Timer
+    {
+    public:
+        explicit ArrowTurn (juce::Component& c) : owner (c) {}
+        void setTarget (bool over)
+        {
+            target = over ? 1.0f : 0.0f;
+            if (amount != target)
+            {
+                wait = 3;   // 50 ms at 60 Hz
+                startTimerHz (60);
+            }
+        }
+        float get() const noexcept { return amount; }
+
+    private:
+        void timerCallback() override
+        {
+            if (wait > 0) { --wait; return; }
+            amount = target > amount ? juce::jmin (target, amount + 1.0f / 6.0f) : juce::jmax (target, amount - 1.0f / 6.0f);
+            if (amount == target)
+                stopTimer();
+            owner.getProperties().set ("turn", amount);
+            owner.repaint();
+        }
+        juce::Component& owner;
+        float amount = 0.0f, target = 0.0f;
+        int wait = 0;
+    };
+    float turnOf (const juce::Component&);
+    // Draws one of those arrows: a 4 x 9 px triangle pointing right at turn 0,
+    // a 7 x 4 px one pointing down at turn 1, about centre.
+    void drawTurnArrow (juce::Graphics&, juce::Point<float> centre, float turn, juce::Colour);
     // The hover amount of a component: its fade if it has one, else 1 under the mouse.
     float hoverOf (const juce::Component&);
     // FL's push button (Reset, Cut self, A / B); nothing changes under the mouse, pressed it sinks.
@@ -296,16 +340,17 @@ namespace fl
         HoverFade hover { *this };
     };
 
-    // A drop-down field whose arrow fades up under the mouse (as FL's does).
+    // A drop-down field whose arrow turns down and brightens under the mouse (as FL's does).
     class ComboBox : public juce::ComboBox
     {
     public:
-        void mouseEnter (const juce::MouseEvent& e) override { hover.setTarget (true); juce::ComboBox::mouseEnter (e); }
-        void mouseExit (const juce::MouseEvent& e) override { hover.setTarget (false); juce::ComboBox::mouseExit (e); }
+        void mouseEnter (const juce::MouseEvent& e) override { turn.setTarget (true); juce::ComboBox::mouseEnter (e); }
+        void mouseExit (const juce::MouseEvent& e) override { turn.setTarget (false); juce::ComboBox::mouseExit (e); }
 
     private:
-        HoverFade hover { *this };
+        ArrowTurn turn { *this };
     };
+
 
     // FL's grey context menus (sample view, presets): shown with the plugin's
     // look, ticks for on/off entries and thin separators (measured from FL's
@@ -337,22 +382,25 @@ namespace fl
     void showInfo (juce::Component& owner, const juce::String& title, const InfoRows& rows);
 
     enum class Icon { sampler, envelope, wrench, valve, sine, triangle, square, folder, locate, close,
-                      arpOff, arpUp, arpDown, arpUpDown, arpSticky, arpRandom };
+                      arpOff, arpUp, arpDown, arpUpDown, arpSticky, arpRandom, link };
     // Draws an icon as FL draws it, at FL's size, centred in area.
     void drawIcon (juce::Graphics&, Icon, juce::Rectangle<float> area, juce::Colour);
 
     // The small arrow in a panel header that opens the panel's menu (FL's
-    // envelope and echo presets).
+    // envelope and echo presets). Under the mouse it turns to point down;
+    // the "boxed" one (the envelope's) also gets FL's amber 20 x 20 px frame
+    // and turns amber itself (measured).
     class MenuArrow : public juce::Button
     {
     public:
-        MenuArrow() : juce::Button ({}) {}
+        explicit MenuArrow (bool boxedStyle = false) : juce::Button ({}), boxed (boxedStyle) {}
         void paintButton (juce::Graphics&, bool highlighted, bool down) override;
-        void mouseEnter (const juce::MouseEvent& e) override { hover.setTarget (true); juce::Button::mouseEnter (e); }
-        void mouseExit (const juce::MouseEvent& e) override { hover.setTarget (false); juce::Button::mouseExit (e); }
+        void mouseEnter (const juce::MouseEvent& e) override { turn.setTarget (true); juce::Button::mouseEnter (e); }
+        void mouseExit (const juce::MouseEvent& e) override { turn.setTarget (false); juce::Button::mouseExit (e); }
 
     private:
-        HoverFade hover { *this };
+        bool boxed;
+        ArrowTurn turn { *this };
     };
 
     // FL's upright A / B switch (the effects view's reverb type): toggled
@@ -372,6 +420,18 @@ namespace fl
 
     private:
         Icon icon;
+    };
+
+    // A fixed icon (the Playback panel's loop link).
+    class IconView : public juce::Component
+    {
+    public:
+        IconView (Icon i, juce::Colour c) : icon (i), colour (c) { setInterceptsMouseClicks (false, false); }
+        void paint (juce::Graphics& g) override { drawIcon (g, icon, getLocalBounds().toFloat(), colour); }
+
+    private:
+        Icon icon;
+        juce::Colour colour;
     };
 
     // A row of selectable icons (sheet selector, effects view, LFO shape).

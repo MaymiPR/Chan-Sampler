@@ -32,7 +32,16 @@ Look
   where FL's do, Cut / By right-aligned, Fine tune at the right, the LFO
   knobs 10 px higher); hover highlights fade in and out on knobs, filter
   knobs (measured hovered shading), sliders, digi wheels, drop-down arrows
-  and panel menu arrows; Cut self sits pressed when on instead of lighting.
+  and panel menu arrows.
+- Fourth pass, with FL's animations captured frame by frame: hover
+  highlights fade in over about 170 ms and out over 300 ms; drop-down and
+  panel menu arrows turn from right to down (the envelope's grows FL's
+  amber frame); the keyboard scrolls 22 px a wheel notch with FL's 42 ms
+  glide; a pressed button darkens and recovers instantly and a toggled Cut
+  self looks like an untoggled one, as in FL; the loop link is FL's icon on
+  the caption row; START and END cannot be turned without a sample; digi
+  numbers are centred between the box's edge and its triangles; Polyphony
+  and Tracking share the Misc row equally.
 
 Fixed
 - SLIDE greyed and ungreyed one click behind Porta / Mono.
