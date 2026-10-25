@@ -43,12 +43,12 @@ namespace fl
         const juce::Colour ledGap         { 0xff0f1010 };
         const juce::Colour ledInnerTop    { 0xff2d3031 };
         const juce::Colour ledInnerBottom { 0xff454849 };
-        const juce::Colour ledOnCentre    { 0xffec734d };
-        const juce::Colour ledOnEdge      { 0xfff5bf9d };
-        const juce::Colour ledOnBottom    { 0xfff9d7b6 };
-        const juce::Colour ledOnTop       { 0xfffcf5d5 };
-        const juce::Colour ledOnGap       { 0xff942b15 };
-        const juce::Colour ledOnRing      { 0xff5c5858 };
+        const juce::Colour ledOnCentre    { 0xffec704a };
+        const juce::Colour ledOnEdge      { 0xfff8aa88 };
+        const juce::Colour ledOnBottom    { 0xfffcecc8 };
+        const juce::Colour ledOnTop       { 0xffffffea };
+        const juce::Colour ledOnGap       { 0xff85250c };
+        const juce::Colour ledOnRing      { 0xff5c5e5e };
         const juce::Colour ledGreenCentre { 0xff8fe86a };   // the green variant (FL's channel ON light)
         const juce::Colour ledGreenEdge   { 0xffe4ffd8 };
 

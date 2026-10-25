@@ -49,8 +49,9 @@ namespace
         return juce::Colour ((juce::uint8) juce::jlimit (0, 255, juce::roundToInt (c.r)), (juce::uint8) juce::jlimit (0, 255, juce::roundToInt (c.g)),
                              (juce::uint8) juce::jlimit (0, 255, juce::roundToInt (c.b)), alpha);
     }
-    // Coverage of a 1 px pixel at distance d from a centre by the ring [lo, hi).
-    float cov (float d, float lo, float hi) { return juce::jlimit (0.0f, 1.0f, juce::jmin (d + 0.5f, hi) - juce::jmax (d - 0.5f, lo)); }
+    // Coverage of a 1 px pixel at distance d from a centre by the ring [lo, hi);
+    // a disc (lo = 0) covers the centre pixel whole.
+    float cov (float d, float lo, float hi) { return juce::jlimit (0.0f, 1.0f, juce::jmin (d + 0.5f, hi) - juce::jmax (d - 0.5f, lo > 0.0f ? lo : -1.0f)); }
     float clamp01 (float v) { return juce::jlimit (0.0f, 1.0f, v); }
 
     // Renders area through fn (logical pixel coordinates relative to area,
@@ -116,8 +117,8 @@ namespace
             // little darker towards the edge, lit along the top rim
             const auto dy = y - cy;
             float luma = 38.66f + lift - 1.93f * dy * (16.0f / R) - 6.9f * (p.r / Rb) * (p.r / Rb);
-            luma += 33.5f * std::pow (clamp01 (p.cosv), 1.05f) * clamp01 (p.r - (Rb - 2.0f));
-            luma += 12.0f * clamp01 (-p.cosv) * clamp01 (p.r - (Rb - 3.0f));
+            luma += 36.0f * std::pow (clamp01 (p.cosv), 1.05f) * clamp01 (1.0f - (Rb - p.r) / 3.2f);
+            luma += 12.0f * clamp01 (-p.cosv) * clamp01 (1.0f - (Rb - p.r) / 3.0f);
             Rgb body { luma - 2.0f, luma, luma + 2.0f };
             // the value dot: a 1.5 x 1.8 px mark, radial
             const auto along = (x - dotX) * ux + (y - dotY) * uy, across = (x - dotX) * -uy + (y - dotY) * ux;
@@ -125,7 +126,8 @@ namespace
             body = lerp (body, dot, dcov);
 
             const auto t = (1.0f - p.cosv) * 0.5f;
-            Rgb c = body;
+            // pixels on the outer edge blend from the rim, not the lit body
+            Rgb c = p.r < Rb + 0.5f ? body : outer;
             c = lerp (c, lerp (gapTop, gapBottom, t) + lift, cov (p.r, Rb, R - 3.0f));
             c = lerp (c, lerp (bevelTop, bevelBottom, t) + lift, cov (p.r, R - 3.0f, R - 1.0f));
             c = lerp (c, outer, cov (p.r, R - 1.0f, R));
@@ -220,11 +222,11 @@ namespace
             }
             else
             {
-                inner = lerp (onCentre, onBottom, std::pow (clamp01 ((dy + 1.0f) * 0.5f), 1.3f));
-                inner = lerp (inner, onEdge, 0.5f * std::pow (clamp01 (p.r / ri), 3.3f));
-                inner = lerp (inner, onTop, std::pow (clamp01 (p.cosv), 5.7f) * std::pow (clamp01 (p.r / ri), 4.0f));
+                inner = lerp (onCentre, onBottom, std::pow (clamp01 ((dy + 1.0f) * 0.5f), 1.43f));
+                inner = lerp (inner, onEdge, 0.43f * std::pow (clamp01 (p.r / ri), 4.77f));
+                inner = lerp (inner, onTop, std::pow (clamp01 (p.cosv), 2.76f) * std::pow (clamp01 (p.r / ri), 4.5f));
             }
-            Rgb c = inner;
+            Rgb c = p.r < ri + 0.5f ? inner : ring;   // the outer edge blends from the ring, not the lit disc
             c = lerp (c, gap, cov (p.r, ri, ringIn));
             c = lerp (c, ring, cov (p.r, ringIn, ringOut));
             return c;
