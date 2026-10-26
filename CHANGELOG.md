@@ -69,6 +69,14 @@ Added
   time, cmake/PatchJuceVst3Keys.cmake), and with nothing to undo or redo the
   key goes on to the host. The two halves of a field beside the presets do the
   same and name the step. Sample steps tell the host the state changed.
+- The filter knobs turn: under the mouse, the five lobes of the collar round
+  the cap turn with the value as in FL (they stayed put); the envelope's
+  tension knobs have no value dot and draw their arc from the top (the
+  volume release tension's ran from the bottom), and their TENSION captions
+  are letter-spaced as in FL.
+- In a VST3 host a click on the plugin no longer takes the keyboard focus
+  from the host's window (so its keys, the space bar included, keep going
+  through the host).
 - Sixth pass, measured in FL 2026: a wheel notch moves the value at once and
   the knob or ball eases to it (about 36 ms, exponential); the list and menu
   arrows rotate rigidly a quarter turn (160 ms in, 200 ms back, no wait) and

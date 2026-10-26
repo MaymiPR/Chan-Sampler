@@ -96,7 +96,7 @@ namespace
     // vertical gradient, a highlight along its top and a lighter bottom rim.
     // The value dot sits 3.6 px inside the body; the arc runs on the bevel.
     // A knob turns a full circle: value 0.5 is straight up.
-    void renderKnob (juce::Graphics& g, juce::Rectangle<float> area, float pos, float zeroPos, juce::Colour arc, float hover, float alpha)
+    void renderKnob (juce::Graphics& g, juce::Rectangle<float> area, float pos, float zeroPos, juce::Colour arc, float hover, float alpha, bool showDot)
     {
         const float lift = 4.0f * hover;   // FL lightens a hovered knob a touch (measured +3 to +6)
         const auto S = juce::jmin (area.getWidth(), area.getHeight());
@@ -123,7 +123,7 @@ namespace
             Rgb body { luma - 2.0f, luma, luma + 2.0f };
             // the value dot: a 1.5 x 1.8 px mark, radial
             const auto along = (x - dotX) * ux + (y - dotY) * uy, across = (x - dotX) * -uy + (y - dotY) * ux;
-            const auto dcov = cov (along, -0.9f, 0.9f) * cov (across, -0.75f, 0.75f);
+            const auto dcov = showDot ? cov (along, -0.9f, 0.9f) * cov (across, -0.75f, 0.75f) : 0.0f;
             body = lerp (body, dot, dcov);
 
             const auto t = (1.0f - p.cosv) * 0.5f;
@@ -153,19 +153,57 @@ namespace
         const auto ang = juce::degreesToRadians (-160.0f + 320.0f * pos);
         const auto dotX = cx + 22.5f * k * std::sin (ang), dotY = cy - 22.5f * k * std::cos (ang);
         const Rgb panel = rgb (colour::panel), dot = rgb (dotColour);
-        auto shade = [hover] (float r, float deg)
+        // Under the mouse FL's knob shows a dark collar with five lobes round
+        // its cap, and the lobes turn with the value while the light on it
+        // stays (measured frame by frame in FL 2026 while MOD X was dragged
+        // through 97 degrees: the collar's outline matched the first frame's
+        // turned by the dot's angle, to within 1.2 degrees modulo 72, the cap
+        // and the shadow unchanged). Fitted on the hovered capture (its dot at
+        // 156.8 degrees): the outline is a base radius set by the light
+        // (24.53 - 1.07 cos t - 0.67 cos 2t + 0.38 cos 3t px) less a dip
+        // 2.43 px deep and 40.8 degrees wide (cos^2 to the power 0.79) at every
+        // 72 degrees from 45.06; 0.38 px rms. The unhovered knob's collar is
+        // round and mirror symmetric, nothing to turn. So the hovered table is
+        // read with its radius warped between 19 and 29.5 px, moving its
+        // measured outline to where the lobes have turned to.
+        const auto turnDeg = (-160.0f + 320.0f * pos) - 156.8f;
+        auto lobes = [] (float deg)
+        {
+            const auto u = std::fmod (std::fmod (deg - 45.06f + 36.0f, 72.0f) + 72.0f, 72.0f) - 36.0f;   // from the nearest valley
+            if (std::abs (u) >= 20.4f)
+                return 0.0f;
+            const auto c = std::cos (juce::MathConstants<float>::pi * u / 40.8f);
+            return -2.43f * std::pow (c * c, 0.79f);
+        };
+        auto hoverRadius = [&lobes, turnDeg] (float r, float deg)
+        {
+            constexpr float rIn = 19.0f, rOut = 29.5f;
+            if (r <= rIn || r >= rOut || std::abs (turnDeg) < 0.01f)
+                return r;
+            const auto t = juce::degreesToRadians (deg);
+            const auto base = 24.53f - 1.07f * std::cos (t) - 0.67f * std::cos (2.0f * t) + 0.38f * std::cos (3.0f * t);
+            const auto edgeRef = base + lobes (deg), edgeNow = base + lobes (deg - turnDeg);
+            return r < edgeNow ? rIn + (r - rIn) * (edgeRef - rIn) / (edgeNow - rIn)
+                               : edgeRef + (r - edgeNow) * (rOut - edgeRef) / (rOut - edgeNow);
+        };
+        auto shade = [hover, &hoverRadius] (float r, float deg)
         {
             // bilinear in the measured table: 0.5 px rings, 5 degree spokes
-            const auto ri = juce::jlimit (0.0f, (float) (bigKnobRadii - 1), r * 2.0f);
             const auto ai = (deg + 180.0f) / 5.0f;
-            const int r0 = (int) ri, r1 = juce::jmin (r0 + 1, bigKnobRadii - 1);
             const int a0 = (((int) std::floor (ai)) % bigKnobAngles + bigKnobAngles) % bigKnobAngles, a1 = (a0 + 1) % bigKnobAngles;
-            const auto fr = ri - (float) r0, fa = ai - std::floor (ai);
-            const auto row = [&] (const unsigned char (*t)[bigKnobAngles], int rr) { return (float) t[rr][a0] * (1.0f - fa) + (float) t[rr][a1] * fa; };
-            const auto base = row (bigKnobLuma, r0) * (1.0f - fr) + row (bigKnobLuma, r1) * fr;
+            const auto fa = ai - std::floor (ai);
+            auto sample = [&] (const unsigned char (*t)[bigKnobAngles], float rr)
+            {
+                const auto ri = juce::jlimit (0.0f, (float) (bigKnobRadii - 1), rr * 2.0f);
+                const int r0 = (int) ri, r1 = juce::jmin (r0 + 1, bigKnobRadii - 1);
+                const auto fr = ri - (float) r0;
+                const auto row = [&] (int k) { return (float) t[k][a0] * (1.0f - fa) + (float) t[k][a1] * fa; };
+                return row (r0) * (1.0f - fr) + row (r1) * fr;
+            };
+            const auto base = sample (bigKnobLuma, r);
             if (hover <= 0.0f)
                 return base;
-            return base * (1.0f - hover) + (row (bigKnobLumaHover, r0) * (1.0f - fr) + row (bigKnobLumaHover, r1) * fr) * hover;
+            return base * (1.0f - hover) + sample (bigKnobLumaHover, hoverRadius (r, deg)) * hover;
         };
 
         drawPixels (g, area, alpha, [&] (float x, float y, float& coverage) -> Rgb
@@ -300,13 +338,13 @@ namespace
     }
 }
 
-void drawKnob (juce::Graphics& g, juce::Rectangle<float> area, float pos, float zeroPos, juce::Colour arc, bool enabled, float hover)
+void drawKnob (juce::Graphics& g, juce::Rectangle<float> area, float pos, float zeroPos, juce::Colour arc, bool enabled, float hover, bool showDot)
 {
     const auto alpha = enabled ? 1.0f : 0.39f;   // FL (measured): a greyed knob is the knob at 39 % over the panel
     if (juce::jmin (area.getWidth(), area.getHeight()) > 50.0f)
         renderBigKnob (g, area, pos, arc, enabled ? hover : 0.0f, alpha);
     else
-        renderKnob (g, area, pos, zeroPos, arc, enabled ? hover : 0.0f, alpha);
+        renderKnob (g, area, pos, zeroPos, arc, enabled ? hover : 0.0f, alpha, showDot);
 }
 
 float hoverOf (const juce::Component& c)
@@ -671,11 +709,16 @@ void LookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int w, int 
     // centre for two-sided ones (pitch, EQ, panning...).
     // (the default value is kept in the slider's double-click value, though a
     // double-click does nothing, as in FL)
-    const bool bipolar = std::abs (slider.valueToProportionOfLength (slider.getDoubleClickReturnValue()) - 0.5) < 1.0e-3;
+    // Two-sided: a range symmetric about zero (the tensions, whose default
+    // need not be zero: the volume release's is -79 %, its arc running from
+    // the top as in FL), or a default in the middle (MUL).
+    const bool bipolar = std::abs (slider.getMinimum() + slider.getMaximum()) <= 1.0e-6 * std::abs (slider.getMaximum())
+                      || std::abs (slider.valueToProportionOfLength (slider.getDoubleClickReturnValue()) - 0.5) < 1.0e-3;
     const auto d = juce::jmin (w, h);
     const auto area = juce::Rectangle<float> ((float) d, (float) d).withCentre (juce::Rectangle<int> (x, y, w, h).toFloat().getCentre());
     juce::ignoreUnused (pos);
-    drawKnob (g, area, shownProportion (slider), bipolar ? 0.5f : 0.0f, slider.findColour (juce::Slider::rotarySliderFillColourId), slider.isEnabled(), hoverOf (slider));
+    drawKnob (g, area, shownProportion (slider), bipolar ? 0.5f : 0.0f, slider.findColour (juce::Slider::rotarySliderFillColourId), slider.isEnabled(), hoverOf (slider),
+              ! (bool) slider.getProperties().getWithDefault ("flNoDot", false));
 }
 
 void LookAndFeel::drawLinearSlider (juce::Graphics& g, int x, int y, int w, int h, float, float,
@@ -848,11 +891,23 @@ void LookAndFeel::drawLabel (juce::Graphics& g, juce::Label& label)
     }
     const auto f = label.getFont();
     const auto area = label.getLocalBounds().toFloat();
-    const auto textW = juce::GlyphArrangement::getStringWidth (f, label.getText());
-    const auto x = std::round (area.getCentreX() - textW * 0.5f);
+    const auto text = label.getText();
+    // "captionTracking": extra space between the letters (FL spaces its
+    // TENSION captions out, measured: 37 px of ink against 32 set solid)
+    const auto tracking = (float) (double) label.getProperties().getWithDefault ("captionTracking", 0.0);
+    const auto textW = juce::GlyphArrangement::getStringWidth (f, text) + tracking * (float) juce::jmax (0, text.length() - 1);
+    auto x = std::round (area.getCentreX() - textW * 0.5f);
     g.setColour (label.findColour (juce::Label::textColourId).withMultipliedAlpha (label.isEnabled() ? 1.0f : 0.5f));
     juce::GlyphArrangement ga;
-    ga.addLineOfText (f, label.getText(), x, area.getBottom());
+    if (tracking == 0.0f)
+        ga.addLineOfText (f, text, x, area.getBottom());
+    else
+        for (int i = 0; i < text.length(); ++i)
+        {
+            const auto letter = text.substring (i, i + 1);
+            ga.addLineOfText (f, letter, x, area.getBottom());
+            x += juce::GlyphArrangement::getStringWidth (f, letter) + tracking;
+        }
     ga.draw (g);
 }
 

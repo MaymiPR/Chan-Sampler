@@ -228,6 +228,17 @@ void ChanSamplerEditor::parentHierarchyChanged()
     keyWindow = top;
     if (keyWindow != nullptr)
         keyWindow->addKeyListener (this);
+    // VST3: a click must not give the plugin's window the keyboard focus.
+    // Holding it, FL Studio no longer offered the keys to the view but sent
+    // them to the window, and the ones the editor does not use (the space bar)
+    // were reposted to FL's panel, which ignores them: after touching a knob
+    // the space bar no longer played or stopped. Declining the focus on a
+    // click (JUCE then answers the click with MA_NOACTIVATE) leaves FL's
+    // plugin window focused, so every key goes through the view's key call
+    // (cmake/PatchJuceVst3Keys.cmake) and FL gets those the editor leaves.
+    // A value box being typed in still takes the focus itself.
+    if (top != nullptr && top != this && samplerProcessor.wrapperType == juce::AudioProcessor::wrapperType_VST3)
+        top->setMouseClickGrabsKeyboardFocus (false);
 }
 
 bool ChanSamplerEditor::keyPressed (const juce::KeyPress& key, juce::Component*)
@@ -691,11 +702,12 @@ juce::Component& ChanSamplerEditor::buildTargetPage (const char* prefix, bool ha
         envKnob (env, id ("Dec"),  108, 115, 30);  caption (env, "DEC",   109, 148, 28, 7);
         envKnob (env, id ("Sus"),  142, 115, 30);  caption (env, "SUS",   143, 148, 28, 7);
         envKnob (env, id ("Rel"),  176, 115, 30);  caption (env, "REL",   177, 148, 28, 7);
-        envKnob (env, id ("AttT"), 44,  158, 22);
-        envKnob (env, id ("DecT"), 112, 158, 22);
-        envKnob (env, id ("RelT"), 180, 158, 22);
-        caption (env, "TENSION", 67, 166, 44, 7);
-        caption (env, "TENSION", 135, 166, 44, 7);
+        // FL's tension knobs show their arc but no value dot, and their
+        // captions are letter-spaced (measured)
+        for (auto [key, kx] : { std::pair<const char*, int> { "AttT", 44 }, { "DecT", 112 }, { "RelT", 180 } })
+            envKnob (env, id (key), kx, 158, 22).getProperties().set ("flNoDot", true);
+        caption (env, "TENSION", 68, 166, 44, 7).getProperties().set ("captionTracking", 0.85);
+        caption (env, "TENSION", 136, 166, 44, 7).getProperties().set ("captionTracking", 0.85);
         if (hasAmount)
         {
             envKnob (env, id ("EnvAmt"), 245, 115, 34);

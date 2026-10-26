@@ -10,7 +10,8 @@
 // ("name=value ..." state properties, e.g. viewSpectrum=1), SNAPSHOT_VIEW
 // ("from to" zoom), SNAPSHOT_DIALOG (a message), SNAPSHOT_TEMPO=1 (Detect
 // tempo dialog), SNAPSHOT_PROPERTIES=1 (Get properties), SNAPSHOT_DRAGTEST
-// (drags the knob whose tooltip contains the text, printing its values).
+// (drags the knob whose tooltip contains the text, printing its values),
+// SNAPSHOT_HOVER ("name[=position]": that knob drawn under the mouse).
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <iostream>
@@ -166,6 +167,26 @@ int main (int argc, char** argv)
     // SNAPSHOT_DIALOG="message": an FL-style message dialog over the editor
     if (auto* d = std::getenv ("SNAPSHOT_DIALOG"))
         fl::showDialog (*ed->getChildComponent (0), "Chan Sampler", d, false);
+    // SNAPSHOT_HOVER="knob name[=position]": draws that knob as under the
+    // mouse (its hover fade at full), at the position 0..1 if one is given.
+    if (auto* spec = std::getenv ("SNAPSHOT_HOVER"))
+    {
+        const juce::String text (spec);
+        const auto name = text.upToFirstOccurrenceOf ("=", false, false);
+        std::function<void (juce::Component&)> mark = [&] (juce::Component& c)
+        {
+            if (auto* sl = dynamic_cast<juce::Slider*> (&c))
+                if (sl->getTooltip().containsIgnoreCase (name))
+                {
+                    if (text.contains ("="))
+                        sl->setValue (sl->proportionOfLengthToValue (text.fromFirstOccurrenceOf ("=", false, false).getDoubleValue()), juce::sendNotificationSync);
+                    sl->getProperties().set ("hover", 1.0f);
+                }
+            for (auto* ch : c.getChildren())
+                mark (*ch);
+        };
+        mark (*ed);
+    }
     // SNAPSHOT_DRAGTEST="knob name": drags that knob a pixel at a time with mouse
     // events and prints its value at each step (checks the feel of a drag).
     if (auto* name = std::getenv ("SNAPSHOT_DRAGTEST"))

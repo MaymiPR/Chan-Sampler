@@ -181,7 +181,9 @@ namespace fl
     // pos: 0..1; zeroPos: where the value arc starts (0 for one-sided knobs,
     // 0.5 for two-sided ones). A knob larger than 50 px is FL's filter knob.
     // hover: how far the control's hover highlight has faded in (0..1).
-    void drawKnob (juce::Graphics&, juce::Rectangle<float> area, float pos, float zeroPos, juce::Colour arc, bool enabled, float hover = 0.0f);
+    // showDot false: FL's envelope tension knobs, which have the arc but no value dot (measured)
+    void drawKnob (juce::Graphics&, juce::Rectangle<float> area, float pos, float zeroPos, juce::Colour arc, bool enabled, float hover = 0.0f,
+                   bool showDot = true);
     // lit: how far the light is on (0..1; FL fades its switches, see Switch).
     void drawLed (juce::Graphics&, juce::Rectangle<float> area, float lit, bool enabled, bool green = false);
     // The round slider thumb with its coloured line (FL's fine tune / Mid sliders).
