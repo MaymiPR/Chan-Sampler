@@ -301,29 +301,55 @@ void WaveformView::drawLanes (juce::Graphics& g, juce::Rectangle<float> area, fl
     const auto* l0 = sample->audio.getReadPointer (chL);
     const auto* r0 = sample->audio.getReadPointer (chR);
 
-    // Zoomed in (under 32 frames per pixel) FL shows a clean line through the
-    // wave, not its peaks: a 1.5 px anti-aliased line through points every half
-    // pixel, each the average over its span (so fast detail does not alias).
+    // Zoomed in (under 32 frames per pixel) FL draws a 1.5 px anti-aliased line
+    // through each pixel column's lowest and highest sample, in the order they
+    // come: on a smooth wave that is a clean line along it, on noisy sound
+    // (hi-hats) it swings between the extremes, so the wave keeps its full
+    // height (FL 2026's 808 CH, 0.1 s, about 8 frames per pixel: the line's
+    // span per column within 2.7 px of FL's capture). It had been a line
+    // through averages, which cancelled a hat's fast swings: a 0.95 peak
+    // drew a fifth of the height.
     if (framesPerColumn < 32.0)
     {
         juce::Path line;
-        const auto step = 0.5f / scale;
         bool started = false;
-        for (float px = 0.0f; px <= area.getWidth(); px += step)
+        auto add = [&] (int i, float v)
         {
-            const auto f = from + (to - from) * px / area.getWidth();
-            if (f > 1.0f)
-                break;
-            const int i = juce::jlimit (0, total - 1, (int) std::lround (f * total));
-            const int span = juce::jmax (1, (int) std::lround (framesPerColumn * step));
-            float sum = 0.0f;
-            int used = 0;
-            for (int k = juce::jmax (0, i - span / 2); k < juce::jmin (total, i - span / 2 + span); ++k, ++used)
-                sum += 0.5f * (l0[k] + r0[k]);
-            const auto v = used > 0 ? sum / (float) used : 0.5f * (l0[i] + r0[i]);
-            const auto pt = juce::Point<float> (area.getX() + px, mid - juce::jlimit (-1.0f, 1.0f, v) * halfH);
+            const auto x = area.getX() + (((float) i + 0.5f) / (float) total - from) / (to - from) * area.getWidth();
+            const auto pt = juce::Point<float> (x, mid - juce::jlimit (-1.0f, 1.0f, v) * halfH);
             if (! started) { line.startNewSubPath (pt); started = true; }
             else           line.lineTo (pt);
+        };
+        int lastI = -1;
+        float lastV = 0.0f;
+        auto emit = [&] (int i, float v)
+        {
+            if (i == lastI && v == lastV)
+                return;
+            add (i, v);
+            lastI = i;
+            lastV = v;
+        };
+        for (int x = 0; x < width; ++x)
+        {
+            const auto f0 = from + (to - from) * (float) x / (float) width;
+            const auto f1 = from + (to - from) * (float) (x + 1) / (float) width;
+            if (f0 >= 1.0f)
+                break;
+            const int i0 = juce::jlimit (0, total - 1, (int) std::floor (f0 * total));
+            const int i1 = juce::jlimit (i0 + 1, total, (int) std::floor (f1 * total));
+            int iLo = i0, iHi = i0;
+            float lo = juce::jmin (l0[i0], r0[i0]), hi = juce::jmax (l0[i0], r0[i0]);
+            for (int i = i0 + 1; i < i1; ++i)
+            {
+                const auto a = juce::jmin (l0[i], r0[i]), b = juce::jmax (l0[i], r0[i]);
+                if (a < lo) { lo = a; iLo = i; }
+                if (b > hi) { hi = b; iHi = i; }
+            }
+            // in time order; a point repeating the last one (columns narrower
+            // than a frame share their sample) is not added again
+            if (iLo <= iHi) { emit (iLo, lo); emit (iHi, hi); }
+            else            { emit (iHi, hi); emit (iLo, lo); }
         }
         setColourFill (g, area, from, to, colour, colourful);
         g.strokePath (line, juce::PathStrokeType (1.5f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
@@ -445,17 +471,18 @@ void WaveformView::paint (juce::Graphics& g)
         const double seconds = sample != nullptr && sample->getTotalFrames() > 0 ? sample->getTotalFrames() / sample->sourceRate : 1.0;
         const double t0 = viewStart * seconds, t1 = viewEnd * seconds;
         const double pps = wave.getWidth() / juce::jmax (1.0e-9, t1 - t0);
-        // The finest step at least 12 px apart: powers of ten, and from 0.1 s
-        // up also 2 and 5 times (FL: 0.1 s at 13.6, 27 and 36 px rather than
-        // 0.05 s at 18 px; 0.2 s where 0.1 s would be 9 px). The next power
-        // of ten is drawn darker with a soft edge each side.
-        double decade = 0.0001, step = decade;
+        // The finest step at least 12 px apart among powers of ten from 0.1 s
+        // up and 2 and 5 times them (FL: 0.1 s at 13.6, 27 and 36 px rather
+        // than 0.05 s at 18 px; 0.2 s where 0.1 s would be 9 px). Never finer
+        // than 0.1 s: on FL's 0.1 s 808 CH, whole and zoomed in to a third,
+        // only the lines at 0 and 0.1 s show (0.01 s would be 54 and 150 px
+        // apart). The next power of ten is drawn darker with a soft edge.
+        double decade = 0.1, step = decade;
         for (;;)
         {
-            const bool fine = decade < 0.05;
-            if (decade * pps >= 12.0)                  { step = decade;        break; }
-            if (! fine && 2.0 * decade * pps >= 12.0)  { step = 2.0 * decade;  break; }
-            if (! fine && 5.0 * decade * pps >= 12.0)  { step = 5.0 * decade;  break; }
+            if (decade * pps >= 12.0)        { step = decade;        break; }
+            if (2.0 * decade * pps >= 12.0)  { step = 2.0 * decade;  break; }
+            if (5.0 * decade * pps >= 12.0)  { step = 5.0 * decade;  break; }
             decade *= 10.0;
         }
         const double major = decade * 10.0;

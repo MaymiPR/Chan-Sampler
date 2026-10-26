@@ -69,6 +69,11 @@ Added
   time, cmake/PatchJuceVst3Keys.cmake), and with nothing to undo or redo the
   key goes on to the host. The two halves of a field beside the presets do the
   same and name the step. Sample steps tell the host the state changed.
+- Short samples (FL's hi-hats and anything under about 0.4 s) draw at their
+  full height again, spiky as in FL: zoomed in, the line runs through each
+  pixel's lowest and highest sample instead of their average, which had
+  shrunk a hat to a fifth of its height. The sample view's grid stops at
+  0.1 s lines, as FL's does.
 - The filter knobs turn: under the mouse, the five lobes of the collar round
   the cap turn with the value as in FL (they stayed put); the envelope's
   tension knobs have no value dot and draw their arc from the top (the
