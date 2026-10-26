@@ -245,7 +245,21 @@ int main (int argc, char** argv)
         editor->keyPressed (juce::KeyPress ('z', juce::ModifierKeys::commandModifier, 0), editor.get());
         editor->keyPressed (juce::KeyPress ('z', juce::ModifierKeys::commandModifier | juce::ModifierKeys::shiftModifier, 0), editor.get());
         check (std::abs (feed->getValue() - 0.4f) < 1.0e-6f, "Ctrl+Shift+Z redoes");
+        // one press handed over twice (FL: to the window and through the VST3
+        // key call, as the key and as its character) acts once; a press after
+        // the key-repeat interval acts again
+        gesture (*feed, { 0.1f });
+        gesture (*feed, { 0.2f });
+        gesture (*feed, { 0.3f });
+        pump (40);
+        editor->keyPressed (juce::KeyPress ('Z', juce::ModifierKeys::commandModifier, 'z'), editor.get());
+        editor->keyPressed (juce::KeyPress (26, juce::ModifierKeys::commandModifier, 26), editor.get());
+        check (std::abs (feed->getValue() - 0.2f) < 1.0e-6f, "one press delivered twice undoes once", juce::String (feed->getValue()));
+        juce::Thread::sleep (40);
+        editor->keyPressed (juce::KeyPress ('Z', juce::ModifierKeys::commandModifier, 'z'), editor.get());
+        check (std::abs (feed->getValue() - 0.1f) < 1.0e-6f, "the next press undoes again", juce::String (feed->getValue()));
         // with nothing to undo / redo the keys are not used, so the host gets them
+        juce::Thread::sleep (40);
         h.clear();
         check (! editor->keyPressed (juce::KeyPress ('z', juce::ModifierKeys::commandModifier, 0), editor.get())
                    && ! editor->keyPressed (juce::KeyPress ('y', juce::ModifierKeys::commandModifier, 0), editor.get()),
