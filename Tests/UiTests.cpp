@@ -11,6 +11,9 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <iostream>
+#if JUCE_LINUX
+ #include <dlfcn.h>
+#endif
 
 #include "../Source/PluginProcessor.h"
 #include "../Source/PluginEditor.h"
@@ -24,6 +27,24 @@ namespace
         std::cout << (ok ? "PASS  " : "FAIL  ") << name << (detail.isEmpty() ? "" : "  (" + detail + ")") << "\n";
         failures += ok ? 0 : 1;
     }
+
+   #if JUCE_LINUX
+    // JUCE puts in an X error handler that ignores errors only for its own
+    // application class (as Chan Sampler's standalone app has); this is a
+    // plain program, so Xlib's default handler would end it on the first
+    // error. Under CI's xvfb, with no window manager, the first real window
+    // (a popup menu) gets its WM_PROTOCOLS property written with atom 0, as
+    // nothing has created that atom (every desktop's window manager does), and
+    // the server answers BadAtom. The same handler as JUCE's applications'.
+    int ignoreXError (void*, void*) { return 0; }
+
+    void ignoreXErrors()
+    {
+        if (auto* x11 = dlopen ("libX11.so.6", RTLD_LAZY))
+            if (auto* set = reinterpret_cast<void* (*) (int (*) (void*, void*))> (dlsym (x11, "XSetErrorHandler")))
+                set (ignoreXError);
+    }
+   #endif
 
     void pump (int ms = 20)
     {
@@ -59,6 +80,9 @@ int main (int argc, char** argv)
         return 2;
     }
     juce::ScopedJuceInitialiser_GUI init;
+   #if JUCE_LINUX
+    ignoreXErrors();
+   #endif
     const juce::File sample (juce::File::getCurrentWorkingDirectory().getChildFile (argv[1]));
 
     ChanSamplerProcessor processor;
@@ -310,10 +334,7 @@ int main (int argc, char** argv)
         }
     }
 
-    // --- The panel menu arrows stay turned while their menu is open (a real
-    // popup menu; not under Linux CI's xvfb, which has no window manager and
-    // where JUCE's menu window stops the process with an X error, BadAtom)
-   #if ! JUCE_LINUX
+    // --- The panel menu arrows stay turned while their menu is open (a real popup menu)
     {
         auto editor = makeEditor();
         pump();
@@ -332,9 +353,6 @@ int main (int argc, char** argv)
             check (fl::turnOf (*arrow) < 0.01f, "turned back once the menu closes", juce::String (fl::turnOf (*arrow)));
         }
     }
-   #else
-    std::cout << "SKIP  the menu arrow's hold (needs a popup menu window)" << std::endl;
-   #endif
 
     std::cout << "\n" << (failures == 0 ? "All UI tests passed" : juce::String (failures) + " UI test(s) failed") << "\n";
     return failures == 0 ? 0 : 1;
