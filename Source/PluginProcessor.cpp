@@ -4,7 +4,9 @@
 
 ChanSamplerProcessor::ChanSamplerProcessor()
     : AudioProcessor (BusesProperties().withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
-      apvts (*this, nullptr, "STATE", createParameterLayout (loopTextLength))
+      apvts (*this, nullptr, "STATE", createParameterLayout (loopTextLength)),
+      history (*this, [this] { return getRaw()->file; },
+               [this] (const juce::File& f) { if (f == juce::File()) removeSample(); else if (! loadSample (f)) setMissingSample (f); })
 {
     formatManager.registerBasicFormats();
     for (auto* p : getParameters())
@@ -320,6 +322,7 @@ EngineParams ChanSamplerProcessor::readEngineParams() const
 //==============================================================================
 void ChanSamplerProcessor::resetParameters()
 {
+    const History::Transaction edit (history, "Reset");
     for (auto* p : getParameters())
         if (auto* rp = dynamic_cast<juce::RangedAudioParameter*> (p))
             rp->setValueNotifyingHost (rp->getDefaultValue());
@@ -535,6 +538,7 @@ namespace
 
 bool ChanSamplerProcessor::reloadSample()
 {
+    const History::ScopedSuspend noHistory (history);
     const auto file = getSampleFile();
     if (! file.existsAsFile())
         return false;
@@ -585,6 +589,7 @@ juce::MemoryBlock ChanSamplerProcessor::getSampleAsWav() const
 
 bool ChanSamplerProcessor::loadSample (const juce::File& file)
 {
+    const History::Transaction edit (history, "Load sample");
     loadError = "Could not read " + file.getFileName() + ": not a supported audio file, or the file is damaged.";
     std::unique_ptr<juce::AudioFormatReader> reader (formatManager.createReaderFor (file));
     if (reader == nullptr)
@@ -714,6 +719,7 @@ bool ChanSamplerProcessor::loadSample (const juce::File& file)
 
 void ChanSamplerProcessor::removeSample()
 {
+    const History::Transaction edit (history, "Remove sample");
     {
         const juce::ScopedLock sl (poolLock);
         raw = std::make_shared<const RawSample>();
@@ -762,6 +768,9 @@ void ChanSamplerProcessor::setStateInformation (const void* data, int sizeInByte
     if (xml == nullptr || ! xml->hasTagName (apvts.state.getType()))
         return;
 
+    // A project loading is the host's doing, not an edit: the history starts afresh.
+    const History::ScopedSuspend noHistory (history);
+    history.clear();
     auto state = juce::ValueTree::fromXml (*xml);
     const juce::String path = state.getProperty ("samplePath").toString();
     apvts.replaceState (state);

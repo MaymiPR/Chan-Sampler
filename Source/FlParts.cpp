@@ -16,25 +16,14 @@ namespace
 EnvelopeDisplay::EnvelopeDisplay (juce::AudioProcessorValueTreeState& s, const char* p)
     : apvts (s), prefix (p)
 {
-    startTimerHz (20);
+    for (auto* suffix : { "EnvOn", "Del", "Att", "Hold", "Dec", "Sus", "Rel", "AttT", "DecT", "RelT" })
+        if (auto* param = apvts.getParameter (prefix + suffix))
+            watchers.push_back (std::make_unique<juce::ParameterAttachment> (*param, [this] (float) { repaint(); }));
 }
 
 float EnvelopeDisplay::get (const char* suffix) const
 {
     return apvts.getRawParameterValue (prefix + suffix)->load();
-}
-
-void EnvelopeDisplay::timerCallback()
-{
-    float hash = 0.0f;
-    int i = 1;
-    for (auto s : { "EnvOn", "Del", "Att", "Hold", "Dec", "Sus", "Rel", "AttT", "DecT", "RelT" })
-        hash += get (s) * (float) (i++ * 7919);
-    if (hash != lastHash)
-    {
-        lastHash = hash;
-        repaint();
-    }
 }
 
 EnvelopeDisplay::Geometry EnvelopeDisplay::geometry() const
@@ -202,25 +191,14 @@ LfoDisplay::LfoDisplay (juce::AudioProcessorValueTreeState& s, const char* p)
     : apvts (s), prefix (p)
 {
     setInterceptsMouseClicks (false, false);
-    startTimerHz (20);
+    for (auto* suffix : { "LfoShape", "LfoSpeed", "LfoAmt", "LfoDel", "LfoAtt" })
+        if (auto* param = apvts.getParameter (prefix + suffix))
+            watchers.push_back (std::make_unique<juce::ParameterAttachment> (*param, [this] (float) { repaint(); }));
 }
 
 float LfoDisplay::get (const char* suffix) const
 {
     return apvts.getRawParameterValue (prefix + suffix)->load();
-}
-
-void LfoDisplay::timerCallback()
-{
-    float hash = 0.0f;
-    int i = 1;
-    for (auto s : { "LfoShape", "LfoSpeed", "LfoAmt", "LfoDel", "LfoAtt" })
-        hash += get (s) * (float) (i++ * 7919);
-    if (hash != lastHash)
-    {
-        lastHash = hash;
-        repaint();
-    }
 }
 
 void LfoDisplay::paint (juce::Graphics& g)
@@ -524,20 +502,21 @@ void RootKeyboard::timerCallback()
 }
 
 //==============================================================================
-RootNotePanel::RootNotePanel (juce::AudioProcessorValueTreeState& s, juce::MidiKeyboardState& k)
-    : fl::Panel ("Root note: C5"), apvts (s),
+RootNotePanel::RootNotePanel (juce::AudioProcessorValueTreeState& s, juce::MidiKeyboardState& k, History& h)
+    : fl::Panel ("Root note: C5"), apvts (s), history (h),
       fine (*s.getParameter (pid::fineTune), juce::Slider::LinearHorizontal), keyboard (s, k)
 {
     resetButton.setTooltip ("Default root note and fine tune");
     resetButton.onClick = [this]
     {
+        const History::Transaction edit (history, "Reset root note");
         setParameterAsGesture (*apvts.getParameter (pid::rootNote), 60.0f);
         setParameterAsGesture (*apvts.getParameter (pid::fineTune), 0.0f);
     };
 
     fineLabel.setFont (fl::font (11.5f));
     fineAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (apvts, pid::fineTune, fine);
-    fine.setDoubleClickReturnValue (true, 0.0);
+    fine.setDoubleClickReturnValue (false, 0.0);   // the default, for the arc; a double-click does nothing (as in FL)
     fine.setTooltip ("Fine tuning");
 
     hint.setFont (fl::font (10.5f));
@@ -547,12 +526,13 @@ RootNotePanel::RootNotePanel (juce::AudioProcessorValueTreeState& s, juce::MidiK
     for (auto* c : std::initializer_list<juce::Component*> { &resetButton, &fineLabel, &fine, &hint, &keyboard })
         addAndMakeVisible (c);
 
-    // Layout from FL's KeybPanel (544 x 137)
+    // Layout from FL's KeybPanel (544 x 137). FL puts "Fine tune" and its
+    // 104 px track at the right; here they follow the Reset button and the
+    // hint comes after them (the layout asked for).
     resetButton.setBounds (4, 23, 46, 21);
-    // FL puts "Fine tune" and its 104 px track at the right (measured); the hint takes the room before them
-    fineLabel.setBounds (263, 23, 56, 21);
-    fine.setBounds (316, 24, 113, 22);
-    hint.setBounds (56, 23, 196, 21);
+    fineLabel.setBounds (58, 23, 52, 21);
+    fine.setBounds (108, 24, 113, 22);
+    hint.setBounds (230, 23, 300, 21);
     keyboard.setBounds (0, 48, 544, 89);
 
     startTimerHz (10);
@@ -802,12 +782,44 @@ ParamKnob::ParamKnob (juce::RangedAudioParameter& p, SliderStyle style)
     };
 }
 
+void ParamKnob::resized()
+{
+    juce::Slider::resized();
+    hover.setSlowOut (isRotary() && getWidth() > 50);   // the filter knob's slower fade-out
+}
+
+double ParamKnob::snapValue (double attemptedValue, juce::Slider::DragMode)
+{
+    if (snapSteps <= 0.0)
+        return attemptedValue;
+    const auto p = std::round (valueToProportionOfLength (attemptedValue) * snapSteps) / snapSteps;
+    return proportionOfLengthToValue (p);
+}
+
 void ParamKnob::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& w)
 {
-    if (locked)
+    if (locked || ! isEnabled() || isMouseButtonDown())
         return;
+    // JUCE reports 0.46875 per notch on Windows; 8 px of drag a notch (half
+    // with Ctrl), and the other way on a slider (measured).
+    auto d = std::abs (w.deltaX) > std::abs (w.deltaY) ? -w.deltaX : w.deltaY;
+    if (w.isReversed)
+        d = -d;
+    const double notches = d / 0.46875;
+    double step = notches * wheelPixels / dragPixels * (e.mods.isCtrlDown() ? 0.5 : 1.0);
+    if (! isRotary())
+        step = -step;
+    if (step == 0.0)
+        return;
+    auto pos = juce::jlimit (0.0, 1.0, valueToProportionOfLength (getValue()) + step);
+    if (snapSteps > 0.0)
+        pos = std::round (pos * snapSteps) / snapSteps;
+    // Through JUCE's own wheel path (0.15 of the range per unit), so the
+    // attachment hears the drag start / end as the gesture; snapValue holds TIME's steps.
+    const auto now = valueToProportionOfLength (getValue());
+    const juce::MouseWheelDetails scaled { 0.0f, (float) ((pos - now) / 0.15), false, false };
     wheelActive = true;
-    juce::Slider::mouseWheelMove (e, w);
+    juce::Slider::mouseWheelMove (e, scaled);
     wheelActive = false;
 }
 
@@ -820,10 +832,28 @@ void ParamKnob::mouseDown (const juce::MouseEvent& e)
         menu.show();
         return;
     }
+    if (! isEnabled())
+        return;
+    if (e.mods.isAltDown())
+    {
+        // Alt+click: back to the default (measured on FL's knobs and sliders)
+        juce::Slider::mouseDown (e);
+        setValue (getDoubleClickReturnValue(), juce::sendNotificationSync);
+        return;
+    }
     juce::Slider::mouseDown (e);   // starts the gesture
     dragPos = valueToProportionOfLength (getValue());
     lastMouse = e.position;
     holding = -1;
+    walking = false;
+    if (! isRotary() && std::abs (e.position.x - thumbX (dragPos)) > 9.5f)
+    {
+        // a press on the track: the ball walks towards the mouse
+        walking = true;
+        walkTowards (e.position.x, walkStep);
+        walker.start (e.position.x);
+        return;
+    }
     // As FL: the cursor hides while dragging and the drag goes on past the
     // screen's edges; it comes back at the control.
     e.source.enableUnboundedMouseMovement (true);
@@ -831,20 +861,52 @@ void ParamKnob::mouseDown (const juce::MouseEvent& e)
 
 void ParamKnob::mouseUp (const juce::MouseEvent& e)
 {
+    walker.stop();
+    walking = false;
     e.source.enableUnboundedMouseMovement (false);
     juce::Slider::mouseUp (e);
+}
+
+float ParamKnob::thumbX (double proportion) const
+{
+    // as drawn by LookAndFeel::drawLinearSlider: the ball's line
+    const auto outerX = 4.5f, outerW = (float) getWidth() - 9.0f;
+    return std::floor (outerX + 9.5f + (float) proportion * (outerW - 19.0f)) + 0.5f;
+}
+
+void ParamKnob::walkTowards (float x, float maxStep)
+{
+    const auto pos = valueToProportionOfLength (getValue());
+    const auto here = thumbX (pos);
+    const auto perPixel = 1.0 / juce::jmax (1.0, (double) getWidth() - 9.0 - 19.0);   // proportion per thumb pixel
+    const auto wanted = (double) (x - here) * perPixel;
+    const auto step = juce::jlimit (-(double) maxStep * perPixel, (double) maxStep * perPixel, wanted);
+    if (std::abs (step) < 1.0e-9)
+    {
+        walker.stop();
+        return;
+    }
+    dragPos = juce::jlimit (0.0, 1.0, pos + step);
+    setValue (proportionOfLengthToValue (dragPos), juce::sendNotificationSync);
 }
 
 void ParamKnob::mouseDrag (const juce::MouseEvent& e)
 {
     if (locked)
         return;
-    if (e.mods.isPopupMenu() || ! isEnabled())
+    if (e.mods.isPopupMenu() || ! isEnabled() || e.mods.isAltDown())
         return;
+    if (walking)
+    {
+        walker.setTarget (e.position.x);
+        return;
+    }
 
-    // Relative drag (up / right raises), with FL's detents.
-    const auto d = isRotary() ? (e.position.x - lastMouse.x) - (e.position.y - lastMouse.y)
-                              : (e.position.x - lastMouse.x);
+    // Relative drag (up / right raises), with FL's detents; a quarter as fast with Ctrl.
+    auto d = isRotary() ? (e.position.x - lastMouse.x) - (e.position.y - lastMouse.y)
+                        : (e.position.x - lastMouse.x);
+    if (e.mods.isCtrlDown())
+        d *= fineDrag;
     lastMouse = e.position;
     const auto full = dragPixels;
 

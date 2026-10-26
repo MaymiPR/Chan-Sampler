@@ -42,6 +42,32 @@ Look
   the caption row; START and END cannot be turned without a sample; digi
   numbers are centred between the box's edge and its triangles; Polyphony
   and Tracking share the Misc row equally.
+- Fifth pass, from FL's gestures measured with the mouse driven: pressing
+  and dragging a knob or slider add nothing to the hover highlight (no jump
+  on the press, none on release); the filter knob's highlight fades out as
+  FL's exponential; a hovered slider grows its groove and lifts its ball
+  wherever the mouse is on it; switches toggle on mouse-down and their
+  lights crossfade in over 180 ms and out over 235 ms (CLIP too); Ctrl
+  drags a quarter as fast, Alt+click resets, a double-click no longer
+  resets, a wheel notch is 8 px of drag (half with Ctrl, the other way on
+  a slider), a press on a slider's track walks the ball towards the mouse;
+  the drop-down arrows are FL's crisp 4 x 7 px triangles 9 px from the
+  right edge on every list (the Mode list now shares the animated field),
+  the fields' widths and the envelope and echo arrows re-measured; the
+  effects view's icon is FL's traced glyph in FL's colours; the A / B
+  pill's B is no longer cut off; the envelope and LFO displays redraw the
+  moment a value changes (they followed a 20 Hz timer, up to 250 ms late).
+- The Keyboard panel's Fine tune slider now follows the Reset button, with
+  the right-click hint after it (asked for; FL keeps it at the right).
+
+Added
+- Undo and redo of the user's edits, FL style: a drag is one step recorded
+  on release, switches, lists, menus and panel presets are steps, a loaded,
+  replaced or removed sample is a step that brings its parameters back,
+  edits that change nothing are skipped, a new edit after an undo drops the
+  redo steps, 100 steps are kept. Ctrl+Z undoes; Ctrl+Alt+Z (FL's key),
+  Ctrl+Shift+Z and Ctrl+Y redo; two arrows in the top bar do the same and
+  name the step in their tooltip. Host automation is not a step.
 
 Fixed
 - SLIDE greyed and ungreyed one click behind Porta / Mono.

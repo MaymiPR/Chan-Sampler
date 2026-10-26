@@ -323,22 +323,30 @@ float turnOf (const juce::Component& c)
     return 0.0f;
 }
 
-void drawTurnArrow (juce::Graphics& g, juce::Point<float> c, float turn, juce::Colour colour)
+void drawTurnArrow (juce::Graphics& g, juce::Point<float> rest, juce::Point<float> down, float turn, juce::Colour colour,
+                    float baseH, float tipLen)
 {
-    // the right-pointing triangle is 4 x 9 px, the down-pointing one 7 x 4 (measured)
-    const auto a = juce::MathConstants<float>::halfPi * turn;
-    const auto cs = std::cos (a), sn = std::sin (a);
-    const auto wide = 1.0f - 0.22f * turn;   // 9 px across the base turning to 7
-    auto pt = [&] (float x, float y) { y *= wide; return juce::Point<float> (c.x + x * cs - y * sn, c.y + x * sn + y * cs); };
+    // The right-pointing triangle's base is at its left; turned down, the
+    // base is at the top (the top corner of the base becomes its right end).
+    const auto t = juce::jlimit (0.0f, 1.0f, turn);
+    auto lerp = [t] (juce::Point<float> a, juce::Point<float> b) { return a + (b - a) * t; };
+    const auto a = lerp ({ rest.x - tipLen * 0.5f, rest.y - baseH * 0.5f }, { down.x + baseH * 0.5f, down.y - tipLen * 0.5f });
+    const auto b = lerp ({ rest.x - tipLen * 0.5f, rest.y + baseH * 0.5f }, { down.x - baseH * 0.5f, down.y - tipLen * 0.5f });
+    const auto c = lerp ({ rest.x + tipLen * 0.5f, rest.y }, { down.x, down.y + tipLen * 0.5f });
     juce::Path p;
-    p.addTriangle (pt (-2.0f, -4.5f), pt (-2.0f, 4.5f), pt (2.0f, 0.0f));
+    p.addTriangle (a, b, c);
     g.setColour (colour);
     g.fillPath (p);
 }
 
-void drawLed (juce::Graphics& g, juce::Rectangle<float> area, bool on, bool enabled, bool green)
+void drawLed (juce::Graphics& g, juce::Rectangle<float> area, float lit, bool enabled, bool green)
 {
-    renderLed (g, area, on, green, enabled ? 1.0f : 0.45f);
+    // a switch fading: its lit look over its unlit one
+    const auto alpha = enabled ? 1.0f : 0.45f;
+    if (lit < 1.0f)
+        renderLed (g, area, false, green, alpha);
+    if (lit > 0.0f)
+        renderLed (g, area, true, green, alpha * juce::jmin (1.0f, lit));
 }
 
 void drawSliderThumb (juce::Graphics& g, juce::Rectangle<float> area, juce::Colour line, bool enabled, float hover)
@@ -653,11 +661,12 @@ void LookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int w, int 
 {
     // Value arc as in FL: from the minimum for one-sided knobs, from the
     // centre for two-sided ones (pitch, EQ, panning...).
-    const bool bipolar = slider.isDoubleClickReturnEnabled()
-                      && std::abs (slider.valueToProportionOfLength (slider.getDoubleClickReturnValue()) - 0.5) < 1.0e-3;
+    // (the default value is kept in the slider's double-click value, though a
+    // double-click does nothing, as in FL)
+    const bool bipolar = std::abs (slider.valueToProportionOfLength (slider.getDoubleClickReturnValue()) - 0.5) < 1.0e-3;
     const auto d = juce::jmin (w, h);
     const auto area = juce::Rectangle<float> ((float) d, (float) d).withCentre (juce::Rectangle<int> (x, y, w, h).toFloat().getCentre());
-    drawKnob (g, area, pos, bipolar ? 0.5f : 0.0f, slider.findColour (juce::Slider::rotarySliderFillColourId), slider.isEnabled(), juce::jmax (hoverOf (slider), slider.isMouseButtonDown() ? 1.0f : 0.0f));
+    drawKnob (g, area, pos, bipolar ? 0.5f : 0.0f, slider.findColour (juce::Slider::rotarySliderFillColourId), slider.isEnabled(), hoverOf (slider));
 }
 
 void LookAndFeel::drawLinearSlider (juce::Graphics& g, int x, int y, int w, int h, float, float,
@@ -671,10 +680,14 @@ void LookAndFeel::drawLinearSlider (juce::Graphics& g, int x, int y, int w, int 
     // (one-sided) or 12 px (two-sided), on a slightly darker band that stops
     // a pixel short of each tick. The control is 22 px tall: the thumb's 17
     // rows at its top, the groove at rows 7 to 10, the ticks at 17 to 21.
+    // Under the mouse (anywhere on the control, measured frame by frame) the
+    // groove grows a pixel up and down, the band's top row goes and the ball's
+    // rims lift; pressing and dragging add nothing to that.
     const auto alpha = slider.isEnabled() ? 1.0f : 0.4f;
+    const auto hover = slider.isEnabled() ? hoverOf (slider) : 0.0f;
     const auto top = (float) y + std::floor ((float) (h - 22) * 0.5f);
     const auto trackTop = top + 7.0f;
-    const auto outer = juce::Rectangle<float> ((float) x + 4.5f, trackTop, (float) w - 9.0f, 4.0f);
+    const auto outer = juce::Rectangle<float> ((float) x + 4.5f, trackTop - hover, (float) w - 9.0f, 4.0f + 2.0f * hover);
     const auto inner = outer.reduced (3.0f, 1.0f);
     const bool bipolar = std::abs (slider.getMinimum() + slider.getMaximum()) < 1.0e-6 * std::abs (slider.getMaximum());
     const auto line = bipolar ? colour::thumbRed : colour::amber;
@@ -697,7 +710,7 @@ void LookAndFeel::drawLinearSlider (juce::Graphics& g, int x, int y, int w, int 
     const int divisions = bipolar ? 8 : 10;
     const auto bandY = trackTop + 10.0f;
     const auto firstTick = std::floor (outer.getX() + 3.5f), step = (outer.getWidth() - 8.0f) / (float) divisions;
-    g.setColour (colour::sliderBandTop.withMultipliedAlpha (alpha));
+    g.setColour (colour::sliderBandTop.withMultipliedAlpha (alpha * (1.0f - hover)));
     g.fillRect (firstTick + 1.0f, bandY, step * (float) divisions - 1.0f, 1.0f);
     g.setColour (colour::sliderBand.withMultipliedAlpha (alpha));
     g.fillRect (firstTick + 1.0f, bandY + 1.0f, step * (float) divisions - 1.0f, 4.0f);
@@ -713,18 +726,21 @@ void LookAndFeel::drawLinearSlider (juce::Graphics& g, int x, int y, int w, int 
     }
 
     // the ball (19 x 17 px) with its shadow rows below it
-    drawSliderThumb (g, { lineX - 9.0f, top, 19.0f, 23.0f }, line, slider.isEnabled(), juce::jmax (hoverOf (slider), slider.isMouseButtonDown() ? 1.0f : 0.0f));
+    drawSliderThumb (g, { lineX - 9.0f, top, 19.0f, 23.0f }, line, slider.isEnabled(), hover);
 }
 
 void LookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton& b, bool, bool)
 {
     const auto bounds = b.getLocalBounds().toFloat();
+    // the light fades when the button is one of FL's switches (Switch)
+    const auto* sw = dynamic_cast<const Switch*> (&b);
+    const float lit = sw != nullptr ? sw->getLit() : (b.getToggleState() ? 1.0f : 0.0f);
     // "captionStyle": FL's small switch with a knob-caption label (CLIP in the
     // effects view, measured): an 11 px light 5 px in and 2 px down, the 7 px
     // bold caption 21 px in with its baseline 9 px down.
     if ((bool) b.getProperties()["captionStyle"])
     {
-        drawLed (g, { bounds.getX() + 5.0f, bounds.getY() + 2.0f, 11.0f, 11.0f }, b.getToggleState(), b.isEnabled(), (bool) b.getProperties()["greenLed"]);
+        drawLed (g, { bounds.getX() + 5.0f, bounds.getY() + 2.0f, 11.0f, 11.0f }, lit, b.isEnabled(), (bool) b.getProperties()["greenLed"]);
         g.setColour (b.isEnabled() ? colour::caption : colour::dim);
         juce::GlyphArrangement ga;
         ga.addLineOfText (font (7.0f, true), b.getButtonText(), bounds.getX() + 21.0f, bounds.getY() + 9.0f);
@@ -739,7 +755,7 @@ void LookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton& b, bo
     const auto textW = juce::GlyphArrangement::getStringWidth (f, b.getButtonText());
     const auto ledX = textFirst ? juce::jmin (bounds.getRight() - ledSize - 2.0f, bounds.getX() + textW + 4.0f) : bounds.getX() + 4.0f;
     const auto led = juce::Rectangle<float> (ledSize, ledSize).withPosition (ledX, std::floor (bounds.getCentreY() - ledSize * 0.5f) + 1.0f);
-    drawLed (g, led, b.getToggleState(), b.isEnabled(), (bool) b.getProperties()["greenLed"]);
+    drawLed (g, led, lit, b.isEnabled(), (bool) b.getProperties()["greenLed"]);
 
     if (b.getButtonText().isNotEmpty())
     {
@@ -769,11 +785,14 @@ void LookAndFeel::drawComboBox (juce::Graphics& g, int w, int h, bool, int, int,
     g.setColour (colour::comboInnerBottom.withMultipliedAlpha (alpha));
     g.fillRect (inner.removeFromBottom (1.0f));
 
-    // The arrow 6 px from the right: it points right, and turns to point down
-    // (brightening) under the mouse and while the list is open (measured).
+    // The arrow: a 4 x 7 px triangle whose base is 9 px from the field's right
+    // edge, on the middle row; it turns to point down (7 x 4 px, a pixel lower)
+    // and brightens under the mouse and while the list is open (measured on
+    // all four lists).
     const auto turn = box.isPopupActive() ? 1.0f : turnOf (box);
-    drawTurnArrow (g, { (float) w - 5.5f, std::floor ((float) h * 0.5f) + 0.5f }, turn,
-                   colour::comboArrow.interpolatedWith (colour::icon, turn).withMultipliedAlpha (alpha));
+    const auto mid = std::floor ((float) h * 0.5f);
+    drawTurnArrow (g, { (float) w - 7.0f, mid + 0.5f }, { (float) w - 7.5f, mid + 1.0f }, turn,
+                   colour::comboArrow.interpolatedWith (colour::icon, turn).withMultipliedAlpha (alpha), 7.2f, 4.0f);
 }
 
 juce::Font LookAndFeel::getComboBoxFont (juce::ComboBox& box)
@@ -875,8 +894,10 @@ void MenuArrow::paintButton (juce::Graphics& g, bool highlighted, bool down)
     const auto b = getLocalBounds().toFloat();
     if (! boxed)
     {
-        // the echo panel's: a light triangle that turns down under the mouse
-        drawTurnArrow (g, b.getCentre(), t, colour::icon);
+        // the echo panel's: a light 3.4 x 8 px triangle that turns down under
+        // the mouse (its base at x 326 and rows 167 to 174 of the canvas, measured)
+        const auto c = b.getCentre().translated (-0.3f, -0.5f);
+        drawTurnArrow (g, c, c, t, colour::icon, 8.0f, 3.4f);
         return;
     }
     // the envelope's: at rest a light triangle at the right of its 20 x 20 px
@@ -891,8 +912,11 @@ void MenuArrow::paintButton (juce::Graphics& g, bool highlighted, bool down)
         g.setColour (colour::amber.darker (0.35f).withAlpha (t));
         g.drawRoundedRectangle (frame.reduced (1.5f), 4.0f, 1.0f);
     }
-    const auto centre = juce::Point<float> (b.getCentreX() + 9.0f * (1.0f - t), b.getCentreY());
-    drawTurnArrow (g, centre, t, colour::icon.interpolatedWith (colour::amber, t));
+    // at rest the 4.4 x 8 px triangle sits a pixel right of the cell's middle;
+    // turned down (8 x 4.4 px) it is centred, a pixel lower (measured)
+    const auto cell = b.withSizeKeepingCentre (20.0f, 20.0f);
+    drawTurnArrow (g, { cell.getX() + 11.0f, cell.getY() + 10.0f }, { cell.getX() + 10.0f, cell.getY() + 11.2f }, t,
+                   colour::icon.interpolatedWith (colour::amber, t), 8.0f, 4.4f);
 }
 
 void Panel::paint (juce::Graphics& g)
@@ -1025,7 +1049,7 @@ namespace
             case Icon::sampler:  return { &samplerIcon, 8, 12 };
             case Icon::envelope: return { &envelopeIcon, 10, 10 };
             case Icon::wrench:   return smallCell ? IconPlace { &fxWrenchIcon, 5, 3 } : IconPlace { &wrenchIcon, 12, 13 };
-            case Icon::valve:    return { &valveIcon, 6, 2 };
+            case Icon::valve:    return { &valveIcon, 7, 3 };   // its dome fills rows 141-143 of the canvas (measured)
             case Icon::sine:     return { &sineIcon, 6, 5 };
             case Icon::triangle: return { &triangleIcon, 6, 5 };
             case Icon::square:   return { &squareIcon, 7, 6 };
@@ -1056,33 +1080,41 @@ void drawIcon (juce::Graphics& g, Icon icon, juce::Rectangle<float> cell, juce::
     {
         g.strokePath (path, juce::PathStrokeType (width, juce::PathStrokeType::curved, juce::PathStrokeType::butt));
     };
-    // The valve is shaded (a lit tube), not a flat glyph: it is drawn as strokes.
-    switch (icon)
+    juce::ignoreUnused (stroke);
+    if (icon == Icon::valve)
     {
-        case Icon::valve:
+        // FL's effects icon is a glyph (ClearType-fringed in the capture), so
+        // it is drawn from its pixels' coverage rather than traced: a 7 px dome
+        // (rows 141-143 solid), two side strokes tapering from 1.1 px to 0.25
+        // px over 6 rows, a filament widening from a point to 1.8 px, and a
+        // base that is 3 px wide, 2 px, 3.6 px and 1.1 px on its four rows.
+        juce::Path dome;
+        dome.addCentredArc (3.0f, 3.2f, 3.5f, 3.5f, 0.0f, -juce::MathConstants<float>::halfPi, juce::MathConstants<float>::halfPi, true);
+        dome.closeSubPath();
+        g.fillPath (dome, juce::AffineTransform::translation (x0, y0));
+        auto taper = [&] (float xTop, float xBottom, float wTop, float wBottom, float yTop, float yBottom)
         {
-            // a tube: filled pointed top, outlined body with its filament, a base
-            juce::Path tip;
-            tip.addTriangle (at (3.5f, 0.0f), at (7.5f, 4.2f), at (0.5f, 4.2f));
-            g.fillPath (tip);
-            juce::Path body;
-            body.startNewSubPath (at (0.5f, 4.0f));
-            body.lineTo (at (0.5f, 10.5f));
-            body.lineTo (at (7.5f, 10.5f));
-            body.lineTo (at (7.5f, 4.0f));
-            stroke (body, 1.0f);
-            juce::Path filament;
-            filament.startNewSubPath (at (2.5f, 10.0f));
-            filament.lineTo (at (2.5f, 6.5f));
-            filament.lineTo (at (5.5f, 6.5f));
-            filament.lineTo (at (5.5f, 10.0f));
-            stroke (filament, 1.0f);
-            g.fillRoundedRectangle (juce::Rectangle<float> (at (1.0f, 11.3f), at (7.0f, 14.0f)), 1.2f);
-            return;
+            juce::Path leg;
+            leg.addQuadrilateral (xTop - wTop * 0.5f, yTop, xTop + wTop * 0.5f, yTop, xBottom + wBottom * 0.5f, yBottom, xBottom - wBottom * 0.5f, yBottom);
+            g.fillPath (leg, juce::AffineTransform::translation (x0, y0));
+        };
+        taper (-0.4f, -0.3f, 1.3f, 0.3f, 3.0f, 9.5f);   // left stroke
+        taper (5.4f, 5.7f, 1.4f, 0.35f, 3.0f, 9.5f);    // right stroke
+        taper (2.5f, 2.6f, 0.0f, 1.8f, 5.3f, 9.0f);     // the filament
+        juce::Path base;                                // centre line x and half-width per row
+        const float rows[][3] = { { 2.6f, 0.9f, 9.0f }, { 2.75f, 1.5f, 9.5f }, { 2.6f, 1.0f, 10.5f }, { 2.8f, 1.8f, 11.5f }, { 2.7f, 0.55f, 12.3f }, { 2.7f, 0.2f, 12.7f } };
+        for (size_t i = 0; i < std::size (rows); ++i)
+        {
+            const auto pt = juce::Point<float> (rows[i][0] + rows[i][1], rows[i][2]);
+            if (i == 0) base.startNewSubPath (pt); else base.lineTo (pt);
         }
-        default:
-            break;
+        for (size_t i = std::size (rows); i-- > 0;)
+            base.lineTo (rows[i][0] - rows[i][1], rows[i][2]);
+        base.closeSubPath();
+        g.fillPath (base, juce::AffineTransform::translation (x0, y0));
+        return;
     }
+    juce::ignoreUnused (at);
     juce::Path p;
     for (auto& loop : place.shape->loops)
     {
@@ -1117,8 +1149,8 @@ void SlideSwitch::paintButton (juce::Graphics& g, bool, bool)
     g.fillEllipse (knob.reduced (1.0f));
     g.setColour (colour::text.withMultipliedAlpha (alpha));
     juce::GlyphArrangement ga;
-    ga.addLineOfText (font (11.1f), "A", 17.0f, 13.0f);
-    ga.addLineOfText (font (11.1f), "B", 17.0f, 28.0f);
+    ga.addLineOfText (font (10.3f), "A", 17.0f, 12.0f);   // baselines 12 and 27 (measured: the caps span 7 rows)
+    ga.addLineOfText (font (10.3f), "B", 17.0f, 27.0f);
     ga.draw (g);
 }
 
@@ -1678,7 +1710,7 @@ void IconTabs::paint (juce::Graphics& g)
             if (large) g.fillRect (cell);
             else       g.fillRoundedRectangle (cell.withTrimmedRight (1.0f).reduced (1.0f), 2.0f);
         }
-        drawIcon (g, icons[i], cell, sel ? selectedColour : colour::icon.withAlpha (isEnabled() ? 1.0f : 0.5f));
+        drawIcon (g, icons[i], cell, sel ? selectedColour : unselectedColour.withAlpha (isEnabled() ? 1.0f : 0.5f));
     }
 }
 

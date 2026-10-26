@@ -223,6 +223,7 @@ void PresetBar::importFst()
 
 void PresetBar::initialize()
 {
+    const History::Transaction edit (processor.history, "New preset");
     processor.resetParameters();
     processor.removeSample();
     setCurrentName ({});

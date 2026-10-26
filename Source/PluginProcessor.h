@@ -12,6 +12,7 @@
 #include <unordered_map>
 
 #include "CutGroups.h"
+#include "History.h"
 #include "Params.h"
 #include "SampleData.h"
 #include "SamplerEngine.h"
@@ -97,6 +98,9 @@ public:
     std::atomic<int> loopTextLength { 0 };
     juce::AudioProcessorValueTreeState apvts;
     juce::MidiKeyboardState keyboardState;
+    // Undo / redo of the user's edits (parameters and the sample). Declared
+    // after apvts: it listens to the parameters.
+    History history;
 
     // The parameters that decide whether the time stretchers are needed.
     static constexpr const char* stretchParamIDs[] = { pid::stretchMode, pid::pitch, pid::stretchMul, pid::stretchTime };

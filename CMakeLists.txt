@@ -39,6 +39,7 @@ set(CHANSAMPLER_ENGINE_SOURCES
 set(CHANSAMPLER_SOURCES
     ${CHANSAMPLER_ENGINE_SOURCES}
     Source/PluginProcessor.cpp
+    Source/History.cpp
     Source/CutGroups.cpp
     Source/FlPreset.cpp
     Source/PresetBar.cpp
@@ -146,6 +147,15 @@ juce_add_console_app(ChanSamplerSnapshot PRODUCT_NAME "ChanSamplerSnapshot")
 target_sources(ChanSamplerSnapshot PRIVATE Tests/SnapshotTool.cpp ${CHANSAMPLER_SOURCES})
 target_compile_definitions(ChanSamplerSnapshot PRIVATE JUCE_MODAL_LOOPS_PERMITTED=1 ${CHANSAMPLER_TOOL_DEFINITIONS})
 target_link_libraries(ChanSamplerSnapshot PRIVATE
+    juce::juce_audio_utils
+    juce::juce_dsp
+    juce::juce_recommended_config_flags)
+
+# The editor's shared controls and the undo history, checked offline (Tests/UiTests.cpp).
+juce_add_console_app(ChanSamplerUiTests PRODUCT_NAME "ChanSamplerUiTests")
+target_sources(ChanSamplerUiTests PRIVATE Tests/UiTests.cpp ${CHANSAMPLER_SOURCES})
+target_compile_definitions(ChanSamplerUiTests PRIVATE JUCE_MODAL_LOOPS_PERMITTED=1 ${CHANSAMPLER_TOOL_DEFINITIONS})
+target_link_libraries(ChanSamplerUiTests PRIVATE
     juce::juce_audio_utils
     juce::juce_dsp
     juce::juce_recommended_config_flags)

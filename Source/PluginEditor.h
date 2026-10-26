@@ -29,6 +29,8 @@ public:
     // For Tests/SnapshotTool: shows a sheet (0 SMP, 1 INS, 2 FUNC) and INS target page.
     void showSheetForTesting (int sheet, int insPage);
     void filesDropped (const juce::StringArray& files, int x, int y) override;
+    // The window's keys (Ctrl+Z / Ctrl+Alt+Z / Ctrl+Y, Ctrl+C / Ctrl+V); public for Tests/UiTests.
+    bool keyPressed (const juce::KeyPress&, juce::Component*) override;
 
 private:
     static constexpr int canvasW = 563, canvasH = 446;
@@ -65,7 +67,7 @@ private:
     juce::Component& buildTargetPage (const char* prefix, bool hasAmount, bool hasEnvelope = true);
 
     void showSheet (int index);
-    void changeListenerCallback (juce::ChangeBroadcaster*) override;
+    void changeListenerCallback (juce::ChangeBroadcaster*) override;   // the sample, or the history
     void refreshSample();
     void loadFile (const juce::File& file);
     bool canLoad (const juce::File& file);   // a sample format we read, or an FL preset
@@ -82,7 +84,6 @@ private:
     juce::Component canvas, smpSheet, insSheet, funcSheet;
     std::vector<std::unique_ptr<juce::Component>> owned;
     WaveformView waveform;
-    bool keyPressed (const juce::KeyPress&, juce::Component*) override;
     juce::Component::SafePointer<juce::Component> keyWindow;   // where keyPressed listens
     juce::Label* fileName = nullptr;
     juce::Label* sampleInfo = nullptr;
@@ -90,6 +91,10 @@ private:
     fl::TextTabs* targetTabs = nullptr;
     fl::IconTabs* fxTabs = nullptr;         // Precomputed effects: Tools / Effects
     juce::Slider* loopKnobs[2] = { nullptr, nullptr };   // START / END: locked without a sample
+    // Undo / redo (the processor's History): the top bar's two arrows and the keys
+    juce::Button* undoButton = nullptr;
+    juce::Button* redoButton = nullptr;
+    void refreshHistoryButtons();
     bool rememberSize = false;   // set once the editor has its initial size
 
     std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>> sliderAttachments;

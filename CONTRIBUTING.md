@@ -25,8 +25,9 @@ developer tools (all in `build/<tool>_artefacts/Release/`):
 | `ChanSamplerHostTest <Chan Sampler.vst3> nulltest/signals/sine.wav Tests/data/state-*.bin` | Loads the built VST3 the way a DAW does: automation, MIDI, save / reload, the editor size, host rate changes, offline rendering, and projects saved by each earlier release (`Tests/data`). It expects that 2-second sine. |
 | `ChanSamplerRender` | Renders notes offline for the null tests; also `bench <sample>` (CPU per stretch mode, 32 / 64 voices), `stretchtest` (the stretcher alone on a file), `fftbench` (the stretcher's FFT against JUCE's); the full list is at the top of `Tests/RenderTool.cpp`. |
 | `ChanSamplerSnapshot` | Writes editor screenshots (to compare with FL's screen, and the README's pictures). |
+| `ChanSamplerUiTests nulltest/signals/sine.wav` | Builds the editor off screen and checks its shared controls and the undo history: every drop-down list is the shared `fl::ComboBox`, every choice reaches its parameter and is still shown after a sheet change and a rebuilt editor; gestures record single steps, unchanged values none, undo / redo restore values and the sample, the keys and the arrows work. Needs a display (CI runs it under xvfb on Linux). |
 
-GitHub Actions builds and runs the engine and host tests
+GitHub Actions builds and runs the engine, UI and host tests
 (`.github/workflows/ci.yml`): on Linux for every push to `main`, on Windows
 too for pull requests, and on both from Actions → *CI* → *Run workflow*.
 Changes to docs or `nulltest/` alone don't start it. macOS is built and

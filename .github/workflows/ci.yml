@@ -52,10 +52,12 @@ jobs:
         run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCHANSAMPLER_CLAP=OFF
 
       - name: Build
-        run: cmake --build build --target ChanSamplerTests ChanSamplerHostTest ChanSampler_VST3
+        run: cmake --build build --target ChanSamplerTests ChanSamplerUiTests ChanSamplerHostTest ChanSampler_VST3
 
       - name: Engine tests
         run: build/ChanSamplerTests_artefacts/Release/ChanSamplerTests
+      - name: UI tests
+        run: xvfb-run -a build/ChanSamplerUiTests_artefacts/Release/ChanSamplerUiTests nulltest/signals/sine.wav
 
       - name: Host test
         run: xvfb-run -a build/ChanSamplerHostTest_artefacts/Release/ChanSamplerHostTest "build/ChanSampler_artefacts/Release/VST3/Chan Sampler.vst3" nulltest/signals/sine.wav Tests/data/state-*.bin
@@ -72,10 +74,12 @@ jobs:
         run: cmake -B build -A x64 -DCHANSAMPLER_CLAP=OFF
 
       - name: Build
-        run: cmake --build build --config Release --target ChanSamplerTests ChanSamplerHostTest ChanSampler_VST3 --parallel
+        run: cmake --build build --config Release --target ChanSamplerTests ChanSamplerUiTests ChanSamplerHostTest ChanSampler_VST3 --parallel
 
       - name: Engine tests
         run: build/ChanSamplerTests_artefacts/Release/ChanSamplerTests.exe
+      - name: UI tests
+        run: build/ChanSamplerUiTests_artefacts/Release/ChanSamplerUiTests.exe nulltest/signals/sine.wav
 
       - name: Host test
         shell: bash

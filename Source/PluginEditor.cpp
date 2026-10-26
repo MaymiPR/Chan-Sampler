@@ -32,6 +32,36 @@ namespace
         std::function<void()> onClick;
     };
 
+    // Undo / redo: a curved arrow, dim when there is nothing to do, brighter
+    // under the mouse (the fade shared with the other controls).
+    struct HistoryButton : juce::Button
+    {
+        explicit HistoryButton (bool isRedo) : juce::Button ({}), redo (isRedo) {}
+        void paintButton (juce::Graphics& g, bool, bool down) override
+        {
+            const auto b = getLocalBounds().toFloat();
+            const auto lift = fl::hoverOf (*this);
+            auto c = isEnabled() ? fl::colour::icon.interpolatedWith (juce::Colours::white, 0.6f * lift) : fl::colour::dim.withAlpha (0.55f);
+            if (down) c = c.darker (0.2f);
+            g.setColour (c);
+            // an arc of three quarters with an arrow head at its end
+            const auto centre = b.getCentre().translated (0.0f, 1.0f);
+            const float r = 5.0f, dir = redo ? -1.0f : 1.0f;
+            juce::Path arc;
+            const auto from = redo ? -0.25f : 0.25f, to = redo ? -1.75f : 1.75f;
+            arc.addCentredArc (centre.x, centre.y, r, r, 0.0f, from * juce::MathConstants<float>::pi, to * juce::MathConstants<float>::pi, true);
+            g.strokePath (arc, juce::PathStrokeType (1.6f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+            juce::Path head;
+            const auto tip = juce::Point<float> (centre.x - dir * r, centre.y - 1.5f);
+            head.addTriangle (tip.translated (-dir * 3.0f, -2.5f), tip.translated (dir * 2.5f, -2.5f), tip.translated (0.0f, 3.0f));
+            g.fillPath (head);
+        }
+        void mouseEnter (const juce::MouseEvent& e) override { hover.setTarget (true); juce::Button::mouseEnter (e); }
+        void mouseExit (const juce::MouseEvent& e) override { hover.setTarget (false); juce::Button::mouseExit (e); }
+        bool redo;
+        fl::HoverFade hover { *this };
+    };
+
     // Plain filled rectangle (bevels).
     struct Fill : juce::Component
     {
@@ -93,7 +123,9 @@ ChanSamplerEditor::ChanSamplerEditor (ChanSamplerProcessor& p)
     noFocus (*this);
 
     samplerProcessor.addChangeListener (this);
+    samplerProcessor.history.addChangeListener (this);
     refreshSample();
+    refreshHistoryButtons();
 
     // Opens at FL's own Sampler window size (563 x 446 content), or at the
     // size it was last resized to (stored with the plugin state).
@@ -109,6 +141,7 @@ ChanSamplerEditor::ChanSamplerEditor (ChanSamplerProcessor& p)
 
 ChanSamplerEditor::~ChanSamplerEditor()
 {
+    samplerProcessor.history.removeChangeListener (this);
     samplerProcessor.removeChangeListener (this);
     if (keyWindow != nullptr)
         keyWindow->removeKeyListener (this);
@@ -137,7 +170,40 @@ void ChanSamplerEditor::parentHierarchyChanged()
 
 bool ChanSamplerEditor::keyPressed (const juce::KeyPress& key, juce::Component*)
 {
+    if (dynamic_cast<juce::TextEditor*> (juce::Component::getCurrentlyFocusedComponent()) != nullptr)
+        return false;   // typing in a value box: the keys are the editor's
+    const auto mods = key.getModifiers();
+    const auto code = key.getKeyCode();
+    const bool ctrl = mods.isCommandDown();
+    if (ctrl && (code == 'Z' || code == 'z'))
+    {
+        if (mods.isAltDown() || mods.isShiftDown())   // FL: Ctrl+Alt+Z; also Ctrl+Shift+Z
+            samplerProcessor.history.redo();
+        else
+            samplerProcessor.history.undo();
+        return true;
+    }
+    if (ctrl && (code == 'Y' || code == 'y') && ! mods.isAltDown() && ! mods.isShiftDown())
+    {
+        samplerProcessor.history.redo();
+        return true;
+    }
     return waveform.keyShortcut (key);
+}
+
+void ChanSamplerEditor::refreshHistoryButtons()
+{
+    auto& h = samplerProcessor.history;
+    if (undoButton != nullptr)
+    {
+        undoButton->setEnabled (h.canUndo());
+        undoButton->setTooltip (h.canUndo() ? "Undo " + h.getUndoName() + " (" + fl::commandShortcutText ('Z') + ")" : juce::String ("Nothing to undo"));
+    }
+    if (redoButton != nullptr)
+    {
+        redoButton->setEnabled (h.canRedo());
+        redoButton->setTooltip (h.canRedo() ? "Redo " + h.getRedoName() + " (" + fl::commandShortcutText ('Z').replace ("+Z", "+Alt+Z") + ")" : juce::String ("Nothing to redo"));
+    }
 }
 
 void ChanSamplerEditor::resized()
@@ -159,7 +225,7 @@ juce::Slider& ChanSamplerEditor::knob (juce::Component& parent, const juce::Stri
     s.setColour (juce::Slider::rotarySliderFillColourId, ring);
     sliderAttachments.push_back (std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (samplerProcessor.apvts, paramId, s));
 
-    s.setDoubleClickReturnValue (true, param->convertFrom0to1 (param->getDefaultValue()));
+    s.setDoubleClickReturnValue (false, param->convertFrom0to1 (param->getDefaultValue()));   // the default (Alt+click, the arc); no double-click, as in FL
     s.setPopupDisplayEnabled (true, false, &canvas);
     s.setTooltip (param->getName (64));
     return s;
@@ -170,7 +236,7 @@ juce::Slider& ChanSamplerEditor::hslider (juce::Component& parent, const juce::S
     auto* param = samplerProcessor.apvts.getParameter (paramId);
     auto& s = own (std::make_unique<ParamKnob> (*param, juce::Slider::LinearHorizontal), parent, { x, y, w, h });
     sliderAttachments.push_back (std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (samplerProcessor.apvts, paramId, s));
-    s.setDoubleClickReturnValue (true, param->convertFrom0to1 (param->getDefaultValue()));
+    s.setDoubleClickReturnValue (false, param->convertFrom0to1 (param->getDefaultValue()));
     s.setPopupDisplayEnabled (true, false, &canvas);
     s.setTooltip (param->getName (64));
     return s;
@@ -188,14 +254,15 @@ juce::Label& ChanSamplerEditor::caption (juce::Component& parent, const juce::St
 
 juce::Rectangle<int> ChanSamplerEditor::comboBounds (int x, int y, int w, int h)
 {
-    // FL draws its drop-down field 1 px in from the top left of the control's rectangle.
-    return { x + 1, y + 1, w - 1, h };
+    // FL draws its drop-down field 1 px in from the top left of the control's
+    // rectangle, as wide as the control (its right edges measured on all four lists).
+    return { x + 1, y + 1, w, h };
 }
 
 juce::ToggleButton& ChanSamplerEditor::led (juce::Component& parent, const juce::String& paramId, const juce::String& t,
                                             int x, int y, int w, int h)
 {
-    auto& b = own (std::make_unique<juce::ToggleButton> (t), parent, { x, y, w, h });
+    auto& b = own (std::make_unique<fl::Switch> (t), parent, { x, y, w, h });
     buttonAttachments.push_back (std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (samplerProcessor.apvts, paramId, b));
     b.setTooltip (samplerProcessor.apvts.getParameter (paramId)->getName (64));
     return b;
@@ -275,6 +342,14 @@ void ChanSamplerEditor::buildTopBar()
 
     knob (bar, pid::output, 517, 3, 30, fl::colour::green);
     caption (bar, "OUT", 518, 35, 28, 7);
+
+    // Undo / redo (Chan Sampler's own: FL keeps these in its main toolbar)
+    auto& undo = own (std::make_unique<HistoryButton> (false), bar, { 322, 6, 18, 16 });
+    undo.onClick = [this] { samplerProcessor.history.undo(); };
+    auto& redo = own (std::make_unique<HistoryButton> (true), bar, { 342, 6, 18, 16 });
+    redo.onClick = [this] { samplerProcessor.history.redo(); };
+    undoButton = &undo;
+    redoButton = &redo;
     sampleInfo->setColour (juce::Label::textColourId, fl::colour::dim);
 }
 
@@ -399,7 +474,7 @@ void ChanSamplerEditor::buildSampleSheet()
     }
     caption (stretch, "TIME", 90, 61, 28, 7);
     text (stretch, "Mode", 126, 22, 40, 23, 11.7f);
-    auto& mode = own (std::make_unique<juce::ComboBox>(), stretch, comboBounds (167, 22, 95, 23));
+    auto& mode = own (std::make_unique<fl::ComboBox>(), stretch, comboBounds (167, 22, 95, 23));
     {
         // FL's menu with its group headings; item ids follow the parameter's choices.
         struct Entry { const char* heading; int index; };
@@ -465,7 +540,8 @@ void ChanSamplerEditor::buildSampleSheet()
 
     auto& fxSel = own (std::make_unique<fl::IconTabs> (std::vector<fl::Icon> { fl::Icon::wrench, fl::Icon::valve }, false), fx, { 0, 1, 52, 18 });
     fxTabs = &fxSel;
-    fxSel.selectedColour = fl::colour::amber;
+    fxSel.selectedColour = fl::colour::fxIconOn;   // FL: the chosen icon amber, the other light grey (measured)
+    fxSel.unselectedColour = fl::colour::fxIconOff;
     fxSel.setTooltip ("Tools / Effects");
     fxSel.onChange = [&tools, &effects] (int i)
     {
@@ -519,7 +595,7 @@ juce::Component& ChanSamplerEditor::buildTargetPage (const char* prefix, bool ha
     if (hasEnvelope)
     {
         auto& env = panel (page, "Envelope", 7, 42, 287, 195, 16);
-        auto& envMenu = own (std::make_unique<fl::MenuArrow> (true), env, { 262, 3, 20, 20 });
+        auto& envMenu = own (std::make_unique<fl::MenuArrow> (true), env, { 262, 4, 20, 20 });
         envMenu.onClick = [this, p = juce::String (prefix), &envMenu] { showEnvelopeMenu (p, envMenu); };
         auto* envOn = samplerProcessor.apvts.getParameter (id ("EnvOn"));
         // FL turns an envelope on as soon as one of its knobs is edited.
@@ -621,9 +697,9 @@ void ChanSamplerEditor::buildInsSheet()
     knob (filter, pid::cutoff, 5, 22, 66, fl::colour::bigDot);
     knob (filter, pid::resonance, 32, 87, 66, fl::colour::bigDotGold);
     caption (filter, "MOD Y", 4, 145, 37, 9, 9.5f);
-    combo (filter, pid::filterType, 5, 168, 90, 23);
+    combo (filter, pid::filterType, 5, 167, 89, 23);   // FL's field: measured a pixel higher and 89 px wide
 
-    own (std::make_unique<RootNotePanel> (samplerProcessor.apvts, samplerProcessor.keyboardState), insSheet, { 7, 245, 546, 137 });
+    own (std::make_unique<RootNotePanel> (samplerProcessor.apvts, samplerProcessor.keyboardState, samplerProcessor.history), insSheet, { 7, 245, 546, 137 });
 }
 
 void ChanSamplerEditor::buildFuncSheet()
@@ -726,7 +802,7 @@ void ChanSamplerEditor::buildFuncSheet()
     digi (arpPanel, pid::arpRepeat, 198, 30, 26, 23, false);
     led (arpPanel, pid::arpSlide, "Slide", 3, 84, 60, 21);
     text (arpPanel, "Chord", 80, 84, 40, 23, 11.7f);
-    auto& chordBox = own (std::make_unique<fl::ComboBox>(), arpPanel, comboBounds (116, 84, 106, 23));
+    auto& chordBox = own (std::make_unique<fl::ComboBox>(), arpPanel, comboBounds (116, 84, 107, 23));   // FL's field is 107 px wide (measured)
     {
         chordBox.addSectionHeading ("Automatic");
         chordBox.addItem ("Auto", 1);
@@ -769,7 +845,7 @@ void ChanSamplerEditor::buildFuncSheet()
     led (echoPanel, pid::echoPing, "Ping pong", 158, 76, 71, 18).getProperties().set ("textFirst", true);   // FL: the lights at the right (measured)
     led (echoPanel, pid::echoFat,  "Fat mode",  163, 96, 66, 18).getProperties().set ("textFirst", true);
 
-    own (std::make_unique<RootNotePanel> (samplerProcessor.apvts, samplerProcessor.keyboardState), sheet, { 7, 245, 546, 137 });
+    own (std::make_unique<RootNotePanel> (samplerProcessor.apvts, samplerProcessor.keyboardState, samplerProcessor.history), sheet, { 7, 245, 546, 137 });
 }
 
 //==============================================================================
@@ -802,6 +878,7 @@ void ChanSamplerEditor::showEchoPresets (juce::Component& anchor)
         const auto& e = presets[i];
         menu.addItem (e.name, [this, e]
         {
+            const History::Transaction edit (samplerProcessor.history, "Echo preset");
             setParam (pid::echoFeed, e.feed);
             setParam (pid::echoPan, e.pan);
             setParam (pid::echoX, 0.0f);
@@ -840,6 +917,7 @@ void ChanSamplerEditor::showEnvelopeMenu (const juce::String& prefix, juce::Comp
                 fl::showDialog (canvas, "Chan Sampler", "Could not read " + f.getFileName() + ".", true);
                 return;
             }
+            const History::Transaction edit (samplerProcessor.history, "Envelope preset");
             for (auto* key : envelopeKeys)
                 if (xml->hasAttribute (key) && samplerProcessor.apvts.getParameter (pid::env (prefix.toRawUTF8(), key)) != nullptr)
                     setParam (pid::env (prefix.toRawUTF8(), key), (float) xml->getDoubleAttribute (key));
@@ -885,9 +963,12 @@ void ChanSamplerEditor::showSheet (int index)
         sheetTabs->setSelected (index, false);
 }
 
-void ChanSamplerEditor::changeListenerCallback (juce::ChangeBroadcaster*)
+void ChanSamplerEditor::changeListenerCallback (juce::ChangeBroadcaster* source)
 {
-    refreshSample();
+    if (source == &samplerProcessor.history)
+        refreshHistoryButtons();
+    else
+        refreshSample();
 }
 
 void ChanSamplerEditor::refreshSample()
@@ -925,6 +1006,7 @@ void ChanSamplerEditor::loadFile (const juce::File& file)
     // An FL Studio Sampler preset brings its sample and settings.
     if (flpreset::isPresetFile (file))
     {
+        const History::Transaction edit (samplerProcessor.history, "Load preset");
         const auto r = flpreset::import (samplerProcessor, file);
         if (! r.ok || r.message.isNotEmpty())
             fl::showDialog (canvas, "Chan Sampler", r.message, ! r.ok);

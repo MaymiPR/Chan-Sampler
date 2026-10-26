@@ -3,11 +3,12 @@
 #include <juce_audio_utils/juce_audio_utils.h>
 
 #include "FlStyle.h"
+#include "History.h"
 #include <map>
 
 // Live drawing of one INS target's envelope (DAHDSR with tension), using the
 // same curve formula as the engine.
-class EnvelopeDisplay : public juce::Component, private juce::Timer
+class EnvelopeDisplay : public juce::Component
 {
 public:
     EnvelopeDisplay (juce::AudioProcessorValueTreeState&, const char* prefix);
@@ -28,7 +29,6 @@ private:
     std::array<juce::Point<float>, 5> points (const Geometry&) const;
     int pointAt (juce::Point<float>) const;
     void set (const char* suffix, float value);
-    void timerCallback() override;
     float get (const char* suffix) const;
 
     int hovered = -1, dragging = -1;
@@ -37,23 +37,24 @@ private:
 
     juce::AudioProcessorValueTreeState& apvts;
     juce::String prefix;
-    float lastHash = -1.0f;
+    // Each parameter's change repaints the display at once (a knob drag, a
+    // point drag, undo); a timer would show the curve a frame or more late.
+    std::vector<std::unique_ptr<juce::ParameterAttachment>> watchers;
 };
 
 // Live drawing of one INS target's LFO.
-class LfoDisplay : public juce::Component, private juce::Timer
+class LfoDisplay : public juce::Component
 {
 public:
     LfoDisplay (juce::AudioProcessorValueTreeState&, const char* prefix);
     void paint (juce::Graphics&) override;
 
 private:
-    void timerCallback() override;
     float get (const char* suffix) const;
 
     juce::AudioProcessorValueTreeState& apvts;
     juce::String prefix;
-    float lastHash = -1.0f;
+    std::vector<std::unique_ptr<juce::ParameterAttachment>> watchers;
 };
 
 // FL's right-click menu for a parameter control: Reset, Copy value, Paste
@@ -102,18 +103,51 @@ public:
     // when the host or automation moves it.
     std::function<void()> onUserChange;
 
+    // FL's gestures (measured in FL 2026): a drag moves the value by its
+    // pixels (a quarter as fast with Ctrl; Shift changes nothing), a wheel
+    // notch is worth 8 px of drag (half with Ctrl), Alt+click resets to the
+    // default, a double-click does nothing. On a slider the wheel runs the
+    // other way, and a press on the track (off the ball) walks the ball
+    // towards the mouse: a pixel at once, then 15 px a second while held.
     void mouseDown (const juce::MouseEvent&) override;
     void mouseDrag (const juce::MouseEvent&) override;
     void mouseUp (const juce::MouseEvent&) override;
+    void mouseDoubleClick (const juce::MouseEvent&) override {}
     void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
     void mouseEnter (const juce::MouseEvent& e) override { hover.setTarget (true); juce::Slider::mouseEnter (e); }
     void mouseExit (const juce::MouseEvent& e) override { hover.setTarget (false); juce::Slider::mouseExit (e); }
+    void resized() override;
+    double snapValue (double attemptedValue, juce::Slider::DragMode) override;
 
     // Locked, the knob keeps its look but ignores the mouse (FL's START and
     // END without a sample: measured, they do not grey out).
     void setLocked (bool l) { locked = l; }
 
+    static constexpr float fineDrag = 0.25f;       // Ctrl: of the plain speed
+    static constexpr double wheelPixels = 8.0;     // a notch, in drag pixels
+    static constexpr float walkStep = 1.0f;        // a track press: the first step (thumb pixels)
+    static constexpr float walkPerSecond = 15.0f;  // then this fast
+
 private:
+    // the ball walking towards a held mouse on the track
+    class Walker : private juce::Timer
+    {
+    public:
+        explicit Walker (ParamKnob& k) : knob (k) {}
+        void start (float toward) { target = toward; startTimerHz (60); }
+        void stop() { stopTimer(); }
+        void setTarget (float toward) { target = toward; }
+
+    private:
+        void timerCallback() override { knob.walkTowards (target, walkPerSecond / 60.0f); }
+        ParamKnob& knob;
+        float target = 0.0f;
+    };
+    float thumbX (double proportion) const;   // the ball's centre for a value (slider pixels)
+    void walkTowards (float x, float maxStep);
+    Walker walker { *this };
+    bool walking = false;
+
     fl::HoverFade hover { *this };
     bool locked = false;
     // FL's drag detents (measured in FL 2026): a two-sided control holds at its
@@ -186,12 +220,13 @@ private:
 class RootNotePanel : public fl::Panel, private juce::Timer
 {
 public:
-    RootNotePanel (juce::AudioProcessorValueTreeState&, juce::MidiKeyboardState&);
+    RootNotePanel (juce::AudioProcessorValueTreeState&, juce::MidiKeyboardState&, History&);
 
 private:
     void timerCallback() override;
 
     juce::AudioProcessorValueTreeState& apvts;
+    History& history;
     juce::TextButton resetButton { "Reset" };
     juce::Label fineLabel { {}, "Fine tune" }, hint { {}, "Right-click a key to set the root note" };
     ParamKnob fine;

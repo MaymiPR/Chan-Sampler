@@ -65,6 +65,8 @@ namespace fl
         const juce::Colour textGreen { 0xff40f59a };   // the selected envelope target's name
         const juce::Colour tabIcon   { 0xff4df1b1 };   // the selected sheet tab's icon, the product name
         const juce::Colour icon      { 0xffc0c6c9 };   // unselected icons, the menu arrow
+        const juce::Colour fxIconOn  { 0xffffc742 };   // the effects view's chosen icon (wrench / valve)
+        const juce::Colour fxIconOff { 0xffd4dbdf };   // its other icon
         const juce::Colour envLine   { 0xff3bc97e };   // envelope / LFO curves
         const juce::Colour envPoint  { 0xff40d989 };   // the envelope's draggable points (ring)
         const juce::Colour envPointFill { 0xff224534 };
@@ -180,7 +182,8 @@ namespace fl
     // 0.5 for two-sided ones). A knob larger than 50 px is FL's filter knob.
     // hover: how far the control's hover highlight has faded in (0..1).
     void drawKnob (juce::Graphics&, juce::Rectangle<float> area, float pos, float zeroPos, juce::Colour arc, bool enabled, float hover = 0.0f);
-    void drawLed (juce::Graphics&, juce::Rectangle<float> area, bool on, bool enabled, bool green = false);
+    // lit: how far the light is on (0..1; FL fades its switches, see Switch).
+    void drawLed (juce::Graphics&, juce::Rectangle<float> area, float lit, bool enabled, bool green = false);
     // The round slider thumb with its coloured line (FL's fine tune / Mid sliders).
     void drawSliderThumb (juce::Graphics&, juce::Rectangle<float> area, juce::Colour line, bool enabled, float hover = 0.0f);
 
@@ -190,8 +193,14 @@ namespace fl
     // 300 ms. A control owns one of these, tells it when the mouse enters and
     // leaves, and the drawing reads the amount through the component's
     // "hover" property.
+    // Pressing, dragging and releasing a knob or slider change nothing beyond
+    // this highlight (measured: FL's controls look the same pressed as hovered,
+    // and the highlight stays while the mouse is held down outside them).
     inline constexpr float hoverFadeIn = 0.2f;           // of the remaining distance per 60 Hz frame
     inline constexpr float hoverFadeOut = 1.0f / 18.0f;   // per frame
+    // The filter knob's highlight fades out as an exponential instead, with a
+    // 218 ms time constant (measured over 660 ms): of the remaining distance per frame.
+    inline constexpr float hoverFadeOutSlow = 0.0736f;
     class HoverFade : private juce::Timer
     {
     public:
@@ -202,6 +211,7 @@ namespace fl
             if (amount != target)
                 startTimerHz (60);
         }
+        void setSlowOut (bool slow) { slowOut = slow; }   // the filter knob
         float get() const noexcept { return amount; }
 
     private:
@@ -209,9 +219,11 @@ namespace fl
         {
             if (target > amount)
                 amount += (target - amount) * hoverFadeIn;
+            else if (slowOut)
+                amount -= amount * hoverFadeOutSlow;
             else
                 amount -= hoverFadeOut;
-            if (std::abs (target - amount) < 0.02f || amount < 0.0f)
+            if (std::abs (target - amount) < (slowOut && target < amount ? 0.01f : 0.02f) || amount < 0.0f)
             {
                 amount = target;
                 stopTimer();
@@ -221,6 +233,42 @@ namespace fl
         }
         juce::Component& owner;
         float amount = 0.0f, target = 0.0f;
+        bool slowOut = false;
+    };
+
+    // FL's switch (a round light with its label): it toggles the moment the
+    // mouse goes down, its light fades in over about 180 ms and out over about
+    // 235 ms, and nothing changes under the mouse (measured frame by frame in
+    // FL 2026 on Use loop points and CLIP). The drawing reads the amount.
+    inline constexpr float litFadeIn = 1.0f / 11.0f, litFadeOut = 1.0f / 14.0f;   // per 60 Hz frame
+    class Switch : public juce::ToggleButton, private juce::Timer
+    {
+    public:
+        explicit Switch (const juce::String& text = {}) : juce::ToggleButton (text) { setTriggeredOnMouseDown (true); }
+        float getLit() const noexcept { return lit; }
+
+    private:
+        void buttonStateChanged() override
+        {
+            const float target = getToggleState() ? 1.0f : 0.0f;
+            if (! shown)   // the first state (a restored project's) shows at once
+            {
+                shown = true;
+                lit = target;
+            }
+            if (lit != target && ! isTimerRunning())
+                startTimerHz (60);
+        }
+        void timerCallback() override
+        {
+            const float target = getToggleState() ? 1.0f : 0.0f;
+            lit = target > lit ? juce::jmin (target, lit + litFadeIn) : juce::jmax (target, lit - litFadeOut);
+            if (lit == target)
+                stopTimer();
+            repaint();
+        }
+        float lit = 0.0f;
+        bool shown = false;
     };
 
     // FL's small arrows (drop-down fields, panel menus) turn from pointing
@@ -257,9 +305,11 @@ namespace fl
         int wait = 0;
     };
     float turnOf (const juce::Component&);
-    // Draws one of those arrows: a 4 x 9 px triangle pointing right at turn 0,
-    // a 7 x 4 px one pointing down at turn 1, about centre.
-    void drawTurnArrow (juce::Graphics&, juce::Point<float> centre, float turn, juce::Colour);
+    // Draws one of those arrows: at turn 0 a triangle pointing right (tipLen
+    // wide, baseH tall, centred on rest), at turn 1 one pointing down (baseH
+    // wide, tipLen tall, centred on down); the corners move between the two.
+    void drawTurnArrow (juce::Graphics&, juce::Point<float> rest, juce::Point<float> down, float turn, juce::Colour,
+                        float baseH, float tipLen);
     // The hover amount of a component: its fade if it has one, else 1 under the mouse.
     float hoverOf (const juce::Component&);
     // FL's push button (Reset, Cut self, A / B); nothing changes under the mouse, pressed it sinks.
@@ -442,7 +492,7 @@ namespace fl
         void setSelected (int index, bool notify = true);
         int getSelected() const noexcept { return selected; }
         std::function<void (int)> onChange;
-        juce::Colour selectedColour = colour::tabIcon;
+        juce::Colour selectedColour = colour::tabIcon, unselectedColour = colour::icon;
 
         void paint (juce::Graphics&) override;
         void mouseDown (const juce::MouseEvent&) override;
