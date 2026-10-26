@@ -333,8 +333,7 @@ int main (int argc, char** argv)
         }
     }
    #else
-    std::cout << "SKIP  the menu arrow's hold (needs a popup menu window)
-";
+    std::cout << "SKIP  the menu arrow's hold (needs a popup menu window)" << std::endl;
    #endif
 
     std::cout << "\n" << (failures == 0 ? "All UI tests passed" : juce::String (failures) + " UI test(s) failed") << "\n";
