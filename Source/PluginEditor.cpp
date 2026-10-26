@@ -3,6 +3,7 @@
 #include "PresetBar.h"
 #include "Chords.h"
 #include "TempoDetect.h"
+#include "HostFocus.h"
 
 namespace
 {
@@ -102,6 +103,48 @@ namespace
     // cmake/PatchJuceVst3Keys.cmake; holding the focus there upset FL's own
     // keys, the space bar starting playback only on its second press) nor
     // standalone (the window has the keys).
+    // FL Studio (VST3): the plugin's FL window keeps the keyboard focus. A
+    // click moves the Windows focus into the plugin's own window (Windows or
+    // FL's panel does it, not JUCE); FL then sends the keys there and no longer
+    // acts on those the plugin leaves, so after touching a knob the space bar
+    // did not play or stop (logged in FL 2026, see HostFocus.h). After a click
+    // this hands the focus to FL's window for the plugin, as a click on FL's own
+    // Sampler leaves it, unless a value box is being typed in: FL then offers
+    // every key to the view (cmake/PatchJuceVst3Keys.cmake), the editor takes
+    // Ctrl+Z / Ctrl+Y and FL acts on the rest.
+    struct KeepHostFocus : juce::MouseListener, private juce::Timer
+    {
+        explicit KeepHostFocus (juce::Component& c) : editor (c) { startTimerHz (4); }
+        // not for a right-click: its menu would close the moment the focus left
+        void mouseDown (const juce::MouseEvent& e) override { if (! e.mods.isPopupMenu()) handBackSoon(); }
+        void mouseUp (const juce::MouseEvent& e) override { if (! e.mods.isPopupMenu()) handBackSoon(); }
+
+        // after JUCE has handled the click and the focus change it brought
+        void handBackSoon()
+        {
+            juce::MessageManager::callAsync ([safe = juce::Component::SafePointer<juce::Component> (&editor), this]
+            {
+                if (safe != nullptr)
+                    handBack();
+            });
+        }
+        // also when a typed value, a menu or a dialog is done with the focus
+        void timerCallback() override { handBack(); }
+
+        void handBack()
+        {
+            if (dynamic_cast<juce::TextEditor*> (juce::Component::getCurrentlyFocusedComponent()) != nullptr)
+                return;   // typing a value: the keys are the editor's
+            if (juce::ModalComponentManager::getInstance()->getNumModalComponents() > 0)
+                return;   // a menu or dialog is open: moving the focus would close it
+            auto* peer = editor.getPeer();
+            if (peer == nullptr || ! hostfocus::isWithin (hostfocus::current(), peer->getNativeHandle()))
+                return;
+            hostfocus::giveTo (hostfocus::titledAncestor (peer->getNativeHandle()));
+        }
+        juce::Component& editor;
+    };
+
     struct FocusOnClick : juce::MouseListener
     {
         explicit FocusOnClick (juce::Component& c) : editor (c) {}
@@ -181,6 +224,11 @@ ChanSamplerEditor::ChanSamplerEditor (ChanSamplerProcessor& p)
         focusOnClick = std::make_unique<FocusOnClick> (*this);
         addMouseListener (focusOnClick.get(), true);
     }
+    else if (samplerProcessor.wrapperType == juce::AudioProcessor::wrapperType_VST3 && juce::PluginHostType().isFruityLoops())
+    {
+        focusOnClick = std::make_unique<KeepHostFocus> (*this);
+        addMouseListener (focusOnClick.get(), true);
+    }
 
     samplerProcessor.addChangeListener (this);
     samplerProcessor.history.addChangeListener (this);
@@ -228,17 +276,6 @@ void ChanSamplerEditor::parentHierarchyChanged()
     keyWindow = top;
     if (keyWindow != nullptr)
         keyWindow->addKeyListener (this);
-    // VST3: a click must not give the plugin's window the keyboard focus.
-    // Holding it, FL Studio no longer offered the keys to the view but sent
-    // them to the window, and the ones the editor does not use (the space bar)
-    // were reposted to FL's panel, which ignores them: after touching a knob
-    // the space bar no longer played or stopped. Declining the focus on a
-    // click (JUCE then answers the click with MA_NOACTIVATE) leaves FL's
-    // plugin window focused, so every key goes through the view's key call
-    // (cmake/PatchJuceVst3Keys.cmake) and FL gets those the editor leaves.
-    // A value box being typed in still takes the focus itself.
-    if (top != nullptr && top != this && samplerProcessor.wrapperType == juce::AudioProcessor::wrapperType_VST3)
-        top->setMouseClickGrabsKeyboardFocus (false);
 }
 
 bool ChanSamplerEditor::keyPressed (const juce::KeyPress& key, juce::Component*)

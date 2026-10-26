@@ -47,6 +47,7 @@ set(CHANSAMPLER_SOURCES
     ${CHANSAMPLER_ENGINE_SOURCES}
     Source/PluginProcessor.cpp
     Source/History.cpp
+    Source/HostFocus.cpp
     Source/CutGroups.cpp
     Source/FlPreset.cpp
     Source/PresetBar.cpp

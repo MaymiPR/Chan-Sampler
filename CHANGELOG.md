@@ -74,9 +74,12 @@ Added
   tension knobs have no value dot and draw their arc from the top (the
   volume release tension's ran from the bottom), and their TENSION captions
   are letter-spaced as in FL.
-- In a VST3 host a click on the plugin no longer takes the keyboard focus
-  from the host's window (so its keys, the space bar included, keep going
-  through the host).
+- FL Studio: the space bar plays and stops again after touching a knob,
+  while holding one and after typing a value. A click moved the Windows
+  focus into the plugin's own window, where FL stops acting on the keys the
+  plugin leaves; the focus now goes back to FL's window for the plugin after
+  a click (not while a value is typed or a menu is open), so FL offers every
+  key to the plugin, the plugin takes Ctrl+Z / Ctrl+Y and FL the rest.
 - Sixth pass, measured in FL 2026: a wheel notch moves the value at once and
   the knob or ball eases to it (about 36 ms, exponential); the list and menu
   arrows rotate rigidly a quarter turn (160 ms in, 200 ms back, no wait) and
