@@ -73,9 +73,14 @@ behaviour was measured from its renders and its interface, as described in
   Type in value). FL's gestures too: Ctrl drags fine, Alt+click resets, the
   wheel steps.
 - **Undo and redo** of your edits in the window, as FL does them: Ctrl+Z
-  undoes, Ctrl+Y or Ctrl+Shift+Z redoes, and the two
-  arrows in the top bar do the same; a drag is one step, so is a sample loaded
-  or removed.
+  undoes, Ctrl+Y or Ctrl+Shift+Z redoes (in FL Studio too, where the space bar
+  and FL's other keys keep working), and the undo / redo field beside the
+  presets does the same; a drag is one step, so is a sample loaded or removed.
+- **FL's look and feel:** every control is drawn as FL Studio 2026 draws it,
+  measured pixel by pixel and frame by frame from its window: the knobs'
+  hover fades and wheel glide, the filter knobs' turning collar, the turning
+  list and menu arrows, the switches' lit fade, the sample view's waveform
+  and grid.
 
 ## How close is it to FL?
 

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.3.0
 
 Look
 - Every control is drawn as FL Studio 2026 draws it, pixel by pixel from
