@@ -32,34 +32,86 @@ namespace
         std::function<void()> onClick;
     };
 
-    // Undo / redo: a curved arrow, dim when there is nothing to do, brighter
-    // under the mouse (the fade shared with the other controls).
+    // Undo / redo (Chan Sampler's own; FL keeps them in its main toolbar): a
+    // field like the preset bar's, split in two, each half a U-turn arrow
+    // drawn in the preset arrows' colours: dim at rest, lifting towards white
+    // under the mouse (the shared fade), white while pressed, darker when
+    // there is nothing to undo or redo.
     struct HistoryButton : juce::Button
     {
-        explicit HistoryButton (bool isRedo) : juce::Button ({}), redo (isRedo) {}
+        explicit HistoryButton (bool isRedo) : juce::Button (isRedo ? "Redo" : "Undo"), redo (isRedo) {}
         void paintButton (juce::Graphics& g, bool, bool down) override
         {
-            const auto b = getLocalBounds().toFloat();
-            const auto lift = fl::hoverOf (*this);
-            auto c = isEnabled() ? fl::colour::icon.interpolatedWith (juce::Colours::white, 0.6f * lift) : fl::colour::dim.withAlpha (0.55f);
-            if (down) c = c.darker (0.2f);
+            auto c = isEnabled() ? fl::colour::dim.interpolatedWith (juce::Colours::white, 0.55f * fl::hoverOf (*this))
+                                 : fl::colour::dim.withAlpha (0.4f);
+            if (down && isEnabled())
+                c = juce::Colours::white;
+            // drawn for undo (head at the left) and mirrored for redo
+            const float w = (float) getWidth(), cy = std::floor ((float) getHeight() * 0.5f);
+            auto x = [this, w] (float v) { return redo ? w - v : v; };
+            juce::Path shaft;
+            shaft.startNewSubPath (x (9.0f), cy - 2.0f);
+            shaft.lineTo (x (12.5f), cy - 2.0f);
+            shaft.cubicTo (x (17.2f), cy - 2.0f, x (17.2f), cy + 5.0f, x (12.5f), cy + 5.0f);
+            shaft.lineTo (x (8.5f), cy + 5.0f);
             g.setColour (c);
-            // an arc of three quarters with an arrow head at its end
-            const auto centre = b.getCentre().translated (0.0f, 1.0f);
-            const float r = 5.0f, dir = redo ? -1.0f : 1.0f;
-            juce::Path arc;
-            const auto from = redo ? -0.25f : 0.25f, to = redo ? -1.75f : 1.75f;
-            arc.addCentredArc (centre.x, centre.y, r, r, 0.0f, from * juce::MathConstants<float>::pi, to * juce::MathConstants<float>::pi, true);
-            g.strokePath (arc, juce::PathStrokeType (1.6f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+            g.strokePath (shaft, juce::PathStrokeType (1.4f, juce::PathStrokeType::curved, juce::PathStrokeType::butt));
             juce::Path head;
-            const auto tip = juce::Point<float> (centre.x - dir * r, centre.y - 1.5f);
-            head.addTriangle (tip.translated (-dir * 3.0f, -2.5f), tip.translated (dir * 2.5f, -2.5f), tip.translated (0.0f, 3.0f));
+            head.addTriangle (x (5.0f), cy - 2.0f, x (9.5f), cy - 5.5f, x (9.5f), cy + 1.5f);
             g.fillPath (head);
         }
         void mouseEnter (const juce::MouseEvent& e) override { hover.setTarget (true); juce::Button::mouseEnter (e); }
         void mouseExit (const juce::MouseEvent& e) override { hover.setTarget (false); juce::Button::mouseExit (e); }
         bool redo;
         fl::HoverFade hover { *this };
+    };
+
+    // The field behind the two halves: the preset bar's well and edge, with a
+    // rule between the halves.
+    struct HistoryField : juce::Component
+    {
+        HistoryField()
+        {
+            setInterceptsMouseClicks (false, true);
+            addAndMakeVisible (undo);
+            addAndMakeVisible (redo);
+        }
+        void resized() override
+        {
+            const int half = getWidth() / 2;
+            undo.setBounds (0, 0, half, getHeight());
+            redo.setBounds (half + 1, 0, getWidth() - half - 1, getHeight());
+        }
+        void paint (juce::Graphics& g) override
+        {
+            const auto r = getLocalBounds().toFloat();
+            g.setColour (fl::colour::well);
+            g.fillRoundedRectangle (r, 2.0f);
+            g.setColour (fl::colour::fieldEdge);
+            g.drawRoundedRectangle (r.reduced (0.5f), 2.0f, 1.0f);
+            g.fillRect ((float) (getWidth() / 2), 4.0f, 1.0f, r.getHeight() - 8.0f);
+        }
+        HistoryButton undo { false }, redo { true };
+    };
+
+    // Clicks anywhere in the editor give it the keyboard focus (not to the
+    // control clicked, so the space bar is not swallowed): in a plugin window
+    // whose host does not offer it the keys, that is what lets Ctrl+Z / Ctrl+Y
+    // reach it, and JUCE passes every key the editor does not use on to the
+    // host's window. Not for VST3 (the host offers each key to the view:
+    // cmake/PatchJuceVst3Keys.cmake; holding the focus there upset FL's own
+    // keys, the space bar starting playback only on its second press) nor
+    // standalone (the window has the keys).
+    struct FocusOnClick : juce::MouseListener
+    {
+        explicit FocusOnClick (juce::Component& c) : editor (c) {}
+        void mouseDown (const juce::MouseEvent& e) override
+        {
+            if (editor.hasKeyboardFocus (true) || (e.eventComponent != nullptr && e.eventComponent->getWantsKeyboardFocus()))
+                return;   // a value box being typed in keeps it
+            editor.grabKeyboardFocus();
+        }
+        juce::Component& editor;
     };
 
     // Plain filled rectangle (bevels).
@@ -121,6 +173,14 @@ ChanSamplerEditor::ChanSamplerEditor (ChanSamplerProcessor& p)
             noFocus (*child);
     };
     noFocus (*this);
+    // ... except the editor itself (see FocusOnClick)
+    setWantsKeyboardFocus (true);
+    if (samplerProcessor.wrapperType != juce::AudioProcessor::wrapperType_VST3
+        && samplerProcessor.wrapperType != juce::AudioProcessor::wrapperType_Standalone)
+    {
+        focusOnClick = std::make_unique<FocusOnClick> (*this);
+        addMouseListener (focusOnClick.get(), true);
+    }
 
     samplerProcessor.addChangeListener (this);
     samplerProcessor.history.addChangeListener (this);
@@ -141,6 +201,8 @@ ChanSamplerEditor::ChanSamplerEditor (ChanSamplerProcessor& p)
 
 ChanSamplerEditor::~ChanSamplerEditor()
 {
+    if (focusOnClick != nullptr)
+        removeMouseListener (focusOnClick.get());
     samplerProcessor.history.removeChangeListener (this);
     samplerProcessor.removeChangeListener (this);
     if (keyWindow != nullptr)
@@ -173,22 +235,33 @@ bool ChanSamplerEditor::keyPressed (const juce::KeyPress& key, juce::Component*)
     if (dynamic_cast<juce::TextEditor*> (juce::Component::getCurrentlyFocusedComponent()) != nullptr)
         return false;   // typing in a value box: the keys are the editor's
     const auto mods = key.getModifiers();
-    const auto code = key.getKeyCode();
-    const bool ctrl = mods.isCommandDown();
-    if (ctrl && (code == 'Z' || code == 'z'))
-    {
-        if (mods.isAltDown() || mods.isShiftDown())   // FL: Ctrl+Alt+Z; also Ctrl+Shift+Z
-            samplerProcessor.history.redo();
-        else
-            samplerProcessor.history.undo();
+    auto code = key.getKeyCode();
+    if (code >= 1 && code <= 26)   // Windows: Ctrl + a letter as its control character
+        code += 'a' - 1;
+    code = (int) juce::CharacterFunctions::toLowerCase ((juce::juce_wchar) code);
+    // FL Studio can hand one press over twice when the plugin window has the
+    // focus (to the window, and through the VST3 key call), as the key and its
+    // character: one action per press (a held key repeats every ~33 ms).
+    const auto now = juce::Time::getMillisecondCounterHiRes();
+    const auto id = code | (mods.getRawFlags() & juce::ModifierKeys::allKeyboardModifiers) << 16;
+    if (id == lastShortcut && now - lastShortcutTime < 30.0)
         return true;
-    }
-    if (ctrl && (code == 'Y' || code == 'y') && ! mods.isAltDown() && ! mods.isShiftDown())
+    const bool ctrl = mods.isCommandDown() && ! mods.isAltDown();
+    // Ctrl+Z undoes, Ctrl+Y (or Ctrl+Shift+Z) redoes. With nothing to undo or
+    // redo here the key is not used, so it goes on to the host (its own undo).
+    bool used = false;
+    if (ctrl && ! mods.isShiftDown() && code == 'z')
+        used = samplerProcessor.history.undo();
+    else if (ctrl && ((! mods.isShiftDown() && code == 'y') || (mods.isShiftDown() && code == 'z')))
+        used = samplerProcessor.history.redo();
+    else
+        used = waveform.keyShortcut (key);
+    if (used)
     {
-        samplerProcessor.history.redo();
-        return true;
+        lastShortcut = id;
+        lastShortcutTime = now;
     }
-    return waveform.keyShortcut (key);
+    return used;
 }
 
 void ChanSamplerEditor::refreshHistoryButtons()
@@ -202,7 +275,7 @@ void ChanSamplerEditor::refreshHistoryButtons()
     if (redoButton != nullptr)
     {
         redoButton->setEnabled (h.canRedo());
-        redoButton->setTooltip (h.canRedo() ? "Redo " + h.getRedoName() + " (" + fl::commandShortcutText ('Z').replace ("+Z", "+Alt+Z") + ")" : juce::String ("Nothing to redo"));
+        redoButton->setTooltip (h.canRedo() ? "Redo " + h.getRedoName() + " (" + fl::commandShortcutText ('Y') + ")" : juce::String ("Nothing to redo"));
     }
 }
 
@@ -331,7 +404,8 @@ void ChanSamplerEditor::buildTopBar()
     const int titleW = TitleButton::widthFor (title->text);
     auto& name = own (std::move (title), bar, { 500 - titleW, 6, titleW, 16 });
     name.onClick = [this, &name] { showAboutMenu (name); };
-    sampleInfo = &text (bar, {}, 320, 23, 180, 14, 9.5f, false, juce::Justification::centredRight);
+    sampleInfo = &text (bar, {}, 368, 23, 132, 14, 9.5f, false, juce::Justification::centredRight);
+    sampleInfo->setMinimumHorizontalScale (0.85f);
 
     // The plugin's own presets (FL's wrapper has its preset menu here too)
     auto& presets = own (std::make_unique<PresetBar> (samplerProcessor), bar, { 146, 11, 168, 23 });
@@ -343,13 +417,12 @@ void ChanSamplerEditor::buildTopBar()
     knob (bar, pid::output, 517, 3, 30, fl::colour::green);
     caption (bar, "OUT", 518, 35, 28, 7);
 
-    // Undo / redo (Chan Sampler's own: FL keeps these in its main toolbar)
-    auto& undo = own (std::make_unique<HistoryButton> (false), bar, { 322, 6, 18, 16 });
-    undo.onClick = [this] { samplerProcessor.history.undo(); };
-    auto& redo = own (std::make_unique<HistoryButton> (true), bar, { 342, 6, 18, 16 });
-    redo.onClick = [this] { samplerProcessor.history.redo(); };
-    undoButton = &undo;
-    redoButton = &redo;
+    // Undo / redo, beside the presets and as tall as their field
+    auto& history = own (std::make_unique<HistoryField>(), bar, { 318, 11, 45, 23 });
+    history.undo.onClick = [this] { samplerProcessor.history.undo(); };
+    history.redo.onClick = [this] { samplerProcessor.history.redo(); };
+    undoButton = &history.undo;
+    redoButton = &history.redo;
     sampleInfo->setColour (juce::Label::textColourId, fl::colour::dim);
 }
 
@@ -890,7 +963,10 @@ void ChanSamplerEditor::showEchoPresets (juce::Component& anchor)
             setParam (pid::echoFat, e.fat ? 1.0f : 0.0f);
         });
     }
-    fl::showContextMenu (menu, anchor, false);
+    if (auto* arrow = dynamic_cast<fl::MenuArrow*> (&anchor))
+        arrow->showMenu (menu);
+    else
+        fl::showContextMenu (menu, anchor, false);
 }
 
 namespace
@@ -941,7 +1017,10 @@ void ChanSamplerEditor::showEnvelopeMenu (const juce::String& prefix, juce::Comp
                                       fl::showDialog (canvas, "Chan Sampler", "Could not save " + file.withFileExtension (".csenv").getFullPathName() + ".", true);
                               });
     });
-    fl::showContextMenu (menu, anchor, false);
+    if (auto* arrow = dynamic_cast<fl::MenuArrow*> (&anchor))
+        arrow->showMenu (menu);
+    else
+        fl::showContextMenu (menu, anchor, false);
 }
 
 //==============================================================================

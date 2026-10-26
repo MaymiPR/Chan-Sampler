@@ -123,6 +123,13 @@ public:
     // END without a sample: measured, they do not grey out).
     void setLocked (bool l) { locked = l; }
 
+    // A wheel notch moves the value at once but the knob or ball eases to it:
+    // measured frame by frame in FL 2026 (MOD X, ATT, the fine tune slider), an
+    // exponential with a time constant of about 36 ms (30 to 42 ms in four
+    // runs). A drag moves it at once (measured on ATT).
+    static constexpr double wheelGlideMs = 36.0;
+    void valueChanged() override;
+
     static constexpr float fineDrag = 0.25f;       // Ctrl: of the plain speed
     static constexpr double wheelPixels = 8.0;     // a notch, in drag pixels
     static constexpr float walkStep = 1.0f;        // a track press: the first step (thumb pixels)
@@ -143,6 +150,54 @@ private:
         ParamKnob& knob;
         float target = 0.0f;
     };
+    // the eased position drawn after a wheel notch (the "shown" property)
+    class Glide : private juce::Timer
+    {
+    public:
+        explicit Glide (ParamKnob& k) : knob (k) {}
+        bool isActive() const noexcept { return active; }
+        double shown (double otherwise) const noexcept { return active ? position : otherwise; }
+        void startFrom (double drawnNow)
+        {
+            position = drawnNow;
+            last = juce::Time::getMillisecondCounterHiRes();
+            active = true;
+            startTimerHz (60);
+            publish();
+        }
+        void cancel()
+        {
+            if (! active)
+                return;
+            active = false;
+            stopTimer();
+            knob.getProperties().remove ("shown");
+            knob.repaint();
+        }
+
+    private:
+        void timerCallback() override
+        {
+            const auto now = juce::Time::getMillisecondCounterHiRes();
+            const auto dt = juce::jlimit (0.0, 100.0, now - last);
+            last = now;
+            const auto target = knob.valueToProportionOfLength (knob.getValue());
+            position += (target - position) * (1.0 - std::exp (-dt / wheelGlideMs));
+            if (std::abs (target - position) < 2.0e-4)
+                cancel();
+            else
+                publish();
+        }
+        void publish()
+        {
+            knob.getProperties().set ("shown", position);
+            knob.repaint();
+        }
+        ParamKnob& knob;
+        double position = 0.0, last = 0.0;
+        bool active = false;
+    };
+    Glide glide { *this };
     float thumbX (double proportion) const;   // the ball's centre for a value (slider pixels)
     void walkTowards (float x, float maxStep);
     Walker walker { *this };

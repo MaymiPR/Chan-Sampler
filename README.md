@@ -73,7 +73,7 @@ behaviour was measured from its renders and its interface, as described in
   Type in value). FL's gestures too: Ctrl drags fine, Alt+click resets, the
   wheel steps.
 - **Undo and redo** of your edits in the window, as FL does them: Ctrl+Z
-  undoes, Ctrl+Alt+Z (FL's key), Ctrl+Shift+Z or Ctrl+Y redoes, and the two
+  undoes, Ctrl+Y or Ctrl+Shift+Z redoes, and the two
   arrows in the top bar do the same; a drag is one step, so is a sample loaded
   or removed.
 

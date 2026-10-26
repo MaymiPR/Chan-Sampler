@@ -61,13 +61,19 @@ Look
   the right-click hint after it (asked for; FL keeps it at the right).
 
 Added
-- Undo and redo of the user's edits, FL style: a drag is one step recorded
-  on release, switches, lists, menus and panel presets are steps, a loaded,
-  replaced or removed sample is a step that brings its parameters back,
-  edits that change nothing are skipped, a new edit after an undo drops the
-  redo steps, 100 steps are kept. Ctrl+Z undoes; Ctrl+Alt+Z (FL's key),
-  Ctrl+Shift+Z and Ctrl+Y redo; two arrows in the top bar do the same and
-  name the step in their tooltip. Host automation is not a step.
+- Undo and redo of the user's edits: a drag is one step recorded on release,
+  switches, lists, menus, panel presets and a loaded, replaced or removed
+  sample are steps, edits that change nothing are skipped, 100 steps are
+  kept. Ctrl+Z undoes, Ctrl+Y (or Ctrl+Shift+Z) redoes, also in FL Studio:
+  JUCE's VST3 editor ignored the keys a host offers it (patched at configure
+  time, cmake/PatchJuceVst3Keys.cmake), and with nothing to undo or redo the
+  key goes on to the host. The two halves of a field beside the presets do the
+  same and name the step. Sample steps tell the host the state changed.
+- Sixth pass, measured in FL 2026: a wheel notch moves the value at once and
+  the knob or ball eases to it (about 36 ms, exponential); the list and menu
+  arrows rotate rigidly a quarter turn (160 ms in, 200 ms back, no wait) and
+  stay turned while their menu is open; the effects view's icon is refitted
+  to FL's pixels (pointed cap, hairline walls, two-stroke filament, stand).
 
 Fixed
 - SLIDE greyed and ungreyed one click behind Porta / Mono.

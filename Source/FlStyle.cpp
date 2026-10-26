@@ -326,17 +326,25 @@ float turnOf (const juce::Component& c)
 void drawTurnArrow (juce::Graphics& g, juce::Point<float> rest, juce::Point<float> down, float turn, juce::Colour colour,
                     float baseH, float tipLen)
 {
-    // The right-pointing triangle's base is at its left; turned down, the
-    // base is at the top (the top corner of the base becomes its right end).
+    // The right-pointing triangle (base at its left) rotated clockwise about
+    // its box's centre by a quarter turn times turn, the centre moving from
+    // rest to down. At 0 and 1 the corners are exactly the crisp arrows'.
     const auto t = juce::jlimit (0.0f, 1.0f, turn);
-    auto lerp = [t] (juce::Point<float> a, juce::Point<float> b) { return a + (b - a) * t; };
-    const auto a = lerp ({ rest.x - tipLen * 0.5f, rest.y - baseH * 0.5f }, { down.x + baseH * 0.5f, down.y - tipLen * 0.5f });
-    const auto b = lerp ({ rest.x - tipLen * 0.5f, rest.y + baseH * 0.5f }, { down.x - baseH * 0.5f, down.y - tipLen * 0.5f });
-    const auto c = lerp ({ rest.x + tipLen * 0.5f, rest.y }, { down.x, down.y + tipLen * 0.5f });
+    const auto centre = rest + (down - rest) * t;
+    const auto angle = t * juce::MathConstants<float>::halfPi;
+    const auto c = std::cos (angle), s = std::sin (angle);
+    auto corner = [&] (float x, float y) { return juce::Point<float> (centre.x + x * c - y * s, centre.y + x * s + y * c); };
     juce::Path p;
-    p.addTriangle (a, b, c);
+    p.addTriangle (corner (-tipLen * 0.5f, -baseH * 0.5f), corner (-tipLen * 0.5f, baseH * 0.5f), corner (tipLen * 0.5f, 0.0f));
     g.setColour (colour);
     g.fillPath (p);
+}
+
+float shownProportion (juce::Slider& s)
+{
+    if (const auto* v = s.getProperties().getVarPointer ("shown"))
+        return (float) (double) *v;
+    return (float) s.valueToProportionOfLength (s.getValue());
 }
 
 void drawLed (juce::Graphics& g, juce::Rectangle<float> area, float lit, bool enabled, bool green)
@@ -666,7 +674,8 @@ void LookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int w, int 
     const bool bipolar = std::abs (slider.valueToProportionOfLength (slider.getDoubleClickReturnValue()) - 0.5) < 1.0e-3;
     const auto d = juce::jmin (w, h);
     const auto area = juce::Rectangle<float> ((float) d, (float) d).withCentre (juce::Rectangle<int> (x, y, w, h).toFloat().getCentre());
-    drawKnob (g, area, pos, bipolar ? 0.5f : 0.0f, slider.findColour (juce::Slider::rotarySliderFillColourId), slider.isEnabled(), hoverOf (slider));
+    juce::ignoreUnused (pos);
+    drawKnob (g, area, shownProportion (slider), bipolar ? 0.5f : 0.0f, slider.findColour (juce::Slider::rotarySliderFillColourId), slider.isEnabled(), hoverOf (slider));
 }
 
 void LookAndFeel::drawLinearSlider (juce::Graphics& g, int x, int y, int w, int h, float, float,
@@ -691,7 +700,7 @@ void LookAndFeel::drawLinearSlider (juce::Graphics& g, int x, int y, int w, int 
     const auto inner = outer.reduced (3.0f, 1.0f);
     const bool bipolar = std::abs (slider.getMinimum() + slider.getMaximum()) < 1.0e-6 * std::abs (slider.getMaximum());
     const auto line = bipolar ? colour::thumbRed : colour::amber;
-    const auto pos = (float) slider.valueToProportionOfLength (slider.getValue());
+    const auto pos = shownProportion (slider);
     // the thumb's line (1 px) and the ball centred on it
     const auto lineX = std::floor (outer.getX() + 9.5f + pos * (outer.getWidth() - 19.0f));
 
@@ -789,7 +798,7 @@ void LookAndFeel::drawComboBox (juce::Graphics& g, int w, int h, bool, int, int,
     // edge, on the middle row; it turns to point down (7 x 4 px, a pixel lower)
     // and brightens under the mouse and while the list is open (measured on
     // all four lists).
-    const auto turn = box.isPopupActive() ? 1.0f : turnOf (box);
+    const auto turn = turnOf (box);   // held turned while the list is open
     const auto mid = std::floor ((float) h * 0.5f);
     drawTurnArrow (g, { (float) w - 7.0f, mid + 0.5f }, { (float) w - 7.5f, mid + 1.0f }, turn,
                    colour::comboArrow.interpolatedWith (colour::icon, turn).withMultipliedAlpha (alpha), 7.2f, 4.0f);
@@ -1049,7 +1058,7 @@ namespace
             case Icon::sampler:  return { &samplerIcon, 8, 12 };
             case Icon::envelope: return { &envelopeIcon, 10, 10 };
             case Icon::wrench:   return smallCell ? IconPlace { &fxWrenchIcon, 5, 3 } : IconPlace { &wrenchIcon, 12, 13 };
-            case Icon::valve:    return { &valveIcon, 7, 3 };   // its dome fills rows 141-143 of the canvas (measured)
+            case Icon::valve:    return { &valveIcon, 7, 3 };   // its cap fills rows 141-143 of the canvas (measured)
             case Icon::sine:     return { &sineIcon, 6, 5 };
             case Icon::triangle: return { &triangleIcon, 6, 5 };
             case Icon::square:   return { &squareIcon, 7, 6 };
@@ -1083,35 +1092,35 @@ void drawIcon (juce::Graphics& g, Icon icon, juce::Rectangle<float> cell, juce::
     juce::ignoreUnused (stroke);
     if (icon == Icon::valve)
     {
-        // FL's effects icon is a glyph (ClearType-fringed in the capture), so
-        // it is drawn from its pixels' coverage rather than traced: a 7 px dome
-        // (rows 141-143 solid), two side strokes tapering from 1.1 px to 0.25
-        // px over 6 rows, a filament widening from a point to 1.8 px, and a
-        // base that is 3 px wide, 2 px, 3.6 px and 1.1 px on its four rows.
-        juce::Path dome;
-        dome.addCentredArc (3.0f, 3.2f, 3.5f, 3.5f, 0.0f, -juce::MathConstants<float>::halfPi, juce::MathConstants<float>::halfPi, true);
-        dome.closeSubPath();
-        g.fillPath (dome, juce::AffineTransform::translation (x0, y0));
-        auto taper = [&] (float xTop, float xBottom, float wTop, float wBottom, float yTop, float yBottom)
-        {
-            juce::Path leg;
-            leg.addQuadrilateral (xTop - wTop * 0.5f, yTop, xTop + wTop * 0.5f, yTop, xBottom + wBottom * 0.5f, yBottom, xBottom - wBottom * 0.5f, yBottom);
-            g.fillPath (leg, juce::AffineTransform::translation (x0, y0));
+        // FL's effects icon is a glyph (ClearType-fringed in the capture): a
+        // pointed cap, hairline side walls (about 0.36 px, so they show at a
+        // third of the colour), a filament of two strokes and a stand of a bar,
+        // a neck, a foot and a point. The shapes below were fitted to its
+        // pixels' coverage (15x supersampled, squared error 0.60 over 216
+        // pixels, ClearType's subpixel filter modelled; the earlier drawing was
+        // off by 9.3) and are filled as one
+        // shape, so it matches FL at 100 % and stays clean when scaled.
+        static const std::vector<std::vector<juce::Point<float>>> shapes = {
+            { { 2.33f, -0.37f }, { 2.78f, -0.09f }, { 3.13f, 0.18f }, { 3.45f, 0.46f }, { 3.76f, 0.73f }, { 4.05f, 1.01f }, { 4.33f, 1.29f }, { 4.6f, 1.56f }, { 4.86f, 1.84f }, { 5.12f, 2.11f }, { 5.38f, 2.39f }, { 5.63f, 2.67f }, { 5.87f, 2.94f }, { 6.12f, 3.22f }, { 5.69f, 3.38f }, { 5.01f, 3.29f }, { 4.34f, 3.21f }, { 3.67f, 3.16f }, { 3.0f, 3.13f }, { 2.33f, 3.12f }, { 1.65f, 3.13f }, { 0.98f, 3.16f }, { 0.31f, 3.21f }, { -0.36f, 3.29f }, { -1.03f, 3.38f }, { -1.7f, 3.49f }, { -1.46f, 3.22f }, { -1.22f, 2.94f }, { -0.98f, 2.67f }, { -0.73f, 2.39f }, { -0.47f, 2.11f }, { -0.21f, 1.84f }, { 0.05f, 1.56f }, { 0.33f, 1.29f }, { 0.61f, 1.01f }, { 0.9f, 0.73f }, { 1.2f, 0.46f }, { 1.52f, 0.18f }, { 1.87f, -0.09f } },
+            { { -0.47f, 3.2f }, { -0.63f, 9.44f }, { -1.1f, 9.43f }, { -0.95f, 3.19f } },
+            { { 5.6f, 3.19f }, { 5.76f, 9.43f }, { 5.28f, 9.44f }, { 5.13f, 3.2f } },
+            { { 1.96f, 5.77f }, { 1.75f, 9.61f }, { 1.05f, 9.57f }, { 1.26f, 5.73f } },
+            { { 3.39f, 5.73f }, { 3.6f, 9.57f }, { 2.91f, 9.61f }, { 2.7f, 5.77f } },
+            { { 0.66f, 9.11f }, { 3.99f, 9.11f }, { 3.99f, 10.13f }, { 0.66f, 10.13f } },
+            { { 1.4f, 10.13f }, { 3.26f, 10.13f }, { 3.26f, 11.14f }, { 1.4f, 11.14f } },
+            { { 0.05f, 11.14f }, { 4.6f, 11.14f }, { 3.69f, 12.15f }, { 0.96f, 12.15f } },
+            { { 1.64f, 12.15f }, { 3.01f, 12.15f }, { 2.33f, 13.18f } },
         };
-        taper (-0.4f, -0.3f, 1.3f, 0.3f, 3.0f, 9.5f);   // left stroke
-        taper (5.4f, 5.7f, 1.4f, 0.35f, 3.0f, 9.5f);    // right stroke
-        taper (2.5f, 2.6f, 0.0f, 1.8f, 5.3f, 9.0f);     // the filament
-        juce::Path base;                                // centre line x and half-width per row
-        const float rows[][3] = { { 2.6f, 0.9f, 9.0f }, { 2.75f, 1.5f, 9.5f }, { 2.6f, 1.0f, 10.5f }, { 2.8f, 1.8f, 11.5f }, { 2.7f, 0.55f, 12.3f }, { 2.7f, 0.2f, 12.7f } };
-        for (size_t i = 0; i < std::size (rows); ++i)
+        juce::Path valve;
+        for (const auto& shape : shapes)
         {
-            const auto pt = juce::Point<float> (rows[i][0] + rows[i][1], rows[i][2]);
-            if (i == 0) base.startNewSubPath (pt); else base.lineTo (pt);
+            valve.startNewSubPath (shape.front());
+            for (size_t i = 1; i < shape.size(); ++i)
+                valve.lineTo (shape[i]);
+            valve.closeSubPath();
         }
-        for (size_t i = std::size (rows); i-- > 0;)
-            base.lineTo (rows[i][0] - rows[i][1], rows[i][2]);
-        base.closeSubPath();
-        g.fillPath (base, juce::AffineTransform::translation (x0, y0));
+        valve.setUsingNonZeroWinding (true);   // all wound the same way: their union
+        g.fillPath (valve, juce::AffineTransform::translation (x0, y0));
         return;
     }
     juce::ignoreUnused (at);
@@ -1209,13 +1218,31 @@ void IconButton::paintButton (juce::Graphics& g, bool highlighted, bool down)
 }
 
 //==============================================================================
-void showContextMenu (juce::PopupMenu& menu, juce::Component& target, bool atMouse)
+void showContextMenu (juce::PopupMenu& menu, juce::Component& target, bool atMouse, std::function<void()> onClose)
 {
     target.getProperties().set (contextMenuProperty, true);
     menu.setLookAndFeel (&target.getLookAndFeel());   // otherwise JUCE uses its default look
     armMenuLetters (menu);
     auto options = juce::PopupMenu::Options().withTargetComponent (&target);
-    menu.showMenuAsync (atMouse ? options.withMousePosition() : options);
+    menu.showMenuAsync (atMouse ? options.withMousePosition() : options, [onClose] (int)
+    {
+        if (onClose != nullptr)
+            onClose();
+    });
+}
+
+void MenuArrow::showMenu (juce::PopupMenu& menu)
+{
+    menuOpen = true;
+    turn.refresh();
+    showContextMenu (menu, *this, false, [safe = juce::Component::SafePointer<MenuArrow> (this)]
+    {
+        if (safe != nullptr)
+        {
+            safe->menuOpen = false;
+            safe->turn.refresh();
+        }
+    });
 }
 
 namespace

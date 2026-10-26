@@ -45,6 +45,15 @@ void History::parameterGestureChanged (int index, bool starting)
     }
 }
 
+// The parameters reach the host through their gestures (so its automation
+// and, in hosts that record plugin edits, its own undo follow an undo here);
+// a sample change is not a parameter, so the host is told the state changed
+// (VST3: the project is marked modified).
+void History::tellHostStateChanged()
+{
+    processor.updateHostDisplay (juce::AudioProcessor::ChangeDetails().withNonParameterStateChanged (true));
+}
+
 void History::open (const juce::String& name)
 {
     stepOpen = true;
@@ -74,6 +83,8 @@ void History::close()
         return;   // nothing changed: no step
     if (step.name.isEmpty())
         step.name = step.sampleChanged ? juce::String ("sample") : params[step.changes.front().index]->getName (64);
+    if (step.sampleChanged)
+        tellHostStateChanged();
     undoSteps.push_back (std::move (step));
     while ((int) undoSteps.size() > maxSteps)
         undoSteps.pop_front();
@@ -85,7 +96,10 @@ void History::apply (const Step& step, bool forward)
 {
     const ScopedSuspend suspend (*this);
     if (step.sampleChanged && setSample != nullptr)
+    {
         setSample (forward ? step.sampleAfter : step.sampleBefore);
+        tellHostStateChanged();
+    }
     const auto& params = processor.getParameters();
     for (const auto& c : step.changes)
     {

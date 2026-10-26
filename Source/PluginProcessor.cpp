@@ -747,9 +747,9 @@ juce::String ChanSamplerProcessor::getSampleInfo() const
     if (r->audio.getNumSamples() == 0)
         return "No sample loaded";
 
-    return juce::String (r->sampleRate, 0) + " Hz  |  "
-         + juce::String (r->bitsPerSample) + "-bit  |  "
-         + (r->audio.getNumChannels() > 1 ? "Stereo" : "Mono") + "  |  "
+    return juce::String (r->sampleRate, 0) + " Hz | "
+         + juce::String (r->bitsPerSample) + "-bit | "
+         + (r->audio.getNumChannels() > 1 ? "Stereo" : "Mono") + " | "
          + juce::String (r->audio.getNumSamples() / r->sampleRate, 2) + " s";
 }
 

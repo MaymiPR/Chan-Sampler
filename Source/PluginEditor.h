@@ -29,7 +29,7 @@ public:
     // For Tests/SnapshotTool: shows a sheet (0 SMP, 1 INS, 2 FUNC) and INS target page.
     void showSheetForTesting (int sheet, int insPage);
     void filesDropped (const juce::StringArray& files, int x, int y) override;
-    // The window's keys (Ctrl+Z / Ctrl+Alt+Z / Ctrl+Y, Ctrl+C / Ctrl+V); public for Tests/UiTests.
+    // The window's keys (Ctrl+Z, Ctrl+Y / Ctrl+Shift+Z, Ctrl+C / Ctrl+V); public for Tests/UiTests.
     bool keyPressed (const juce::KeyPress&, juce::Component*) override;
 
 private:
@@ -85,6 +85,9 @@ private:
     std::vector<std::unique_ptr<juce::Component>> owned;
     WaveformView waveform;
     juce::Component::SafePointer<juce::Component> keyWindow;   // where keyPressed listens
+    std::unique_ptr<juce::MouseListener> focusOnClick;        // a click gives the editor the keys
+    int lastShortcut = 0;           // the last key used, and when (one action per press)
+    double lastShortcutTime = 0.0;
     juce::Label* fileName = nullptr;
     juce::Label* sampleInfo = nullptr;
     fl::IconTabs* sheetTabs = nullptr;

@@ -27,6 +27,13 @@ if(NOT FETCHCONTENT_SOURCE_DIR_JUCE)
     if(NOT juce_commit STREQUAL CHANSAMPLER_JUCE_COMMIT)
         message(FATAL_ERROR "JUCE 8.0.16-security is at ${juce_commit}, expected ${CHANSAMPLER_JUCE_COMMIT}")
     endif()
+    # JUCE's VST3 editor ignores the keys a host offers it (FL Studio's Ctrl+Z
+    # then never reaches the plugin): see the script.
+    execute_process(COMMAND ${CMAKE_COMMAND} -DJUCE_DIR=${juce_SOURCE_DIR} -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/PatchJuceVst3Keys.cmake
+        RESULT_VARIABLE juce_patch_result)
+    if(NOT juce_patch_result EQUAL 0)
+        message(FATAL_ERROR "cmake/PatchJuceVst3Keys.cmake failed")
+    endif()
 endif()
 
 # The sources: the engine alone (what the tests need) and everything.

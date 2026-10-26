@@ -88,6 +88,7 @@ private:
     void parameterGestureChanged (int index, bool starting) override;
     void open (const juce::String& name);
     void close();
+    void tellHostStateChanged();
     Snapshot snapshot() const;
     void apply (const Step&, bool forward);
 

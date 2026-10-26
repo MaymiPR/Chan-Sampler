@@ -817,10 +817,20 @@ void ParamKnob::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWhee
     // Through JUCE's own wheel path (0.15 of the range per unit), so the
     // attachment hears the drag start / end as the gesture; snapValue holds TIME's steps.
     const auto now = valueToProportionOfLength (getValue());
+    const auto drawn = glide.shown (now);   // where the knob is drawn (mid-glide or not)
     const juce::MouseWheelDetails scaled { 0.0f, (float) ((pos - now) / 0.15), false, false };
     wheelActive = true;
     juce::Slider::mouseWheelMove (e, scaled);
     wheelActive = false;
+    if (std::abs (valueToProportionOfLength (getValue()) - drawn) > 1.0e-6)
+        glide.startFrom (drawn);
+}
+
+void ParamKnob::valueChanged()
+{
+    // anything but the wheel (a drag, the menu, the host, an undo) shows at once
+    if (! wheelActive)
+        glide.cancel();
 }
 
 void ParamKnob::mouseDown (const juce::MouseEvent& e)

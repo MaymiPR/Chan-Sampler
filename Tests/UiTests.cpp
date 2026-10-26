@@ -238,14 +238,82 @@ int main (int argc, char** argv)
         pump();
         editor->keyPressed (juce::KeyPress ('z', juce::ModifierKeys::commandModifier, 0), editor.get());
         check (std::abs (feed->getValue() - before) < 1.0e-6f, "Ctrl+Z undoes");
-        editor->keyPressed (juce::KeyPress ('z', juce::ModifierKeys::commandModifier | juce::ModifierKeys::altModifier, 0), editor.get());
-        check (std::abs (feed->getValue() - 0.4f) < 1.0e-6f, "Ctrl+Alt+Z (FL's redo) redoes");
-        editor->keyPressed (juce::KeyPress ('z', juce::ModifierKeys::commandModifier, 0), editor.get());
+        const bool used = editor->keyPressed (juce::KeyPress ('z', juce::ModifierKeys::commandModifier | juce::ModifierKeys::altModifier, 0), editor.get());
+        check (! used && std::abs (feed->getValue() - before) < 1.0e-6f, "Ctrl+Alt+Z is left to the host");
         editor->keyPressed (juce::KeyPress ('y', juce::ModifierKeys::commandModifier, 0), editor.get());
         check (std::abs (feed->getValue() - 0.4f) < 1.0e-6f, "Ctrl+Y redoes");
         editor->keyPressed (juce::KeyPress ('z', juce::ModifierKeys::commandModifier, 0), editor.get());
         editor->keyPressed (juce::KeyPress ('z', juce::ModifierKeys::commandModifier | juce::ModifierKeys::shiftModifier, 0), editor.get());
         check (std::abs (feed->getValue() - 0.4f) < 1.0e-6f, "Ctrl+Shift+Z redoes");
+        // with nothing to undo / redo the keys are not used, so the host gets them
+        h.clear();
+        check (! editor->keyPressed (juce::KeyPress ('z', juce::ModifierKeys::commandModifier, 0), editor.get())
+                   && ! editor->keyPressed (juce::KeyPress ('y', juce::ModifierKeys::commandModifier, 0), editor.get()),
+               "Ctrl+Z / Ctrl+Y with an empty history go on to the host");
+        check (editor->getWantsKeyboardFocus(), "the editor takes the keyboard focus (so the keys reach it in a plugin window)");
+        // the buttons' tooltips name the keys
+        gesture (*feed, { 0.6f });
+        h.undo();
+        pump();
+        juce::Button* redo = nullptr;
+        forEach<juce::Button> (*editor, [&] (juce::Button& b) { if (b.getTooltip().startsWith ("Redo ")) redo = &b; });
+        check (redo != nullptr && redo->getTooltip().contains ("+Y)"), "the redo button names Ctrl+Y", redo != nullptr ? redo->getTooltip() : "no button");
+    }
+
+    // --- The wheel: the value moves at once, the knob eases to it (FL: ~36 ms)
+    {
+        auto editor = makeEditor();
+        pump();
+        juce::Slider* any = nullptr;
+        forEach<ParamKnob> (*editor, [&] (ParamKnob& k) { if (any == nullptr && k.isRotary() && k.isShowing()) any = &k; });
+        if (any == nullptr)
+            forEach<ParamKnob> (*editor, [&] (ParamKnob& k) { if (any == nullptr && k.isRotary()) any = &k; });
+        check (any != nullptr, "a knob to scroll");
+        if (any != nullptr)
+        {
+            any->setValue (any->proportionOfLengthToValue (0.5), juce::sendNotificationSync);
+            pump();
+            const auto before = any->getValue();
+            const juce::MouseEvent e (juce::Desktop::getInstance().getMainMouseSource(), any->getLocalBounds().getCentre().toFloat(),
+                                      juce::ModifierKeys(), 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, any, any, juce::Time::getCurrentTime(),
+                                      any->getLocalBounds().getCentre().toFloat(), juce::Time::getCurrentTime(), 0, false);
+            any->mouseWheelMove (e, { 0.0f, 0.46875f, false, false });
+            const auto after = any->getValue();
+            const auto* shown = any->getProperties().getVarPointer ("shown");
+            check (after > before, "a notch moves the value at once");
+            check (shown != nullptr && std::abs ((double) *shown - any->valueToProportionOfLength (before)) < 1.0e-6,
+                   "and the knob is drawn where it was, to ease from there");
+            pump (60);
+            const auto* mid = any->getProperties().getVarPointer ("shown");
+            const auto p0 = any->valueToProportionOfLength (before), p1 = any->valueToProportionOfLength (after);
+            const auto midP = mid != nullptr ? (double) *mid : p1;
+            check (mid == nullptr || (midP > p0 && midP < p1 + 1.0e-9), "after 60 ms it is on its way", juce::String ((midP - p0) / (p1 - p0), 2));
+            pump (400);
+            check (any->getProperties().getVarPointer ("shown") == nullptr, "and after 400 ms it is there");
+            any->mouseWheelMove (e, { 0.0f, 0.46875f, false, false });
+            any->setValue (any->proportionOfLengthToValue (0.2), juce::sendNotificationSync);
+            check (any->getProperties().getVarPointer ("shown") == nullptr, "any other change shows at once");
+        }
+    }
+
+    // --- The panel menu arrows stay turned while their menu is open
+    {
+        auto editor = makeEditor();
+        pump();
+        fl::MenuArrow* arrow = nullptr;
+        forEach<fl::MenuArrow> (*editor, [&] (fl::MenuArrow& a) { if (arrow == nullptr) arrow = &a; });
+        check (arrow != nullptr, "a panel menu arrow");
+        if (arrow != nullptr)
+        {
+            juce::PopupMenu menu;
+            menu.addItem ("one", [] {});
+            arrow->showMenu (menu);
+            pump (400);
+            check (fl::turnOf (*arrow) > 0.99f, "turned while its menu is open (the mouse elsewhere)", juce::String (fl::turnOf (*arrow)));
+            juce::PopupMenu::dismissAllActiveMenus();
+            pump (500);
+            check (fl::turnOf (*arrow) < 0.01f, "turned back once the menu closes", juce::String (fl::turnOf (*arrow)));
+        }
     }
 
     std::cout << "\n" << (failures == 0 ? "All UI tests passed" : juce::String (failures) + " UI test(s) failed") << "\n";

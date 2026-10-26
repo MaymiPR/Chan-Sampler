@@ -272,42 +272,65 @@ namespace fl
     };
 
     // FL's small arrows (drop-down fields, panel menus) turn from pointing
-    // right to pointing down under the mouse: measured, they wait about 50 ms
-    // and then turn over 100 ms, and turn back the same way. The amount
-    // (0 right .. 1 down) is read through the component's "turn" property.
+    // right to pointing down under the mouse: measured frame by frame in FL
+    // 2026 (the Filter list, the envelope and echo menus), the triangle rotates
+    // rigidly a quarter turn clockwise at a steady rate, over about 160 ms in
+    // and 200 ms back, with no wait. While its list or menu is open it stays
+    // turned (and lit), whatever the mouse does; once the menu closes it turns
+    // back the same way as on a plain leave. The amount (0 right .. 1 down) is
+    // read through the component's "turn" property.
+    inline constexpr double arrowTurnInMs = 160.0, arrowTurnOutMs = 200.0;
     class ArrowTurn : private juce::Timer
     {
     public:
-        explicit ArrowTurn (juce::Component& c) : owner (c) {}
-        void setTarget (bool over)
+        // held: while it returns true the arrow stays turned (its menu is open)
+        explicit ArrowTurn (juce::Component& c, std::function<bool()> held = {}) : owner (c), isHeld (std::move (held)) {}
+        void setTarget (bool over) { mouseOver = over; refresh(); }
+        // to call when the hold starts or ends
+        void refresh()
         {
-            target = over ? 1.0f : 0.0f;
-            if (amount != target)
+            const bool held = isHeld != nullptr && isHeld();
+            if (wasHeld && ! held)
+                mouseOver = owner.isMouseOver (true);
+            wasHeld = held;
+            if ((amount != target() || held) && ! isTimerRunning())
             {
-                wait = 3;   // 50 ms at 60 Hz
+                last = juce::Time::getMillisecondCounterHiRes();
                 startTimerHz (60);
             }
         }
         float get() const noexcept { return amount; }
 
     private:
+        float target() const { return mouseOver || (isHeld != nullptr && isHeld()) ? 1.0f : 0.0f; }
         void timerCallback() override
         {
-            if (wait > 0) { --wait; return; }
-            amount = target > amount ? juce::jmin (target, amount + 1.0f / 6.0f) : juce::jmax (target, amount - 1.0f / 6.0f);
-            if (amount == target)
+            refresh();   // notices the end of a hold
+            const auto now = juce::Time::getMillisecondCounterHiRes();
+            const auto dt = juce::jlimit (0.0, 100.0, now - last);
+            last = now;
+            const auto t = target();
+            amount = t > amount ? juce::jmin (t, amount + (float) (dt / arrowTurnInMs))
+                                : juce::jmax (t, amount - (float) (dt / arrowTurnOutMs));
+            if (amount == t && ! wasHeld)
                 stopTimer();
             owner.getProperties().set ("turn", amount);
             owner.repaint();
         }
         juce::Component& owner;
-        float amount = 0.0f, target = 0.0f;
-        int wait = 0;
+        std::function<bool()> isHeld;
+        float amount = 0.0f;
+        bool mouseOver = false, wasHeld = false;
+        double last = 0.0;
     };
     float turnOf (const juce::Component&);
+    // A slider's position (0..1) to draw: its eased one while a wheel glide
+    // runs (the "shown" property), else its value's.
+    float shownProportion (juce::Slider&);
     // Draws one of those arrows: at turn 0 a triangle pointing right (tipLen
-    // wide, baseH tall, centred on rest), at turn 1 one pointing down (baseH
-    // wide, tipLen tall, centred on down); the corners move between the two.
+    // wide, baseH tall, centred on rest), at turn 1 the same triangle rotated a
+    // quarter turn clockwise (pointing down, centred on down); between the two
+    // it is rotated rigidly while its centre moves.
     void drawTurnArrow (juce::Graphics&, juce::Point<float> rest, juce::Point<float> down, float turn, juce::Colour,
                         float baseH, float tipLen);
     // The hover amount of a component: its fade if it has one, else 1 under the mouse.
@@ -396,16 +419,18 @@ namespace fl
     public:
         void mouseEnter (const juce::MouseEvent& e) override { turn.setTarget (true); juce::ComboBox::mouseEnter (e); }
         void mouseExit (const juce::MouseEvent& e) override { turn.setTarget (false); juce::ComboBox::mouseExit (e); }
+        void showPopup() override { juce::ComboBox::showPopup(); turn.refresh(); }
 
     private:
-        ArrowTurn turn { *this };
+        ArrowTurn turn { *this, [this] { return isPopupActive(); } };
     };
 
 
     // FL's grey context menus (sample view, presets): shown with the plugin's
     // look, ticks for on/off entries and thin separators (measured from FL's
     // sample right-click menu).
-    void showContextMenu (juce::PopupMenu&, juce::Component& target, bool atMouse);
+    // onClose (optional) is called when the menu goes, chosen from or not.
+    void showContextMenu (juce::PopupMenu&, juce::Component& target, bool atMouse, std::function<void()> onClose = {});
     // Makes the next menu shown answer to its underlined letters ("&Reload":
     // R), as FL's menus do. showContextMenu does it itself.
     void armMenuLetters (const juce::PopupMenu&);
@@ -447,10 +472,14 @@ namespace fl
         void paintButton (juce::Graphics&, bool highlighted, bool down) override;
         void mouseEnter (const juce::MouseEvent& e) override { turn.setTarget (true); juce::Button::mouseEnter (e); }
         void mouseExit (const juce::MouseEvent& e) override { turn.setTarget (false); juce::Button::mouseExit (e); }
+        // Shows the panel's menu under the arrow; the arrow stays turned (and
+        // the envelope's frame lit) until the menu closes, as in FL.
+        void showMenu (juce::PopupMenu&);
 
     private:
         bool boxed;
-        ArrowTurn turn { *this };
+        bool menuOpen = false;
+        ArrowTurn turn { *this, [this] { return menuOpen; } };
     };
 
     // FL's upright A / B switch (the effects view's reverb type): toggled
