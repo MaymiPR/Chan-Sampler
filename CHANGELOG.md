@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.3.1
 
 Fixes
 - The echo panel's switches read "Ping pong" and "Fat mode" in full again
