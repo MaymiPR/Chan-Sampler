@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.4.0
 
 Sound
 - SMP LENGTH: a segment shorter than FL's shortest is lengthened as FL does
