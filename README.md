@@ -9,195 +9,181 @@
 <p align="center">
   <a href="https://github.com/MaymiPR/ChanSampler/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/MaymiPR/ChanSampler?color=4df1b1&label=release"></a>
   <a href="https://github.com/MaymiPR/ChanSampler/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/MaymiPR/ChanSampler/actions/workflows/ci.yml/badge.svg"></a>
-  <img alt="Formats" src="https://img.shields.io/badge/formats-VST3%20%7C%20CLAP%20%7C%20AU%20%7C%20Standalone-2d3133">
-  <img alt="Platforms" src="https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-2d3133">
   <a href="LICENSE"><img alt="License: AGPL v3" src="https://img.shields.io/badge/license-AGPL--3.0-ffa830"></a>
 </p>
 
-Ever wanted FL Studio's Sampler in Ableton Live, Logic, Reaper or Cubase? The
-one with the declicking modes, the precomputed effects, the arpeggiator and the
-echo fat mode, that you know by heart?
+**Chan Sampler** is a free, open-source recreation of FL Studio 2026's Channel
+Sampler. It runs as a VST3, CLAP, AU or standalone app on Windows, macOS and
+Linux.
 
-**Chan Sampler** brings it to every DAW. It is a free, open-source recreation of
-the Channel Sampler from FL Studio 2026 as a **VST3**, **CLAP**, **AU** and
-**Standalone** plugin for Windows, macOS and Linux. It isn't a lookalike: every knob
-uses FL's units, and the engine was measured against FL itself. Most of it
-renders sample-identically to FL (see
-[How close is it to FL?](#how-close-is-it-to-fl)). Your FL Sampler presets
-(`.fst`) come along: drop one on the window and it loads with its sample.
+Every knob uses FL's units, and the engine was measured against FL itself.
+Most features render sample-identically to FL. FL Sampler presets (`.fst`)
+load with their sample.
 
-> Chan Sampler is an independent project. It is not made, endorsed or supported
-> by Image-Line, and it contains no Image-Line code, samples or presets.
+![Chan Sampler's Sample page, with a drum loop, its loop points and the precomputed effects](docs/screenshots/sampler.png)
 
-![Sample page](docs/screenshots/sampler.png)
-
-| Envelopes / LFOs / filter | Misc (levels, arpeggiator, echo) | Spectrum view |
-|---|---|---|
-| ![Envelopes](docs/screenshots/envelope.png) | ![Misc](docs/screenshots/misc.png) | ![Spectrum](docs/screenshots/spectrum.png) |
-
-## How it was made
-
-Chan Sampler was created entirely with Claude (Anthropic's AI) and
-[REA](https://github.com/morluto/rea): every line of code, the measurements
-behind it and this documentation. FL Studio itself was the reference: its
-behaviour was measured from its renders and its interface, as described in
-[docs/EVIDENCE.md](docs/EVIDENCE.md).
+> Chan Sampler is an independent project. Image-Line does not make, endorse or
+> support it, and it contains no Image-Line code, samples or presets.
 
 ## Features
 
-- **Samples:** WAV, AIFF, FLAC, Ogg Vorbis and MP3, including FL's compressed
-  WAVs; drag and drop or the folder button. Region and slice markers in WAV
-  files (cue / ACID), loop points from the file.
-- **FL Studio Sampler presets (`.fst`):** drop one on the window or import it
-  from the preset menu to get its sample and every setting.
-- **Precomputed effects:** remove DC offset, normalize, reverse, reverse
-  polarity, fade / swap stereo, sample start and length, fade in / out,
-  crossfade, trim, reverb and stereo delay (rebuilt into the sample, not
-  automatable, as in FL).
-- **Playback:** start offset, loop points, ping-pong loop, FL's six declicking
-  modes.
-- **Time stretching:** PITCH / MUL / TIME with Resample, Stretch, Stretch Pro
-  (with formant shift), the e3 / e2 modes, Auto, slice stretch and slice map.
-  These use our own algorithms (FL's Elastique engine is proprietary).
-- **Envelopes** for volume, Mod X / Mod Y and pitch and **LFOs** for those and
-  panning, with tempo sync; filters Fast LP, LP, BP, HP, BS, LPx2, SVF LP and SVF LPx2.
-- **Misc:** level adjustment, polyphony with mono / porta / slide, velocity and
-  key tracking, cut groups between instances, arpeggiator with chords, echo
-  delay / fat mode, root note and fine tune.
-- **Sample view in FL's style:** zoom and scroll, Start / loop markers, file
-  markers, spectrum view, multichannel view and colourful waveforms
-  (Multiband or Color map). Right-click for Reload, Save as, Locate file,
-  Copy, Paste, Detect tempo and Get properties.
-- **Preset menu**, a resizable window (sharp on Retina / high-DPI screens), and
-  every knob's right-click menu in FL's units (Reset, Copy value, Paste value,
-  Type in value). FL's gestures too: Ctrl drags fine, Alt+click resets, the
-  wheel steps.
-- **Undo and redo** of your edits in the window, as FL does them: Ctrl+Z
-  undoes, Ctrl+Y or Ctrl+Shift+Z redoes (in FL Studio too, where the space bar
-  and FL's other keys keep working), and the undo / redo field beside the
-  presets does the same; a drag is one step, so is a sample loaded or removed.
-- **FL's look and feel:** every control is drawn as FL Studio 2026 draws it,
-  measured pixel by pixel and frame by frame from its window: the knobs'
-  hover fades and wheel glide, the filter knobs' turning collar, the turning
-  list and menu arrows, the switches' lit fade, the sample view's waveform
-  and grid.
+- **FL's playback:** start offset, loop points, ping-pong loop and FL's six
+  declicking modes.
+- **FL presets:** drop an FL Sampler preset (`.fst`) on the window to get its
+  sample and every setting.
+- **Precomputed effects:** normalize, reverse, fades, crossfade, trim, reverb,
+  stereo delay and more, rendered into the sample as FL does.
+- **Time stretching:** PITCH, MUL and TIME with Resample, Stretch, Stretch Pro,
+  the e3 modes, slice stretch and slice map.
+- **Modulation:** envelopes for volume, Mod X, Mod Y and pitch, LFOs for those
+  and panning, tempo sync, and eight filter types.
+- **Misc:** polyphony with mono, porta and slide, velocity and key tracking,
+  cut groups, an arpeggiator with chords, and echo with fat mode.
+- **FL's sample view:** zoom, markers, spectrum and multichannel views, and
+  colourful waveforms.
+- **FL's look and feel:** controls drawn as FL draws them, down to the hover
+  fades and the wheel glide. The window resizes and stays sharp on high-DPI
+  screens.
+- **Undo and redo** with FL's keys, which also work inside FL Studio.
+- **Files:** WAV (including FL's compressed WAVs), AIFF, FLAC, Ogg Vorbis and
+  MP3, with region and slice markers and loop points read from the file.
+
+| Precomputed effects | Envelopes, LFOs and filter |
+|:---:|:---:|
+| ![Second page of the precomputed effects: boost, EQ, RM mix and frequency, cut, resonance, reverb, stereo delay and pogo knobs](docs/screenshots/effects.png) | ![Envelope page: volume envelope with tension knobs, LFO, filter and root note keyboard](docs/screenshots/envelope.png) |
+| **Levels, arpeggiator and echo** | **Spectrum view** |
+| ![Misc page: levels adjustment, polyphony, tracking, cut groups, arpeggiator, echo delay and root note keyboard](docs/screenshots/misc.png) | ![Sample page with the sample view showing a spectrogram](docs/screenshots/spectrum.png) |
+
+## Quick start
+
+1. Download the file for your system from the
+   [latest release](https://github.com/MaymiPR/ChanSampler/releases/latest):
+
+   | System | File | Contents |
+   |---|---|---|
+   | Windows (x64) | `ChanSampler-<version>-Windows-Setup.exe` | Installer for the VST3, CLAP and standalone app |
+   | macOS 10.13 or later (universal) | `ChanSampler-<version>-macOS.pkg` | Installer for the AU, VST3, CLAP and app (pick which) |
+   | Linux (x86-64, glibc 2.35 or later) | `ChanSampler-<version>-Linux.tar.gz` | VST3, CLAP and standalone app to copy |
+
+2. On Windows and macOS, run the installer. On Linux, run this in the folder
+   that holds the download:
+
+   ```bash
+   tar -xzf ChanSampler-*-Linux.tar.gz
+   cd "Chan Sampler (Linux)"
+   mkdir -p ~/.vst3 ~/.clap
+   cp -r "Chan Sampler.vst3" ~/.vst3/
+   cp "Chan Sampler.clap" ~/.clap/
+   ```
+
+3. Rescan plugins in your DAW and add **Chan Sampler** to an instrument track.
+   Drop a sample on its window and play.
+
+Chan Sampler is not code-signed, so your system warns you the first time:
+
+- **Windows SmartScreen:** click *More info*, then *Run anyway*.
+- **macOS 15 and later:** open it once, then go to System Settings > Privacy &
+  Security and click *Open Anyway*. On earlier versions, right-click it and
+  choose *Open*.
+
+Each release lists SHA-256 checksums in `SHA256SUMS.txt`, so you can check a
+download.
+
+## Usage
+
+| To | Do this |
+|---|---|
+| Load a sample | Drop an audio file on the window, or click the folder button. |
+| Load an FL preset | Drop an `.fst` file on the window, or import it from the preset menu. |
+| Hear the sample | Click the waveform. It plays at the root note. |
+| Set the start and loop | Drag the Start flag and the loop markers in the sample view. |
+| Zoom the sample view | Scroll over it. |
+| Edit the sample elsewhere | Drag the waveform out to your DAW, an audio editor or a folder. When the file is saved there, it reloads here with your settings. |
+| Use the sample view's tools | Right-click it: Reload, Save as, Locate file, Copy, Paste, Detect tempo, Get properties and the view options. |
+| Fine-tune a knob | Ctrl + drag. |
+| Step a knob | Scroll over it. |
+| Reset a knob | Alt + click, or right-click it and choose *Reset*. |
+| Type a knob's value | Right-click it and choose *Type in value*. |
+| Undo / redo | Ctrl+Z / Ctrl+Y (or Ctrl+Shift+Z), or the arrows beside the presets. Use Cmd on macOS. |
+| See the version and About | Click **CHAN SAMPLER** in the top bar. |
+
+Without the volume envelope, a note plays to the end of the sample, as in FL.
+
+### Presets
+
+The bar at the top saves and loads `.cspreset` files in
+`Documents/Chan Sampler/Presets`. Subfolders become submenus, and the arrows
+step through the presets.
+
+The **Factory** presets hold settings only, so they keep your sample: *Chop*
+(the sample lasts exactly as long as the note), *Pluck*, *Swell*,
+*Filter sweep*, *Wobble 1/8*, *Tremolo*, *Vibrato*, *808 glide*,
+*Echo ping-pong 1/8* and *Reverse*.
+
+### Waveform colours
+
+Right-click the sample view and choose *Colorful waveforms* to colour the
+waveform by its sound. From top to bottom: Multiband (the default), Color map,
+and Multiband in the multichannel view.
+
+![The sample view three times: Multiband colours, Color map colours, and the multichannel view with left and right channels](docs/screenshots/waveforms.png)
 
 ## How close is it to FL?
 
-Every feature was compared with FL Studio 2026 by rendering the same notes
-through FL's Sampler and through Chan Sampler inside FL and subtracting the
-two (a "null test"; `nulltest/`). The precomputed effects, interpolation,
-envelopes, LFOs, filters (with modulation), loops, tracking, glide, echo, most
-of the arpeggiator and the compressed formats null against FL, and `.fst`
-import reproduces FL's settings.
-The sample view's colours, grid, spectrum and colourful waveforms were measured
-from FL's screen.
+Each feature was checked with null tests: the same notes rendered through FL's
+Sampler and through Chan Sampler inside FL, then subtracted. The precomputed
+effects, interpolation, envelopes, LFOs, filters, loops, tracking, glide, echo,
+most of the arpeggiator and the compressed formats null against FL. The sample
+view's colours, grid and spectrum were measured from FL's screen.
+
+Known gaps:
+
+- **Time stretching** (any mode but Resample) behaves like FL's but doesn't
+  match it sample for sample. FL's engine (elastique) is proprietary, so
+  Chan Sampler uses its own algorithms.
+- **FL-only features** that need FL as the host are left out: the Time panel
+  (gate, shift, swing) and the knob menus' automation and remote-control
+  entries. Your DAW provides those.
 
 [docs/EVIDENCE.md](docs/EVIDENCE.md) lists every measurement and every known
-gap. The main ones:
+gap.
 
-- **Time stretching** (PITCH / MUL / TIME in any mode but Resample) matches
-  FL's in behaviour, not sample for sample: FL's engine (elastique) is
-  proprietary. Attacks land where FL puts them; Stretch Pro with PITCH is the
-  furthest from FL's sound.
-- **FL-only features** that need FL itself as the host are left out: the
-  Time panel (gate, shift, swing) and the knob menus' automation and
-  remote-control entries (your DAW provides those).
-- Not **code-signed** (see Install).
+## Build from source
 
-## Install
+You need CMake 3.22 or later, Git and a C++ compiler. JUCE downloads
+automatically. On Linux:
 
-Download from the [Releases](https://github.com/MaymiPR/ChanSampler/releases)
-page:
-
-- **Windows:** `ChanSampler-<version>-Windows-Setup.exe` installs the VST3 and
-  the CLAP to `C:\Program Files\Common Files\` and the standalone app (Start
-  menu), with an uninstaller.
-- **macOS** (universal, 10.13 or later): `ChanSampler-<version>-macOS.pkg`
-  installs the AU, the VST3, the CLAP and the app (you can choose which).
-- **Linux** (x86-64, glibc 2.35 or later): `ChanSampler-<version>-Linux.tar.gz`
-  holds the VST3, the CLAP and the standalone app; copy the plugins to
-  `~/.vst3` and `~/.clap` (see its `INSTALL.txt`).
-
-Then rescan plugins in your DAW.
-
-**Security warnings.** Chan Sampler isn't code-signed or notarized (that needs
-paid certificates), so the first time you open it:
-- Windows SmartScreen: *More info* → *Run anyway*.
-- macOS 15 and later: open it once, then System Settings → Privacy & Security
-  → *Open Anyway*. On earlier macOS: right-click → *Open*.
-
-Each release lists the files' SHA-256 checksums in `SHA256SUMS.txt`, so you can
-check that a download is the published one.
-
-## Using it
-
-- Drop an audio file or an `.fst` preset on the window, or click the folder
-  button. Click the waveform to hear the sample at its root note.
-- In the sample view: drag the Start flag and the loop markers, scroll to zoom,
-  right-click for the view options. Drag the waveform out of the view to take
-  the sample into your DAW, an audio editor or a folder; when the file is saved
-  there, the sample reloads here (settings kept).
-- Presets: the bar at the top saves and loads `.cspreset` files in
-  `Documents/Chan Sampler/Presets` (folders become submenus); the arrows step
-  through them. **Factory** presets are built in and hold settings only, so
-  they keep your sample: *Chop* (the sample plays exactly as long as the note),
-  *Pluck*, *Swell*, *Filter sweep*, *Wobble 1/8*, *Tremolo*, *Vibrato*,
-  *808 glide*, *Echo ping-pong 1/8* and *Reverse*.
-- Without the volume envelope, a note plays to the end of the sample, as in FL.
-- Click **CHAN SAMPLER** in the top bar for the version, About, the project
-  page, reporting an issue and the license.
-
-## Build
-
-JUCE is downloaded automatically. Requirements: CMake ≥ 3.22 and Git, plus
-Visual Studio 2022 / 2026 with "Desktop development with C++" on Windows,
-Xcode on macOS, or GCC / Clang on Linux. The CLAP version uses
-[clap-juce-extensions](https://github.com/free-audio/clap-juce-extensions),
-also downloaded automatically (`-DCHANSAMPLER_CLAP=OFF` leaves it out).
-
-Windows (VST3 + CLAP + Standalone):
-
-```
-cmake -B build -G "Visual Studio 18 2026" -A x64
-cmake --build build --config Release --target ChanSampler_VST3 ChanSampler_CLAP ChanSampler_Standalone
-```
-
-(`"Visual Studio 17 2022"` with VS 2022.)
-
-macOS (universal AU + VST3 + CLAP + Standalone):
-
-```
-cmake -B build -G Xcode -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET=10.13
-cmake --build build --config Release --target ChanSampler_AU ChanSampler_VST3 ChanSampler_CLAP ChanSampler_Standalone
-```
-
-Linux (VST3 + CLAP + Standalone; on Ubuntu / Debian first
-`sudo apt install libasound2-dev libjack-jackd2-dev libfreetype6-dev libfontconfig1-dev libx11-dev libxcomposite-dev libxcursor-dev libxext-dev libxinerama-dev libxrandr-dev libxrender-dev libglu1-mesa-dev`):
-
-```
+```bash
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --target ChanSampler_VST3 ChanSampler_CLAP ChanSampler_Standalone
 ```
 
-Engine tests, the developer tools, the null tests against FL and how
-releases are made: [CONTRIBUTING.md](CONTRIBUTING.md).
+[docs/BUILDING.md](docs/BUILDING.md) has the Windows and macOS commands and the
+Linux packages to install first.
 
-## Feedback
+## How it was made
+
+Chan Sampler was created entirely with Claude (Anthropic's AI) and
+[REA](https://github.com/morluto/rea): the code, the measurements behind it and
+this documentation. FL Studio was the reference throughout, as described in
+[docs/EVIDENCE.md](docs/EVIDENCE.md).
+
+## Contributing
 
 Found a bug or a difference from FL's Sampler? Open an
-[issue](https://github.com/MaymiPR/ChanSampler/issues/new/choose); a sample or
-an FL preset (`.fst`) that shows it helps most. Changes per version:
-[CHANGELOG.md](CHANGELOG.md).
+[issue](https://github.com/MaymiPR/ChanSampler/issues/new/choose) and attach a
+sample or an `.fst` preset that shows it. To change the code, read
+[CONTRIBUTING.md](CONTRIBUTING.md) for the tests, the null tests against FL and
+the release steps. Changes per version are in [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 
 Chan Sampler is free software under the
 [GNU Affero General Public License v3](LICENSE). It is built with
 [JUCE](https://juce.com) (used under the AGPLv3), the VST3 SDK, CLAP and
-clap-juce-extensions (MIT); their licenses, and those of the libraries JUCE
-includes, are in [THIRD-PARTY-NOTICES.txt](packaging/THIRD-PARTY-NOTICES.txt)
-and ship with every download.
+clap-juce-extensions (MIT). Their licenses are in
+[THIRD-PARTY-NOTICES.txt](packaging/THIRD-PARTY-NOTICES.txt) and ship with
+every download.
 
-FL Studio is a trademark of Image-Line Software; other names are trademarks of
+FL Studio is a trademark of Image-Line Software. Other names are trademarks of
 their owners and are used only to describe compatibility.

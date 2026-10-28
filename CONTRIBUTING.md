@@ -16,7 +16,7 @@ see why the code is the way it is. Knobs use FL's units and FL's ranges.
 ## Build
 
 Requirements, and the commands per platform, are in the
-[README](README.md#build). Building without `--target` also makes the
+[build guide](docs/BUILDING.md). Building without `--target` also makes the
 developer tools (all in `build/<tool>_artefacts/Release/`):
 
 | Tool | What it does |

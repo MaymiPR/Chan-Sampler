@@ -1,15 +1,21 @@
 """Regenerates the README's screenshots with ChanSamplerSnapshot (build it
-first): a synthetic drum loop on the Sample page (loop on), the Envelope page,
-the Misc page and the spectrum view, drawn at 1.6x.
+first): a synthetic drum loop on the Sample page (loop on), the precomputed
+effects' second page, the Envelope page, the Misc page, the spectrum view and
+the sample view's colour modes, drawn at 1.6x. Needs numpy and Pillow.
 
     python docs/screenshots/make.py"""
 import os, struct, subprocess, sys, tempfile
 import numpy as np
+from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.join(HERE, '..', '..')
 TOOL = os.path.join(ROOT, 'build', 'ChanSamplerSnapshot_artefacts', 'Release',
                     'ChanSamplerSnapshot' + ('.exe' if sys.platform == 'win32' else ''))
+
+
+VIEW = (12, 482, 889, 690)   # the sample view and its scroll bar at 1.6x
+GAP = 10
 
 
 def drum_loop(path, sr=44100, bpm=120):
@@ -53,11 +59,26 @@ def main():
     shots = [('sampler.png', looped, ['0'], {}),
              ('envelope.png', plain, ['1', '0', '1'], {}),
              ('misc.png', plain, ['2'], {}),
-             ('spectrum.png', plain, ['0'], {'SNAPSHOT_PROPS': 'viewSpectrum=1'})]
+             ('spectrum.png', plain, ['0'], {'SNAPSHOT_PROPS': 'viewSpectrum=1'}),
+             ('effects.png', plain, ['0', '0', '1'], {})]
     for name, params, args, extra in shots:
         subprocess.run([TOOL, loop, os.path.join(HERE, name), params] + args, env=dict(env, **extra), check=True,
                        stdout=subprocess.DEVNULL)
         print('wrote', name)
+
+    # the sample view alone, in its three colour modes, one above the other
+    views = []
+    for i, props in enumerate(('colorfulWaveforms=2', 'colorfulWaveforms=1', 'viewMultichannel=1')):
+        shot = os.path.join(tmp, 'view%d.png' % i)
+        subprocess.run([TOOL, loop, shot, plain, '0'], env=dict(env, SNAPSHOT_PROPS=props), check=True,
+                       stdout=subprocess.DEVNULL)
+        views.append(Image.open(shot).convert('RGB').crop(VIEW))
+    w, h = views[0].size
+    sheet = Image.new('RGB', (w, 3 * h + 2 * GAP), (24, 27, 29))
+    for i, v in enumerate(views):
+        sheet.paste(v, (0, i * (h + GAP)))
+    sheet.save(os.path.join(HERE, 'waveforms.png'), optimize=True)
+    print('wrote waveforms.png')
 
 
 if __name__ == '__main__':
