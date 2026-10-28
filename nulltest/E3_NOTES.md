@@ -365,6 +365,31 @@ restart frame's own bias fits best with a 2048-sample frame.
   32 paddings (our onset follows our frame grid, FL's a 512 grid from the
   note's start): a coincidence of the test file's position, not used.
 
+## Swell onsets, a per-peak model (round 12, offline, not in the plugin)
+
+docs/BINARY-NOTES.md suggested how FL's e3 decides a restart: per spectral
+peak, from a relative spectral flux (against the spectrum a few hops back,
+so level-free) and the energy's time centroid inside the frame; a peak whose
+energy sits late waits, and restarts once its centroid reaches the frame's
+centre; the restart point is the loudest sample of the windowed full-band
+frame within a hop of its centre. Tested offline against the round-11
+swells (80 cases: 5 rates x 16 onsets, FL's restarts from the cached
+renders by `stretch.lowband swell`), with the frame grid, window shape and
+centroid threshold fitted:
+
+- 52 / 80 first restarts to the sample (a 4096-sample frame on a 512 grid
+  from the note's start, offset ~100, Hann or Blackman window), against
+  <= 48 / 80 for every rule of round 11. Where it is right it is right to
+  the sample (3978 against FL's 3977, 1571 against 1571), which supports
+  the restart point; where it is wrong it is one frame late (+527 / +528) or
+  ~200 late, so the decision rule is still missing a detail (the whole-frame
+  rules, how FL splits the spectrum into peaks).
+- The flux threshold hardly matters on these swells (0.5 ... 1.0 the same);
+  the centroid threshold does.
+- Not ported to the plugin: at 65% it would not yet beat our attack rule on
+  real material. The model is kept outside the repository (it follows
+  thresholds read from the binary); a plugin version would fit its own.
+
 ## Open
 
 - The period estimator's exact choice on noise (when it is made; 21% now).
@@ -373,5 +398,6 @@ restart frame's own bias fits best with a 2048-sample frame.
   and the note start's (the sine's restart near 1035, the saws' scatter).
 - FL's onset on a slow swell (the "ah": ~320 against our 603), which sets
   both its restart and (round 8) its timing; and its second restart in the
-  peak-timed part of the grid (round 11).
+  peak-timed part of the grid (round 11). Round 12's per-peak model gets
+  52 / 80 swells; the rest are a frame late.
 - The transient gain rule.
