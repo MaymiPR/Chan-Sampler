@@ -25,6 +25,8 @@ not backed by Evidence.
 - **Arpeggiator:** TIME refitted to 55 measured raws in FL's form, all exact; GATE on whole ticks (6 new in-FL cases, from +1…+3 dB to −45…−67 dB).
 - **LPx2:** compensation in FL's form, fitted to our measured table (worst in-FL case −44 → −47 dB).
 - **e3 swells:** a per-peak model predicts 67 of 80 of FL's swell restarts offline (with a sharper window for the restart point than for the analysis), against 48 at best before. A first plugin version changed nothing measurable (ours 26 of 80 with and without it: our attack rule claims faster swells first, and a phase turn is not FL's reset), so it was taken out (nulltest/E3_NOTES.md, round 12).
+- **e3's split at large stretches:** measured in FL as read here: fixed up to x2 of MUL, then rising until the vocoder takes the whole band (noise, x2.2 … x4, seven points). Ours now follows; real material at x2.5 … x4 about as close as before (the Rhodes and voice closer, the kick's tail further). The same probe shows FL's **Stretch Pro** has e3's structure (grains above the split, the same rise, also with PITCH) and **Stretch** doesn't; e3's grains in our Stretch Pro measured further from FL, since they don't keep its formants, so that waits for formant-keeping grains (nulltest/E3_NOTES.md, round 13).
+- **e3 restarts:** the full-band restart point gained nothing; a phase reset gives the same result as our turn once placed right (the same thing for steady partials, so round 12's "a turn is not FL's reset" was a placement error); FL apparently doesn't restart drum hits later (dropping the restart: the groove −3.4 → −5.5 dB) but does restart held tones, and no whole-band decider kept both (round 13).
 - Dropped: Crossfade's closed form (our measured curves already null, −77…−82 dB) and the end-of-sample fade (it nulls, −75 dB). Reversed trims: the end filter sat a frame late on them; fixed (−46…−64 → −65…−85 dB). Still to do: e3 in the plugin (round 12), the shortest trims (−48 dB), LENGTH 0 with a start (−56…−59 dB).
 
 ## Summary
@@ -93,7 +95,7 @@ not backed by Evidence.
 - **Observed:** `ElProV3_CreateInstance` builds, by mode, a Pro core holding a phase vocoder, a PSOLA pair and an FFT band split. Evidence: ev_8bfc7e64647f2b4e02c0da804cd439cb9d9d62c9394d072ccad9a163b9ca812a, ev_310d78807304194e380f176e9d241064f7bbe66cd41f3d411a03603cb652a61e.
 - **Unverified:** that FL's e3 generic uses the Pro core's default mode.
 - **Observed split:** done inside a short FFT, not by a crossover filter. Bins below a fixed split frequency are removed, with a short linear taper; the high band goes to PSOLA and the full band to the vocoder. The split frequency is fixed for moderate pitch ratios, rises steeply for large ones, and is capped at Nyquist. Evidence: ev_fd056fc87379bbdcbee21adeef17f87e9b166bd7df25425834fa268da19e7e94.
-- **Observed:** inside the vocoder, bins above the split take the PSOLA stream unless they are in an onset state. Next: compare the split with our e3 band split.
+- **Observed:** inside the vocoder, bins above the split take the PSOLA stream unless they are in an onset state. Our split is a crossover kernel matched to the vocoder's bin cut; the rise above x2 is now measured and modelled (Follow-ups).
 - **Observed onset detection:** in the phase vocoder, once per hop, for each spectral peak's region, from two measures:
   - a relative spectral flux (change against the energy a few hops back), which is why detection is level-free;
   - an energy time-centroid within the frame (a second FFT with a time ramp).

@@ -61,6 +61,7 @@ TimeStretcher::TimeStretcher()
     hfWork.resize (maxFrame);
     hfKernel[0].resize (maxFrame / 2);
     hfKernel[1].resize (maxFrame);
+    splitTaps.resize (4096);
     hfCacheL.resize (hfCacheSize);
     hfCacheR.resize (hfCacheSize);
     hfEnergyValue.resize (hfEnergySlots);
@@ -150,8 +151,9 @@ void TimeStretcher::configure (StretchMode mode, double sourceRate)
     // e3 times an attack by its peak, the grains by its start.
     hfScale = scale;
     attackSpan = hybrid ? juce::roundToInt (400.0 * scale) : 1;
-    constexpr double split = 1485.0;
-    lowBins = hfBand ? juce::roundToInt (split * frame / sourceRate) : 0;
+    lowBins = 0;
+    splitRate = sourceRate;
+    risingSplit = e3Estimator;
     if (hfBand || grainsOnly)
     {
         hfMinPeriod = juce::roundToInt (40.0 * scale);
@@ -163,38 +165,50 @@ void TimeStretcher::configure (StretchMode mode, double sourceRate)
         hfEstOrder = 11;
         while ((1 << hfEstOrder) < hfWindow + hfMaxPeriod + 1 && hfEstOrder < 13)
             ++hfEstOrder;
-        // The high-pass is the complement of a windowed-sinc low-pass whose
-        // transition matches the vocoder's bin cut (a frame-long Hann).
         hfHalfKernel = grainsOnly ? 0 : juce::jmin (frame / 2 - 1, 2047);
         hfFilterOrder = hfHalfKernel <= 1023 ? 12 : 13;
         hfBlock = grainsOnly ? 2048 : (1 << hfFilterOrder) - 2 * hfHalfKernel - 2;
         hfEstReuse = 512.0 * scale;
-        const int M = hfHalfKernel;
-        std::vector<double> lp ((size_t) (2 * M + 1));
-        double sum = 0.0;
-        for (int k = -M; k <= M; ++k)
-        {
-            const double x = 2.0 * split / sourceRate * k;
-            const double sinc = k == 0 ? 1.0 : std::sin (juce::MathConstants<double>::pi * x) / (juce::MathConstants<double>::pi * x);
-            const double w = 0.5 + 0.5 * std::cos (juce::MathConstants<double>::pi * k / (M + 1));
-            lp[(size_t) (k + M)] = sinc * w;
-            sum += sinc * w;
-        }
-        for (int o = 12; o <= 13; ++o)
-        {
-            const int N = 1 << o;
-            std::fill (spec.begin(), spec.begin() + N, std::complex<float>());
-            for (int k = -M; k <= M; ++k)
-                spec[(size_t) ((k + N) & (N - 1))] = { (float) ((k == 0 ? 1.0 : 0.0) - lp[(size_t) (k + M)] / sum), 0.0f };
-            ffts[o - 8]->perform (spec.data(), work.data(), false);
-            for (int i = 0; i < N; ++i)
-                hfKernel[o - 12][(size_t) i] = work[(size_t) i].real();
-        }
+        if (hfBand)
+            buildSplit (baseSplit);
     }
 
     for (int i = 0; i < frame; ++i)
         window[(size_t) i] = 0.5f - 0.5f * std::cos (twoPi * (float) i / (float) frame);
     fft = algo == Algo::vocoder ? ffts[order - 8].get() : nullptr;
+}
+
+void TimeStretcher::buildSplit (double hz)
+{
+    // The vocoder keeps the bins below the split; the grains get the rest.
+    // The high-pass is the complement of a windowed-sinc low-pass whose
+    // transition matches the vocoder's bin cut (a frame-long Hann).
+    // At the Nyquist frequency the vocoder makes the whole band.
+    const double nyquist = 0.5 * splitRate;
+    lowBins = hz >= nyquist ? frame / 2 + 1 : juce::roundToInt (hz * frame / splitRate);
+    const int M = hfHalfKernel;
+    std::vector<double>& lp = splitTaps;
+    double sum = 0.0;
+    for (int k = -M; k <= M; ++k)
+    {
+        const double x = 2.0 * juce::jmin (hz, nyquist) / splitRate * k;
+        const double sinc = k == 0 ? 1.0 : std::sin (juce::MathConstants<double>::pi * x) / (juce::MathConstants<double>::pi * x);
+        const double w = 0.5 + 0.5 * std::cos (juce::MathConstants<double>::pi * k / (M + 1));
+        lp[(size_t) (k + M)] = sinc * w;
+        sum += sinc * w;
+    }
+    for (int o = 12; o <= 13; ++o)
+    {
+        const int N = 1 << o;
+        std::fill (hfBuf.begin(), hfBuf.begin() + N, std::complex<float>());
+        for (int k = -M; k <= M; ++k)
+            hfBuf[(size_t) ((k + N) & (N - 1))] = { (float) ((k == 0 ? 1.0 : 0.0) - lp[(size_t) (k + M)] / sum), 0.0f };
+        ffts[o - 8]->perform (hfBuf.data(), hfWork.data(), false);
+        for (int i = 0; i < N; ++i)
+            hfKernel[o - 12][(size_t) i] = hfWork[(size_t) i].real();
+    }
+    // The high band already filtered is stale.
+    hfCacheLo = hfCacheHi = 0;
 }
 
 void TimeStretcher::reset (double sourcePos)
@@ -336,6 +350,9 @@ void TimeStretcher::processSpectrum (int pos, double pitchRatio, float formantCe
     if (lowBins > 0)   // e3 generic: the vocoder makes only the band below the split
         for (int c = 0; c < channels; ++c)
             std::fill (out[c].begin() + lowBins, out[c].begin() + half + 1, std::complex<float>());
+    for (int c = 0; c < channels; ++c)
+        for (int k = 0; k < lowGainBins; ++k)
+            out[c][(size_t) k] *= lowGain;
 
     // Formants (Stretch Pro): the voice resamples this signal by pitchRatio,
     // which would move the spectral envelope too; pre-correct it so that the

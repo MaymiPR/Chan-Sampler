@@ -408,6 +408,57 @@ centroid threshold fitted:
   and restart with a phase reset. The model is kept outside the repository (it follows
   thresholds read from the binary); a plugin version would fit its own.
 
+## The split at large stretches, Stretch Pro, restarts (round 13)
+
+docs/BINARY-NOTES.md read the split inside the FFT: fixed for moderate
+ratios, rising steeply for large ones, capped at Nyquist. Measured with
+`stretch.split_rise` (noise, per third-octave band, correlation with the
+source: grains ~0.85+, the vocoder a falling trend):
+
+- FL's e3: the split stays at 1.485 kHz up to x2, then the bands that stop
+  being pieces of the source start at 2.5 / 3.2 / 4 / 5 / 6.3 / 8 / 12.7 kHz
+  at x2.2 / 2.3 / 2.4 / 2.5 / 2.6 / 2.75 / 3; at x4 none are. (stretch -
+  1)^3 x 1.485 kHz lands in the same band at every one. In the plugin
+  (followSplit): the same rows. Key changes on noise (the output resampled
+  back) don't separate the two readings; the engine's own split follows the
+  stretch factor, so ours does.
+- Real material x2.5 / x3 / x4 (15 new FL renders, beats=24, the stretcher
+  alone): envelope 2.295 -> 2.287, spectrum 3.766 -> 3.775. The Rhodes and
+  the voice closer (voice x4 2.30 -> 1.58), the kick worse (x4 6.48 ->
+  7.60, its quiet tail), the loop mixed. The hold gain of the band below the
+  split stays below 1.485 kHz (applied to all of it the kick was worse
+  still).
+- Other modes, the same probe: FL's Stretch is the vocoder over the whole
+  band (x1.5, x2.5). FL's Stretch Pro is e3's structure, grains above 1.5
+  kHz and the same rise (x2.5 ~5 kHz, x3 ~12.7, x4 none), and keeps the
+  grains with PITCH (+700 cents: 0.91 above 1.6 kHz). Ours with e3's grains
+  for Stretch Pro: MUL cases spectrum 2.16 -> 2.26 (with e3's estimator too:
+  the Rhodes at x0.667 nulls -13.3 dB, was -2.6, the rest no better); PITCH
+  cases far worse (the voice at -700 4.6 -> 6.8): the grains are resampled
+  with the rest, so they move the formants Stretch Pro keeps. Not adopted;
+  it needs grains that keep the formants. FL's e2 generic rises later
+  (about 4 / 6.3 kHz at x2.75 / x3, all vocoder from x3.25); its rows are
+  noisier, not modelled.
+- The restart point from the full band (not the band below the split): no
+  net change (voice x1.5 -5.8 -> -4.6 dB, groove +700 -1.7 -> -3.3).
+- A phase reset at the restart (the source's phases, read so the restart
+  point plays where the stretch puts it) instead of our turn: the
+  steady-tone probe gives the same offsets to a sample, and real material
+  the same nulls. For steady partials the two are the same thing; the turn
+  stays. (A reset placed a hop late scored better on the drums, which led
+  to the next point.)
+- No restart after an attack at all: the groove at -700 and x0.667 -3.4 ->
+  -5.5 dB, the voice -5.8 -> -0.9. FL seems to restart a held onset later
+  and a drum hit not (or at once, which our attack frames already are).
+  Two deciders tried: the band's energy after the onset against its first
+  512 samples (a threshold that keeps the voice's restart, 2x, also drops
+  the restarts of held tones, which FL makes); and the whole band's energy
+  centre on FL's frame grid with round 12's threshold, skipping restarts
+  that land near the onset: the drums gain (null -5.07 -> -5.36 over the 20
+  cases) but the steady-tone probe falls from 15 / 32 restarts to the
+  sample to 1 / 32. Not adopted: the decision is per spectral peak in FL,
+  and a whole-band centre doesn't make it.
+
 ## Open
 
 - The period estimator's exact choice on noise (when it is made; 21% now).

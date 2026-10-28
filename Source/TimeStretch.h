@@ -112,6 +112,8 @@ private:
         // it costs about twice the CPU of quarter-frame hops.
         if (algo == Algo::vocoder)
             hop = vocoderHop (alpha);
+        if (risingSplit)
+            followSplit (alpha / pitchRatio);
         // Analysis advance for one synthesis hop.
         const double ha = (double) hop / alpha;
         attackAlpha = alpha;
@@ -140,6 +142,21 @@ private:
     {
         const double x = juce::jlimit (0.0, 1.0, (std::log2 (alpha) + 0.585) / 1.17);
         return hfScale * (at067 + x * (at15 - at067));
+    }
+
+    // FL's e3 keeps its split at 1.485 kHz up to x2 of MUL / TIME, then
+    // raises it steeply, (stretch - 1)^3 x that, the vocoder making the whole
+    // band from about x3.4 (FL's e3 on noise stretched x2 ... x4: the bands
+    // that stop being pieces of the source start at 2.5 / 3.2 / 4 / 5 / 6.3 /
+    // 8 / 12.7 kHz at x2.2 / 2.3 / 2.4 / 2.5 / 2.6 / 2.75 / 3). It follows
+    // the stretch, not PITCH (read in FL's engine, docs/BINARY-NOTES.md;
+    // key changes on noise don't show it either way).
+    void followSplit (double stretch)
+    {
+        const double hz = stretch <= 2.0 ? baseSplit : baseSplit * std::pow (stretch - 1.0, 3.0);
+        const int kept = hz >= 0.5 * splitRate ? frame / 2 + 1 : juce::roundToInt (hz * frame / splitRate);
+        if (kept != lowBins)
+            buildSplit (hz);
     }
 
     int vocoderHop (double alpha) const
@@ -346,13 +363,21 @@ private:
             phaseShift = rephaseShift;
             rephaseShift = 0.0;
         }
+        // FL's e3 plays the band below the split louder while it holds an
+        // attack (see loudestAfter; a note's start: x1.2 stretching, x1.1
+        // squeezing); where the split has risen (followSplit), only up to
+        // where it was.
+        float scale = (float) hop / (0.375f * (float) n);   // the inverse FFT is scaled by 1 / N; Hann^2 overlaps sum to 0.375 frame / hop
+        const float holdGain = hybrid && locked ? (lockGain > 0.0f ? lockGain : (hop > ha ? 1.2f : 1.1f)) : 1.0f;
+        const int baseBins = juce::roundToInt (baseSplit * n / splitRate);
+        lowGainBins = hfBand && lowBins > baseBins ? baseBins : 0;
+        lowGain = holdGain;
+        if (lowGainBins == 0)
+            scale *= holdGain;
         fft->perform (spec.data(), work.data(), false);   // spec -> work
         processSpectrum (pos, pitchRatio, formantCents, locked, monoFrame);  // work -> spec
         phaseShift = 0.0;
         fft->perform (spec.data(), work.data(), true);
-        float scale = (float) hop / (0.375f * (float) n);   // the inverse FFT is scaled by 1 / N; Hann^2 overlaps sum to 0.375 frame / hop
-        if (hybrid && locked)
-            scale *= lockGain > 0.0f ? lockGain : (hop > ha ? 1.2f : 1.1f);   // FL's e3 plays the band below the split louder while it holds an attack (see loudestAfter; a note's start: x1.2 stretching, x1.1 squeezing)
         for (int i = 0; i < n; ++i)
         {
             olaL[(size_t) i] += work[(size_t) i].real() * window[(size_t) i] * scale;
@@ -855,6 +880,7 @@ private:
     }
 
     void processSpectrum (int pos, double pitchRatio, float formantCents, bool attack, bool mono);
+    void buildSplit (double hz);
     void phaseLock (int channel, int analysisHop, bool transient);
     void formantEnvelopes();
     void emit (float gain);
@@ -906,6 +932,12 @@ private:
     int ratioSteps = 0;          // FL's stretch-ratio grid (steps per unit), 0 = none
     bool e3Estimator = false;    // e3 generic's grain period search (FL's, measured)
     int lowBins = 0;                       // vocoder bins kept (below the split)
+    static constexpr double baseSplit = 1485.0;   // FL's split (measured on saws: harmonics up to 1470 Hz take the low path, from 1500 Hz the grains)
+    bool risingSplit = false;              // e3 generic: the split follows the stretch (followSplit)
+    double splitRate = 44100.0;            // the source's rate
+    std::vector<double> splitTaps;
+    int lowGainBins = 0;                   // bins below this get lowGain (processSpectrum)
+    float lowGain = 1.0f;
     int hfWindow = 1024, hfMinPeriod = 90, hfMaxPeriod = 600, hfFallback = 256, hfEstOrder = 11, hfHalfKernel = 1023;
     double hfLagPull = 0.04;   // e3 generic's pull towards mid-range lags
     int hfFilterOrder = 12, hfBlock = 2048, hfCacheLo = 0, hfCacheHi = 0, hfEstPeriod = 256, hfEstOffset = 8;

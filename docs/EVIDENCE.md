@@ -246,6 +246,22 @@ distance to FL's renders (`nulltest/stretch/`, `nulltest/E3_NOTES.md`).
   by their place in the grid, and finds a swell's start earlier than ours
   (the "ah": about sample 320 against our 603), which costs the vocal at
   -300 and +1200 cents. nulltest/stretch/lowband.py, E3_NOTES.md round 10.
+- **e3's split at large stretches (round 13):** FL's e3 keeps the split at
+  1.485 kHz up to x2 of MUL / TIME, then raises it: on noise the bands that
+  stop being pieces of the source start at 2.5 / 3.2 / 4 / 5 / 6.3 / 8 / 12.7
+  kHz at x2.2 / 2.3 / 2.4 / 2.5 / 2.6 / 2.75 / 3, and at x4 none are
+  (nulltest/stretch/split_rise.py). Ours follows (stretch - 1)^3 x 1.485 kHz,
+  the form read in FL's engine (docs/BINARY-NOTES.md), and gives the same
+  rows. Real material at x2.5 / x3 / x4 (15 FL renders, the stretcher alone):
+  envelope 2.30 -> 2.29, spectrum 3.77 -> 3.78 (the Rhodes and the voice
+  closer, e.g. the voice at x4 2.30 -> 1.58; the kick's quiet tail further,
+  6.48 -> 7.60). FL's Stretch Pro splits the same way (grains above 1.5 kHz,
+  also with PITCH; the same rise), FL's Stretch doesn't (the vocoder over the
+  whole band at x1.5 and x2.5, as ours). Ours keeps Stretch Pro on the
+  vocoder: e3's grains there measured further from FL (spectrum 2.16 -> 2.26
+  over the MUL cases; PITCH cases worse, the grains don't keep the formants).
+  e2 generic's split rises too, later (about 4 / 6.3 kHz at x2.75 / x3, the
+  whole band from about x3.25); not modelled.
 
 Evidence: nulltest/stretch/stretch_check.py, nulltest/stretch/stretch_vs_fl.py,
 nulltest/stretch/real_material.py, e3_clicks.wav.
