@@ -391,10 +391,21 @@ centroid threshold fitted:
   refitted (0.3 of half a frame). The rest are a frame early or late.
 - The flux threshold hardly matters on these swells (0.5 ... 1.0 the same);
   the centroid threshold does.
-- Not ported to the plugin yet: ours has no restart on swells at all (the
-  low band restarts only after a detected attack, phases relative to the
-  attack's lock), so a port needs its own detector on FL's 512 grid and a
-  phase reset of its own. The model is kept outside the repository (it follows
+- With generic peak regions (peaks above -40 dB of the frame's loudest,
+  each with the bins down to the minima beside it) the decision has to be
+  weighed by energy (the restarting peaks above ~10% of the low band's
+  energy; 0.1 ... 0.5 the same): 66 / 80. Without it any sidelobe peak
+  restarts (34 / 80).
+- Tried in the plugin (a detector on FL's grid ahead of the vocoder, a phase
+  turn from the position the low band's phases follow) and taken out again:
+  ours on the same 80 swells (`stretch.lowband swellours`) got 26 / 80 with
+  it and 26 / 80 without. On faster swells the detector found FL's restart
+  to the sample (+1571 at 5 dB / 128) but our attack rule claims the swell
+  first (its restart 20 samples early); on the slowest it fired a frame
+  late; and where it did restart, the probe saw no restart in our output,
+  so a turn relative to our phases is not FL's restart (FL's resets the
+  phases). Next: let the detector time the attack rule's restart on swells,
+  and restart with a phase reset. The model is kept outside the repository (it follows
   thresholds read from the binary); a plugin version would fit its own.
 
 ## Open

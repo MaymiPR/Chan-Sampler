@@ -11,6 +11,7 @@ against ours says, per attack, how far FL's point is from ours.
     python -m stretch.lowband probe 0 700         #   stepped through 512 samples (MUL raw, cents)
     python -m stretch.lowband case vox 700        # an in-FL e3 pitch case: the phase delay over time
     python -m stretch.lowband swell 5             # swells: every restart, onsets stepped through 512
+    python -m stretch.lowband swellours 5         #   the same on Chan Sampler's render
 
 probe: five steady tones (211 ... 1129 Hz) from the onset plus a treble
 click (an attack); after it, the tones' phases FL against ours (the
@@ -85,7 +86,7 @@ def case(key, cents, B=16):
         print(f'{i * H:6d}: phase delay {Ds[j]:6.0f} (fits {sc[j] / tot:.2f}; none {sc[1500] / tot:.2f})  level {lev:5.1f} dB')
 
 
-def swell(R, step=32):
+def swell(R, step=32, ours=False):
     for t0 in range(4096, 4608, step):
         name = f'e3_lbhs_{t0}_{float(R)}'; path = os.path.join(paths.SIGNALS, name + '.wav')
         n = 3 * SR; t = np.arange(n); phase = np.random.default_rng(3).uniform(0, 2 * np.pi, len(TONES))
@@ -93,8 +94,11 @@ def swell(R, step=32):
         if not os.path.exists(path):
             k = t - t0; x = np.where(k >= 0, xs * 10 ** (np.minimum(0.0, -60 + R * k / 128) / 20), 0.0)
             wavio.write_float(path, x.astype(np.float32), SR)
-        y = F.render(f'lbhs_{name}_10000', name + '.wav', [F.params(108, '<i', C.MODES['e3gen'][0]), F.params(100, '<i', 0),
-                     F.params(104, '<i', 10000)], beats=24)[:, 0].astype(float) / C.GAIN
+        if ours:   # the same analysis on Chan Sampler's render (the stretcher alone)
+            y = C.ours(name + '.wav', f'lbhs_{name}_10000', 0, 'e3gen', 1 / C.mul(10000), force=True).astype(float)
+        else:
+            y = F.render(f'lbhs_{name}_10000', name + '.wav', [F.params(108, '<i', C.MODES['e3gen'][0]), F.params(100, '<i', 0),
+                         F.params(104, '<i', 10000)], beats=24)[:, 0].astype(float) / C.GAIN
         segs = []
         for tout in range(2 * t0, 2 * (t0 + int(60 / R * 128) + 5000), 256):
             if np.sqrt(np.mean(y[tout:tout + 1024] ** 2)) < 1.3e-4:
@@ -113,7 +117,7 @@ def swell(R, step=32):
 if __name__ == '__main__':
     if sys.argv[1] == 'probe':
         probe(int(sys.argv[2]), int(sys.argv[3]) if len(sys.argv) > 3 else 0)
-    elif sys.argv[1] == 'swell':
-        swell(float(sys.argv[2]))
+    elif sys.argv[1] in ('swell', 'swellours'):
+        swell(float(sys.argv[2]), ours=sys.argv[1] == 'swellours')
     else:
         case(sys.argv[2], int(sys.argv[3]))
