@@ -9,6 +9,8 @@
 <p align="center">
   <a href="https://github.com/MaymiPR/ChanSampler/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/MaymiPR/ChanSampler?color=4df1b1&label=release"></a>
   <a href="https://github.com/MaymiPR/ChanSampler/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/MaymiPR/ChanSampler/actions/workflows/ci.yml/badge.svg"></a>
+  <img alt="Formats" src="https://img.shields.io/badge/formats-VST3%20%7C%20CLAP%20%7C%20AU%20%7C%20Standalone-2d3133">
+  <img alt="Platforms" src="https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-2d3133">
   <a href="LICENSE"><img alt="License: AGPL v3" src="https://img.shields.io/badge/license-AGPL--3.0-ffa830"></a>
 </p>
 
