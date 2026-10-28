@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+Fixes
+- The echo panel's switches read "Ping pong" and "Fat mode" in full again
+  (their last letter was cut off), ending just before their lights as in FL.
+
 ## 1.3.0
 
 Look

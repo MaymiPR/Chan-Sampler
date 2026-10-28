@@ -964,8 +964,12 @@ void ChanSamplerEditor::buildFuncSheet()
     text (echoPanel, "Echoes", 8, 84, 48, 23, 11.7f);
     digi (echoPanel, pid::echoCount, 48, 85, 32, 23, false);
     // FL stacks the two switches on the right.
-    led (echoPanel, pid::echoPing, "Ping pong", 158, 76, 71, 18).getProperties().set ("textFirst", true);   // FL: the lights at the right (measured)
-    led (echoPanel, pid::echoFat,  "Fat mode",  163, 96, 66, 18).getProperties().set ("textFirst", true);
+    for (auto* sw : { &led (echoPanel, pid::echoPing, "Ping pong", 153, 76, 76, 18),    // FL: the lights at the right (measured),
+                      &led (echoPanel, pid::echoFat,  "Fat mode",  158, 96, 71, 18) })  // the labels ending 4 px before them
+    {
+        sw->getProperties().set ("textFirst", true);
+        sw->getProperties().set ("ledRight", true);
+    }
 
     own (std::make_unique<RootNotePanel> (samplerProcessor.apvts, samplerProcessor.keyboardState, samplerProcessor.history), sheet, { 7, 245, 546, 137 });
 }

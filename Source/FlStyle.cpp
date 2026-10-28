@@ -805,7 +805,10 @@ void LookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton& b, bo
     const bool textFirst = (bool) b.getProperties()["textFirst"];
     const auto f = font (11.1f);
     const auto textW = juce::GlyphArrangement::getStringWidth (f, b.getButtonText());
-    const auto ledX = textFirst ? juce::jmin (bounds.getRight() - ledSize - 2.0f, bounds.getX() + textW + 4.0f) : bounds.getX() + 4.0f;
+    // "ledRight": the light at the right edge whatever the label's width
+    const auto ledX = ! textFirst ? bounds.getX() + 4.0f
+                    : (bool) b.getProperties()["ledRight"] ? bounds.getRight() - ledSize - 2.0f
+                    : juce::jmin (bounds.getRight() - ledSize - 2.0f, bounds.getX() + textW + 4.0f);
     const auto led = juce::Rectangle<float> (ledSize, ledSize).withPosition (ledX, std::floor (bounds.getCentreY() - ledSize * 0.5f) + 1.0f);
     drawLed (g, led, lit, b.isEnabled(), (bool) b.getProperties()["greenLed"]);
 
@@ -813,8 +816,18 @@ void LookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton& b, bo
     {
         g.setColour (b.isEnabled() ? colour::text : colour::dim);
         g.setFont (f);
-        const auto textArea = textFirst ? bounds.withRight (led.getX() - 4.0f) : bounds.withTrimmedLeft (ledSize + 7.0f);
-        g.drawText (b.getButtonText(), textArea, juce::Justification::centredLeft, false);
+        if (textFirst)
+        {
+            // FL ends the label 4 px before the light and never cuts it short
+            // (Ping pong / Fat mode in the echo panel are wider than their space)
+            const auto right = led.getX() - 4.0f;
+            const auto textArea = bounds.withRight (right).withLeft (juce::jmin (bounds.getX(), right - textW - 2.0f));
+            g.drawText (b.getButtonText(), textArea, juce::Justification::centredRight, false);
+        }
+        else
+        {
+            g.drawText (b.getButtonText(), bounds.withTrimmedLeft (ledSize + 7.0f), juce::Justification::centredLeft, false);
+        }
     }
 }
 
