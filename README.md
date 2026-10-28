@@ -25,6 +25,13 @@ load with their sample.
 > Chan Sampler is an independent project. Image-Line does not make, endorse or
 > support it, and it contains no Image-Line code, samples or presets.
 
+## How it was made
+
+Chan Sampler was created entirely with Claude (Anthropic's AI) and
+[REA](https://github.com/morluto/rea): the code, the measurements behind it and
+this documentation. FL Studio was the reference throughout, as described in
+[docs/EVIDENCE.md](docs/EVIDENCE.md).
+
 ## Features
 
 - **FL's playback:** start offset, loop points, ping-pong loop and FL's six
@@ -160,13 +167,6 @@ cmake --build build --target ChanSampler_VST3 ChanSampler_CLAP ChanSampler_Stand
 
 [docs/BUILDING.md](docs/BUILDING.md) has the Windows and macOS commands and the
 Linux packages to install first.
-
-## How it was made
-
-Chan Sampler was created entirely with Claude (Anthropic's AI) and
-[REA](https://github.com/morluto/rea): the code, the measurements behind it and
-this documentation. FL Studio was the reference throughout, as described in
-[docs/EVIDENCE.md](docs/EVIDENCE.md).
 
 ## Contributing
 
