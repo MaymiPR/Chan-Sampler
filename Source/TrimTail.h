@@ -1075,19 +1075,17 @@ namespace trimtail
 // filter as a model, a one-pole high-pass whose coefficient rises exponentially
 // over a window of the last frames, so a held value is drawn to 0 at the end
 // while the sound before the window passes unchanged, then a short raised-
-// cosine closing fade. On a segment shorter than the window the window is the
-// whole segment. Fitted to FL's click responses (nulltest/probes/tail_measure.py
-// and tail_short.py: the 200-frame matrix of long trims, -49 dB, and the
-// 40-frame one of LENGTH 0, -48 dB, with the same parameters; the structure
-// came from reading FL's engine, docs/BINARY-NOTES.md). The values are ours,
-// fitted at 44.1 kHz. The measured tables above stay where they apply: the
-// model is within -49 dB of them, they null to the 16-bit floor.
+// cosine closing fade. The window is the whole segment as FL keeps it (its
+// last trimmed frame included). Fitted to FL's click responses on a 100-frame
+// segment (nulltest/probes/tail_short.py 100: -72.5 dB) and LENGTH 0's
+// (-53.5 dB; that one keeps its own table); the structure came from reading
+// FL's engine (docs/BINARY-NOTES.md). The values are ours, at 44.1 kHz.
 namespace trimtail
 {
-    constexpr int window = 178;          // frames
-    constexpr double sweepStart = 4.968e-5;
-    constexpr double sweepRate = 9.8238;  // over the window
-    constexpr int closing = 43;           // frames
+    constexpr int window = 178;           // frames, the longest (the long table's reach)
+    constexpr double sweepStart = 5.01e-5;
+    constexpr double sweepRate = 10.0019;  // over the window
+    constexpr int closing = 44;            // frames
 
     // Filters frames [0, end) of d in place; the window ends at end.
     inline void applyEnd (float* d, int end)

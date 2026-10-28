@@ -21,11 +21,11 @@ not backed by Evidence.
 
 ## Follow-ups (measured against FL)
 
-- **Short trims:** FL's lengthening rule, the end filter at the sample's end, and a fitted model of the end filter on segments under 200 frames (16 in-FL cases from −2…−27 dB to −28…−63 dB; the 137 earlier cases unchanged).
+- **Short trims:** FL's lengthening rule, the end filter at the sample's end, and a fitted model of the end filter on segments under 200 frames (16 in-FL cases from −2…−27 dB to −47…−63 dB, after measuring FL's 100-frame click matrix; the 137 earlier cases unchanged).
 - **Arpeggiator:** TIME refitted to 55 measured raws in FL's form, all exact; GATE on whole ticks (6 new in-FL cases, from +1…+3 dB to −45…−67 dB).
 - **LPx2:** compensation in FL's form, fitted to our measured table (worst in-FL case −44 → −47 dB).
-- **e3 swells:** a per-peak model predicts 52 of 80 of FL's swell restarts offline, against 48 at best before; not in the plugin yet (nulltest/E3_NOTES.md, round 12).
-- Still to do: the end-of-sample fade convention, Crossfade's closed form, a measured matrix for short trims, the reversed short trims.
+- **e3 swells:** a per-peak model predicts 67 of 80 of FL's swell restarts offline (with a sharper window for the restart point than for the analysis), against 48 at best before; not in the plugin yet (nulltest/E3_NOTES.md, round 12).
+- Dropped: Crossfade's closed form (our measured curves already null, −77…−82 dB) and the end-of-sample fade (it nulls, −75 dB). Still to do: e3 in the plugin, the reversed short trims, the shortest trims (−48 dB).
 
 ## Summary
 

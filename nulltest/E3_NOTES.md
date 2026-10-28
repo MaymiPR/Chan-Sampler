@@ -384,10 +384,17 @@ centroid threshold fitted:
   the restart point; where it is wrong it is one frame late (+527 / +528) or
   ~200 late, so the decision rule is still missing a detail (the whole-frame
   rules, how FL splits the spectrum into peaks).
+- The restart point is the loudest sample within a hop of the frame's
+  centre weighted by a much sharper window than the analysis Hann (Hann^3 or
+  Blackman^2 fit best; with plain Hann a rising swell's later, louder samples
+  win): 67 / 80 first restarts to the sample with the centroid threshold
+  refitted (0.3 of half a frame). The rest are a frame early or late.
 - The flux threshold hardly matters on these swells (0.5 ... 1.0 the same);
   the centroid threshold does.
-- Not ported to the plugin: at 65% it would not yet beat our attack rule on
-  real material. The model is kept outside the repository (it follows
+- Not ported to the plugin yet: ours has no restart on swells at all (the
+  low band restarts only after a detected attack, phases relative to the
+  attack's lock), so a port needs its own detector on FL's 512 grid and a
+  phase reset of its own. The model is kept outside the repository (it follows
   thresholds read from the binary); a plugin version would fit its own.
 
 ## Open
@@ -399,5 +406,5 @@ centroid threshold fitted:
 - FL's onset on a slow swell (the "ah": ~320 against our 603), which sets
   both its restart and (round 8) its timing; and its second restart in the
   peak-timed part of the grid (round 11). Round 12's per-peak model gets
-  52 / 80 swells; the rest are a frame late.
+  67 / 80 swells.
 - The transient gain rule.

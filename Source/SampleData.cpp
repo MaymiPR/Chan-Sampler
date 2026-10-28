@@ -535,8 +535,12 @@ SampleData::Ptr buildProcessedSample (const RawSample& raw, const PrecomputeSett
         if (span > 0)
             span += shortest;
     }
+    // FL keeps the segment's last frame too; forwards it is filtered to about
+    // 0, so long segments leave it out (their measured table ends before it),
+    // short ones keep it, as their end filter's window covers it (TrimTail.h).
+    const bool keepLast = s.reverse || (span > 0 && span + 1 < trimtail::size);
     const int len = ! lengthCut ? remaining
-                                : juce::jlimit (juce::jmin (minLength, remaining), remaining, span + (s.reverse ? 1 : 0));
+                                : juce::jlimit (juce::jmin (minLength, remaining), remaining, span + (keepLast ? 1 : 0));
     // FL's shortest segment (LENGTH at its minimum) carries two silent frames
     // after its 40 (measured: forwards the end holds silence, reversed it
     // starts two frames late).
