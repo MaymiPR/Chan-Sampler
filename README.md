@@ -12,7 +12,7 @@
   <a href="LICENSE"><img alt="License: AGPL v3" src="https://img.shields.io/badge/license-AGPL--3.0-ffa830"></a>
 </p>
 
-**Chan Sampler** is a free, open-source recreation of FL Studio 2026's Channel
+**Chan Sampler** is a free, open-source recreation of FL Studio 26.1.7's Channel
 Sampler. It runs as a VST3, CLAP, AU or standalone app on Windows, macOS and
 Linux.
 

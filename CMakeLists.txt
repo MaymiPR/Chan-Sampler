@@ -106,7 +106,7 @@ option(CHANSAMPLER_CLAP "Build the CLAP plugin" ON)
 if(CHANSAMPLER_CLAP)
     FetchContent_Declare(clap_juce_extensions
         GIT_REPOSITORY https://github.com/free-audio/clap-juce-extensions.git
-        GIT_TAG 7adee3a1bd4684d4caa5601100e364abccff4b4d   # main, 2026-10
+        GIT_TAG 7adee3a1bd4684d4caa5601100e364abccff4b4d   # main
         GIT_SUBMODULES_RECURSE ON)
     FetchContent_MakeAvailable(clap_juce_extensions)
     clap_juce_extensions_plugin(TARGET ChanSampler

@@ -7,7 +7,7 @@
 // click has moved the Windows focus into the plugin's own window (Windows or
 // FL's panel does that, not JUCE), FL sends the keys there instead and no
 // longer acts on any the plugin declines: after touching a knob the space bar
-// stopped playing (logged in FL 2026: the focus on JUCE's window, space
+// stopped playing (logged in FL 26.1.7: the focus on JUCE's window, space
 // offered and declined, then reposted to FL's panel, which ignores it). After
 // a click the editor hands the focus to the host's window for the plugin (the
 // one with the title), as a click on FL's own Sampler leaves that window

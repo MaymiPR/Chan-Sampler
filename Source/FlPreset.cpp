@@ -266,7 +266,7 @@ flpreset::Result flpreset::import (ChanSamplerProcessor& processor, const juce::
             const auto m = modes.find (e->i32 (108));
             set (pid::stretchMode, (float) (int) (m == modes.end() ? StretchMode::resample : m->second));
         }
-        if (e->has (152))   // FL 2026: precomputed start / length and the start offset as doubles
+        if (e->has (152))   // FL 26.1.7: precomputed start / length and the start offset as doubles
         {
             set (pid::pcStart,  (float) e->f64 (128, 0.0));
             set (pid::pcLength, (float) e->f64 (136, 1.0));

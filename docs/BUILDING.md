@@ -6,7 +6,7 @@ are downloaded automatically when you configure.
 ## Requirements
 
 - CMake 3.22 or later, and Git
-- Windows: Visual Studio 2022 or 2026 with "Desktop development with C++"
+- Windows: Visual Studio 17 or 18 with "Desktop development with C++"
 - macOS: Xcode
 - Linux: GCC or Clang, plus these packages (Ubuntu / Debian names):
 
@@ -19,11 +19,12 @@ are downloaded automatically when you configure.
 ## Windows (VST3, CLAP, Standalone)
 
 ```bash
-cmake -B build -G "Visual Studio 18 2026" -A x64
+cmake -B build -A x64
 cmake --build build --config Release --target ChanSampler_VST3 ChanSampler_CLAP ChanSampler_Standalone
 ```
 
-With Visual Studio 2022, use `-G "Visual Studio 17 2022"`.
+CMake picks the newest Visual Studio installed. To choose one, add its generator,
+for example `-G "Visual Studio 17 2022"`.
 
 Keep the build folder's path short (for example `C:\src\ChanSampler\build`).
 JUCE's checkout holds deeply nested files, and under a long path Git stops

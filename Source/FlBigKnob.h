@@ -1,6 +1,6 @@
 #pragma once
 
-// FL Studio 2026's filter knob (66 px), its shading measured from the screen
+// FL Studio 26.1.7's filter knob (66 px), its shading measured from the screen
 // (docs/EVIDENCE.md "Skin"): luma in polar coordinates, every 0.5 px from the
 // centre out to 30 px and every 5 degrees from the top clockwise (-180..175),
 // with the value dot painted out. The renderer interpolates it bilinearly

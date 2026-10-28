@@ -1,4 +1,4 @@
-"""In-FL sweep of SMP START / LENGTH (FL 2026: doubles at params+128 / +136)
+"""In-FL sweep of SMP START / LENGTH (FL 26.1.7: doubles at params+128 / +136)
 with and without Reverse (flag 2 in event 70)."""
 from lib import flrender as F
 

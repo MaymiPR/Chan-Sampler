@@ -42,7 +42,7 @@ body:
     id: host
     attributes:
       label: DAW and version
-      placeholder: "FL Studio 2026, Ableton Live 12.1, Logic Pro 11..."
+      placeholder: "FL Studio 26.1.7, Ableton Live 12.1, Logic Pro 11..."
     validations:
       required: true
   - type: input

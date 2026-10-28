@@ -7,8 +7,21 @@ DATA = os.path.join(ROOT, 'data')         # saved measurements, FL project data
 RENDER_TOOL = os.path.join(ROOT, '..', 'build', 'ChanSamplerRender_artefacts', 'Release',
                            'ChanSamplerRender' + ('.exe' if sys.platform == 'win32' else ''))
 
-# FL Studio 2026: set FL_STUDIO_DIR when it is installed elsewhere.
-FL_DIR = os.environ.get('FL_STUDIO_DIR', r'C:\Program Files\Image-Line\FL Studio 2026')
+
+def _find_fl():
+    """FL Studio's folder: FL_STUDIO_DIR when set, else the newest FL Studio
+    folder holding FL64.exe in Program Files / Image-Line."""
+    if os.environ.get('FL_STUDIO_DIR'):
+        return os.environ['FL_STUDIO_DIR']
+    base = r'C:\Program Files\Image-Line'
+    exes = [os.path.join(base, d, 'FL64.exe') for d in (os.listdir(base) if os.path.isdir(base) else [])
+            if d.startswith('FL Studio')]
+    exes = [e for e in exes if os.path.exists(e)]
+    return os.path.dirname(max(exes, key=os.path.getmtime)) if exes else os.path.join(base, 'FL Studio')
+
+
+# FL Studio 26.1.7 (the version measured): set FL_STUDIO_DIR when it is installed elsewhere.
+FL_DIR = _find_fl()
 FL_EXE = os.path.join(FL_DIR, 'FL64.exe')
 FL_PATCHES = os.path.join(FL_DIR, 'Data', 'Patches')   # FL's own samples (read, never copied here)
 

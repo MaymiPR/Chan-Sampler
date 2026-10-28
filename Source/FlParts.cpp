@@ -328,7 +328,7 @@ void RootKeyboard::paint (juce::Graphics& g)
 {
     const int root = (int) apvts.getRawParameterValue (pid::rootNote)->load();
     const auto w = (float) getWidth();
-    // FL 2026's keyboard, pixel by pixel: a flat label strip, a rule, white
+    // FL 26.1.7's keyboard, pixel by pixel: a flat label strip, a rule, white
     // keys shading lighter downwards (no borders between them; C keys and the
     // root are flat), black keys with a dark outline, a lit left edge, a
     // front face and a lip, and a shadow row under them.
@@ -717,7 +717,7 @@ void ParamMenu::typeIn()
 namespace
 {
     // How far FL's controls drag for their whole range, in pixels (measured
-    // in FL 2026 with Copy value before and after a 30 px drag, and pixel by
+    // in FL 26.1.7 with Copy value before and after a 30 px drag, and pixel by
     // pixel on PITCH and the echo's PITCH). Most of FL's knobs take 256 px
     // (the envelopes' AMT and the velocity Mid slider measured so too).
     double flDragPixels (const juce::String& id)
@@ -763,7 +763,7 @@ ParamKnob::ParamKnob (juce::RangedAudioParameter& p, SliderStyle style)
                 detents.push_back (p.convertTo0to1 ((float) semitone * 100.0f));
     if (p.getParameterID() == pid::stretchTime)
     {
-        // TIME (measured in FL 2026, its hint read pixel by pixel): one 16th
+        // TIME (measured in FL 26.1.7, its hint read pixel by pixel): one 16th
         // step per pixel, whole steps only, and the 20 px hold at every bar
         // (1:00:00 from 16 to 36 px, 2:00:00 at 52 px, 3:00:00 at 88 px).
         snapSteps = range.end * 4.0;
