@@ -39,6 +39,7 @@ not backed by Evidence.
 | Arpeggiator TIME / GATE / slide | Changes: TIME is an exact formula; GATE ends on whole ticks; slide glides per tick |
 | Channel filters and LPx2 compensation | Confirms the measured target; compensation is a closed form riding the voice gain ramp |
 | e3 onsets and band split | Changes: onsets are per spectral peak inside the vocoder; the split is inside the FFT |
+| Which engine each stretch mode uses | Changes: slice stretch runs e3's engine (ours: WSOLA); e2 transient is a separate "classic" engine; the mono / speech modes mark periods on the waveform |
 
 ## Declicking and the end of the sample
 
@@ -109,6 +110,37 @@ not backed by Evidence.
 - **Inferred (the open swell problem):** a steady swell keeps its energy late in the frame and waits in "onset coming". It restarts once its centroid drifts to the centre while the flux is still high enough. So the delay after a swell's start depends on how fast it rises, and very slow swells never restart. This fits our measured "fixed time per rate". Next: rebuild our e3 onset trigger as this per-peak flux + centroid state machine, then measure it against the swell renders.
 - **Unverified:** the stricter threshold set used by some cores, the analysis window shape, which channel feeds detection, who calls the vocoder's external onset setter, and the swell consequences above.
 - e3 Evidence: ev_0235cd2136c2e6186a8ddd3feedde3e08e8cb962be47aa265bbec646f32f41a0, ev_6a94a62589b247c1e302c9b031121b87e99056529d8fadff02277feec3b4a4e3, ev_2473d9ac92f3e6120a9a5289d12cd88ba6d542a9c7700c73f0d50f89fba8380a, ev_c3bcb9cdd4e5a6ba1bef555577afdc1c724cf264738bcf203e51ec3bc15f2ac3, ev_2bb4d70eb08eccb0b448520a3d6d8f267175f0402097c5d6241b43382a9e78b5, ev_c9bc42874e2d086df388b742e6638739e7561780f3911268a24fcf6fbbb4239f, ev_a7a5449c40cdf17a24db0b5e24af37ac96927283457a01db49dd1e99237a5235, ev_90ddce62f4b8d76a5dfa13332d0a6b8263b4c11d18ae3f5305eed3f93e67ab63, ev_922386c2c80bff6016310a290c88596708ad222d8ed6c3a49c98f916f3b9c059, ev_d9ca595c97f300d64f32e1d263d1f7ef3c98b752b6989aba3b289f39bc6d18d6, ev_a7656eec32609053e3eb6785deae404175087b437065ef7f3236316f26841b1d, ev_c6e8cb132a5b10fc2316df17540effd7a92ee89421e2d9da826ec8ade85d201e, ev_e745a6010e1a0eef98c992ba7091da6bf8ae8070d52b1d86d3b0072dd1ee07e1, ev_95352cbd62a01fb6e3ed9ad2ad12bbb566e8f65f4c2577c183b59388177a0e67, ev_99ba2a016701ad77a07c55b39ed5e73c030b16430841e9ffb3055a34b109e883, ev_06bc5d1bddeb66c70e782ab900d87333a764f7fe76b697a69996634f7bf32230, ev_e27b34192a6a059a3b40edc322b4367c66527a725bd32a1ab816da44199d7278, ev_618612e68c506bf3ce69c2dc2a0b39567299d60552b152f960cda1da3ed6c872, ev_237214afb4b537efccb9f29ff4840a280f30231cf20a9c99121d863b2c9d6843, ev_8b20dbd82a5140a1a6a210e7b7e2b60edc0a4c0a4ce1d094bda91ca8b18580d8, ev_83b2121e5fa974c20864238f0ece4e3741d7fe4c83f836d0a2ebd198af550e24, ev_961d19a29c48b5c2d7dce53ae4813073ce3a0f7da8c92e41c4337858d1e71a71, ev_977dd8922fecf20fe385f77a68e05cfe5a27fbec6298429b0320b1155d631c27, ev_0540f5aee57149798356c1214aab3f5601ce58d8f3b1cb613803d86f796117d9, ev_e5cf69ac7a3e94d6172e3b0aa605730e3d044c466e6c59008131b719902b0dfb, ev_7adbb2e380437d3d16f990eb5edf705cc7db9f5b2a1bdaa047b8b51d7491186a, ev_26f71e919c974f0df5df8d9841b2e38aea626502657381a5d1944d88b1fed8d7.
+
+## Stretch modes: which engine each uses
+
+Read in FL's engine (where it creates a stretcher) and in elastique (what each entry point builds). Evidence bundles: `flengine_evidence_round2.json`, `elastique_evidence_round2.json`.
+
+- **Observed, the selector:** FL loads two elastique entry points, a version-2 one and a version-3 one. It picks between them by its own mode number: the four e2 modes go to version 2, every other mode to version 3, each with an engine mode from a fixed table. Evidence: ev_2f91257500c69ba8f3df7f18df50c7c33ef0e0770e79dde208e309bb38b9cc6e, ev_e61b8889ae01f6e6daaa4af537bfcdf0391aba266c5e2ba69ada506d7d36c4d6, ev_bb69887024d01fb663ca9c95962b3c87f6d179025ad5bb15ec1e194dcac77388.
+- **Observed, Auto:** Auto becomes e3 generic, or slice stretch when the sample has slice markers. This **confirms** "Auto is e3 generic" (−300 dB, docs/EVIDENCE.md). Evidence: ev_3bb8e36c737615aa237da704af60853b8cea19d8e297d2fa8400ec12a10738fd, ev_c8e1b576025d9493e3ad901a02eb938a2fe51fee00c96ce60434d4325f92c08d.
+- **Observed, version 3's engines:** the Pro core (vocoder, grains and the band split of the e3 section above), an "efficient" core, an "efficient mobile" core, and a soloist engine for mono and speech. Evidence: ev_5cd7af80344a784c20ac032779280ba9b4dd26ed390487c6c87d0ea213ebf136, ev_c9bc42874e2d086df388b742e6638739e7561780f3911268a24fcf6fbbb4239f, ev_a7a5449c40cdf17a24db0b5e24af37ac96927283457a01db49dd1e99237a5235, ev_c3bcb9cdd4e5a6ba1bef555577afdc1c724cf264738bcf203e51ec3bc15f2ac3, ev_e90fc1e175f2bba0ce8fe3432f7df8bf34f059374153b9021d21ec3c33b2b0c3, ev_a97c9f9e907b18500fe4d7538fdabbb60fac4f5f8905ce596436d2e37457c131.
+- **Observed, version 2's engines:** a Pro core, a "classic" engine and a soloist engine. Evidence: ev_b6033c29c67e78058c16923c23dfc370f26f58151f792ad7d0a0bc60e66b0a6b, ev_784d80d4cb864ea17088560490ee5e7541c45ea1b8de26099bdc7083fdf43664, ev_fdbe779fc16a5ce9540bb84708c9c4cb12c03735e95ed3552ba5ccbad8949aae.
+- **The map** (observed through the table, unless marked):
+
+  | FL mode | Engine | Ours |
+  |---|---|---|
+  | e3 generic, Auto | v3 Pro core | vocoder + grains (matches) |
+  | e3 mono | v3 soloist, mono | grains (matches) |
+  | Slice stretch | v3 Pro core, the e3 generic engine | WSOLA (**differs**) |
+  | e2 generic | v2 Pro core | vocoder + e3's grains (matches: FL's high band is pieces of the source) |
+  | e2 transient | v2 classic engine | vocoder (FL's high band is spectral, as ours) |
+  | e2 mono / e2 speech | v2 soloist | grains (matches) |
+  | Stretch / Stretch Pro | *inferred:* v3 efficient core / v3 Pro core | vocoder / vocoder + formants |
+
+  Stretch and Stretch Pro are stored as values outside the table, so their route into it was not read (**unverified**). The inference rests on round 13's noise probe: FL's Stretch is spectral over the whole band, and FL's Stretch Pro has e3's split and grains.
+- **Observed, the soloist engine (v3) for mono and speech:** it keeps a list of pitch marks, an analysis that places them, and a PSOLA synthesis. Mono and speech differ in how the analysis is set up. Evidence: ev_8e5f3fafc9f6dd07e9337ed2fb0175c34409db0ab996fdb5b0dc843ca296005c, ev_6ac417e3fbd7dbda2035b54be1a00d0820d052c3b2564be0ff9b72abe75d65c9, ev_fb49d63d03f0dfa0a682bfea6e8e38b66379681aabe3ca6ef1484e3319d5f76f, ev_f5c6d68907fcf06d9f1b3e557f7ff523b768f84ba6b0a9f8ffd26e731ed02162.
+  - **Mono:** a running pitch tracker gives the period, and the analysis window follows it, two periods long. Each next mark is predicted from a cross-correlation of the current window with the one a period on. It is then moved onto the loudest sample near the prediction, but only a few samples. With no pitch, a fixed fallback window is used. A per-block onset measure from two filtered energies flags transients on the marks. Evidence: ev_40ea1b9112788e2eda7396eba887d94840e3caae29776a6a4718671b7556647e, ev_96b898493b212c669534fc15607a02bd5d90d782879398d11a99d94242fd117e.
+  - **Speech:** no pitch tracker, a fixed shorter frame, and marks from the correlation alone. This fits the measured long, even splices of e2 speech; e2 speech itself runs on version 2's soloist, which was not read.
+  - **SolPitchAn:** the export FL also loads builds the same pitch-mark list and a separate soloist pitch analysis (unread). Evidence: ev_6d8a81bb80e60121c3d666b1cacc5984b2b86e96a77c37234ec5645dd038377f, ev_114cad6fa5abebf42d732b620e83598d469d155baf13bb87859fd9e209898ce7.
+- **What this means for ours (all to be measured first):**
+  - Slice stretch could run our e3 generic stretcher per slice instead of WSOLA.
+  - The mono modes' grains could sit on marks locked to the waveform (correlation, then the nearby peak) instead of ideal positions.
+  - Stretch's spectral-only behaviour is already ours.
+- **Unverified:** the pitch tracker's method, version 2's soloist and classic engines, how FL's Stretch / Stretch Pro values reach the table, and the efficient core's internals.
 
 ## Arpeggiator scheduler Evidence
 
