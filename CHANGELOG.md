@@ -8,6 +8,9 @@ Sound
   in FL, not 40), and a short trim at the very end of the sample now fades
   like FL's instead of ringing on for 10 ms. Short segments' end filter is
   closer to FL's (-28 to -40 dB in FL, from -2 to -27 dB).
+- Arpeggiator: TIME's step lengths now match FL's at every setting (13 TIME
+  values were a tick out), and GATE ends on whole ticks as in FL (a 7-tick
+  step at 50% gate holds 3 ticks).
 
 ## 1.3.1
 

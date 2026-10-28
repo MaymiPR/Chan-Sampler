@@ -45,3 +45,13 @@ for name, notes, extra, ours in (
     c = arp(name, 1, notes=notes)
     c["fl"] += HOLD + extra; c["ours"].update(arpTime=1.0, **ours)
     CASES.append(c)
+
+# TIME where FL's step differs from the earlier fit by a tick (raw 501: 3 ticks,
+# 696: 7, 1021: 24; probes/arp_period.py), and GATE on whole ticks: FL ends the
+# gate a whole number of ticks after the step, at least one (7 ticks x 50% =
+# 3, 5 x 25% = 1, 3 x 8% = 1; docs/BINARY-NOTES.md).
+for raw, g in ((501, 48), (696, 48), (1021, 48), (696, 24), (614, 12), (501, 4)):
+    c = arp(f"a_t{raw}_g{g}", 1)
+    c["fl"] += [F.params(52, '<i', raw), F.params(56, '<i', g)]
+    c["ours"].update(arpTime=(raw - 450) / 997, arpGate=g / 48)
+    CASES.append(c)

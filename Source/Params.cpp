@@ -153,13 +153,15 @@ namespace
     }
 
     // Arpeggio time (measured in FL): position = (raw - 450) / 997, raw 1447 is
-    // Hold. FL plays a whole number of ticks (24 per step):
-    // round (3.88852 * 25^p - 1.08184) with p from the integer raw value, which
-    // reproduces all 77 measured raw values (nulltest/data/arp_ticks_dense.txt).
+    // Hold. FL plays a whole number of ticks (24 per step): an exponential of
+    // the integer raw value rounded to half ticks, then halved downwards (the
+    // form read in FL's engine, docs/BINARY-NOTES.md; the two values fitted to
+    // the 55 measured raw values, nulltest/data/arp_ticks_dense.txt and the 13
+    // where the earlier fit was a tick out, probes/arp_period.py).
     double arpTicksForRaw (double raw)
     {
-        const auto p = (raw - 450.0) / 997.0;
-        return juce::jmax (1.0, std::round (3.88852 * std::pow (25.0, p) - 1.08184));
+        const auto halfTicks = std::nearbyint (1.84558 * (std::pow (24.99798, raw / 1000.0) - 1.0));
+        return juce::jmax (1.0, std::floor (halfTicks / 2.0));
     }
     double arpRawFromKnob (float knob) { return std::round (450.0 + 997.0 * (double) juce::jlimit (0.0f, 1.0f, knob)); }
 }

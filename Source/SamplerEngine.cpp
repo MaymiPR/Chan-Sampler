@@ -601,8 +601,12 @@ void SamplerEngine::advanceArp (int64_t until, const EngineParams& p)
             NoteMods offMods;
             offMods.arp = true;
             // The gate ends on the same absolute grid as the steps, so a full
-            // gate ends exactly where the next step starts.
-            const auto offTime = arpStart + (int64_t) std::llround (((double) arpSteps + juce::jlimit (0.05, 1.0, (double) p.arpGate)) * step);
+            // gate ends exactly where the next step starts, and on a whole
+            // tick: GATE of the step's ticks rounded down, at least one
+            // (nulltest/cases/arp_cases.py a_t*; docs/BINARY-NOTES.md).
+            const auto stepTicks = juce::jmax (1.0, std::round ((double) p.arpTime * 24.0));
+            const auto gateTicks = juce::jmax (1.0, std::floor (stepTicks * juce::jlimit (0.0, 1.0, (double) p.arpGate) + 1.0e-6));
+            const auto offTime = arpStart + (int64_t) std::llround (((double) arpSteps + gateTicks / stepTicks) * step);
             schedule ({ juce::jmax (arpNextStep + 1, offTime), false, note, 0.0f, offMods });
         }
 
