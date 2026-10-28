@@ -4,7 +4,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
 // Visual language modelled on FL Studio's channel settings window. Every
-// colour and size below was read pixel by pixel from FL 26.1.7's screen (default
+// colour and size below was read pixel by pixel from FL's screen (default
 // theme, 100%; see docs/EVIDENCE.md "Skin"); all drawing is our own.
 namespace fl
 {
@@ -127,7 +127,7 @@ namespace fl
         const juce::Colour ledOn      { 0xffe6653e };   // the file name when the sample is missing
     }
 
-    // The sample view (pixels sampled from FL 26.1.7's screen).
+    // The sample view (pixels sampled from FL's screen).
     namespace view
     {
         const juce::Colour frame      { 0xff202324 };   // strip above the view, around the bar
@@ -146,7 +146,7 @@ namespace fl
         const juce::Colour arrow      { 0xff6a6d6f };
     }
 
-    // The root note keyboard (pixels sampled from FL 26.1.7's screen).
+    // The root note keyboard (pixels sampled from FL's screen).
     namespace key
     {
         const juce::Colour strip       { 0xffbabec5 };   // label strip; also the flat C keys
@@ -190,7 +190,7 @@ namespace fl
     void drawSliderThumb (juce::Graphics&, juce::Rectangle<float> area, juce::Colour line, bool enabled, float hover = 0.0f);
 
     // FL eases a control's hover highlight in and out rather than switching
-    // it (measured frame by frame in FL 26.1.7): in, an exponential that is half
+    // it (measured frame by frame in FL): in, an exponential that is half
     // way after 60 ms and 90 % after 170 ms; out, a straight fade over about
     // 300 ms. A control owns one of these, tells it when the mouse enters and
     // leaves, and the drawing reads the amount through the component's
@@ -241,7 +241,7 @@ namespace fl
     // FL's switch (a round light with its label): it toggles the moment the
     // mouse goes down, its light fades in over about 180 ms and out over about
     // 235 ms, and nothing changes under the mouse (measured frame by frame in
-    // FL 26.1.7 on Use loop points and CLIP). The drawing reads the amount.
+    // FL on Use loop points and CLIP). The drawing reads the amount.
     inline constexpr float litFadeIn = 1.0f / 11.0f, litFadeOut = 1.0f / 14.0f;   // per 60 Hz frame
     class Switch : public juce::ToggleButton, private juce::Timer
     {
@@ -274,8 +274,8 @@ namespace fl
     };
 
     // FL's small arrows (drop-down fields, panel menus) turn from pointing
-    // right to pointing down under the mouse: measured frame by frame in FL
-    // 26.1.7 (the Filter list, the envelope and echo menus), the triangle rotates
+    // right to pointing down under the mouse: measured frame by frame in FL (the
+    // Filter list, the envelope and echo menus), the triangle rotates
     // rigidly a quarter turn clockwise at a steady rate, over about 160 ms in
     // and 200 ms back, with no wait. While its list or menu is open it stays
     // turned (and lit), whatever the mouse does; once the menu closes it turns
@@ -441,7 +441,7 @@ namespace fl
     // The component property that marks a menu's target as such a context menu.
     inline constexpr const char* contextMenuProperty = "flContextMenu";
 
-    // FL's message dialog (measured from FL 26.1.7's dialogs): a title bar, the
+    // FL's message dialog (measured from FL's dialogs): a title bar, the
     // message on a panel with a large grey sign, OK below. Shown over the
     // plugin window that holds owner; closes with OK, the cross, Return or Esc.
     void showDialog (juce::Component& owner, const juce::String& title, const juce::String& message, bool warning = false);

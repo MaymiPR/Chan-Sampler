@@ -37,7 +37,7 @@ validated at each release.
 
 `nulltest/` renders the same notes through FL's Sampler and through Chan
 Sampler inside FL, and subtracts the two. Its [README](nulltest/README.md)
-explains how to run them; they need FL Studio 26.1.7 (closed while rendering),
+explains how to run them; they need FL Studio (closed while rendering),
 Python 3 and numpy. The time-stretch modes can't null (FL's engine is
 proprietary), so `nulltest/stretch/` compares their behaviour instead.
 

@@ -2,7 +2,7 @@
 ping pong / fat mode / Mod X-Y, velocity and key tracking, mono / porta /
 slide, max polyphony, root note and fine tune.
 
-FL 26.1.7 storage (found by saving from FL's GUI and comparing the files):
+FL storage (found by saving from FL's GUI and comparing the files):
 - loop points: event 251 (43 bytes, only present once set): int count (2),
   int start, 0, int end, 0, double -1.0, int -1, byte 0, int 0x7fffffff x2, 0, 1
 - Use loop points: event 143 (sample flags) bit 8; Ping pong loop: event 20 (byte)

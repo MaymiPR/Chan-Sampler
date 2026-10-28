@@ -107,7 +107,7 @@ namespace
     // click moves the Windows focus into the plugin's own window (Windows or
     // FL's panel does it, not JUCE); FL then sends the keys there and no longer
     // acts on those the plugin leaves, so after touching a knob the space bar
-    // did not play or stop (logged in FL 26.1.7, see HostFocus.h). After a click
+    // did not play or stop (logged in FL, see HostFocus.h). After a click
     // this hands the focus to FL's window for the plugin, as a click on FL's own
     // Sampler leaves it, unless a value box is being typed in: FL then offers
     // every key to the view (cmake/PatchJuceVst3Keys.cmake), the editor takes
@@ -553,7 +553,7 @@ void ChanSamplerEditor::buildSampleSheet()
     {
         // FL switches Resample to Auto when PITCH is let go away from 0
         // (resampling cannot shift pitch on its own); the menu stays as it is
-        // while dragging (measured in FL 26.1.7).
+        // while dragging (measured in FL).
         auto& pk = static_cast<ParamKnob&> (knob (stretch, pid::pitch, 8, 26, 32));
         auto* modeParam = samplerProcessor.apvts.getParameter (pid::stretchMode);
         auto* pitchParam = samplerProcessor.apvts.getParameter (pid::pitch);
@@ -618,7 +618,7 @@ void ChanSamplerEditor::buildSampleSheet()
     }
     {
         // Under the menu FL names the method Auto uses: always "e3 generic"
-        // (it stays so with PITCH back at 0, measured in FL 26.1.7).
+        // (it stays so with PITCH back at 0, measured in FL).
         auto& autoText = text (stretch, {}, 205, 49, 60, 14, 10.0f);
         autoText.setColour (juce::Label::textColourId, fl::colour::dim);
         auto& apvts = samplerProcessor.apvts;
@@ -702,7 +702,7 @@ void ChanSamplerEditor::buildSampleSheet()
     buttonAttachments.push_back (std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (samplerProcessor.apvts, pid::pcReverbType, revType));
 
     // Sample view
-    waveform.setBounds (7, 255, 546, 134);   // FL 26.1.7's view and bar (measured)
+    waveform.setBounds (7, 255, 546, 134);   // FL's view and bar (measured)
     sheet.addAndMakeVisible (waveform);
 }
 
@@ -888,7 +888,7 @@ void ChanSamplerEditor::buildFuncSheet()
     };
     trackTabs.setSelected (1, true);   // FL opens on Key
 
-    // Group (FL 26.1.7 layout): Cut / By group numbers, shared with other Chan
+    // Group (FL layout): Cut / By group numbers, shared with other Chan
     // Sampler instances in the host (CutGroups.h), and Cut self.
     auto& groupPanel = panel (sheet, "Group", 7, 115, 69, 122);
     text (groupPanel, "Cut", 2, 29, 26, 22, 11.7f, false, juce::Justification::centredRight);
@@ -983,7 +983,7 @@ void ChanSamplerEditor::setParam (const juce::String& id, float value)
 
 void ChanSamplerEditor::showEchoPresets (juce::Component& anchor)
 {
-    // FL 26.1.7's echo presets, read with Copy value: pan = (position - 0.5) * 4,
+    // FL's echo presets, read with Copy value: pan = (position - 0.5) * 4,
     // pitch = (position - 0.5) * 2400 cents, time = position * 8 steps. Mod X / Y
     // stay centred in all of them.
     struct Echo { const char* name; float feed, pan, pitch, time; int count; bool ping, fat; };

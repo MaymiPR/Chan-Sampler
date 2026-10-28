@@ -32,7 +32,7 @@ juce::Font font (float em, bool bold)
 // Per-pixel rendering of FL's shaded controls. FL's knobs and switches are
 // bitmaps with bevels and glows; a path renderer cannot reproduce their pixel
 // values, so they are rendered into an image at the screen's pixel scale and
-// drawn as one. The formulas below were fitted to FL 26.1.7's pixels (mean
+// drawn as one. The formulas below were fitted to FL's pixels (mean
 // error about 6 of 765 per pixel on the 22, 30, 32 and 34 px knobs).
 namespace
 {
@@ -155,7 +155,7 @@ namespace
         const Rgb panel = rgb (colour::panel), dot = rgb (dotColour);
         // Under the mouse FL's knob shows a dark collar with five lobes round
         // its cap, and the lobes turn with the value while the light on it
-        // stays (measured frame by frame in FL 26.1.7 while MOD X was dragged
+        // stays (measured frame by frame in FL while MOD X was dragged
         // through 97 degrees: the collar's outline matched the first frame's
         // turned by the dot's angle, to within 1.2 degrees modulo 72, the cap
         // and the shadow unchanged). Fitted on the hovered capture (its dot at
@@ -486,7 +486,7 @@ namespace
         return t != nullptr && (bool) t->getProperties()[contextMenuProperty];
     }
 
-    // FL menu metrics (measured from FL 26.1.7 screenshots at 100%).
+    // FL menu metrics (measured from FL screenshots at 100%).
     constexpr int menuRowH = 19, menuHeaderH = 13, knobHeaderH = 16;
     constexpr float menuEm = 10.8f, menuHeaderEm = 8.55f;
     const juce::Colour ddBg { 0xff202122 }, ddEdge { 0xff101112 }, ddHeader { 0xff333434 }, ddHeaderText { 0xff8a8c8d },
@@ -1233,7 +1233,7 @@ void SlideSwitch::paintButton (juce::Graphics& g, bool, bool)
 
 void IconButton::paintButton (juce::Graphics& g, bool highlighted, bool down)
 {
-    // FL's file buttons (measured pixel by pixel from FL 26.1.7): a 1 px dark
+    // FL's file buttons (measured pixel by pixel from FL): a 1 px dark
     // frame, a 1 px lighter inner edge, a fill darkening downwards, and thin
     // 1 px line icons at fixed positions.
     const auto b = getLocalBounds().toFloat();
@@ -1315,7 +1315,7 @@ void MenuArrow::showMenu (juce::PopupMenu& menu)
 
 namespace
 {
-    // FL's dialog colours (measured from FL 26.1.7's dialogs)
+    // FL's dialog colours (measured from FL's dialogs)
     const juce::Colour dlgBg { 0xff202324 }, dlgEdge { 0xff16191a }, dlgPanel { 0xff282c2d }, dlgPanelEdge { 0xff1d2021 },
                        dlgTitle { 0xffd4dadd }, dlgText { 0xffd0d8da }, dlgSign { 0xff98a2a8 }, dlgButtonText { 0xffabb7b7 };
     constexpr float dlgEm = 11.25f, dlgSmallEm = 10.8f;

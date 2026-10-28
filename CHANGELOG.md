@@ -9,7 +9,7 @@ Fixes
 ## 1.3.0
 
 Look
-- Every control is drawn as FL Studio 26.1.7 draws it, pixel by pixel from
+- Every control is drawn as FL Studio draws it, pixel by pixel from
   captures of its channel settings window (the layout stays as it was):
   knobs with FL's bevel, body shading, value dot and full-turn arc in FL's
   per-control colours; the filter knobs' brushed body, wide bevel and tick
@@ -91,7 +91,7 @@ Added
   plugin leaves; the focus now goes back to FL's window for the plugin after
   a click (not while a value is typed or a menu is open), so FL offers every
   key to the plugin, the plugin takes Ctrl+Z / Ctrl+Y and FL the rest.
-- Sixth pass, measured in FL 26.1.7: a wheel notch moves the value at once and
+- Sixth pass, measured in FL: a wheel notch moves the value at once and
   the knob or ball eases to it (about 36 ms, exponential); the list and menu
   arrows rotate rigidly a quarter turn (160 ms in, 200 ms back, no wait) and
   stay turned while their menu is open; the effects view's icon is refitted
@@ -319,7 +319,7 @@ sample and the window size (checked with `ChanSamplerRender compatstate`).
 From now on, parameter IDs and the plugin codes stay fixed so projects keep
 loading.
 
-Sound (all null-tested against FL Studio 26.1.7):
+Sound (all null-tested against FL Studio):
 - Filter modulation (envelopes, LFOs, Mod X / Y) matches FL, including LPx2 and
   SVF LPx2.
 - All six declicking modes match FL, including Crossfade's fades and
@@ -358,7 +358,7 @@ New:
   envelope's presets (Save as, then pick from the list).
 - Resizable window, sharp on Retina / high-DPI screens.
 
-Look (measured from FL 26.1.7's screen):
+Look (measured from FL's screen):
 - Sample view: FL's colours, grid, smooth waveform, format badge (16 / 32 with
   mono / stereo icon), file markers.
 - Spectrum view modelled on FL's (sharp in time and frequency, FL's palette).

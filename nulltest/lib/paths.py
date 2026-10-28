@@ -20,7 +20,7 @@ def _find_fl():
     return os.path.dirname(max(exes, key=os.path.getmtime)) if exes else os.path.join(base, 'FL Studio')
 
 
-# FL Studio 26.1.7 (the version measured): set FL_STUDIO_DIR when it is installed elsewhere.
+# FL Studio: set FL_STUDIO_DIR when it is installed elsewhere.
 FL_DIR = _find_fl()
 FL_EXE = os.path.join(FL_DIR, 'FL64.exe')
 FL_PATCHES = os.path.join(FL_DIR, 'Data', 'Patches')   # FL's own samples (read, never copied here)

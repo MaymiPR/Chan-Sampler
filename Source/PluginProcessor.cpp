@@ -685,7 +685,7 @@ bool ChanSamplerProcessor::loadSample (const juce::File& file)
         auto* p = apvts.getParameter (id);
         p->setValueNotifyingHost (p->convertTo0to1 (value));
     };
-    // The root note comes with the sample (measured in FL 26.1.7 by loading
+    // The root note comes with the sample (measured in FL by loading
     // files into its Sampler): the "inst" chunk's note, else the "smpl"
     // chunk's MIDI unity note when it is a note (0..127; some files hold
     // note x 256 there, which FL ignores), else C5. A restored project or

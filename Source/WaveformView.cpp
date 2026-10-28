@@ -189,7 +189,7 @@ void WaveformView::setValue (const char* id, float value)
     p->setValueNotifyingHost (p->convertTo0to1 (juce::jlimit (0.0f, 1.0f, value)));
 }
 
-// FL 26.1.7's geometry (pixels): a dark line, the 107 px view inset 1 px from
+// FL's geometry (pixels): a dark line, the 107 px view inset 1 px from
 // the left with a dark line under it and a dark column at its right, then
 // the 18 px bar; the rows below the bar show the sheet.
 juce::Rectangle<float> WaveformView::waveArea() const   { return { 1.0f, topH, (float) getWidth() - 2.0f, waveH }; }
@@ -273,7 +273,7 @@ void WaveformView::timerCallback()
     }
 }
 
-// FL 26.1.7's sample view colours live with the other tokens in FlStyle.h.
+// FL's sample view colours live with the other tokens in FlStyle.h.
 namespace flview = fl::view;
 
 juce::Colour WaveformView::waveColour() const
@@ -305,7 +305,7 @@ void WaveformView::drawLanes (juce::Graphics& g, juce::Rectangle<float> area, fl
     // through each pixel column's lowest and highest sample, in the order they
     // come: on a smooth wave that is a clean line along it, on noisy sound
     // (hi-hats) it swings between the extremes, so the wave keeps its full
-    // height (FL 26.1.7's 808 CH, 0.1 s, about 8 frames per pixel: the line's
+    // height (FL's 808 CH, 0.1 s, about 8 frames per pixel: the line's
     // span per column within 2.7 px of FL's capture). It had been a line
     // through averages, which cancelled a hat's fast swings: a 0.95 peak
     // drew a fifth of the height.
@@ -896,7 +896,7 @@ void WaveformView::showMenu()
     const bool hasFile = processor.getSampleFile().existsAsFile();
     const bool hasAudio = sample != nullptr && sample->getTotalFrames() > 0;
     juce::PopupMenu menu;
-    // FL's sample menu (FL 26.1.7), without its host-only entries (audio
+    // FL's sample menu, without its host-only entries (audio
     // editor, pitch corrector, time warper, open in a new channel).
     // FL's underlined letters choose an entry while the menu is open; Copy and
     // Paste also answer to Ctrl+C / Ctrl+V in the window (keyShortcut).
@@ -1131,7 +1131,7 @@ void WaveformView::showProperties()
 //   constant, Color map 64-frame blocks and 100 frames (so FL's Color map
 //   flickers on low notes, Multiband does not). Multiband's short blocks
 //   show a drum's click in its own colour: 707 Kick starts blue, 909 Kick
-//   blue to olive within 50 frames (FL 26.1.7 captures of short drums, 8
+//   blue to olive within 50 frames (FL captures of short drums, 8
 //   frames per pixel; the earlier 512 came from 2 s samples, where the
 //   click is under a pixel). Each pixel column reads the
 //   level at its centre (a quarter block late), interpolated between blocks.
@@ -1323,7 +1323,7 @@ void WaveformView::setColourFill (juce::Graphics& g, juce::Rectangle<float> area
 }
 
 //==============================================================================
-// FL's spectrum view, modelled on measurements of FL 26.1.7 (tone ladders, fine
+// FL's spectrum view, modelled on measurements of FL (tone ladders, fine
 // frequency sweeps, clicks, noise): black, frequency linear from 0 at the
 // bottom to half the sample rate at the top, each pixel row the loudest
 // frequency in its band. FL is sharp in both time and frequency: a click

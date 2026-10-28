@@ -12,7 +12,7 @@
   <a href="LICENSE"><img alt="License: AGPL v3" src="https://img.shields.io/badge/license-AGPL--3.0-ffa830"></a>
 </p>
 
-**Chan Sampler** is a free, open-source recreation of FL Studio 26.1.7's Channel
+**Chan Sampler** is a free, open-source recreation of FL Studio's Channel
 Sampler. It runs as a VST3, CLAP, AU or standalone app on Windows, macOS and
 Linux.
 
@@ -137,11 +137,12 @@ and Multiband in the multichannel view.
 
 ## How close is it to FL?
 
-Each feature was checked with null tests: the same notes rendered through FL's
-Sampler and through Chan Sampler inside FL, then subtracted. The precomputed
-effects, interpolation, envelopes, LFOs, filters, loops, tracking, glide, echo,
-most of the arpeggiator and the compressed formats null against FL. The sample
-view's colours, grid and spectrum were measured from FL's screen.
+Each feature was checked against FL Studio 26.1.7 with null tests: the same
+notes rendered through FL's Sampler and through Chan Sampler inside FL, then
+subtracted. The precomputed effects, interpolation, envelopes, LFOs, filters,
+loops, tracking, glide, echo, most of the arpeggiator and the compressed formats
+null against FL. The sample view's colours, grid and spectrum were measured
+from FL's screen.
 
 Known gaps:
 

@@ -407,7 +407,7 @@ namespace
 
 double trimKnobToFraction (float knob)
 {
-    // FL 26.1.7 stores Sample Start / Length as plain fractions (doubles), and
+    // FL stores Sample Start / Length as plain fractions (doubles), and
     // its rounding of fraction x frames depends on the exact double (0.05 x
     // 88200 is 4410 frames, 0.3 x 88200 rounds up to 26461). The parameter is
     // a float, so take the shortest decimal that reads back as it (0.05f is

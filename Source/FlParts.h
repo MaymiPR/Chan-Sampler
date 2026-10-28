@@ -103,7 +103,7 @@ public:
     // when the host or automation moves it.
     std::function<void()> onUserChange;
 
-    // FL's gestures (measured in FL 26.1.7): a drag moves the value by its
+    // FL's gestures (measured in FL): a drag moves the value by its
     // pixels (a quarter as fast with Ctrl; Shift changes nothing), a wheel
     // notch is worth 8 px of drag (half with Ctrl), Alt+click resets to the
     // default, a double-click does nothing. On a slider the wheel runs the
@@ -124,7 +124,7 @@ public:
     void setLocked (bool l) { locked = l; }
 
     // A wheel notch moves the value at once but the knob or ball eases to it:
-    // measured frame by frame in FL 26.1.7 (MOD X, ATT, the fine tune slider), an
+    // measured frame by frame in FL (MOD X, ATT, the fine tune slider), an
     // exponential with a time constant of about 36 ms (30 to 42 ms in four
     // runs). A drag moves it at once (measured on ATT).
     static constexpr double wheelGlideMs = 36.0;
@@ -205,7 +205,7 @@ private:
 
     fl::HoverFade hover { *this };
     bool locked = false;
-    // FL's drag detents (measured in FL 26.1.7): a two-sided control holds at its
+    // FL's drag detents (measured in FL): a two-sided control holds at its
     // centre, and PITCH at every semitone, for 20 px of drag when a drag
     // arrives there; a drag that starts on one leaves at once.
     static constexpr float detentHold = 20.0f;
@@ -230,7 +230,7 @@ public:
     void mouseDown (const juce::MouseEvent&) override;
 };
 
-// FL's root note keyboard (KeybPanel, measured from FL 26.1.7): all 128 notes on
+// FL's root note keyboard (KeybPanel, measured from FL): all 128 notes on
 // 90 px octaves behind a scroll bar; left-click plays, right-click sets the
 // root note (blue).
 class RootKeyboard : public juce::Component, private juce::Timer
