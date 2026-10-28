@@ -647,6 +647,16 @@ SampleData::Ptr buildProcessedSample (const RawSample& raw, const PrecomputeSett
             }
             else
             {
+                // Reversed, the segment keeps FL's last frame, which the table
+                // (measured forwards) ends before: it ends a frame earlier,
+                // and that last frame is filtered to about 0.
+                const int tableEnd = s.reverse && end == len ? end - 1 : end;
+                if (tableEnd != end)
+                {
+                    for (int dist = 1; dist <= tailLen; ++dist)
+                        in[dist] = d[tableEnd - dist];
+                    d[end - 1] = 0.0f;
+                }
                 for (int dist = 1; dist <= tailLen; ++dist)
                 {
                     const float* c = trimtail::coef + trimtail::start[dist - 1];
@@ -654,7 +664,7 @@ SampleData::Ptr buildProcessedSample (const RawSample& raw, const PrecomputeSett
                     float acc = 0.0f;
                     for (int k = 0; k < count; ++k)
                         acc += c[k] * in[dist + k];
-                    d[end - dist] = acc;
+                    d[tableEnd - dist] = acc;
                 }
             }
         }
