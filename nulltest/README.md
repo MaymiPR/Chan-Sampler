@@ -44,7 +44,7 @@ python -m cases.untested_cases -f                                               
 |---|---|
 | `fl_cases.py` | precomputed effects, interpolation, envelopes, declicking |
 | `fx_sweep.py` | the precomputed effects over their whole range |
-| `trim_sweep.py`, `trim_fit_cases.py` | SMP START / LENGTH, trim |
+| `trim_sweep.py`, `trim_fit_cases.py`, `trim_short_cases.py` | SMP START / LENGTH, trim (short: segments under FL's shortest) |
 | `lfo_cases.py` | LFOs and filter modulation |
 | `filter_x2_cases.py` | LPx2 and SVF LPx2 |
 | `echo_cases.py`, `arp_cases.py` | echo delay, arpeggiator |

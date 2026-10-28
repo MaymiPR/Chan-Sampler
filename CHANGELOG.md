@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+Sound
+- SMP LENGTH: a segment shorter than FL's shortest is lengthened as FL does
+  instead of held at the shortest (a 30-frame trim plays about 70 frames, as
+  in FL, not 40), and a short trim at the very end of the sample now fades
+  like FL's instead of ringing on for 10 ms. Short segments' end filter is
+  closer to FL's (-28 to -40 dB in FL, from -2 to -27 dB).
+
 ## 1.3.1
 
 Fixes

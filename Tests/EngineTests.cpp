@@ -261,6 +261,23 @@ int main()
         check (std::abs (d->playEnd - sec / 2) < 20 && d->lengthTrimmed, "length 50% trims", juce::String (d->playEnd));
     }
 
+    // Precomputed: a Length shorter than FL's shortest segment is lengthened
+    // by it, as in FL (30 frames play 71, 41 play 41), and within it of the
+    // sample's end the segment grows backwards instead of running off the end.
+    {
+        const auto frames = [&] (float start, int span)
+        {
+            PrecomputeSettings s;
+            s.start = start;
+            s.length = (float) ((span + 0.25) / ((sec - 1) * (1.0 - (double) start)));
+            return buildProcessedSample (sine (1.0), s)->playEnd;
+        };
+        check (frames (0.3f, 30) == 71, "length of 30 frames plays 71", juce::String (frames (0.3f, 30)));
+        check (frames (0.3f, 41) == 41, "length of 41 frames plays 41", juce::String (frames (0.3f, 41)));
+        const auto nearEnd = (float) ((sec - 1 - 20) / (double) (sec - 1));
+        check (frames (nearEnd, 10) == 51, "short length at the end grows backwards", juce::String (frames (nearEnd, 10)));
+    }
+
     // Precomputed: Trim at zero keeps trailing digital silence (as FL does);
     // any threshold above zero removes it.
     {

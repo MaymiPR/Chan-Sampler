@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cmath>
+
 // FL Sampler's trimmed-sample tail (SMP LENGTH < 100%), measured in FL with
 // clicks at every distance from the cut (nulltest/probes/tail_measure.py): a
 // linear filter over the last 200 frames. Output at distance D from the end
@@ -1067,6 +1069,46 @@ namespace trimtail
         0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 9.9458139e-01f, -7.6318400e-05f,
         0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 9.9862627e-01f,
     };
+}
+
+// Segments shorter than the table (no measured table for them): the same
+// filter as a model, a one-pole high-pass whose coefficient rises exponentially
+// over a window of the last frames, so a held value is drawn to 0 at the end
+// while the sound before the window passes unchanged, then a short raised-
+// cosine closing fade. On a segment shorter than the window the window is the
+// whole segment. Fitted to FL's click responses (nulltest/probes/tail_measure.py
+// and tail_short.py: the 200-frame matrix of long trims, -49 dB, and the
+// 40-frame one of LENGTH 0, -48 dB, with the same parameters; the structure
+// came from reading FL's engine, docs/BINARY-NOTES.md). The values are ours,
+// fitted at 44.1 kHz. The measured tables above stay where they apply: the
+// model is within -49 dB of them, they null to the 16-bit floor.
+namespace trimtail
+{
+    constexpr int window = 178;          // frames
+    constexpr double sweepStart = 4.968e-5;
+    constexpr double sweepRate = 9.8238;  // over the window
+    constexpr int closing = 43;           // frames
+
+    // Filters frames [0, end) of d in place; the window ends at end.
+    inline void applyEnd (float* d, int end)
+    {
+        const int w = end < window ? end : window;
+        if (w <= 0)
+            return;
+        const int fade = w < closing ? w : closing;
+        double lp = 0.0;
+        for (int t = 0; t < w; ++t)
+        {
+            auto& x = d[end - w + t];
+            const double c = std::fmin (1.0, sweepStart * std::exp (sweepRate * t / w));
+            lp += c * (x - lp);
+            double y = x - lp;
+            const int k = t - (w - fade) + 1;   // 1 .. fade in the closing fade
+            if (k >= 1)
+                y *= 0.5 * (1.0 + std::cos (3.14159265358979323846 * k / (fade + 1)));
+            x = (float) y;
+        }
+    }
 }
 
 // FL's trimmed start (SMP START > 0), measured the same way (nulltest/probes/head_measure.py):

@@ -504,23 +504,39 @@ SampleData::Ptr buildProcessedSample (const RawSample& raw, const PrecomputeSett
         }
 
     // 2. Sample Start / Length with FL's short trim fades (measured in FL):
-    // start = round (start * (N - 1)), length as below, at least 40 frames; a
-    // fade shorter than the table is compressed to fit.
+    // start = round (start * (N - 1)), length as below, at least 40 frames.
     // A start exactly between two frames (e.g. 50%) rounds up for the play
     // position but down for the length count, so FL's segment then runs one
     // frame past the end of the sample (silence; measured, with Reverse too).
     const auto startPos = trimKnobToFraction (s.start) * (converted - 1);
-    const int start = juce::jlimit (0, converted - 1, (int) std::floor (startPos + 0.5));
-    const int remaining = converted - juce::jlimit (0, converted - 1, (int) std::ceil (startPos - 0.5));
+    int start = juce::jlimit (0, converted - 1, (int) std::floor (startPos + 0.5));
+    int remaining = converted - juce::jlimit (0, converted - 1, (int) std::ceil (startPos - 0.5));
     constexpr int minLength = 40;
     // Length: the fraction of the span from the exact start position to the
     // last frame, rounded half to even, one frame more reversed (fitted to
     // FL's end in 85 forward and 15 reversed in-FL trims of noise, all exact).
     // 100% is the whole remainder, untrimmed.
     const auto lengthFraction = trimKnobToFraction (s.length);
-    const auto span = (int) std::nearbyint (lengthFraction * ((converted - 1) - startPos));
-    const int len = lengthFraction >= 1.0 ? remaining
-                                          : juce::jlimit (juce::jmin (minLength, remaining), remaining, span + (s.reverse ? 1 : 0));
+    const bool lengthCut = lengthFraction < 1.0;
+    auto span = (int) std::nearbyint (lengthFraction * ((converted - 1) - startPos));
+    // A segment shorter than FL's shortest is lengthened by that much rather
+    // than held at it (a 30-frame trim plays about 70 frames, 40 about 80, 41
+    // about 40); within that much of the end of the sample it grows backwards,
+    // starting earlier (nulltest/cases/trim_short_cases.py; docs/BINARY-NOTES.md).
+    // LENGTH 0 keeps its own measured shape (the shortest segment, below).
+    constexpr int shortest = minLength + 1;
+    if (lengthCut && span < shortest)
+    {
+        if (start >= converted - 1 - (shortest + 1))
+        {
+            start = juce::jmax (0, start - shortest);
+            remaining = converted - start;
+        }
+        if (span > 0)
+            span += shortest;
+    }
+    const int len = ! lengthCut ? remaining
+                                : juce::jlimit (juce::jmin (minLength, remaining), remaining, span + (s.reverse ? 1 : 0));
     // FL's shortest segment (LENGTH at its minimum) carries two silent frames
     // after its 40 (measured: forwards the end holds silence, reversed it
     // starts two frames late).
@@ -558,7 +574,7 @@ SampleData::Ptr buildProcessedSample (const RawSample& raw, const PrecomputeSett
     // in a gap of silence: FL fades where the sound stops, -77 dB against
     // FL's render, not inside the silence, -49 dB).
     int end = len;
-    if (len < remaining)
+    if (lengthCut)   // FL filters the end whenever LENGTH < 100%, even at the end of the sample
     {
         int last = -1;
         for (int ch = 0; ch < 2; ++ch)
@@ -602,7 +618,7 @@ SampleData::Ptr buildProcessedSample (const RawSample& raw, const PrecomputeSett
     {
         auto* d = main.getWritePointer (ch);
         applyHead (d);
-        if (len < remaining)
+        if (lengthCut)
         {
             // FL's trimmed end is a linear filter over the last frames, not a
             // plain fade (measured, TrimTail.h): each output mixes the input
@@ -621,6 +637,10 @@ SampleData::Ptr buildProcessedSample (const RawSample& raw, const PrecomputeSett
                     d[end - dist] = acc;
                 }
             }
+            else if (end < trimtail::size)   // shorter than the table: FL's window is the whole segment
+            {
+                trimtail::applyEnd (d, end);
+            }
             else
             {
                 for (int dist = 1; dist <= tailLen; ++dist)
@@ -638,7 +658,7 @@ SampleData::Ptr buildProcessedSample (const RawSample& raw, const PrecomputeSett
     // FL reverses the trimmed part (measured: the segment plays backwards).
     if (s.reverse)
         main.reverse (0, bufLen);
-    out->lengthTrimmed = len < remaining;
+    out->lengthTrimmed = lengthCut;
 
     // 3. Effects
     boost (main, s.boost, s.boostClip);
