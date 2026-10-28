@@ -1,9 +1,10 @@
 # Builds Chan Sampler and runs its tests: the engine tests (ChanSamplerTests)
 # and the host test, which loads the built VST3 the way a DAW does
-# (ChanSamplerHostTest). Kept cheap: Linux on every push to main, Windows too
-# on pull requests (or by hand: Actions -> CI -> Run workflow), and nothing
-# when only docs or the null-test scripts change. macOS is built and
-# validated by release.yml at each release.
+# (ChanSamplerHostTest). Linux, Windows and macOS on every push to main and
+# on pull requests (the repository is public, so the runners cost nothing;
+# they run side by side), and nothing when only docs or the null-test
+# scripts change. release.yml also builds the universal macOS binaries and
+# validates the AU at each release.
 name: CI
 
 on:
@@ -63,7 +64,6 @@ jobs:
         run: xvfb-run -a build/ChanSamplerHostTest_artefacts/Release/ChanSamplerHostTest "build/ChanSampler_artefacts/Release/VST3/Chan Sampler.vst3" nulltest/signals/sine.wav Tests/data/state-*.bin
 
   windows:
-    if: github.event_name != 'push'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09   # v5
@@ -84,3 +84,24 @@ jobs:
       - name: Host test
         shell: bash
         run: build/ChanSamplerHostTest_artefacts/Release/ChanSamplerHostTest.exe "build/ChanSampler_artefacts/Release/VST3/Chan Sampler.vst3" nulltest/signals/sine.wav Tests/data/state-*.bin
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09   # v5
+        with:
+          persist-credentials: false
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCHANSAMPLER_CLAP=OFF
+
+      - name: Build
+        run: cmake --build build --target ChanSamplerTests ChanSamplerUiTests ChanSamplerHostTest ChanSampler_VST3 --parallel
+
+      - name: Engine tests
+        run: build/ChanSamplerTests_artefacts/Release/ChanSamplerTests
+      - name: UI tests
+        run: build/ChanSamplerUiTests_artefacts/Release/ChanSamplerUiTests nulltest/signals/sine.wav
+
+      - name: Host test
+        run: build/ChanSamplerHostTest_artefacts/Release/ChanSamplerHostTest "build/ChanSampler_artefacts/Release/VST3/Chan Sampler.vst3" nulltest/signals/sine.wav Tests/data/state-*.bin
