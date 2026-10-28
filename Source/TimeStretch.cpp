@@ -11,8 +11,6 @@ namespace
         return x - twoPi * std::floor ((x + pi) / twoPi);
     }
 
-    int roundToEven (double x) { return juce::jmax (64, 2 * juce::roundToInt (x * 0.5)); }
-
     int powerOfTwoNear (double x)
     {
         int order = 6;
@@ -30,7 +28,6 @@ TimeStretcher::TimeStretcher()
     window.resize (maxFrame);
     olaL.resize (maxFrame);
     olaR.resize (maxFrame);
-    target.resize (maxFrame);
     power.resize (maxFrame);
     spec.resize (maxFrame);
     work.resize (maxFrame);
@@ -71,14 +68,6 @@ TimeStretcher::TimeStretcher()
 void TimeStretcher::configure (StretchMode mode, double sourceRate)
 {
     const auto scale = sourceRate / 44100.0;
-    auto useWsola = [&] (double n44, double tol44)
-    {
-        algo = Algo::wsola;
-        frame = juce::jmin (maxFrame, roundToEven (n44 * scale));
-        hop = baseHop = frame / 2;
-        tolerance = juce::jmax (16, juce::roundToInt (tol44 * scale));
-        preserveFormants = false;
-    };
     auto useVocoder = [&] (double n44, float transient, bool formants)
     {
         algo = Algo::vocoder;
@@ -110,13 +99,13 @@ void TimeStretcher::configure (StretchMode mode, double sourceRate)
         case StretchMode::e3Mono:       useGrains (256, 384, true); break;
         case StretchMode::e2Mono:       useGrains (128, 0, true); break;
         case StretchMode::e2Speech:     useGrains (384, 384, false); break;
-        case StretchMode::sliceStretch: useWsola (1024, 256); break;    // restarted at each slice
         case StretchMode::stretchPro:   useVocoder (2048, 1.5f, true);  break;   // Stretch + formants (FL's two differ only with PITCH)
         case StretchMode::stretch:
         case StretchMode::e2Transient:
         case StretchMode::e2Generic:
         case StretchMode::e3Generic:
         case StretchMode::autoMode:
+        case StretchMode::sliceStretch:   // e3 generic, restarted at each slice
         default:                        useVocoder (2048, 1.5f, false); break;
     }
 
@@ -139,13 +128,18 @@ void TimeStretcher::configure (StretchMode mode, double sourceRate)
         case StretchMode::e2Transient: soft15 = -50.0; soft067 = 30.0;  break;
         case StretchMode::e2Generic:   soft15 = -157.0; soft067 = -30.0; hfSoft15 = 112.0; hfSoft067 = 96.0; break;
         case StretchMode::e3Generic:
-        case StretchMode::autoMode:    hfSoft067 = 60.0; break;   // the grains, with the 1/512 ratio grid (measured with e3_am)
+        case StretchMode::autoMode:
+        case StretchMode::sliceStretch: hfSoft067 = 60.0; break;   // the grains, with the 1/512 ratio grid (measured with e3_am)
         default: break;
     }
-    hybrid = mode == StretchMode::e3Generic || mode == StretchMode::autoMode || mode == StretchMode::e2Generic
+    // Slice stretch is e3 generic on each slice (FL's engine runs e3's
+    // stretcher per slice, docs/BINARY-NOTES.md; FL's renders null with its
+    // e3 generic where there is a single slice).
+    const bool e3 = mode == StretchMode::e3Generic || mode == StretchMode::autoMode || mode == StretchMode::sliceStretch;
+    hybrid = e3 || mode == StretchMode::e2Generic
           || mode == StretchMode::e2Transient || mode == StretchMode::stretch || mode == StretchMode::stretchPro;
     hfBand = hybrid && mode != StretchMode::e2Transient && mode != StretchMode::stretch && mode != StretchMode::stretchPro;
-    e3Estimator = mode == StretchMode::e3Generic || mode == StretchMode::autoMode;
+    e3Estimator = e3;
     ratioSteps = e3Estimator || mode == StretchMode::e2Transient ? 512 : mode == StretchMode::e2Generic ? 256 : 0;
     grainsOnly = algo == Algo::grains;
     // e3 times an attack by its peak, the grains by its start.

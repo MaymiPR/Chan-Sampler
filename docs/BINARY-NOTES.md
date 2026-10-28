@@ -26,6 +26,7 @@ not backed by Evidence.
 - **LPx2:** compensation in FL's form, fitted to our measured table (worst in-FL case −44 → −47 dB).
 - **e3 swells:** a per-peak model predicts 67 of 80 of FL's swell restarts offline (with a sharper window for the restart point than for the analysis), against 48 at best before. A first plugin version changed nothing measurable (ours 26 of 80 with and without it: our attack rule claims faster swells first, and a phase turn is not FL's reset), so it was taken out (nulltest/E3_NOTES.md, round 12).
 - **e3's split at large stretches:** measured in FL as read here: fixed up to x2 of MUL, then rising until the vocoder takes the whole band (noise, x2.2 … x4, seven points). Ours now follows; real material at x2.5 … x4 about as close as before (the Rhodes and voice closer, the kick's tail further). The same probe shows FL's **Stretch Pro** has e3's structure (grains above the split, the same rise, also with PITCH) and **Stretch** doesn't; e3's grains in our Stretch Pro measured further from FL, since they don't keep its formants, so that waits for formant-keeping grains (nulltest/E3_NOTES.md, round 13).
+- **Slice stretch:** e3 generic per slice, as read; FL's slice renders are its e3 generic where it finds one slice. Slices are now found where FL finds them (to a sample on a drum loop, none in a fade-in). Slice stretch null −1.77 → −5.54 dB, Slice map −11.8 → −26.0 dB (docs/EVIDENCE.md, round 14).
 - **e3 restarts:** the full-band restart point gained nothing; a phase reset gives the same result as our turn once placed right (the same thing for steady partials, so round 12's "a turn is not FL's reset" was a placement error); FL apparently doesn't restart drum hits later (dropping the restart: the groove −3.4 → −5.5 dB) but does restart held tones, and no whole-band decider kept both (round 13).
 - Dropped: Crossfade's closed form (our measured curves already null, −77…−82 dB) and the end-of-sample fade (it nulls, −75 dB). Reversed trims: the end filter sat a frame late on them; fixed (−46…−64 → −65…−85 dB). Still to do: e3 in the plugin (round 12), the shortest trims (−48 dB), LENGTH 0 with a start (−56…−59 dB).
 
@@ -125,7 +126,7 @@ Read in FL's engine (where it creates a stretcher) and in elastique (what each e
   |---|---|---|
   | e3 generic, Auto | v3 Pro core | vocoder + grains (matches) |
   | e3 mono | v3 soloist, mono | grains (matches) |
-  | Slice stretch | v3 Pro core, the e3 generic engine | WSOLA (**differs**) |
+  | Slice stretch | v3 Pro core, the e3 generic engine | e3 generic per slice (was WSOLA; changed after measuring) |
   | e2 generic | v2 Pro core | vocoder + e3's grains (matches: FL's high band is pieces of the source) |
   | e2 transient | v2 classic engine | vocoder (FL's high band is spectral, as ours) |
   | e2 mono / e2 speech | v2 soloist | grains (matches) |
@@ -137,7 +138,7 @@ Read in FL's engine (where it creates a stretcher) and in elastique (what each e
   - **Speech:** no pitch tracker, a fixed shorter frame, and marks from the correlation alone. This fits the measured long, even splices of e2 speech; e2 speech itself runs on version 2's soloist, which was not read.
   - **SolPitchAn:** the export FL also loads builds the same pitch-mark list and a separate soloist pitch analysis (unread). Evidence: ev_6d8a81bb80e60121c3d666b1cacc5984b2b86e96a77c37234ec5645dd038377f, ev_114cad6fa5abebf42d732b620e83598d469d155baf13bb87859fd9e209898ce7.
 - **What this means for ours (all to be measured first):**
-  - Slice stretch could run our e3 generic stretcher per slice instead of WSOLA.
+  - Slice stretch could run our e3 generic stretcher per slice instead of WSOLA (done, see Follow-ups).
   - The mono modes' grains could sit on marks locked to the waveform (correlation, then the nearby peak) instead of ideal positions.
   - Stretch's spectral-only behaviour is already ours.
 - **Unverified:** the pitch tracker's method, version 2's soloist and classic engines, how FL's Stretch / Stretch Pro values reach the table, and the efficient core's internals.

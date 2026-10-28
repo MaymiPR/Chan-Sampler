@@ -130,7 +130,8 @@ distance to FL's renders (`nulltest/stretch/`, `nulltest/E3_NOTES.md`).
 
 - **Ours** (Source/TimeStretch.cpp, own code): pitch-synchronous grains for
   e3 / e2 mono and e2 speech; e3's vocoder (and e3's high-band grains for e2
-  generic) for Stretch / e2 generic / e2 transient; WSOLA for slice stretch;
+  generic) for Stretch / e2 generic / e2 transient; e3 generic restarted at
+  each slice for slice stretch;
   Stretch Pro = Stretch's vocoder (2048 points, e3's attack handling) with
   cepstral formant preservation (64-sample lifter) and FORMANT shift
   (+/-1200 cents, centre = preserve).
@@ -262,6 +263,24 @@ distance to FL's renders (`nulltest/stretch/`, `nulltest/E3_NOTES.md`).
   over the MUL cases; PITCH cases worse, the grains don't keep the formants).
   e2 generic's split rises too, later (about 4 / 6.3 kHz at x2.75 / x3, the
   whole band from about x3.25); not modelled.
+- **Slice stretch and the slices (round 14):** FL's slice stretch runs e3
+  generic's engine on each slice (read in FL's engine, docs/BINARY-NOTES.md),
+  and its renders are FL's e3 generic exactly where it finds one slice (the
+  Rhodes and the "ah": bit-identical; the 707 Kick -41 ... -46 dB). Ours
+  restarted WSOLA at each slice; it now restarts e3 generic. FL's slices
+  (Slice map at x2, where they show as runs of sound) start where a hit leaves
+  the level before it, to a sample on e3_loop, and a fade-in (the "ah") has
+  none. Ours took 512-sample blocks (up to 415 samples early, and a slice
+  in the "ah" at 2048); it now takes a 128-sample block far above the four
+  before it (the rule e3's attacks use) and the first sample above the level
+  before the hit, within a sample of FL's on e3_loop. Against FL
+  (nulltest/stretch/slices.py, 20 cases each): Slice stretch envelope 2.39 ->
+  1.75, spectrum 3.47 -> 2.16, null -1.77 -> -5.54 dB; Slice map (it plays
+  the slices unstretched, so it nulls) mean -11.8 -> -26.0 dB (the "ah" +1.4
+  -> -71 dB, e3_loop at x2 +2.0 -> -11.3); e2 transient, which also restarts
+  at the slices, spectrum 3.69 -> 3.19. Not matched yet: FL's slice ends
+  (e3_loop -7 ... -11 dB in Slice map) and its Rhodes / kick tails at
+  x0.667.
 
 Evidence: nulltest/stretch/stretch_check.py, nulltest/stretch/stretch_vs_fl.py,
 nulltest/stretch/real_material.py, e3_clicks.wav.

@@ -19,7 +19,6 @@
 //
 // Algorithms (our own implementations; FL's Elastique engine is proprietary;
 // each mode chosen against FL renders, see docs/EVIDENCE.md):
-//   WSOLA          - waveform-similarity overlap-add (Slice stretch)
 //   Phase vocoder  - identity phase locking + transient phase resets (e3/e2
 //                    generic, e2 transient, Stretch: e3's attack handling;
 //                    Stretch Pro adds formant preservation by cepstral
@@ -65,15 +64,10 @@ public:
         if (! aligned)
         {
             // Measured with clicks: the vocoder's output would run early by a
-            // hop plus a quarter frame x (1 - 1 / alpha); WSOLA's late by a
-            // quarter frame plus 0.58 / -0.42 frames per octave down / up.
-            // Shift the analysis start so the source and the output line up
-            // at any pitch.
+            // hop plus a quarter frame x (1 - 1 / alpha). Shift the analysis
+            // start so the source and the output line up at any pitch.
             aligned = true;
-            const auto octaves = std::log2 (alpha);
-            const auto shift = algo == Algo::grains ? 0.0
-                             : algo == Algo::vocoder ? vocoderHop (alpha) + 0.25 * frame * (1.0 - 1.0 / alpha)
-                                                     : -frame * (0.25 - (octaves < 0.0 ? 0.58 : 0.42) * octaves);
+            const auto shift = algo == Algo::grains ? 0.0 : vocoderHop (alpha) + 0.25 * frame * (1.0 - 1.0 / alpha);
             // FL's own latency for a soft start, by mode (no start lock):
             // later source = earlier output.
             softShift = softStart (alpha, soft15, soft067);
@@ -98,7 +92,7 @@ public:
     double sourceToOutputRateScale = 1.0;
 
 private:
-    enum class Algo { wsola, vocoder, grains };
+    enum class Algo { vocoder, grains };
 
     template <typename Reader>
     void synthesise (Reader& read, double alpha, double pitchRatio, float formantCents)
@@ -128,8 +122,6 @@ private:
             first = false;
             emit (1.0f);
         }
-        else if (algo == Algo::wsola)
-            wsolaFrame (read, ha);
         else
             vocoderFrame (read, ha, pitchRatio, formantCents);
     }
@@ -162,53 +154,6 @@ private:
     int vocoderHop (double alpha) const
     {
         return juce::jlimit (baseHop / 4, baseHop, (int) std::lround (baseHop * juce::jmin (1.0, 0.5 * alpha)));
-    }
-
-    template <typename Reader>
-    void wsolaFrame (Reader& read, double ha)
-    {
-        const int n = frame;
-        const int overlap = n - hop;
-        int best = 0;
-        const auto base = (int) std::floor (apos);
-        if (! first)
-        {
-            // Find the shift that best continues the previous frame.
-            const int natural = prevPos + hop;
-            for (int i = 0; i < overlap; i += 2)
-            {
-                float l, r;
-                read (natural + i, l, r);
-                target[(size_t) (i / 2)] = l + r;
-            }
-            double bestScore = -1.0e30;
-            for (int d = -tolerance; d <= tolerance; d += 2)
-            {
-                double dot = 0.0, energy = 1.0e-9;
-                for (int i = 0; i < overlap; i += 4)
-                {
-                    float l, r;
-                    read (base + d + i, l, r);
-                    const auto x = (double) (l + r);
-                    dot += x * target[(size_t) (i / 2)];
-                    energy += x * x;
-                }
-                const auto score = dot / std::sqrt (energy);
-                if (score > bestScore) { bestScore = score; best = d; }
-            }
-        }
-        const int pos = first ? base : base + best;
-        for (int i = 0; i < n; ++i)
-        {
-            float l, r;
-            read (pos + i, l, r);
-            olaL[(size_t) i] += l * window[(size_t) i];
-            olaR[(size_t) i] += r * window[(size_t) i];
-        }
-        prevPos = pos;
-        first = false;
-        apos += ha;
-        emit (wsolaGain);
     }
 
     template <typename Reader>
@@ -886,12 +831,11 @@ private:
     void emit (float gain);
     static float cubic (const std::vector<float>& b, int i, float t);
 
-    Algo algo = Algo::wsola;
+    Algo algo = Algo::vocoder;
     bool preserveFormants = false;
     float transientThreshold = 1.5f;
-    int frame = 1024, hop = 512, baseHop = 512, tolerance = 256, order = 10;
+    int frame = 1024, hop = 512, baseHop = 512, order = 10;
     double synthPos = 0.0;      // where the next frame starts in the synthesised stream
-    float wsolaGain = 1.0f;
     double apos = 0.0, idealPos = 0.0;
     int prevPos = 0, lockFrames = 0, framesDone = 0;
     double startPos = 0.0;
@@ -912,7 +856,7 @@ private:
     FastFFT::Scratch fftScratch { 13 };
     std::unique_ptr<FastFFT> ffts[6];   // orders 8..13 (the envelope uses a quarter size)
     FastFFT* fft = nullptr;
-    std::vector<float> window, olaL, olaR, target, power;
+    std::vector<float> window, olaL, olaR, power;
     std::vector<std::complex<float>> spec, work;
     // Per channel: this frame's and the last frame's analysis spectra, the
     // synthesis phase as a unit phasor, magnitudes and the formant envelope.

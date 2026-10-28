@@ -375,30 +375,47 @@ namespace
         return true;
     }
 
-    // Simple energy-based transient detector for the slice modes.
+    // The slice modes' transients, as FL finds them: a 128-sample block's
+    // energy far above the four before it (the rule e3's attacks use), then
+    // the slice starts where the hit leaves the level before it (FL Slice
+    // map at x2 on a drum loop: FL's slices sit 0-1 samples from that point;
+    // a sung "ah" fading in has none).
     std::vector<int> detectOnsets (const juce::AudioBuffer<float>& b)
     {
-        constexpr int hop = 512;
+        constexpr int block = 128;
         std::vector<int> onsets { 0 };
         const int n = b.getNumSamples();
+        const auto* l = b.getReadPointer (0);
+        const auto* r = b.getReadPointer (b.getNumChannels() > 1 ? 1 : 0);
+        auto level = [&] (int i) { return std::abs (l[i]) + std::abs (r[i]); };
         std::vector<double> e;
-        for (int i = 0; i + hop <= n; i += hop)
+        for (int i = 0; i + block <= n; i += block)
         {
-            double s = 0;
-            for (int k = i; k < i + hop; ++k)
-                s += (double) b.getSample (0, k) * b.getSample (0, k) + (double) b.getSample (1, k) * b.getSample (1, k);
-            e.push_back (s / hop);
+            double sum = 0;
+            for (int k = i; k < i + block; ++k)
+                sum += (double) l[k] * l[k] + (double) r[k] * r[k];
+            e.push_back (sum);
         }
         double peak = 0;
         for (auto v : e) peak = juce::jmax (peak, v);
-        for (size_t i = 1; i < e.size(); ++i)
+        for (size_t i = 4; i < e.size(); ++i)
         {
-            double avg = 0;
-            const size_t from = i >= 8 ? i - 8 : 0;
-            for (size_t k = from; k < i; ++k) avg += e[k];
-            avg /= (double) juce::jmax ((size_t) 1, i - from);
-            const int pos = (int) i * hop;
-            if (e[i] > 2.0 * avg && e[i] > peak * 0.01 && pos - onsets.back() >= 2048)
+            const double before = 0.25 * (e[i - 1] + e[i - 2] + e[i - 3] + e[i - 4]);
+            if (e[i] <= 8.0 * before + 1.0e-4 * block || e[i] <= peak * 0.01)
+                continue;
+            // The hit's own peak, the level before it, and the first sample
+            // clearly above that.
+            const int from = (int) (i - 1) * block, to = juce::jmin (n, (int) i * block + 4 * block);
+            float hit = 0.0f, floor = 0.0f;
+            for (int k = from; k < to; ++k)
+                hit = juce::jmax (hit, level (k));
+            for (int k = juce::jmax (0, from - 8 * block); k < from; ++k)
+                floor = juce::jmax (floor, level (k));
+            const float threshold = juce::jmax (floor, 0.03f * hit);
+            int pos = (int) i * block;
+            for (int k = from; k < to; ++k)
+                if (level (k) > threshold) { pos = k; break; }
+            if (pos - onsets.back() >= 2048)
                 onsets.push_back (pos);
         }
         return onsets;

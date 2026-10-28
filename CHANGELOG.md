@@ -16,6 +16,11 @@ Sound
 - e3 generic / Auto: stretched past x2 (MUL or TIME), more of the band goes
   through the phase vocoder, as in FL (above about x3.4, all of it); up to
   x2 nothing changes.
+- Slice stretch now stretches each slice the way FL does (e3 generic per
+  slice, as FL's engine does), instead of a waveform-overlap method, and the
+  slice modes find their slices where FL finds them (on the sample where a
+  hit starts; no slice in a sound that just fades in). Slice map's null
+  against FL went from -12 to -26 dB on average.
 - LPx2's level compensation follows FL's own form between the measured
   points (up to 9 dB closer to FL where the old table interpolated).
 
