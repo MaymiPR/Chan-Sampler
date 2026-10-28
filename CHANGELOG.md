@@ -11,6 +11,8 @@ Sound
 - Arpeggiator: TIME's step lengths now match FL's at every setting (13 TIME
   values were a tick out), and GATE ends on whole ticks as in FL (a 7-tick
   step at 50% gate holds 3 ticks).
+- LPx2's level compensation follows FL's own form between the measured
+  points (up to 9 dB closer to FL where the old table interpolated).
 
 ## 1.3.1
 
