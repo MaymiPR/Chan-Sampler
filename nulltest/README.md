@@ -8,7 +8,7 @@ through both, one is subtracted from the other, and the residual is reported
 Requirements: FL Studio (closed while rendering: a running FL swallows the
 command-line render, so the render queue waits while it is open; set
 `FL_STUDIO_DIR` when it isn't in `C:\Program Files\Image-Line`),
-Python 3 with `numpy`, and Release builds of the plugin and of
+Python 3.12 or newer with `numpy` (`pip install -r ../requirements.txt`), and Release builds of the plugin and of
 `ChanSamplerRender` (see the main README).
 
 ## Layout
