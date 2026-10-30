@@ -6,7 +6,7 @@ through both, one is subtracted from the other, and the residual is reported
 −95 dB). The results are written up in [docs/EVIDENCE.md](../docs/EVIDENCE.md).
 
 Requirements: FL Studio (closed while rendering: a running FL swallows the
-command-line render, so the scripts stop with a message while it is open; set
+command-line render, so the render queue waits while it is open; set
 `FL_STUDIO_DIR` when it isn't in `C:\Program Files\Image-Line`),
 Python 3 with `numpy`, and Release builds of the plugin and of
 `ChanSamplerRender` (see the main README).
@@ -15,7 +15,7 @@ Python 3 with `numpy`, and Release builds of the plugin and of
 
 | Folder | What's in it |
 |---|---|
-| `lib/` | Shared code: FL project files (`flp`, `build_project`, `vstchannel`), FL renders (`flrender`: FL's Sampler alone; `nullfl`: FL's Sampler and Chan Sampler in one project), offline renders (`nulltest`), WAV files (`wavio`), paths (`paths`) |
+| `lib/` | Shared code: FL project files (`flp`, `build_project`, `vstchannel`), FL renders (`flrender`: FL's Sampler alone; `nullfl`: FL's Sampler and Chan Sampler in one project; `flqueue`: the render queue both go through), offline renders (`nulltest`), WAV files (`wavio`), paths (`paths`) |
 | `cases/` | The null-test case lists: each module defines `CASES` |
 | `probes/` | Measurement scripts: how each model in the plugin was found |
 | `stretch/` | The stretch modes against FL (they can't null: FL's engine is proprietary), and the generator of their test signals |
@@ -27,6 +27,27 @@ Everything runs from this folder as modules, for example
 `python -m cases.untested_cases`. FL's renders are cached in `renders/` (FL's
 Sampler alone) and `renders_fl/` (in-FL pairs), ours in `ours/`; none of them
 are in the repository (`-f` re-renders where a script offers it).
+
+Every FL render goes through `lib/flqueue.py`. Each render keeps a record
+beside its WAV (`<name>.render.json`) with a key made of the project (built
+with bare sample names, so a moved repository keeps its renders), the sample,
+the Chan Sampler VST3 (in-FL pairs only) and FL's version; a render whose
+record matches is reused, a WAV without a record is adopted when its project
+is byte-identical and nothing it depends on is newer, and the rest is rendered
+again with the reason printed. A failed render is retried (three attempts), a
+hung FL is killed after the timeout, `renders*/queue.json` makes a stopped run
+resumable, and one lock keeps two queues apart. A plugin rebuild makes every
+in-FL pair stale ("newer than the render: Chan Sampler.vst3"): after a DSP
+change render again; after a rebuild that changed no audio pass `adopt=True`
+(`--adopt`) once, or `plugin_dep=False` (`--no-plugin-dep`).
+
+```
+python -m lib.flqueue cases.fl_cases cases.arp_cases --dry        # the plan: what would render, and why
+python -m lib.flqueue cases.fl_cases --adopt                      # trust the old WAVs once (a rebuild that changed nothing)
+python -m lib.flqueue --status                                    # after a stopped run: what is cached, what failed
+python -m lib.flqueue cases.cases --kind fl                       # FL's Sampler alone (the offline cases' FL half)
+python -m lib.flqueue --selftest                                  # the queue's own test, no FL needed
+```
 
 ## In-FL tests (the reference)
 

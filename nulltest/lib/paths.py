@@ -26,6 +26,20 @@ FL_EXE = os.path.join(FL_DIR, 'FL64.exe')
 FL_PATCHES = os.path.join(FL_DIR, 'Data', 'Patches')   # FL's own samples (read, never copied here)
 
 
+def _find_vst3():
+    """Our VST3 as FL loads it: NULLTEST_PLUGIN_VST3 when set, else the Release
+    VST3 under build/ (the junction in Common Files points at it)."""
+    import glob
+    if os.environ.get('NULLTEST_PLUGIN_VST3'):
+        return os.environ['NULLTEST_PLUGIN_VST3']
+    hits = glob.glob(os.path.join(ROOT, '..', 'build', '*_artefacts', 'Release', 'VST3', '*.vst3',
+                                  'Contents', 'x86_64-win', '*.vst3'))
+    return os.path.normpath(hits[0]) if hits else None
+
+
+PLUGIN_VST3 = _find_vst3()   # in-FL pair renders depend on it (lib/flqueue)
+
+
 def signal(name):
     """A sample by name: as given if it exists (absolute, or relative to
     nulltest/), else in signals/."""
