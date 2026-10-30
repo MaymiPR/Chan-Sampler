@@ -10,4 +10,4 @@ that trigger it and the Chan Sampler version, host and OS.
 Fixes go into the next release; only the latest release is supported.
 
 Release downloads are unsigned. Check them against the `SHA256SUMS.txt` that
-comes with each [release](https://github.com/MaymiPR/ChanSampler/releases).
+comes with each [release](https://github.com/MaymiPR/Chan-Sampler/releases).

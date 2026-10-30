@@ -7,8 +7,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/MaymiPR/ChanSampler/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/MaymiPR/ChanSampler?color=4df1b1&label=release"></a>
-  <a href="https://github.com/MaymiPR/ChanSampler/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/MaymiPR/ChanSampler/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/MaymiPR/Chan-Sampler/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/MaymiPR/Chan-Sampler?color=4df1b1&label=release"></a>
+  <a href="https://github.com/MaymiPR/Chan-Sampler/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/MaymiPR/Chan-Sampler/actions/workflows/ci.yml/badge.svg"></a>
   <img alt="Formats" src="https://img.shields.io/badge/formats-VST3%20%7C%20CLAP%20%7C%20AU%20%7C%20Standalone-2d3133">
   <img alt="Platforms" src="https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-2d3133">
   <a href="LICENSE"><img alt="License: AGPL v3" src="https://img.shields.io/badge/license-AGPL--3.0-ffa830"></a>
@@ -66,7 +66,7 @@ this documentation. FL Studio was the reference throughout, as described in
 ## Quick start
 
 1. Download the file for your system from the
-   [latest release](https://github.com/MaymiPR/ChanSampler/releases/latest):
+   [latest release](https://github.com/MaymiPR/Chan-Sampler/releases/latest):
 
    | System | File | Contents |
    |---|---|---|
@@ -174,7 +174,7 @@ Linux packages to install first.
 ## Contributing
 
 Found a bug or a difference from FL's Sampler? Open an
-[issue](https://github.com/MaymiPR/ChanSampler/issues/new/choose) and attach a
+[issue](https://github.com/MaymiPR/Chan-Sampler/issues/new/choose) and attach a
 sample or an `.fst` preset that shows it. To change the code, read
 [CONTRIBUTING.md](CONTRIBUTING.md) for the tests, the null tests against FL and
 the release steps. Changes per version are in [CHANGELOG.md](CHANGELOG.md).

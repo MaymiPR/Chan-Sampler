@@ -1,5 +1,5 @@
 blank_issues_enabled: false
 contact_links:
   - name: How close is it to FL?
-    url: https://github.com/MaymiPR/ChanSampler/blob/main/docs/EVIDENCE.md
+    url: https://github.com/MaymiPR/Chan-Sampler/blob/main/docs/EVIDENCE.md
     about: What has been measured against FL Studio and the known differences, before reporting one.

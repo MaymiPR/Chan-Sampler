@@ -1,7 +1,7 @@
 # Working on Chan Sampler
 
 Bug reports and ideas are welcome as
-[issues](https://github.com/MaymiPR/ChanSampler/issues/new/choose). This page is
+[issues](https://github.com/MaymiPR/Chan-Sampler/issues/new/choose). This page is
 for changing the code: how it's built and tested, how a change is checked
 against FL Studio, and how a release is made.
 

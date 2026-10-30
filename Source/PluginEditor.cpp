@@ -7,7 +7,7 @@
 
 namespace
 {
-    const juce::String repository = "https://github.com/MaymiPR/ChanSampler";
+    const juce::String repository = "https://github.com/MaymiPR/Chan-Sampler";
 
     // The product name in the top bar: a click opens the plugin's own menu
     // (version, About, the project's links) in FL's menu style.
