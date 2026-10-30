@@ -377,8 +377,9 @@ namespace
 
     // The slice modes' transients, as FL finds them: a 128-sample block's
     // energy far above the four before it (the rule e3's attacks use), then
-    // the slice starts where the hit leaves the level before it (FL Slice
-    // map at x2 on a drum loop: FL's slices sit 0-1 samples from that point;
+    // the hit leaves the level before it, and the slice starts at the zero
+    // crossing at or before that (FL Slice map on a drum loop: every slice
+    // starts on an exact zero or on the first sample past a sign change;
     // a sung "ah" fading in has none).
     std::vector<int> detectOnsets (const juce::AudioBuffer<float>& b)
     {
@@ -415,6 +416,9 @@ namespace
             int pos = (int) i * block;
             for (int k = from; k < to; ++k)
                 if (level (k) > threshold) { pos = k; break; }
+            auto mid = [&] (int k) { return l[k] + r[k]; };
+            while (pos > 0 && mid (pos) != 0.0f && mid (pos - 1) * mid (pos) >= 0.0f)
+                --pos;
             if (pos - onsets.back() >= 2048)
                 onsets.push_back (pos);
         }

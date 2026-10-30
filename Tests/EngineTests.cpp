@@ -355,6 +355,38 @@ int main()
         check (std::abs (frequency (beats, sec / 10, sec) - 440) < 8, "TIME stretch keeps pitch", juce::String (frequency (beats, sec / 10, sec), 1));
     }
 
+    // Slice map (as FL's): a slice starts on a zero crossing, at floor (start
+    // x MUL), without a fade; it ends with a fade that is silent just before
+    // its end, and the gap up to the next slice is silent.
+    {
+        RawSample hits;
+        hits.sampleRate = rate;
+        hits.audio.setSize (1, sec);
+        const int second = sec / 2;
+        for (int i = 0; i < sec; ++i)
+        {
+            const int k = i < second ? i : i - second;
+            const auto amp = i < second ? 0.1 : 0.9;
+            hits.audio.setSample (0, i, (float) (amp * std::exp (-k / (0.5 * rate)) * std::sin (juce::MathConstants<double>::twoPi * 150.0 * k / rate)));
+        }
+        auto d = buildProcessedSample (hits, plain);
+        auto p = params();
+        p.stretchMode = StretchMode::sliceMap;
+        p.stretchMul = 2.0f;
+        auto v = render (*d, p, 2 * sec, { { 0, on (60) } });
+        const auto* src = d->audio.getReadPointer (0);
+        const auto gain = v[1000] / src[1000];
+        float worst = 0.0f;
+        for (int k = 1; k < 64; ++k)
+            worst = juce::jmax (worst, std::abs (v[(size_t) (2 * second + k)] - gain * src[second + k]));
+        check (d->onsets.size() == 2 && d->onsets[1] == second, "slice map: the slice starts on the zero crossing",
+               juce::String (d->onsets.size() > 1 ? d->onsets[1] : -1));
+        check (worst < 1.0e-4f, "slice map: a slice starts at start x MUL without a fade", juce::String (worst));
+        check (rms (v, second - 64, second) == 0.0f && rms (v, second - 2000, second - 1100) > 0.01f,
+               "slice map: a slice fades out by its end", juce::String (rms (v, second - 2000, second - 1100), 4));
+        check (rms (v, second, 2 * second) == 0.0f, "slice map: silence up to the next slice at MUL x2");
+    }
+
     // The stretcher's FFT gives JUCE's results (forward and inverse, every
     // size the stretcher uses).
     {

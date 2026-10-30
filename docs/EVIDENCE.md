@@ -278,9 +278,28 @@ distance to FL's renders (`nulltest/stretch/`, `nulltest/E3_NOTES.md`).
   1.75, spectrum 3.47 -> 2.16, null -1.77 -> -5.54 dB; Slice map (it plays
   the slices unstretched, so it nulls) mean -11.8 -> -26.0 dB (the "ah" +1.4
   -> -71 dB, e3_loop at x2 +2.0 -> -11.3); e2 transient, which also restarts
-  at the slices, spectrum 3.69 -> 3.19. Not matched yet: FL's slice ends
-  (e3_loop -7 ... -11 dB in Slice map) and its Rhodes / kick tails at
-  x0.667.
+  at the slices, spectrum 3.69 -> 3.19.
+- **Slice map's slice edges (round 15):** fitted per slice on e3_loop at MUL
+  x1.5 and x2, where silence separates the slices. FL starts a slice on a zero
+  crossing: from the detected point it steps back to an exact zero or to the
+  first sample past a sign change (0-2 samples on e3_loop; every one of the
+  16 slices). It plays from the output sample floor (start x MUL) (15 of 15
+  slices, exact at x2), at full level from the first sample (ours had a 2 ms
+  fade-in), and ends with Transient (no bleeding)'s high-pass out-fade at half
+  speed: it starts 942 samples before the slice's end (the next slice or the
+  sample end) and is silent from 62 samples before it (a slice's tail -52.8 dB
+  at both MULs; a gain fade fits to -21 dB at best). Without a loop the fade
+  also ends where the play head reaches the sample end (707 Kick at x0.667,
+  -62 dB). Slice map null (stretch/slices.py, FL's channel volume applied, no
+  gain fitted, ours with Use loop points on as in the FL template): mean -26.0
+  -> -58.5 dB; x2 and x1.5 -52 ... -83 dB on all five samples. Slice stretch
+  unchanged (1.75 / 2.16 / -5.54). Not matched yet, both at x0.667: a slice
+  cut by the next one (FL fades it over roughly 200 samples of the new slice,
+  shape unknown; e3_loop -33.6 dB) and the Rhodes's 252-sample loop, which
+  FL replays about every 168 samples once the play head wraps (-5.0 dB).
+  Unverified: which channel FL tests for the zero crossing (the test samples
+  have equal channels; ours uses L + R), and whether file markers snap too
+  (ours keeps them exact).
 
 Evidence: nulltest/stretch/stretch_check.py, nulltest/stretch/stretch_vs_fl.py,
 nulltest/stretch/real_material.py, e3_clicks.wav.

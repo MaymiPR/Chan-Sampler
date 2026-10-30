@@ -4,7 +4,8 @@ install) and e3_loop.
 
   map       Slice map at MUL x2 / x1.5 / x0.667: it plays the slices as they
             are, so it nulls once the slices start where FL's do (FL's channel
-            volume on plugins, 0.7792, applied; no gain fitted)
+            volume on plugins, 0.7792, applied; no gain fitted; Use loop
+            points on, as in the FL template's channel)
   stretch   a stretch mode (default Slice stretch) at -700 / +700 cents and
             x1.5 / x0.667: envelope / band-spectrum distance and fitted null
 
@@ -40,7 +41,7 @@ def slice_map():
         for k in SAMPLES:
             fl = F.render(f'slmap2_{k}' if raw == 10000 else f'slmap_{raw}_{k}', E.SAMPLES[k][0],
                           [F.params(108, '<i', 4), F.params(100, '<i', 0), F.params(104, '<i', raw)], beats=24)[:, 0]
-            o = PLUGIN_CHANNEL * ours(k, {'stretchMode': 6, 'stretchMul': 2 ** (raw / 10000)}, len(fl) / 44100, 24)
+            o = PLUGIN_CHANNEL * ours(k, {'stretchMode': 6, 'stretchMul': 2 ** (raw / 10000), 'useLoop': 1}, len(fl) / 44100, 24)
             n = min(len(o), len(fl), int(66000 * 2 ** (raw / 10000) * 1.5))
             res.append(null(fl[:n], o[:n], fit=False))
             row.append('%s %6.1f' % (k, res[-1]))

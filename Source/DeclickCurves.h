@@ -45,6 +45,12 @@ namespace declick
         return transientGainTable[i] + f * (transientGainTable[i + 1] - transientGainTable[i]);
     }
 
+    // Slice map's slice ends: the Transient high-pass above at half speed
+    // (silent after 880 samples), starting this far before the slice's end
+    // (the next slice or the sample end; FL, a drum loop at MUL x1.5 and x2).
+    constexpr int sliceOutLead = 942;
+    constexpr double sliceOutSpeed = 0.5;
+
     // Crossfade fades: degree-10 polynomials in u = n / length (max error
     // 0.6 / 3192 against the measurement).
     constexpr int crossfadeInLength = 8750, crossfadeOutLength = 8781;

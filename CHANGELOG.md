@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+Sound
+- Slice map nulls against FL at MUL x2 and x1.5 (-52 to -83 dB, from -11 to
+  -32 on a drum loop): slices start on a zero crossing, on the sample FL
+  starts them, without a fade-in, and end with FL's fade instead of a hard
+  stop. Below x1, a slice that reaches the end of the sample fades out where
+  FL's does (a kick: -62 dB, from -19).
+
 ## 1.4.0
 
 Sound

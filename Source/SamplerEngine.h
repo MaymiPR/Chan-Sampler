@@ -189,7 +189,7 @@ private:
         int takeLen = 0, takeAt = 0, takeStart = 0, takeEnd = 0;
         int onsetIdx = 0;         // next transient for the slice modes
         double slicePos = -1;     // slice map: read head inside the current slice
-        int sliceFade = 0;
+        float sliceLowL = 0, sliceLowR = 0;   // slice map: the slice-end high-pass state
         bool firstBlock = true;
         NoteMods mods;
     };

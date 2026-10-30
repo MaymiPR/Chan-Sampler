@@ -816,6 +816,7 @@ void SamplerEngine::noteOn (int note, float velocity, NoteMods mods, const Sampl
     while (v.onsetIdx < (int) s.onsets.size() && s.onsets[(size_t) v.onsetIdx] <= (int) v.pos)
         ++v.onsetIdx;
     v.slicePos = v.pos;
+    v.sliceLowL = v.sliceLowR = 0;
     v.targetNote = (float) note;
     v.glideTicks = 0;
     if ((p.porta || mods.slide) && lastNote >= 0)
@@ -1319,7 +1320,10 @@ void SamplerEngine::renderRange (juce::AudioBuffer<float>& out, int start, int n
                 }
                 else if (sliceMap)
                 {
-                    // Slices keep their own speed and restart at their mapped time.
+                    // Slices keep their own speed and restart at their mapped
+                    // time; each plays up to the next slice's start (silence
+                    // between slices at MUL x1.5), starts without a fade and
+                    // ends with the Transient high-pass at half speed.
                     l = r = 0.0f;
                     if (v.slicePos >= 0.0)
                     {
@@ -1327,12 +1331,25 @@ void SamplerEngine::renderRange (juce::AudioBuffer<float>& out, int start, int n
                         if (v.slicePos < nextOnset)
                         {
                             interp.read (srcL, srcR, v.slicePos, v.increment, at, l, r, atIsIndexBelow);
-                            const int fadeLen = juce::jmax (1, (int) (0.002 * sampleRate));
-                            if (v.sliceFade < fadeLen)
+                            // The fade ends with the slice or, without a loop,
+                            // when the play head reaches the end (FL: a kick at
+                            // MUL x0.667).
+                            auto left = (nextOnset - v.slicePos) / v.increment;
+                            if (! looping && ! v.holding && rateNow > 0.0)
+                                left = juce::jmin (left, (endLimit - v.pos) / rateNow);
+                            const auto toRate = 44100.0 / sampleRate;
+                            const auto x = (declick::sliceOutLead - left * toRate) * declick::sliceOutSpeed;
+                            if (x >= declick::transientOutLength)
                             {
-                                const auto fw = (float) ++v.sliceFade / (float) fadeLen;
-                                l *= fw;
-                                r *= fw;
+                                l = r = 0.0f;
+                            }
+                            else if (x > 0.0)
+                            {
+                                const auto c = declick::transientCoefficient (x - declick::sliceOutSpeed * toRate, x);
+                                v.sliceLowL += c * (l - v.sliceLowL);
+                                v.sliceLowR += c * (r - v.sliceLowR);
+                                l -= v.sliceLowL;
+                                r -= v.sliceLowR;
                             }
                             v.slicePos += v.increment;
                         }
@@ -1444,14 +1461,17 @@ void SamplerEngine::renderRange (juce::AudioBuffer<float>& out, int start, int n
                 v.pos += rateNow * v.dir;
 
                 // Slice modes restart at each transient the play head crosses.
+                // Slice map starts a slice on the sample whose step crosses
+                // it (FL: floor (start x MUL), exact at x2).
                 if ((sliceMap || slicesReset) && v.onsetIdx < (int) s.onsets.size()
-                    && v.pos >= s.onsets[(size_t) v.onsetIdx])
+                    && (sliceMap ? v.pos + rateNow > s.onsets[(size_t) v.onsetIdx]
+                                 : v.pos >= s.onsets[(size_t) v.onsetIdx]))
                 {
                     const auto onset = (double) s.onsets[(size_t) v.onsetIdx++];
                     if (sliceMap)
                     {
                         v.slicePos = onset;
-                        v.sliceFade = 0;
+                        v.sliceLowL = v.sliceLowR = 0;
                     }
                     else if (v.stretched)
                     {
