@@ -420,7 +420,7 @@ void RootKeyboard::mouseDown (const juce::MouseEvent& e)
         // Scroll bar: arrows step an octave, the thumb drags, the track pages.
         const auto t = thumbBounds().withY (keysBottom).withHeight ((float) getHeight() - keysBottom);
         if (e.position.x < arrowW)                     setScroll (scroll - octaveW);
-        else if (e.position.x > (float) (getWidth() - arrowW))   setScroll (scroll + octaveW);
+        else if (e.position.x > (float) getWidth() - arrowW)   setScroll (scroll + octaveW);
         else if (t.contains (e.position))              { dragFrom = e.position.x; scrollFrom = target; }
         else                                           setScroll (scroll + (e.position.x < t.getX() ? -1.0f : 1.0f) * (float) getWidth() * 0.8f);
         return;
