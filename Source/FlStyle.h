@@ -246,7 +246,7 @@ namespace fl
     class Switch : public juce::ToggleButton, private juce::Timer
     {
     public:
-        explicit Switch (const juce::String& text = {}) : juce::ToggleButton (text) { setTriggeredOnMouseDown (true); }
+        explicit Switch (const juce::String& buttonText = {}) : juce::ToggleButton (buttonText) { setTriggeredOnMouseDown (true); }
         float getLit() const noexcept { return lit; }
 
     private:

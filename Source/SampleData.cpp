@@ -307,7 +307,7 @@ namespace
         const int n = b.getNumSamples();
         for (int i = 0; i < n; ++i)
         {
-            const auto x = (float) i / juce::jmax (1, n - 1);
+            const auto x = (float) i / (float) juce::jmax (1, n - 1);
             b.getWritePointer (0)[i] *= std::cos (x * juce::MathConstants<float>::halfPi);
             b.getWritePointer (1)[i] *= std::sin (x * juce::MathConstants<float>::halfPi);
         }
@@ -323,7 +323,7 @@ namespace
         if (s.crossfade <= 0.0f || n < 8)
             return;
 
-        int ls = (int) std::lround (s.loopStart * n), le = (int) std::lround (juce::jmax (s.loopStart, s.loopEnd) * n), len;
+        int ls = (int) std::lround (s.loopStart * (float) n), le = (int) std::lround (juce::jmax (s.loopStart, s.loopEnd) * (float) n), len;
         if (s.useLoop && le - ls >= 4)   // loop points set and in use
         {
             // Measured in FL: the fade is CROSSFADE x length / 4 long and ends at

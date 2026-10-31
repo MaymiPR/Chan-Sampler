@@ -420,7 +420,7 @@ void RootKeyboard::mouseDown (const juce::MouseEvent& e)
         // Scroll bar: arrows step an octave, the thumb drags, the track pages.
         const auto t = thumbBounds().withY (keysBottom).withHeight ((float) getHeight() - keysBottom);
         if (e.position.x < arrowW)                     setScroll (scroll - octaveW);
-        else if (e.position.x > getWidth() - arrowW)   setScroll (scroll + octaveW);
+        else if (e.position.x > (float) (getWidth() - arrowW))   setScroll (scroll + octaveW);
         else if (t.contains (e.position))              { dragFrom = e.position.x; scrollFrom = target; }
         else                                           setScroll (scroll + (e.position.x < t.getX() ? -1.0f : 1.0f) * (float) getWidth() * 0.8f);
         return;
@@ -818,7 +818,7 @@ void ParamKnob::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWhee
     // attachment hears the drag start / end as the gesture; snapValue holds TIME's steps.
     const auto now = valueToProportionOfLength (getValue());
     const auto drawn = glide.shown (now);   // where the knob is drawn (mid-glide or not)
-    const juce::MouseWheelDetails scaled { 0.0f, (float) ((pos - now) / 0.15), false, false };
+    const juce::MouseWheelDetails scaled { 0.0f, (float) ((pos - now) / 0.15), false, false, false };
     wheelActive = true;
     juce::Slider::mouseWheelMove (e, scaled);
     wheelActive = false;

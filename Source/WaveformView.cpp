@@ -336,8 +336,8 @@ void WaveformView::drawLanes (juce::Graphics& g, juce::Rectangle<float> area, fl
             const auto f1 = from + (to - from) * (float) (x + 1) / (float) width;
             if (f0 >= 1.0f)
                 break;
-            const int i0 = juce::jlimit (0, total - 1, (int) std::floor (f0 * total));
-            const int i1 = juce::jlimit (i0 + 1, total, (int) std::floor (f1 * total));
+            const int i0 = juce::jlimit (0, total - 1, (int) std::floor (f0 * (float) total));
+            const int i1 = juce::jlimit (i0 + 1, total, (int) std::floor (f1 * (float) total));
             int iLo = i0, iHi = i0;
             float lo = juce::jmin (l0[i0], r0[i0]), hi = juce::jmax (l0[i0], r0[i0]);
             for (int i = i0 + 1; i < i1; ++i)
@@ -372,8 +372,8 @@ void WaveformView::drawLanes (juce::Graphics& g, juce::Rectangle<float> area, fl
         float lo = 0, hi = 0;
         if (framesPerColumn <= 8192.0)
         {
-            const int i0 = juce::jlimit (0, total - 1, (int) std::floor (f0 * total));
-            const int i1 = juce::jlimit (i0 + 1, total, (int) std::floor (f1 * total));
+            const int i0 = juce::jlimit (0, total - 1, (int) std::floor (f0 * (float) total));
+            const int i1 = juce::jlimit (i0 + 1, total, (int) std::floor (f1 * (float) total));
             lo = hi = l[i0];
             for (int i = i0; i < i1; ++i)
                 for (auto v : { l[i], r[i] })
@@ -422,8 +422,8 @@ void WaveformView::drawSamples (juce::Graphics& g, juce::Rectangle<float> area, 
     const int total = sample->getTotalFrames();
     const auto halfH = area.getHeight() * 0.5f;
     const auto mid = area.getCentreY();
-    const int first = juce::jmax (0, (int) std::floor (from * total) - 1);
-    const int last = juce::jmin (total - 1, (int) std::ceil (to * total) + 1);
+    const int first = juce::jmax (0, (int) std::floor (from * (float) total) - 1);
+    const int last = juce::jmin (total - 1, (int) std::ceil (to * (float) total) + 1);
     const auto* l = sample->audio.getReadPointer (0);
     const auto* r = sample->audio.getReadPointer (juce::jmin (1, sample->audio.getNumChannels() - 1));
     auto pt = [&] (int i)

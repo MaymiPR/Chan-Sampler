@@ -191,8 +191,8 @@ namespace
         // The END frame is inclusive in FL: a forward loop plays it and then
         // jumps to START (measured: one frame per pass otherwise); ping pong
         // turns at END itself.
-        const int ls = (int) std::lround (juce::jlimit (0.0f, 1.0f, p.loopStart) * s.playEnd);
-        int le = (int) std::lround (juce::jlimit (0.0f, 1.0f, juce::jmax (p.loopStart, p.loopEnd)) * s.playEnd);
+        const int ls = (int) std::lround (juce::jlimit (0.0f, 1.0f, p.loopStart) * (float) s.playEnd);
+        int le = (int) std::lround (juce::jlimit (0.0f, 1.0f, juce::jmax (p.loopStart, p.loopEnd)) * (float) s.playEnd);
         if (! p.pingPong)
             le = juce::jmin (s.playEnd, le + 1);
         const int shift = p.pingPong ? 0 : s.loopStartShift;   // the crossfade's loop restart

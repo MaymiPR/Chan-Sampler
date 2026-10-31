@@ -2,8 +2,7 @@
 // data on the general pasteboard.
 #import <AppKit/AppKit.h>
 
-#include <string>
-#include <vector>
+#include "SampleExchangeMac.h"
 
 namespace exchange
 {
@@ -17,9 +16,10 @@ bool macCopyToClipboard (const char* path, const void* wav, size_t size)
         NSPasteboard* pb = [NSPasteboard generalPasteboard];
         [pb clearContents];
         NSPasteboardItem* item = [[NSPasteboardItem alloc] init];
-        if (path != nullptr && path[0] != 0)
-            [item setString: [[NSURL fileURLWithPath: [NSString stringWithUTF8String: path]] absoluteString]
-                    forType: NSPasteboardTypeFileURL];
+        NSString* file = path != nullptr && path[0] != 0 ? [NSString stringWithUTF8String: path] : nil;
+        NSString* url = file != nil ? [[NSURL fileURLWithPath: file] absoluteString] : nil;
+        if (url != nil)
+            [item setString: url forType: NSPasteboardTypeFileURL];
         if (wav != nullptr && size > 0)
             [item setData: [NSData dataWithBytes: wav length: size] forType: wavType];
         const BOOL ok = [pb writeObjects: @[ item ]];
@@ -49,9 +49,10 @@ bool macPasteFromClipboard (std::string& path, std::vector<char>& data, std::str
         NSPasteboard* pb = [NSPasteboard generalPasteboard];
         NSArray* urls = [pb readObjectsForClasses: @[ [NSURL class] ]
                                           options: @{ NSPasteboardURLReadingFileURLsOnlyKey: @YES }];
-        if (urls.count > 0)
+        const char* file = urls.count > 0 ? [[(NSURL*) urls[0] path] UTF8String] : nullptr;
+        if (file != nullptr)
         {
-            path = [[(NSURL*) urls[0] path] UTF8String];
+            path = file;
             return true;
         }
         for (NSString* type in @[ wavType, aiffType ])

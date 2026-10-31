@@ -449,9 +449,9 @@ void TimeStretcher::phaseLock (int c, int analysisHop, bool transient)
     for (int k = 2; k < half - 1; ++k)
     {
         const auto v = m[(size_t) k];
-        const bool peak = (v > m[(size_t) (k - 1)]) & (v >= m[(size_t) (k + 1)]) & (v > m[(size_t) (k - 2)]) & (v >= m[(size_t) (k + 2)]);
+        const int peak = int (v > m[(size_t) (k - 1)]) & int (v >= m[(size_t) (k + 1)]) & int (v > m[(size_t) (k - 2)]) & int (v >= m[(size_t) (k + 2)]);
         peaks[(size_t) count] = k;   // without a branch: noise has peaks at random
-        count += peak ? 1 : 0;
+        count += peak;
     }
     if (count == 0)
     {

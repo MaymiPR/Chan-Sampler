@@ -197,7 +197,7 @@ namespace
                 const auto ri = juce::jlimit (0.0f, (float) (bigKnobRadii - 1), rr * 2.0f);
                 const int r0 = (int) ri, r1 = juce::jmin (r0 + 1, bigKnobRadii - 1);
                 const auto fr = ri - (float) r0;
-                const auto row = [&] (int k) { return (float) t[k][a0] * (1.0f - fa) + (float) t[k][a1] * fa; };
+                const auto row = [&] (int ring) { return (float) t[ring][a0] * (1.0f - fa) + (float) t[ring][a1] * fa; };
                 return row (r0) * (1.0f - fr) + row (r1) * fr;
             };
             const auto base = sample (bigKnobLuma, r);

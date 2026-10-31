@@ -31,6 +31,7 @@ public:
     void filesDropped (const juce::StringArray& files, int x, int y) override;
     // The window's keys (Ctrl+Z, Ctrl+Y / Ctrl+Shift+Z, Ctrl+C / Ctrl+V); public for Tests/UiTests.
     bool keyPressed (const juce::KeyPress&, juce::Component*) override;
+    using juce::AudioProcessorEditor::keyPressed;
 
 private:
     static constexpr int canvasW = 563, canvasH = 446;

@@ -1,5 +1,9 @@
 #include "SampleExchange.h"
 
+#if JUCE_MAC
+ #include "SampleExchangeMac.h"
+#endif
+
 #if ! JUCE_WINDOWS && ! JUCE_MAC
  #include <juce_gui_basics/juce_gui_basics.h>   // SystemClipboard
 #endif
@@ -151,11 +155,6 @@ juce::File pasteFromClipboard (const juce::File& folder)
 }
 
 #elif JUCE_MAC
-// SampleExchangeMac.mm
-bool macCopyToClipboard (const char* path, const void* wav, size_t size);
-bool macClipboardHasAudio();
-bool macPasteFromClipboard (std::string& path, std::vector<char>& data, std::string& extension);
-
 bool copyToClipboard (const juce::File& file, const juce::MemoryBlock& wav, void*)
 {
     const auto path = file.existsAsFile() ? file.getFullPathName() : juce::String();

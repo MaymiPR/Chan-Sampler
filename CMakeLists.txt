@@ -70,6 +70,11 @@ add_library(chansampler_warnings INTERFACE)
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(chansampler_warnings INTERFACE -Wno-switch-enum -Wno-float-equal)
 endif()
+# GCC links JUCE's -flto serially and warns about it; -flto=auto, later on the
+# link line, runs the same link in parallel.
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_link_libraries(chansampler_warnings INTERFACE $<$<CONFIG:Release>:-flto=auto>)
+endif()
 
 # The developer tools build the plugin's code as a console app, so they
 # define what juce_add_plugin would.

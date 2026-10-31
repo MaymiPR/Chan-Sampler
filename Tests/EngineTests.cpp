@@ -88,7 +88,7 @@ namespace
         st.configure (mode, sr44);
         st.reset (0.0);
         const double ratio = std::pow (2.0, cents / 1200.0);
-        const int n = (int) (in.size() / speed);
+        const int n = (int) ((double) in.size() / speed);
         std::vector<float> out ((size_t) n);
         auto read = [&] (int k, float& l, float& r) { l = r = (k >= 0 && k < (int) in.size()) ? in[(size_t) k] : 0.0f; };
         for (int i = 0; i < n; ++i)
