@@ -133,6 +133,7 @@ and for working on the known gaps. Most render through FL, so close it first.
 | Robustness | `robust_check.py` (host rates, mono / 16 / 24-bit / 48 kHz and very long files), `corrupt_files.py` (damaged and unusual files must not crash); both write their own test files |
 | FL project format | `scanflp.py`, `scanev.py`, `flpdiff.py` (find where FL stores a setting by diffing saved projects); `data/t_base.flp`, `data/t_base.wav` |
 | Sample view and formats | signals `freqsteps.wav`, `freqsweep.wav`, `view_tom.wav` (spectrum and colourful-waveform captures), `bits16_1ch.wav`, `bits24_2ch.wav` (format badge), `cue_tone.wav`, `strc_*.wav` (region / slice markers), `smpl_loop.wav` (embedded loop) |
+| Slice starts | `slice_starts.py` (Slice map: which channel's zero crossing FL picks, and whether cue / slice markers move; it writes its own signals) |
 
 `data/vst_wrapper.bin` holds the two FL channel events (Fruity Wrapper) that
 `lib/vstchannel.py` turns into a Chan Sampler channel.

@@ -7,7 +7,8 @@ Sound
   -32 on a drum loop): slices start on a zero crossing, on the sample FL
   starts them, without a fade-in, and end with FL's fade instead of a hard
   stop. Below x1, a slice that reaches the end of the sample fades out where
-  FL's does (a kick: -62 dB, from -19).
+  FL's does (a kick: -62 dB, from -19). In stereo samples a slice starts at
+  the zero crossing FL picks (the nearest in either channel).
 
 ## 1.4.0
 

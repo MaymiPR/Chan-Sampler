@@ -387,6 +387,32 @@ int main()
         check (rms (v, second, 2 * second) == 0.0f, "slice map: silence up to the next slice at MUL x2");
     }
 
+    // In stereo the slice starts after the nearest sign change in either
+    // channel, even when the other channel is louder (FL: L + R would cross
+    // further back), and a digitally silent channel never stops it.
+    for (const bool silentRight : { false, true })
+    {
+        RawSample hits;
+        hits.sampleRate = rate;
+        hits.audio.setSize (2, sec);
+        const int second = sec / 2;
+        for (int i = 0; i < sec; ++i)
+        {
+            // A quiet background, negative from 2000 samples before the hit to
+            // 30 (left) / 120 (right) before it, then the hit on top.
+            const float left = (i >= second - 2000 && i < second - 30) ? -0.004f : 0.004f;
+            const float right = silentRight ? 0.0f : ((i >= second - 2000 && i < second - 120) ? -0.008f : 0.008f);
+            const auto hit = i >= second ? (float) (0.8 * std::exp (-(i - second) / 2500.0)) : 0.0f;
+            hits.audio.setSample (0, i, left + hit);
+            hits.audio.setSample (1, i, right + (silentRight ? 0.0f : hit));
+        }
+        auto d = buildProcessedSample (hits, plain);
+        check (d->onsets.size() == 2 && d->onsets[1] == second - 30,
+               silentRight ? "slice map: a silent channel does not stop the zero-crossing search"
+                           : "slice map: the zero crossing nearest the hit, in either channel",
+               juce::String (d->onsets.size() > 1 ? d->onsets[1] : -1));
+    }
+
     // The stretcher's FFT gives JUCE's results (forward and inverse, every
     // size the stretcher uses).
     {

@@ -297,9 +297,14 @@ distance to FL's renders (`nulltest/stretch/`, `nulltest/E3_NOTES.md`).
   cut by the next one (FL fades it over roughly 200 samples of the new slice,
   shape unknown; e3_loop -33.6 dB) and the Rhodes's 252-sample loop, which
   FL replays about every 168 samples once the play head wraps (-5.0 dB).
-  Unverified: which channel FL tests for the zero crossing (the test samples
-  have equal channels; ours uses L + R), and whether file markers snap too
-  (ours keeps them exact).
+  Round 16, on stereo test files built for it (nulltest/probes/slice_starts.py,
+  MUL x2, 38 slice starts, all identical to FL's now): FL stops at the first
+  sign change in either channel, not in L + R (with the louder channel's
+  crossing further back, L + R was wrong in 8 of 16); a digitally silent
+  channel never stops it; both output channels start on the same sample.
+  File markers are not moved: cue points (regions) and ACID slice markers
+  start exactly where the file puts them, off a zero crossing or not.
+  Unverified: an exact zero in one channel only (ours walks on past it).
 
 Evidence: nulltest/stretch/stretch_check.py, nulltest/stretch/stretch_vs_fl.py,
 nulltest/stretch/real_material.py, e3_clicks.wav.

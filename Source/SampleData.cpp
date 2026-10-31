@@ -380,7 +380,9 @@ namespace
     // the hit leaves the level before it, and the slice starts at the zero
     // crossing at or before that (FL Slice map on a drum loop: every slice
     // starts on an exact zero or on the first sample past a sign change;
-    // a sung "ah" fading in has none).
+    // a sung "ah" fading in has none). In stereo, the first sign change in
+    // either channel, and an exact zero only in both (FL, stereo test files;
+    // nulltest/probes/slice_starts.py).
     std::vector<int> detectOnsets (const juce::AudioBuffer<float>& b)
     {
         constexpr int block = 128;
@@ -416,8 +418,10 @@ namespace
             int pos = (int) i * block;
             for (int k = from; k < to; ++k)
                 if (level (k) > threshold) { pos = k; break; }
-            auto mid = [&] (int k) { return l[k] + r[k]; };
-            while (pos > 0 && mid (pos) != 0.0f && mid (pos - 1) * mid (pos) >= 0.0f)
+            // Either channel's sign change ends the walk back; a digitally
+            // silent channel never does.
+            auto crosses = [&] (const float* x, int k) { return x[k - 1] * x[k] < 0.0f; };
+            while (pos > 0 && (l[pos] != 0.0f || r[pos] != 0.0f) && ! crosses (l, pos) && ! crosses (r, pos))
                 --pos;
             if (pos - onsets.back() >= 2048)
                 onsets.push_back (pos);
