@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+Sound
+- SMP LENGTH: segments under 200 frames end as FL's do (-59 to -69 dB in FL,
+  from -47 to -57 on the shortest).
+
 ## 1.4.1
 
 Sound

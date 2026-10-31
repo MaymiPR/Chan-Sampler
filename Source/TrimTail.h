@@ -1076,15 +1076,19 @@ namespace trimtail
 // over a window of the last frames, so a held value is drawn to 0 at the end
 // while the sound before the window passes unchanged, then a short raised-
 // cosine closing fade. The window is the whole segment as FL keeps it (its
-// last trimmed frame included). Fitted to FL's click responses on a 100-frame
-// segment (nulltest/probes/tail_short.py 100: -72.5 dB) and LENGTH 0's
-// (-53.5 dB; that one keeps its own table); the structure came from reading
-// FL's engine (docs/BINARY-NOTES.md). The values are ours, at 44.1 kHz.
+// last trimmed frame included). The sweep's rate per frame is
+// sweepRate / (window - sweepOffset): fitted to FL's click responses on
+// segments of 41, 50, 60, 80, 100, 150 and 190 frames (nulltest/probes/
+// trim_matrix.py; -67 ... -72 dB up to 150 frames, -53 at 190, where the
+// window stops growing), after a fit on 100 frames alone, which scaled the
+// sweep by the window and drifted to -53 dB on the shortest. LENGTH 0 keeps
+// its own table. The structure came from reading FL's engine
+// (docs/BINARY-NOTES.md). The values are ours, at 44.1 kHz.
 namespace trimtail
 {
     constexpr int window = 178;           // frames, the longest (the long table's reach)
     constexpr double sweepStart = 5.01e-5;
-    constexpr double sweepRate = 10.0019;  // over the window
+    constexpr double sweepRate = 9.87, sweepOffset = 1.3;
     constexpr int closing = 44;            // frames
 
     // Filters frames [0, end) of d in place; the window ends at end.
@@ -1098,7 +1102,7 @@ namespace trimtail
         for (int t = 0; t < w; ++t)
         {
             auto& x = d[end - w + t];
-            const double c = std::fmin (1.0, sweepStart * std::exp (sweepRate * t / w));
+            const double c = std::fmin (1.0, sweepStart * std::exp (sweepRate * t / (w - sweepOffset)));
             lp += c * (x - lp);
             double y = x - lp;
             const int k = t - (w - fade) + 1;   // 1 .. fade in the closing fade
