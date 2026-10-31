@@ -459,6 +459,44 @@ source: grains ~0.85+, the vocoder a falling trend):
   sample to 1 / 32. Not adopted: the decision is per spectral peak in FL,
   and a whole-band centre doesn't make it.
 
+## Swell restarts in the plugin (round 14, after 1.4.1; tried, not adopted)
+
+FL's first low-band restart on round 11's 80 swells lands about where the
+swell stops rising (full level at 3840 / 2560 / 1920 / 1536 / 960 samples
+after t0 for 2 / 3 / 4 / 5 / 8 dB per 128; FL's restarts are within a few
+hundred of those). Ours (`stretch.lowband swellours`): 26 / 80 to within 3
+samples, all at 5 and 8 dB / 128 where our attack rule fires; the slow
+swells never restarted (no 128-sample block 8x the four before it).
+
+- Detector, own fit (no values from the binary): 4096-sample Hann frames on
+  a 512 grid from the note's start (offset 0); a frame whose energy is above
+  1.05x the last frame's with its energy centre past 0.35 half frames marks
+  a swell under way; the first later frame whose centre is back within 0.35
+  restarts at the loudest sample within a hop of its centre, weighted by
+  Hann^3. Offline 62 / 80 to the sample; most misses a frame late.
+- In the plugin: the restart as a phase reset of the low band (the analysis
+  phases, each bin moved by its measured frequency x the distance between
+  the frame's centre and the restart point, in the source and where the
+  stretch plays it; in the stretcher's stream a frame's sample i sits at
+  synthPos + i, not synthPos + i - hop). Applied on the first frame starting
+  half a frame after where the restart plays (earlier frames still sit on the
+  rise, which skews their phases by up to 8 degrees; on the restart frame
+  itself 42 / 80, a hop after 47, half a frame 53); deferred past an attack's
+  1:1 frames; an attack inside a swell leaves the restart to it. 53 / 80.
+  Peak frequencies for the off-peak bins did not help (41).
+- Real material, the stretcher alone (`stretch.real_material e3gen`): null
+  -5.07 -> -5.37 dB, envelope 1.74 the same, spectrum 2.00 -> 1.99 (DL
+  Groover +2 dB at three settings, e3_loop mixed). In FL (`stretch.e3_in_fl`,
+  the reference): envelope 1.70 -> 1.67, but null raw -3.30 -> -3.05, fitted
+  -4.57 -> -4.46 (DL Groover at -700 / -300 / +300 cents ~2 dB worse, where
+  the stretcher alone had it better), and the engine test "a soft start lines
+  up" failed. Not adopted; the change is kept as a patch outside the
+  repository. Next: why the groove goes opposite ways in FL and offline (the
+  in-FL case is the whole plugin, the offline one the stretcher fed FL's
+  decode), and the remaining 27: our attack rule's 1:1 lock is itself a
+  restart (its frames take the source's phases) and claims 4 dB / 128 swells
+  ~200 samples before FL.
+
 ## Open
 
 - The period estimator's exact choice on noise (when it is made; 21% now).
