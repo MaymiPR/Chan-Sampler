@@ -39,7 +39,8 @@ def run_fl(project, wav):
     if fl_running():
         raise RuntimeError('FL Studio is open: close it first (a running FL swallows the command-line render)')
     if os.path.exists(wav): os.remove(wav)
-    subprocess.run([FL, "/R", "/Ewav", project], timeout=300)
+    from lib import flqueue
+    flqueue.start_fl([FL, "/R", "/Ewav", project]).wait(timeout=300)   # on the hidden desktop
     if not os.path.exists(wav):
         raise RuntimeError(f'FL did not render {project}')
 

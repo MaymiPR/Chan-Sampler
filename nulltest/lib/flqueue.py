@@ -93,6 +93,64 @@ def kill_tree(pid):
     subprocess.run(['taskkill', '/T', '/F', '/PID', str(pid)], capture_output=True)
 
 
+# FL's command-line render opens FL's window and takes the focus each time.
+# On Windows it is started on a desktop of its own that nobody looks at, so
+# renders don't take over the screen (the WAV is byte-identical);
+# FLQUEUE_VISIBLE=1 renders on the user's desktop as before.
+HIDDEN_DESKTOP = 'ChanSamplerRenders'
+_desktop = None
+
+
+class _Hidden:
+    """A process started on the hidden desktop, with Popen's wait / returncode / pid."""
+    def __init__(self, cmd):
+        from ctypes import wintypes as W
+
+        class STARTUPINFO(ctypes.Structure):
+            _fields_ = [('cb', W.DWORD), ('lpReserved', W.LPWSTR), ('lpDesktop', W.LPWSTR), ('lpTitle', W.LPWSTR),
+                        ('dwX', W.DWORD), ('dwY', W.DWORD), ('dwXSize', W.DWORD), ('dwYSize', W.DWORD),
+                        ('dwXCountChars', W.DWORD), ('dwYCountChars', W.DWORD), ('dwFillAttribute', W.DWORD),
+                        ('dwFlags', W.DWORD), ('wShowWindow', W.WORD), ('cbReserved2', W.WORD), ('lpReserved2', ctypes.c_void_p),
+                        ('hStdInput', W.HANDLE), ('hStdOutput', W.HANDLE), ('hStdError', W.HANDLE)]
+
+        class PROCESS_INFORMATION(ctypes.Structure):
+            _fields_ = [('hProcess', W.HANDLE), ('hThread', W.HANDLE), ('dwProcessId', W.DWORD), ('dwThreadId', W.DWORD)]
+
+        self._k32 = ctypes.WinDLL('kernel32', use_last_error=True)
+        si = STARTUPINFO(); si.cb = ctypes.sizeof(si); si.lpDesktop = 'WinSta0\\' + HIDDEN_DESKTOP
+        pi = PROCESS_INFORMATION()
+        line = ctypes.create_unicode_buffer(subprocess.list2cmdline(cmd))
+        if not self._k32.CreateProcessW(None, line, None, None, False, 0, None, None, ctypes.byref(si), ctypes.byref(pi)):
+            raise OSError(ctypes.get_last_error(), 'CreateProcess on the hidden desktop failed')
+        self._k32.CloseHandle(pi.hThread)
+        self._handle, self.pid, self.returncode = pi.hProcess, pi.dwProcessId, None
+
+    def wait(self, timeout=None):
+        from ctypes import wintypes as W
+        if self._k32.WaitForSingleObject(self._handle, 0xFFFFFFFF if timeout is None else int(timeout * 1000)) != 0:
+            raise subprocess.TimeoutExpired('FL64.exe', timeout)
+        code = W.DWORD(); self._k32.GetExitCodeProcess(self._handle, ctypes.byref(code))
+        self._k32.CloseHandle(self._handle)
+        self.returncode = code.value
+        return self.returncode
+
+
+def start_fl(cmd):
+    """Start an FL command line, on the hidden desktop when there is one."""
+    global _desktop
+    if sys.platform == 'win32' and os.environ.get('FLQUEUE_VISIBLE') != '1':
+        try:
+            if _desktop is None:
+                u32 = ctypes.WinDLL('user32', use_last_error=True)
+                u32.CreateDesktopW.restype = ctypes.c_void_p
+                _desktop = u32.CreateDesktopW(HIDDEN_DESKTOP, None, None, 0, 0x01FF, None) or 0   # kept for the process's life
+            if _desktop:
+                return _Hidden(cmd)
+        except OSError:
+            pass
+    return subprocess.Popen(cmd)
+
+
 def validate_wav(path, min_frames=1, min_seconds=0.0):
     """(frames, sample_rate) of a complete WAV; RenderError('bad_wav') otherwise,
     or RenderError('short_render') when it holds less than min_seconds (FL now
@@ -131,7 +189,7 @@ def render_fl(project, wav, timeout=TIMEOUT, exe=None):
         raise RenderError('fl_running', 'FL Studio is open (a running FL swallows the command-line render)')
     if os.path.exists(wav):
         os.remove(wav)
-    p = subprocess.Popen([exe, '/R', '/Ewav', project])
+    p = start_fl([exe, '/R', '/Ewav', project])
     try:
         p.wait(timeout=timeout)
     except subprocess.TimeoutExpired:
