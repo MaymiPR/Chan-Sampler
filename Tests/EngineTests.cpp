@@ -385,6 +385,27 @@ int main()
         check (rms (v, second - 64, second) == 0.0f && rms (v, second - 2000, second - 1100) > 0.01f,
                "slice map: a slice fades out by its end", juce::String (rms (v, second - 2000, second - 1100), 4));
         check (rms (v, second, 2 * second) == 0.0f, "slice map: silence up to the next slice at MUL x2");
+
+        // Below x1 the next slice cuts the first: the first fades out under
+        // it (sounding for a while after the cut, silent 880 / 2 - 501 = 379
+        // samples after it at 44.1 kHz, scaled to this rate).
+        p.stretchMul = 0.6667f;
+        auto w = render (*d, p, sec, { { 0, on (60) } });
+        const int cut = (int) std::floor (second * 0.6667);
+        auto newOnly = [&] (int t, int a, int b)   // the output minus the new slice alone, from a to b after t
+        {
+            double e = 0;
+            for (int k = a; k < b; ++k)
+                e += juce::square (w[(size_t) (t + k)] - gain * src[second + k]);
+            return std::sqrt (e / (b - a));
+        };
+        int t = cut;
+        for (int c = cut - 3; c <= cut + 3; ++c)
+            if (newOnly (c, 600, 900) < newOnly (t, 600, 900))
+                t = c;
+        check (newOnly (t, 600, 900) < 1.0e-6 && newOnly (t, 0, 200) > 1.0e-3,
+               "slice map: below x1 a cut slice fades out under the next one",
+               juce::String (newOnly (t, 0, 200), 5) + " / " + juce::String (newOnly (t, 600, 900), 8));
     }
 
     // In stereo the slice starts after the nearest sign change in either

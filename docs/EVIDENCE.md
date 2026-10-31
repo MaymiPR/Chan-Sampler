@@ -293,10 +293,20 @@ distance to FL's renders (`nulltest/stretch/`, `nulltest/E3_NOTES.md`).
   -62 dB). Slice map null (stretch/slices.py, FL's channel volume applied, no
   gain fitted, ours with Use loop points on as in the FL template): mean -26.0
   -> -58.5 dB; x2 and x1.5 -52 ... -83 dB on all five samples. Slice stretch
-  unchanged (1.75 / 2.16 / -5.54). Not matched yet, both at x0.667: a slice
-  cut by the next one (FL fades it over roughly 200 samples of the new slice,
-  shape unknown; e3_loop -33.6 dB) and the Rhodes's 252-sample loop, which
-  FL replays about every 168 samples once the play head wraps (-5.0 dB).
+  unchanged (1.75 / 2.16 / -5.54). Not matched yet at x0.667: the Rhodes's
+  252-sample loop, which FL replays about every 168 samples once the play
+  head wraps (-5.0 dB).
+  Round 16, slices cut by the next one (below x1 the play head reaches the
+  next slice before the slice ends): the old slice's gain against FL's render
+  less the new slice, in 16-sample blocks, falls smoothly from about 320
+  samples before the cut and goes on after it; fitted, it is the same
+  half-speed high-pass fade, started 500-501 samples before the play head
+  reaches the next slice (-62.2 / -43.6 dB on e3_loop's two cuts with sound
+  in them; at full speed -26 at best), so the old slice fades out under the
+  new one for 379 samples. At x0.667: e3_loop -33.6 -> -53.3 dB, DL Groover
+  -52.0 -> -74.7; Slice map mean -58.5 -> -61.4 dB, x2 / x1.5 unchanged.
+  Timing the 942-sample end fade to the play head instead made it worse
+  (-23.8 / -43.3).
   Round 16, on stereo test files built for it (nulltest/probes/slice_starts.py,
   MUL x2, 38 slice starts, all identical to FL's now): FL stops at the first
   sign change in either channel, not in L + R (with the louder channel's

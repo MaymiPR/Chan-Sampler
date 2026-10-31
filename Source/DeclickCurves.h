@@ -50,6 +50,11 @@ namespace declick
     // (the next slice or the sample end; FL, a drum loop at MUL x1.5 and x2).
     constexpr int sliceOutLead = 942;
     constexpr double sliceOutSpeed = 0.5;
+    // Below MUL x1 the play head reaches the next slice before the slice
+    // ends: then the same fade starts this far before the play head gets
+    // there, and the slice fades out under the next one (FL, a drum loop at
+    // x0.667).
+    constexpr int sliceCutLead = 501;
 
     // Crossfade fades: degree-10 polynomials in u = n / length (max error
     // 0.6 / 3192 against the measurement).

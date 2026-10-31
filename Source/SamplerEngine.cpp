@@ -817,6 +817,8 @@ void SamplerEngine::noteOn (int note, float velocity, NoteMods mods, const Sampl
         ++v.onsetIdx;
     v.slicePos = v.pos;
     v.sliceLowL = v.sliceLowR = 0;
+    v.sliceFade = 0;
+    v.tailPos = -1;
     v.targetNote = (float) note;
     v.glideTicks = 0;
     if ((p.porta || mods.slide) && lastNote >= 0)
@@ -1325,6 +1327,22 @@ void SamplerEngine::renderRange (juce::AudioBuffer<float>& out, int start, int n
                     // between slices at MUL x1.5), starts without a fade and
                     // ends with the Transient high-pass at half speed.
                     l = r = 0.0f;
+                    const auto toRate = 44100.0 / sampleRate;
+                    // One fade sample at fade position x (44.1 kHz samples at
+                    // half speed): the high-pass, silent at its end.
+                    auto fade = [&] (double x, float& low, float& value)
+                    {
+                        if (x >= declick::transientOutLength)
+                        {
+                            value = 0.0f;
+                        }
+                        else if (x > 0.0)
+                        {
+                            low += declick::transientCoefficient (x - declick::sliceOutSpeed * toRate, x) * (value - low);
+                            value -= low;
+                        }
+                    };
+                    v.sliceFade = 0;
                     if (v.slicePos >= 0.0)
                     {
                         const int nextOnset = v.onsetIdx < (int) s.onsets.size() ? s.onsets[(size_t) v.onsetIdx] : s.playEnd;
@@ -1333,26 +1351,34 @@ void SamplerEngine::renderRange (juce::AudioBuffer<float>& out, int start, int n
                             interp.read (srcL, srcR, v.slicePos, v.increment, at, l, r, atIsIndexBelow);
                             // The fade ends with the slice or, without a loop,
                             // when the play head reaches the end (FL: a kick at
-                            // MUL x0.667).
+                            // MUL x0.667). Below x1 the play head reaches the
+                            // next slice first: then the fade starts 500
+                            // samples before that and the slice fades out
+                            // under the next one (FL: a drum loop at x0.667).
                             auto left = (nextOnset - v.slicePos) / v.increment;
                             if (! looping && ! v.holding && rateNow > 0.0)
                                 left = juce::jmin (left, (endLimit - v.pos) / rateNow);
-                            const auto toRate = 44100.0 / sampleRate;
-                            const auto x = (declick::sliceOutLead - left * toRate) * declick::sliceOutSpeed;
-                            if (x >= declick::transientOutLength)
-                            {
-                                l = r = 0.0f;
-                            }
-                            else if (x > 0.0)
-                            {
-                                const auto c = declick::transientCoefficient (x - declick::sliceOutSpeed * toRate, x);
-                                v.sliceLowL += c * (l - v.sliceLowL);
-                                v.sliceLowR += c * (r - v.sliceLowR);
-                                l -= v.sliceLowL;
-                                r -= v.sliceLowR;
-                            }
+                            auto x = (declick::sliceOutLead - left * toRate) * declick::sliceOutSpeed;
+                            if (rateNow > 0.0 && v.onsetIdx < (int) s.onsets.size())
+                                x = juce::jmax (x, (declick::sliceCutLead - (nextOnset - v.pos) / rateNow * toRate) * declick::sliceOutSpeed);
+                            fade (x, v.sliceLowL, l);
+                            fade (x, v.sliceLowR, r);
+                            v.sliceFade = x;
                             v.slicePos += v.increment;
                         }
+                    }
+                    if (v.tailPos >= 0.0)
+                    {
+                        float tl, tr;
+                        interp.read (srcL, srcR, v.tailPos, v.increment, at, tl, tr, atIsIndexBelow);
+                        v.tailFade += declick::sliceOutSpeed * toRate;
+                        fade (v.tailFade, v.tailLowL, tl);
+                        fade (v.tailFade, v.tailLowR, tr);
+                        l += tl;
+                        r += tr;
+                        v.tailPos += v.increment;
+                        if (v.tailFade >= declick::transientOutLength || v.tailPos >= v.tailEnd)
+                            v.tailPos = -1;
                     }
                     v.lastL = l;
                     v.lastR = r;
@@ -1470,8 +1496,18 @@ void SamplerEngine::renderRange (juce::AudioBuffer<float>& out, int start, int n
                     const auto onset = (double) s.onsets[(size_t) v.onsetIdx++];
                     if (sliceMap)
                     {
+                        if (v.slicePos >= 0.0 && v.slicePos < onset && v.sliceFade > 0.0 && v.sliceFade < declick::transientOutLength)
+                        {
+                            // Cut while fading: it fades out under the new slice.
+                            v.tailPos = v.slicePos;
+                            v.tailFade = v.sliceFade;
+                            v.tailEnd = (int) onset;
+                            v.tailLowL = v.sliceLowL;
+                            v.tailLowR = v.sliceLowR;
+                        }
                         v.slicePos = onset;
                         v.sliceLowL = v.sliceLowR = 0;
+                        v.sliceFade = 0;
                     }
                     else if (v.stretched)
                     {

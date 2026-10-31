@@ -190,6 +190,11 @@ private:
         int onsetIdx = 0;         // next transient for the slice modes
         double slicePos = -1;     // slice map: read head inside the current slice
         float sliceLowL = 0, sliceLowR = 0;   // slice map: the slice-end high-pass state
+        double sliceFade = 0;     // slice map: how far into its end fade the slice is (0: not fading)
+        double tailPos = -1;      // slice map: a slice the next one cut, fading out under it
+        double tailFade = 0;
+        int tailEnd = 0;
+        float tailLowL = 0, tailLowR = 0;
         bool firstBlock = true;
         NoteMods mods;
     };
