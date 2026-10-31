@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.4.1
 
 Sound
 - Slice map nulls against FL at MUL x2 and x1.5 (-52 to -83 dB, from -11 to
