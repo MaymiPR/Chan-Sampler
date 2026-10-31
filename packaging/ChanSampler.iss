@@ -1,4 +1,4 @@
-; Windows installer (Inno Setup 6). Built by .github/workflows/release.yml:
+; Windows installer (Inno Setup 7). Built by .github/workflows/release.yml:
 ;   iscc /DAppVersion=<x.y.z> /DBuildDir=<build artefacts> packaging\ChanSampler.iss
 ; The workflow passes the version from CMakeLists.txt; a build by hand
 ; without it is labelled "dev".
@@ -25,6 +25,11 @@ OutputDir=..\dist
 OutputBaseFilename=ChanSampler-{#AppVersion}-Windows-Setup
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
+; Inno Setup 7: a 64-bit Setup.exe (the default would still be 32-bit); AppVerName and TimeStampsInUTC are
+; stated because their defaults changed in 7 (name plus version with no localized word; UTC time stamps).
+SetupArchitecture=x64
+AppVerName=Chan Sampler {#AppVersion}
+TimeStampsInUTC=yes
 PrivilegesRequired=admin
 Compression=lzma2
 SolidCompression=yes
