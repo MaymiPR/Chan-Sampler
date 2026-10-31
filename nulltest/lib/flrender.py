@@ -100,6 +100,10 @@ def project(case):
         sample = deps[0] if deps else paths.signal(case["sample"])
         build(path, sample, patch_all, note_len_beats=case.get("beats", 8),
               key=case.get("key", 60), velocity=case.get("vel", 100), notes=case.get("notes"))
+    # FL renders at least to the end of the last note, at the Basic
+    # template's 130 BPM (lib/flqueue rejects a shorter render).
+    notes = case.get("notes") or [(0, case.get("beats", 8))]
+    write.min_seconds = max(st + ln for st, ln, *_ in notes) * 60.0 / 130.0
     return write
 
 

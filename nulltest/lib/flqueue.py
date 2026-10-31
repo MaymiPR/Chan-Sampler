@@ -11,7 +11,9 @@ when the project rebuilt with the old sample path is byte-identical to the
 .flp on disk and no dependency is newer than the WAV (`adopt=True` trusts
 the WAV regardless, for a plugin rebuild that changed nothing). Everything
 else is rendered, each failure retried, and the WAV checked before it is
-trusted.
+trusted: complete, and as long as the project (`build.min_seconds`, the end
+of its last note; FL now and then stops a render early, so a short render
+counts as a failure and is rendered again).
 
 <out>/queue.json holds the state of the last run, so an interrupted run
 continues where it stopped (`status()` says what is left). A lock file keeps
@@ -91,8 +93,10 @@ def kill_tree(pid):
     subprocess.run(['taskkill', '/T', '/F', '/PID', str(pid)], capture_output=True)
 
 
-def validate_wav(path, min_frames=1):
-    """(frames, sample_rate) of a complete WAV; RenderError('bad_wav') otherwise."""
+def validate_wav(path, min_frames=1, min_seconds=0.0):
+    """(frames, sample_rate) of a complete WAV; RenderError('bad_wav') otherwise,
+    or RenderError('short_render') when it holds less than min_seconds (FL now
+    and then stops a render early and writes a complete but short file)."""
     try:
         b = open(path, 'rb').read()
     except OSError as e:
@@ -114,6 +118,8 @@ def validate_wav(path, min_frames=1):
     frames = data_len // max(1, fmt[1] * fmt[5] // 8)
     if frames < min_frames:
         raise RenderError('bad_wav', f'{os.path.basename(path)}: {frames} frames, expected at least {min_frames}')
+    if frames < min_seconds * fmt[2]:
+        raise RenderError('short_render', f'{os.path.basename(path)}: {frames / fmt[2]:.2f} s, the project lasts {min_seconds:.2f} s')
     return frames, fmt[2]
 
 
@@ -179,8 +185,11 @@ def job_key(canonical_bytes, deps, fl_ver):
 # ----------------------------------------------------------------------------- queue
 
 class Job:
-    def __init__(self, name, build, deps=(), meta=None):
+    def __init__(self, name, build, deps=(), meta=None, min_seconds=None):
         self.name, self.build, self.deps, self.meta = name, build, [os.path.normpath(d) for d in deps if d], meta or {}
+        # A render shorter than this is cut off (the build function says how
+        # long its project lasts: the end of its last note).
+        self.min_seconds = getattr(build, 'min_seconds', 0.0) if min_seconds is None else min_seconds
         self.key = self.state = self.error = self.reason = self.flp_bytes = None
         self.attempts = 0
         self.seconds = 0.0
@@ -197,8 +206,8 @@ class Queue:
         self.jobs = []
         self.failed = {}
 
-    def add(self, name, build, deps=(), meta=None):
-        self.jobs.append(Job(name, build, list(deps) + self.deps, meta))
+    def add(self, name, build, deps=(), meta=None, min_seconds=None):
+        self.jobs.append(Job(name, build, list(deps) + self.deps, meta, min_seconds))
         return self
 
     def flp(self, name):
@@ -225,12 +234,16 @@ class Queue:
             if os.path.exists(wav):
                 side = self._read_sidecar(j.name)
                 if side and side.get('key') == j.key:
-                    j.state = 'cached'
+                    try:
+                        validate_wav(wav, min_seconds=j.min_seconds)
+                        j.state = 'cached'
+                    except RenderError as e:
+                        j.state, j.reason = 'stale', str(e)
                 elif side:
                     j.state, j.reason = 'stale', self._why(side, j)
                 else:
                     try:
-                        validate_wav(wav)
+                        validate_wav(wav, min_seconds=j.min_seconds)
                         wav_t = os.stat(wav).st_mtime
                         newer = [os.path.basename(d) for d in j.deps if os.stat(d).st_mtime > wav_t]
                         if old is None or self._rebuilt_like(j, old) != old:
@@ -330,6 +343,7 @@ class Queue:
                 try:
                     open(self.flp(j.name), 'wb').write(j.flp_bytes)
                     self.renderer(self.flp(j.name), self.wav(j.name), timeout=timeout)
+                    validate_wav(self.wav(j.name), min_seconds=j.min_seconds)
                     j.seconds = time.time() - t0
                     self._write_sidecar(j)
                     j.state = 'cached'
@@ -442,6 +456,8 @@ def selftest():
                 open(wav, 'wb').write(b'RIFF\0\0\0\0WAVE')      # a truncated file every time
                 raise RenderError('bad_wav', 'simulated')
             frames = 100
+            if name == 'd' and calls[name] == 1:
+                frames = 10                                     # complete but cut off: FL stopped early
             fmt = struct.pack('<HHIIHH', 1, 2, 44100, 44100 * 4, 4, 16)
             raw = b'\0' * (frames * 4)
             body = b'WAVE' + b'fmt ' + struct.pack('<I', 16) + fmt + b'data' + struct.pack('<I', len(raw)) + raw
@@ -459,17 +475,30 @@ def selftest():
         q = Queue(out, deps=[sample], renderer=fake, log=logs.append)
         for n in 'abc':
             q.add(n, build(f'project {n}'.encode()))
+        dbuild = build(b'project d')
+        dbuild.min_seconds = 50 / 44100        # 50 frames: the first render (10) is too short
+        q.add('d', dbuild)
         wavs = q.run(attempts=2)
-        assert sorted(wavs) == ['a', 'b'] and list(q.failed) == ['c'], (wavs, q.failed)
-        assert calls == {'a': 1, 'b': 2, 'c': 2}, calls
+        assert sorted(wavs) == ['a', 'b', 'd'] and list(q.failed) == ['c'], (wavs, q.failed)
+        assert calls == {'a': 1, 'b': 2, 'c': 2, 'd': 2}, calls
         assert not os.path.exists(os.path.join(out, 'c' + SIDECAR))
+        assert q._read_sidecar('d')['frames'] == 100
+        # a short render on disk, record or not, is not trusted
+        q.jobs[3].min_seconds = 200 / 44100
+        q.plan()
+        assert q.jobs[3].state == 'stale' and 'lasts' in q.jobs[3].reason, q.jobs[3].reason
+        try:
+            validate_wav(os.path.join(out, 'd.wav'), min_seconds=200 / 44100)
+            raise AssertionError('short render accepted')
+        except RenderError as e:
+            assert e.reason == 'short_render'
 
         # second run: a and b cached, c tried again, nothing else rendered
         q2 = Queue(out, deps=[sample], renderer=fake, log=logs.append)
         for n in 'abc':
             q2.add(n, build(f'project {n}'.encode()))
         q2.run(attempts=1)
-        assert calls == {'a': 1, 'b': 2, 'c': 3}, calls
+        assert calls == {'a': 1, 'b': 2, 'c': 3, 'd': 2}, calls
         assert [j.state for j in q2.jobs] == ['cached', 'cached', 'failed']
 
         # a changed project re-renders only itself; a changed dependency re-renders all

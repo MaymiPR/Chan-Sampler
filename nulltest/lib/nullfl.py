@@ -37,6 +37,9 @@ def project(case):
     def write(path, deps=None):
         sample = deps[0] if deps else paths.signal(case["sample"])
         V.build_vst_project(path, sample, case.get("ours") or {}, all_notes, sampler_patch=patch)
+    # FL renders at least to the end of the last note (lib/flqueue rejects a
+    # shorter render: FL now and then stops early).
+    write.min_seconds = max(st + ln for st, ln, *_ in all_notes) * 60.0 / bpm
     return write
 
 
@@ -107,6 +110,9 @@ def run(cases, only=None, force=False, attempts=3, adopt=False, plugin_dep=True)
                 print(f"FAIL          {c['name']}  ({q.failed[c['name']]})", flush=True)
             continue
         a, b = halves(wavs[c["name"]], c.get("gap"), c.get("bpm"))
+        if len(b) == 0:   # cut off before our half (the queue should have caught it)
+            print(f"FAIL          {c['name']}  (the render ends before our half)", flush=True)
+            continue
         d = null_db(a, b)
         res.append((c["name"], d))
         print(f"{F.verdict(d):5s} {d:7.1f} dB  {c['name']}", flush=True)

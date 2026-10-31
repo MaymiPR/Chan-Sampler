@@ -34,7 +34,8 @@ with bare sample names, so a moved repository keeps its renders), the sample,
 the Chan Sampler VST3 (in-FL pairs only) and FL's version; a render whose
 record matches is reused, a WAV without a record is adopted when its project
 is byte-identical and nothing it depends on is newer, and the rest is rendered
-again with the reason printed. A failed render is retried (three attempts), a
+again with the reason printed. A failed render is retried (three attempts), and
+so is one that ends before its last note (FL now and then stops early), a
 hung FL is killed after the timeout, `renders*/queue.json` makes a stopped run
 resumable, and one lock keeps two queues apart. A plugin rebuild makes every
 in-FL pair stale ("newer than the render: Chan Sampler.vst3"): after a DSP
