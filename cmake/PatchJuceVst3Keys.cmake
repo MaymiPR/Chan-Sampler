@@ -3,7 +3,7 @@
 # A VST3 host passes keyboard input to the plugin's view through
 # IPlugView::onKeyDown / onKeyUp, and acts on a key itself when the view says
 # it did not use it (FL Studio offers a key this way before running its own
-# shortcut). JUCE 8.0.16's VST3 editor does not implement them, so it declines
+# shortcut). JUCE 9.0.4's VST3 editor (like 8.0.16's) does not implement them, so it declines
 # every key: Ctrl+Z, Ctrl+Y and Ctrl+C / Ctrl+V never reached Chan Sampler in
 # FL Studio, whose own (empty) undo ran instead. This adds the two calls: the
 # key goes through the editor's normal key handling, and the host gets every
