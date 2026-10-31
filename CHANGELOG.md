@@ -10,6 +10,14 @@ Sound
   FL's does (a kick: -62 dB, from -19). In stereo samples a slice starts at
   the zero crossing FL picks (the nearest in either channel).
 
+Files
+- Opus files (.opus) load.
+
+Build
+- Built on JUCE 9.0.4, with the sound unchanged (the null tests against FL
+  give the same results as on JUCE 8). The Windows installer is a 64-bit
+  program.
+
 ## 1.4.0
 
 Sound
