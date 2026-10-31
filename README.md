@@ -54,8 +54,8 @@ this documentation. FL Studio was the reference throughout, as described in
   fades and the wheel glide. The window resizes and stays sharp on high-DPI
   screens.
 - **Undo and redo** with FL's keys, which also work inside FL Studio.
-- **Files:** WAV (including FL's compressed WAVs), AIFF, FLAC, Ogg Vorbis and
-  MP3, with region and slice markers and loop points read from the file.
+- **Files:** WAV (including FL's compressed WAVs), AIFF, FLAC, Ogg Vorbis, Opus
+  and MP3, with region and slice markers and loop points read from the file.
 
 | Precomputed effects | Envelopes, LFOs and filter |
 |:---:|:---:|
