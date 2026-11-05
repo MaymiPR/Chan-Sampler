@@ -45,7 +45,7 @@ in-FL pair stale ("newer than the render: Chan Sampler.vst3"): after a DSP
 change render again; after a rebuild that changed no audio pass `adopt=True`
 (`--adopt`) once, or `plugin_dep=False` (`--no-plugin-dep`).
 
-```
+```text
 python -m lib.flqueue cases.fl_cases cases.arp_cases --dry        # the plan: what would render, and why
 python -m lib.flqueue cases.fl_cases --adopt                      # trust the old WAVs once (a rebuild that changed nothing)
 python -m lib.flqueue --status                                    # after a stopped run: what is cached, what failed
@@ -59,7 +59,7 @@ FL's Sampler on channel 1 and the Chan Sampler VST3 on channel 2 of one
 project, rendered once by FL from its command line; the two halves are
 subtracted as heard in FL, with no gain correction.
 
-```
+```text
 python -c "from lib import nullfl; from cases import fl_cases; nullfl.run(fl_cases.CASES)"
 python -c "from lib import nullfl; from cases import fl_cases; nullfl.run(fl_cases.CASES, ['d_cut'])"   # names containing d_cut
 python -m cases.untested_cases -f                                                                      # case files with a main; -f re-renders
