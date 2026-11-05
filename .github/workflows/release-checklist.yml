@@ -1,0 +1,54 @@
+# Release checklist: opens the issue "Release x.y.z checklist" from .github/RELEASE_CHECKLIST.md, assigned to the
+# actor and labelled release when that label exists. Tick the boxes as the release goes; close the issue when the
+# release is live (CONTRIBUTING.md, Making a release).
+# Trigger: creation of a release/x.y.z branch (the text after release/ is the version), and by hand with the version
+# as input. Runner: ubuntu-24.04.
+# Does not: open a second issue while one with the same title is open, build anything, or tag.
+name: Release checklist
+
+on:
+  create:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: The version the checklist is for (x.y.z or x.y.z-rc.N)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-checklist-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  checklist:
+    if: github.event_name == 'workflow_dispatch' || (github.event.ref_type == 'branch' && startsWith(github.event.ref, 'release/'))
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Open the issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REF: ${{ github.event.ref }}
+          INPUT_VERSION: ${{ inputs.version }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          if [ -n "$INPUT_VERSION" ]; then
+            VERSION="$INPUT_VERSION"; REF="$GITHUB_REF_NAME"
+          else
+            VERSION="${REF#release/}"
+          fi
+          if gh issue list --repo "$GITHUB_REPOSITORY" --search "\"Release $VERSION checklist\" in:title" --state open --json number --jq 'length' | grep -qv '^0$'; then
+            echo "an open checklist issue for $VERSION exists"; exit 0
+          fi
+          sed "s|{{VERSION}}|$VERSION|g; s|{{BRANCH}}|$REF|g" .github/RELEASE_CHECKLIST.md > body.md   # | as the delimiter: the branch has a slash
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "Release $VERSION checklist" --body-file body.md --assignee "$ACTOR" --label release || \
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "Release $VERSION checklist" --body-file body.md --assignee "$ACTOR"

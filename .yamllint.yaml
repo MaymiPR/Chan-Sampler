@@ -1,0 +1,11 @@
+# yamllint for the repository (the Lint workflow runs it with --strict, so a warning fails). Relaxed where GitHub's own
+# YAML idioms conflict with the defaults: no document-start marker, "on:" as a key, long lines in workflow steps.
+extends: default
+rules:
+  document-start: disable
+  truthy:
+    check-keys: false
+  line-length:
+    max: 200
+  comments:
+    min-spaces-from-content: 1

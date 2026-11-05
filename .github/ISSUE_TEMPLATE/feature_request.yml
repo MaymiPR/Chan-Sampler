@@ -1,0 +1,27 @@
+name: Feature request
+description: Suggest something new or a change.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like?
+      description: Describe the feature or change, and how you would use it.
+    validations:
+      required: true
+  - type: dropdown
+    id: original
+    attributes:
+      label: Does the original have it?
+      description: Each plug-in follows its original closely, so this decides how it should work.
+      options:
+        - "Yes, the original does this"
+        - "No, it would be new"
+        - "Not sure"
+    validations:
+      required: true
+  - type: textarea
+    id: more
+    attributes:
+      label: Anything else
+      description: Screenshots of the original, examples, links.

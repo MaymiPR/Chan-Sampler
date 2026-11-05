@@ -1,0 +1,30 @@
+name: Null-test report
+description: A setting or sample where Chan Sampler sounds different from FL Studio's Sampler more than docs/EVIDENCE.md says.
+labels: [null test]
+body:
+  - type: input
+    id: versions
+    attributes:
+      label: Chan Sampler version and FL Studio version
+      placeholder: "Chan Sampler 1.x.y against FL Studio 2x.y"
+    validations:
+      required: true
+  - type: textarea
+    id: settings
+    attributes:
+      label: Settings
+      description: Every control that is not at its default (in both samplers), or attach the FL channel preset (.fst) or a small project.
+    validations:
+      required: true
+  - type: textarea
+    id: material
+    attributes:
+      label: Sample, notes and the residual you measured
+      description: What the sample is (length, mono or stereo, sample rate), the notes you played, and the residual in dB (the difference between FL's render and ours, below FL's level), if you measured one.
+    validations:
+      required: true
+  - type: textarea
+    id: how
+    attributes:
+      label: How you nulled
+      description: Both samplers in one FL project with the same sample and settings, the same notes on both channels, one channel phase-inverted, rendered together. A short audio example of the difference helps most.

@@ -1,0 +1,62 @@
+# Lint: the repository's text and workflows. Markdown (markdownlint-cli2 0.24.0, config .markdownlint-cli2.yaml),
+# YAML (yamllint 1.38.0, config .yamllint.yaml), the repository checks (scripts/check_repo.py: paths, old names,
+# attribution forms, document style, whitespace), the workflows (actionlint 1.7.12 with shellcheck) and the shell
+# scripts. A warning fails the run (STANDARDS.md, zero warnings).
+# Trigger: push to main, pull requests, and by hand. Runner: one ubuntu-24.04 job, Python 3.12.
+# Does not: build or test the code (ci.yml does). A private repository keeps this workflow disabled and runs
+# scripts/check.ps1 or scripts/check.sh instead.
+name: Lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: lint-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  lint:
+    name: Markdown, YAML, workflows, shell
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0   # v7.1.0
+        with:
+          python-version: "3.12"
+
+      - name: Markdown
+        run: npx --yes markdownlint-cli2@0.24.0 "**/*.md" "#node_modules"
+
+      - name: YAML
+        run: |
+          python -m pip install --quiet yamllint==1.38.0
+          yamllint --strict -c .yamllint.yaml .
+
+      - name: Repository checks
+        run: python scripts/check_repo.py
+
+      - name: Workflows (actionlint with shellcheck)
+        run: |
+          V=1.7.12
+          A="actionlint_${V}_linux_amd64.tar.gz"
+          curl -fsSL -o "$A" "https://github.com/rhysd/actionlint/releases/download/v$V/$A"
+          curl -fsSL -o checksums.txt "https://github.com/rhysd/actionlint/releases/download/v$V/actionlint_${V}_checksums.txt"
+          grep " $A\$" checksums.txt | sha256sum --check
+          tar -xzf "$A" actionlint
+          ./actionlint -color
+
+      - name: Shell scripts
+        run: shellcheck --severity=warning packaging/*.sh scripts/*.sh

@@ -1,0 +1,15 @@
+Chan Sampler for Linux (64-bit x86, built on Ubuntu 22.04)
+==========================================================
+
+In this folder run:   sh install-linux.sh
+It copies the Chan Sampler plug-ins to ~/.vst3 and ~/.clap, and the standalone app (the Standalone folder, when
+present) to ~/.local/bin. Then rescan plug-ins in your DAW (Reaper, Bitwig, Ardour...). Remove them again with:
+  sh install-linux.sh --uninstall
+
+The standalone app uses ALSA or JACK.
+
+Needs glibc 2.35 or later, X11 (XWayland works), libasound2 and libfreetype6, and zenity or kdialog for file
+dialogs. Copy / Paste in the sample menu use the clipboard as text: Copy puts the sample's file path there, Paste
+loads a copied file path.
+To check the download, compare its SHA-256 with SHA256SUMS.txt on the Releases page:
+  sha256sum ChanSampler-<version>-Linux.tar.gz

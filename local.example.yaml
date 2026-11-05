@@ -1,0 +1,26 @@
+# The machine paths this repository's scripts need. Copy this file to local.yaml (git-ignored) and fill in the
+# values; no tracked file carries a machine path. Flat "key: value" lines; quote a value with single quotes; an empty
+# value counts as not set. The generator writes local.yaml with the reference's keys filled in.
+
+# The installed VST3 of the reference plug-in (the shell file for a plug-in inside a shell), for nulltest/
+ref_vst3: ''
+# The name a host shows for the reference ("Name@uid" for a plug-in inside a shell)
+ref_name: ''
+# Every further plug-in of the suite: the same two keys with its id in front, for example ThePlugin.ref_vst3
+
+# The Python interpreter with the packages of requirements.txt (the check scripts default to python or python3)
+python: ''
+# The interpreter of the CUDA virtual environment, for training the learned blocks only
+gpu_python: ''
+# The folder of prebuilt host tools: ParamDump, RefRender, RefCapture, FocusCheck
+tools_dir: ''
+# The FL Studio executable, for renders inside the DAW
+fl_exe: ''
+# A JUCE checkout at the commit CMakeLists.txt pins, reused instead of a download (FETCHCONTENT_SOURCE_DIR_JUCE)
+juce_src: ''
+# A clap-juce-extensions checkout at the pinned commit (FETCHCONTENT_SOURCE_DIR_CLAP_JUCE_EXTENSIONS)
+clap_src: ''
+# The pluginval 1.0.4 executable
+pluginval: ''
+# The Inno Setup 7 compiler (ISCC.exe), for the Windows installer
+iscc: ''

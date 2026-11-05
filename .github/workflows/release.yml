@@ -1,0 +1,566 @@
+# Build and release: builds every Chan Sampler plug-in listed in packaging/plugins.txt on Windows (VST3, CLAP,
+# standalone), macOS (universal AU, VST3, CLAP, standalone) and Linux (VST3, CLAP, standalone), runs the unit tests,
+# validates every plug-in with pluginval 1.0.4 at strictness 10 (and auval on macOS), fails on any build warning
+# (STANDARDS.md, zero warnings), signs and notarizes when the repository has the secrets named below (without them
+# the files are the same, unsigned, and the notes say so), and makes one installer per operating system holding all
+# of them:
+#   Windows  ChanSampler-<version>-Windows-Setup.exe   (Inno Setup 7.1.1, packaging/ChanSampler.iss)
+#   macOS    ChanSampler-<version>-macOS.pkg           (productbuild, packaging/distribution.xml)
+#   Linux    ChanSampler-<version>-Linux.tar.gz        (with packaging/install-linux.sh)
+# plus, with ZIP_PER_FORMAT set to 'true', one zip per format and system. On a tag the release job publishes them as
+# a GitHub Release with SHA256SUMS.txt, build provenance attestations (public repositories) and the notes from the
+# version's CHANGELOG.md section (scripts/release_notes.py); a tag with a hyphen (v1.2.0-rc.1) publishes a
+# pre-release.
+# Trigger: a pushed tag v* (scripts/bump_version.py makes the commit and the tag), and by hand (artifacts only).
+# Runners: windows-latest, macos-15, ubuntu-24.04 with the ubuntu:22.04 container for Linux (glibc 2.35 floor).
+# Secrets (all optional): WINDOWS_CERTIFICATE_PFX, WINDOWS_CERTIFICATE_PASSWORD, or AZURE_TENANT_ID, AZURE_CLIENT_ID,
+# AZURE_CLIENT_SECRET, AZURE_TRUSTED_SIGNING_ENDPOINT, AZURE_TRUSTED_SIGNING_ACCOUNT, AZURE_TRUSTED_SIGNING_PROFILE;
+# APPLE_CERTIFICATE_P12, APPLE_CERTIFICATE_PASSWORD, APPLE_INSTALLER_CERTIFICATE_P12,
+# APPLE_INSTALLER_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY, APPLE_INSTALLER_IDENTITY, APPLE_NOTARY_KEY_ID,
+# APPLE_NOTARY_ISSUER_ID, APPLE_NOTARY_KEY_P8.
+# Does not: cancel a running release, publish anything on a run by hand, null against the original plug-ins, or run
+# on a private repository (it stays disabled there; the installers are built locally). The release flow is in
+# CONTRIBUTING.md and .github/RELEASE_CHECKLIST.md.
+name: Build and release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # The macOS install subfolder for the VST3, CLAP and standalone apps (under VST3/, CLAP/ and /Applications); empty
+  # installs them beside other vendors' plug-ins. AU components always go into the Components folder itself.
+  SUBFOLDER: ''
+  PLUGINVAL: https://github.com/Tracktion/pluginval/releases/download/v1.0.4   # pinned: a new pluginval can fail an unchanged plug-in
+  ZIP_PER_FORMAT: 'false'                                                       # 'true': also one zip per format and system
+  NOTES_FOOTER: 'true'                                                          # 'false': the CHANGELOG section alone as the notes
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Which signing secrets exist
+        id: s
+        shell: bash
+        env:
+          PFX: ${{ secrets.WINDOWS_CERTIFICATE_PFX }}
+          AZ: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT }}
+        run: |
+          echo "pfx=$([ -n "$PFX" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "azure=$([ -n "$AZ" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+      - name: Configure
+        run: cmake -B build -A x64 -DCHANSAMPLER_TOOLS=OFF
+
+      - name: Build (every plug-in, format and test)
+        shell: pwsh
+        run: cmake --build build --config Release --parallel 2>&1 | Tee-Object -FilePath build.log
+
+      - name: Warnings (zero allowed)
+        shell: bash
+        run: |
+          if grep -E 'warning C[0-9]+|warning:|warning MSB|[0-9]+ warnings? generated' build.log | grep -vE '::warning|hint:' > warnings.txt; then
+            cat warnings.txt
+            echo "$(wc -l < warnings.txt) warning line(s) in the build log: zero allowed (STANDARDS.md)"
+            exit 1
+          fi
+          echo "0 warnings"
+
+      - name: Unit tests
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Validate every VST3 (pluginval, strictness 10)
+        shell: pwsh
+        run: |
+          Invoke-WebRequest $env:PLUGINVAL/pluginval_Windows.zip -OutFile pluginval.zip
+          Expand-Archive pluginval.zip -DestinationPath pluginval
+          $failed = 0
+          foreach ($line in Get-Content packaging/plugins.txt) {
+            if (-not $line.Trim() -or $line.StartsWith('#')) { continue }
+            $t, $p, $code, $mfr = $line.Split([char]0x7C)
+            $plug = Resolve-Path "build/${t}_artefacts/Release/VST3/$p.vst3"
+            # pluginval is a GUI-subsystem program: wait for it and read its real exit code
+            $r = Start-Process -FilePath "pluginval/pluginval.exe" -NoNewWindow -Wait -PassThru `
+                   -ArgumentList @("--strictness-level", "10", "--skip-gui-tests", "--timeout-ms", "900000", "--validate", "`"$plug`"")
+            Write-Host "pluginval $p exit code: $($r.ExitCode)"
+            if ($r.ExitCode -ne 0) { $failed++ }
+          }
+          if ($failed -ne 0) { exit 1 }
+
+      - name: Plug-ins leave the keyboard to the host (space = play / pause; FocusCheck)
+        shell: pwsh
+        run: |
+          # FocusCheck (tools/FocusCheck.cpp) clicks through each editor and checks the space bar still reaches the host.
+          # It runs where this build made it (a suite that builds it on Windows without the tools option); otherwise
+          # run it locally before the tag (.github/RELEASE_CHECKLIST.md).
+          $fc = Get-ChildItem -Recurse build -Filter FocusCheck.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $fc) { Write-Host "::notice::FocusCheck not built in this configuration: run it locally before the tag"; exit 0 }
+          $failed = 0
+          foreach ($line in Get-Content packaging/plugins.txt) {
+            if (-not $line.Trim() -or $line.StartsWith('#')) { continue }
+            $t, $p, $code, $mfr = $line.Split([char]0x7C)
+            & $fc.FullName (Resolve-Path "build/${t}_artefacts/Release/VST3/$p.vst3")
+            if ($LASTEXITCODE -ne 0) { $failed++ }
+          }
+          if ($failed -ne 0) { exit 1 }
+
+      - name: Sign the binaries (certificate from the secrets)
+        if: steps.s.outputs.pfx == 'true'
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE_PFX: ${{ secrets.WINDOWS_CERTIFICATE_PFX }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          $pfx = Join-Path $env:RUNNER_TEMP "signing.pfx"
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE_PFX))
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" | Sort-Object FullName -Descending | Select-Object -First 1
+          $files = Get-ChildItem build\*_artefacts\Release -Recurse -File -Include *.dll, *.exe, *.vst3, *.clap
+          foreach ($f in $files) {
+            & $signtool.FullName sign /f $pfx /p $env:WINDOWS_CERTIFICATE_PASSWORD /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 $f.FullName
+            if ($LASTEXITCODE -ne 0) { exit 1 }
+          }
+          Write-Host "signed $($files.Count) files"
+
+      - name: Sign the binaries (Azure Trusted Signing)
+        if: steps.s.outputs.pfx != 'true' && steps.s.outputs.azure == 'true'
+        shell: pwsh
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          ENDPOINT: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
+          ACCOUNT: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT }}
+          PROFILE: ${{ secrets.AZURE_TRUSTED_SIGNING_PROFILE }}
+        run: |
+          dotnet tool install --global sign --prerelease
+          $files = (Get-ChildItem build\*_artefacts\Release -Recurse -File -Include *.dll, *.exe, *.vst3, *.clap).FullName
+          sign code trusted-signing --trusted-signing-endpoint $env:ENDPOINT --trusted-signing-account $env:ACCOUNT `
+            --trusted-signing-certificate-profile $env:PROFILE --timestamp-url http://timestamp.acs.microsoft.com -v Information $files
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Installer (Inno Setup 7, every plug-in)
+        shell: pwsh
+        run: |
+          $version = (Select-String -Path CMakeLists.txt -Pattern 'project\(ChanSampler VERSION ([0-9.]+)\)').Matches[0].Groups[1].Value
+          if ($env:GITHUB_REF_TYPE -eq 'tag') { $version = $env:GITHUB_REF_NAME.TrimStart('v') }   # a pre-release tag names its files 1.2.0-rc.1
+          pwsh packaging/make_iss_include.ps1 build
+          # Inno Setup 7.1.1 (the runner image ships 6.x only): the signed x64 installer from the author's GitHub release,
+          # pinned by SHA-256 so a changed download fails the job instead of building with something else.
+          $innoUrl = "https://github.com/jrsoftware/issrc/releases/download/is-7_1_1/innosetup-7.1.1-x64.exe"
+          $innoSha = "8a5a6711c3766a6e5fb74f280ba0e3551e719ce94538d901fdbd1f8f9920b3f0"
+          Invoke-WebRequest $innoUrl -OutFile innosetup-7.1.1-x64.exe
+          $actual = (Get-FileHash innosetup-7.1.1-x64.exe -Algorithm SHA256).Hash.ToLower()
+          if ($actual -ne $innoSha) { throw "Inno Setup installer SHA-256 mismatch: $actual" }
+          Start-Process .\innosetup-7.1.1-x64.exe -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/ALLUSERS" -Wait
+          $candidates = "${env:ProgramFiles}\Inno Setup 7\ISCC.exe", "${env:ProgramFiles(x86)}\Inno Setup 7\ISCC.exe"
+          $iscc = Get-ChildItem $candidates -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
+          if (-not $iscc) { throw "Inno Setup 7 did not install" }
+          & $iscc "/DAppVersion=$version" "packaging\ChanSampler.iss"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Sign the installer
+        if: steps.s.outputs.pfx == 'true'
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          $pfx = Join-Path $env:RUNNER_TEMP "signing.pfx"
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" | Sort-Object FullName -Descending | Select-Object -First 1
+          foreach ($f in Get-ChildItem dist\*.exe) {
+            & $signtool.FullName sign /f $pfx /p $env:WINDOWS_CERTIFICATE_PASSWORD /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 $f.FullName
+            if ($LASTEXITCODE -ne 0) { exit 1 }
+            & $signtool.FullName verify /pa /v $f.FullName
+          }
+
+      - name: Sign the installer (Azure Trusted Signing)
+        if: steps.s.outputs.pfx != 'true' && steps.s.outputs.azure == 'true'
+        shell: pwsh
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          ENDPOINT: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
+          ACCOUNT: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT }}
+          PROFILE: ${{ secrets.AZURE_TRUSTED_SIGNING_PROFILE }}
+        run: |
+          sign code trusted-signing --trusted-signing-endpoint $env:ENDPOINT --trusted-signing-account $env:ACCOUNT `
+            --trusted-signing-certificate-profile $env:PROFILE --timestamp-url http://timestamp.acs.microsoft.com -v Information (Get-ChildItem dist\*.exe).FullName
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Remove the certificate file
+        if: always()
+        shell: pwsh
+        run: Remove-Item (Join-Path $env:RUNNER_TEMP "signing.pfx") -ErrorAction SilentlyContinue
+
+      - name: Zips per format
+        if: env.ZIP_PER_FORMAT == 'true'
+        shell: pwsh
+        run: |
+          $version = (Select-String -Path CMakeLists.txt -Pattern 'project\(ChanSampler VERSION ([0-9.]+)\)').Matches[0].Groups[1].Value
+          if ($env:GITHUB_REF_TYPE -eq 'tag') { $version = $env:GITHUB_REF_NAME.TrimStart('v') }
+          foreach ($fmt in @('VST3', 'CLAP', 'Standalone')) {
+            $stage = "zip/$fmt"; New-Item -ItemType Directory -Force $stage | Out-Null
+            foreach ($line in Get-Content packaging/plugins.txt) {
+              if (-not $line.Trim() -or $line.StartsWith('#')) { continue }
+              $t, $p, $code, $mfr = $line.Split([char]0x7C)
+              Copy-Item "build/${t}_artefacts/Release/$fmt/*" $stage -Recurse -Force
+            }
+            Copy-Item LICENSE "$stage/LICENSE.txt"; Copy-Item packaging/THIRD-PARTY-NOTICES.txt $stage
+            Compress-Archive -Path "$stage/*" -DestinationPath "dist/ChanSampler-$version-Windows-$fmt.zip" -Force
+          }
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9   # v7.0.2
+        with:
+          name: ChanSampler-Windows
+          path: |
+            dist/*.exe
+            dist/*.zip
+
+      - name: Record how the files were signed
+        shell: bash
+        run: |
+          mkdir -p signing
+          if [ "${{ steps.s.outputs.pfx }}" = "true" ] || [ "${{ steps.s.outputs.azure }}" = "true" ]; then echo signed > signing/windows.txt; else echo unsigned > signing/windows.txt; fi
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9   # v7.0.2
+        with:
+          name: signing-windows
+          path: signing/windows.txt
+
+  macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Which signing secrets exist
+        id: s
+        shell: bash
+        env:
+          APP: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+          INST: ${{ secrets.APPLE_INSTALLER_IDENTITY }}
+          NOTARY: ${{ secrets.APPLE_NOTARY_KEY_P8 }}
+        run: |
+          {
+            echo "app=$([ -n "$APP" ] && echo true || echo false)"
+            echo "installer=$([ -n "$INST" ] && echo true || echo false)"
+            echo "notary=$([ -n "$NOTARY" ] && echo true || echo false)"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: "Configure (universal: Apple Silicon + Intel)"
+        run: cmake -B build -G Xcode -DCHANSAMPLER_TOOLS=OFF -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET=10.13
+
+      - name: Build (every plug-in, format and test)
+        shell: bash
+        run: cmake --build build --config Release -- -quiet 2>&1 | tee build.log
+
+      - name: Warnings (zero allowed)
+        shell: bash
+        run: |
+          if grep -E 'warning C[0-9]+|warning:|warning MSB|[0-9]+ warnings? generated' build.log | grep -vE '::warning|hint:' > warnings.txt; then
+            cat warnings.txt
+            echo "$(wc -l < warnings.txt) warning line(s) in the build log: zero allowed (STANDARDS.md)"
+            exit 1
+          fi
+          echo "0 warnings"
+
+      - name: Unit tests
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Import the signing certificates into a temporary keychain
+        if: steps.s.outputs.app == 'true'
+        env:
+          APPLE_CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_INSTALLER_CERTIFICATE_P12: ${{ secrets.APPLE_INSTALLER_CERTIFICATE_P12 }}
+          APPLE_INSTALLER_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_INSTALLER_CERTIFICATE_PASSWORD }}
+        run: |
+          set +x
+          KC="$RUNNER_TEMP/signing.keychain-db"
+          PW=$(openssl rand -hex 16)
+          security create-keychain -p "$PW" "$KC"
+          security set-keychain-settings -lut 21600 "$KC"
+          security unlock-keychain -p "$PW" "$KC"
+          echo "$APPLE_CERTIFICATE_P12" | base64 --decode > "$RUNNER_TEMP/app.p12"
+          security import "$RUNNER_TEMP/app.p12" -k "$KC" -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/productbuild -T /usr/bin/productsign
+          if [ -n "$APPLE_INSTALLER_CERTIFICATE_P12" ]; then
+            echo "$APPLE_INSTALLER_CERTIFICATE_P12" | base64 --decode > "$RUNNER_TEMP/installer.p12"
+            security import "$RUNNER_TEMP/installer.p12" -k "$KC" -P "$APPLE_INSTALLER_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/productbuild -T /usr/bin/productsign
+          fi
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$PW" "$KC" > /dev/null
+          mapfile -t existing < <(security list-keychains -d user | tr -d '"' | sed 's/^ *//')
+          security list-keychains -d user -s "$KC" "${existing[@]}"
+          rm -f "$RUNNER_TEMP"/*.p12
+          security find-identity -v -p codesigning "$KC"
+
+      - name: Collect, check universal binaries and sign
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          set -e
+          mkdir -p stage/au stage/vst3 stage/clap stage/app
+          if [ "${{ steps.s.outputs.app }}" = "true" ]; then
+            SIGN=(--force --deep --options runtime --timestamp --sign "$APPLE_SIGNING_IDENTITY")
+          else
+            SIGN=(--force --deep --sign -)   # ad hoc: no certificate in the secrets
+          fi
+          grep -v '^#' packaging/plugins.txt | grep -v '^\s*$' | while IFS='|' read -r t p _ _; do
+            A="build/${t}_artefacts/Release"
+            for b in "$A/AU/$p.component" "$A/VST3/$p.vst3" "$A/CLAP/$p.clap" "$A/Standalone/$p.app"; do
+              lipo -info "$b/Contents/MacOS/$p"
+              codesign "${SIGN[@]}" "$b"
+              codesign --verify --strict "$b"
+            done
+            cp -R "$A/AU/$p.component" stage/au/
+            cp -R "$A/VST3/$p.vst3" stage/vst3/
+            cp -R "$A/CLAP/$p.clap" stage/clap/
+            cp -R "$A/Standalone/$p.app" stage/app/
+          done
+
+      - name: Validate every AU (auval) and VST3 / AU (pluginval, strictness 10)
+        run: |
+          set -e
+          mkdir -p ~/Library/Audio/Plug-Ins/Components
+          cp -R stage/au/* ~/Library/Audio/Plug-Ins/Components/
+          killall -9 AudioComponentRegistrar || true
+          curl -fsSL -o pluginval.zip "$PLUGINVAL/pluginval_macOS.zip"
+          unzip -q pluginval.zip
+          P=pluginval.app/Contents/MacOS/pluginval
+          grep -v '^#' packaging/plugins.txt | grep -v '^\s*$' | while IFS='|' read -r _ p code mfr; do
+            auval -v aumu "$code" "$mfr"   # an instrument (aumu), not an effect
+            $P --strictness-level 10 --skip-gui-tests --timeout-ms 900000 --validate ~/Library/Audio/Plug-Ins/Components/"$p.component"
+            $P --strictness-level 10 --skip-gui-tests --timeout-ms 900000 --validate "stage/vst3/$p.vst3"
+          done
+
+      - name: Installer (.pkg, every plug-in)
+        env:
+          APPLE_INSTALLER_IDENTITY: ${{ secrets.APPLE_INSTALLER_IDENTITY }}
+        run: |
+          set -e
+          V=$(sed -n 's/^project(ChanSampler VERSION \([0-9.]*\)).*/\1/p' CMakeLists.txt)
+          CORE="$V"                                                        # the package version (numbers only)
+          [ "$GITHUB_REF_TYPE" = tag ] && V="${GITHUB_REF_NAME#v}"          # the file name (1.2.0-rc.1 on a pre-release tag)
+          mkdir -p pkg/res dist
+          # Install exactly where stated (pkgbuild would otherwise follow a copy of a bundle found elsewhere on the disk).
+          for c in au vst3 clap app; do
+            pkgbuild --analyze --root stage/$c pkg/$c.plist
+            n=$(plutil -extract @count raw pkg/$c.plist 2>/dev/null || echo 1)
+            for ((i = 0; i < n; i++)); do plutil -replace $i.BundleIsRelocatable -bool NO pkg/$c.plist; done
+          done
+          pkgbuild --root stage/au   --component-plist pkg/au.plist   --install-location "/Library/Audio/Plug-Ins/Components" \
+            --identifier com.chansampler.au   --version "$CORE" pkg/ChanSampler-AU.pkg
+          pkgbuild --root stage/vst3 --component-plist pkg/vst3.plist --install-location "/Library/Audio/Plug-Ins/VST3${SUBFOLDER:+/$SUBFOLDER}" \
+            --identifier com.chansampler.vst3 --version "$CORE" pkg/ChanSampler-VST3.pkg
+          pkgbuild --root stage/clap --component-plist pkg/clap.plist --install-location "/Library/Audio/Plug-Ins/CLAP${SUBFOLDER:+/$SUBFOLDER}" \
+            --identifier com.chansampler.clap --version "$CORE" pkg/ChanSampler-CLAP.pkg
+          pkgbuild --root stage/app  --component-plist pkg/app.plist  --install-location "/Applications${SUBFOLDER:+/$SUBFOLDER}" \
+            --identifier com.chansampler.app  --version "$CORE" pkg/ChanSampler-App.pkg
+          cat LICENSE packaging/THIRD-PARTY-NOTICES.txt > pkg/res/LICENSE.txt   # the installer's license page
+          if [ -f packaging/ABOUT.txt ]; then cp packaging/ABOUT.txt pkg/res/ABOUT.txt; fi   # the welcome page: the independence note
+          sed "s/VERSION/$CORE/g" packaging/distribution.xml > pkg/distribution.xml
+          if [ "${{ steps.s.outputs.installer }}" = "true" ]; then
+            productbuild --distribution pkg/distribution.xml --package-path pkg --resources pkg/res --sign "$APPLE_INSTALLER_IDENTITY" --timestamp "dist/ChanSampler-$V-macOS.pkg"
+            pkgutil --check-signature "dist/ChanSampler-$V-macOS.pkg"
+          else
+            productbuild --distribution pkg/distribution.xml --package-path pkg --resources pkg/res "dist/ChanSampler-$V-macOS.pkg"
+          fi
+          pkgutil --payload-files "dist/ChanSampler-$V-macOS.pkg" | head -20
+
+      - name: Notarize and staple the installer
+        if: steps.s.outputs.app == 'true' && steps.s.outputs.installer == 'true' && steps.s.outputs.notary == 'true'
+        env:
+          APPLE_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+          APPLE_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
+          APPLE_NOTARY_KEY_P8: ${{ secrets.APPLE_NOTARY_KEY_P8 }}
+        run: |
+          set -e
+          set +x
+          echo "$APPLE_NOTARY_KEY_P8" | base64 --decode > "$RUNNER_TEMP/AuthKey.p8"
+          for f in dist/*.pkg; do
+            xcrun notarytool submit "$f" --key "$RUNNER_TEMP/AuthKey.p8" --key-id "$APPLE_NOTARY_KEY_ID" --issuer "$APPLE_NOTARY_ISSUER_ID" --wait --timeout 45m
+            xcrun stapler staple "$f"
+            spctl --assess --type install -v "$f"
+          done
+          rm -f "$RUNNER_TEMP/AuthKey.p8"
+
+      - name: Remove the temporary keychain
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/signing.keychain-db" 2>/dev/null || true
+          rm -f "$RUNNER_TEMP"/*.p12 "$RUNNER_TEMP/AuthKey.p8"
+
+      - name: Zips per format
+        if: env.ZIP_PER_FORMAT == 'true'
+        run: |
+          set -e
+          V=$(sed -n 's/^project(ChanSampler VERSION \([0-9.]*\)).*/\1/p' CMakeLists.txt)
+          [ "$GITHUB_REF_TYPE" = tag ] && V="${GITHUB_REF_NAME#v}"
+          for c in au:AU vst3:VST3 clap:CLAP app:Standalone; do
+            d=${c%%:*}; n=${c##*:}
+            cp LICENSE "stage/$d/LICENSE.txt"; cp packaging/THIRD-PARTY-NOTICES.txt "stage/$d/"
+            (cd "stage/$d" && zip -q -r -y "../../dist/ChanSampler-$V-macOS-$n.zip" .)
+          done
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9   # v7.0.2
+        with:
+          name: ChanSampler-macOS
+          path: |
+            dist/*.pkg
+            dist/*.zip
+
+      - name: Record how the files were signed
+        run: |
+          mkdir -p signing
+          if [ "${{ steps.s.outputs.app }}" = "true" ] && [ "${{ steps.s.outputs.notary }}" = "true" ]; then echo "signed and notarized" > signing/macos.txt
+          elif [ "${{ steps.s.outputs.app }}" = "true" ]; then echo signed > signing/macos.txt
+          else echo unsigned > signing/macos.txt; fi
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9   # v7.0.2
+        with:
+          name: signing-macos
+          path: signing/macos.txt
+
+  linux:
+    # Built inside an Ubuntu 22.04 container so the binaries keep linking against glibc 2.35, the oldest the README
+    # promises, after the ubuntu-22.04 runner image retires (2027-04-17). The host only runs Docker.
+    runs-on: ubuntu-24.04
+    container:
+      image: ubuntu:22.04
+    steps:
+      # Before checkout: the container has no git, and the toolchain is jammy's (GCC 11, CMake 3.22.1 = our floor).
+      # No sudo: container steps run as root.
+      - name: Dependencies
+        run: |
+          apt-get update
+          # make: GCC 11's lto-wrapper runs the parallel link-time optimisation through make; without it every Release
+          # link falls back to serial with a warning (Ubuntu 24.04 runners have it, this container does not).
+          # python3: ctest fixtures may run Python scripts (a test signal made by a script).
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ca-certificates git curl unzip zip g++ cmake ninja-build make python3 \
+            libasound2-dev libjack-jackd2-dev libfreetype-dev libfontconfig1-dev \
+            libx11-dev libxcomposite-dev libxcursor-dev libxext-dev libxinerama-dev libxrandr-dev libxrender-dev libxi-dev \
+            libglu1-mesa-dev mesa-common-dev xvfb xauth   # xauth: xvfb-run needs it, and jammy's xvfb does not pull it in
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Configure
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCHANSAMPLER_TOOLS=OFF
+
+      - name: Build (every plug-in, format and test)
+        shell: bash
+        run: cmake --build build 2>&1 | tee build.log
+
+      - name: Warnings (zero allowed)
+        shell: bash
+        run: |
+          if grep -E 'warning C[0-9]+|warning:|warning MSB|[0-9]+ warnings? generated' build.log | grep -vE '::warning|hint:' > warnings.txt; then
+            cat warnings.txt
+            echo "$(wc -l < warnings.txt) warning line(s) in the build log: zero allowed (STANDARDS.md)"
+            exit 1
+          fi
+          echo "0 warnings"
+
+      - name: Unit tests
+        run: xvfb-run -a ctest --test-dir build --output-on-failure
+
+      - name: Validate every VST3 (pluginval, strictness 10)
+        run: |
+          set -e
+          curl -fsSL -o pluginval.zip "$PLUGINVAL/pluginval_Linux.zip"
+          unzip -q pluginval.zip
+          grep -v '^#' packaging/plugins.txt | grep -v '^\s*$' | while IFS='|' read -r t p _ _; do
+            xvfb-run -a ./pluginval --strictness-level 10 --skip-gui-tests --timeout-ms 900000 --validate "build/${t}_artefacts/Release/VST3/$p.vst3"
+          done
+
+      - name: Installer (tarball with install script, every plug-in)
+        run: |
+          set -e
+          V=$(sed -n 's/^project(ChanSampler VERSION \([0-9.]*\)).*/\1/p' CMakeLists.txt)
+          [ "$GITHUB_REF_TYPE" = tag ] && V="${GITHUB_REF_NAME#v}"
+          D="ChanSampler-$V-Linux"
+          mkdir -p "$D/VST3" "$D/CLAP" dist
+          grep -v '^#' packaging/plugins.txt | grep -v '^\s*$' | while IFS='|' read -r t p _ _; do
+            A="build/${t}_artefacts/Release"
+            cp -R "$A/VST3/$p.vst3" "$D/VST3/"
+            cp "$A/CLAP/$p.clap" "$D/CLAP/"
+            if [ -f "$A/Standalone/$p" ]; then mkdir -p "$D/Standalone" && cp "$A/Standalone/$p" "$D/Standalone/"; fi
+          done
+          cp packaging/install-linux.sh "$D/" && chmod +x "$D/install-linux.sh"
+          cp packaging/INSTALL-Linux.txt "$D/INSTALL.txt"
+          cp LICENSE "$D/LICENSE.txt"
+          cp packaging/THIRD-PARTY-NOTICES.txt "$D/"
+          if [ -f packaging/ABOUT.txt ]; then cp packaging/ABOUT.txt "$D/"; fi
+          tar -czf "dist/$D.tar.gz" "$D"
+          if [ "$ZIP_PER_FORMAT" = "true" ]; then
+            (cd "$D" && zip -q -r "../dist/$D-VST3.zip" VST3 LICENSE.txt THIRD-PARTY-NOTICES.txt && zip -q -r "../dist/$D-CLAP.zip" CLAP LICENSE.txt THIRD-PARTY-NOTICES.txt)
+          fi
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9   # v7.0.2
+        with:
+          name: ChanSampler-Linux
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [windows, macos, linux]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write        # only this job publishes
+      id-token: write        # build provenance attestations
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333   # v8.0.2
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Checksums
+        run: |
+          (cd artifacts && find . -type f \( -name '*.exe' -o -name '*.pkg' -o -name '*.tar.gz' -o -name '*.zip' \) -exec sha256sum {} + | sed 's|  .*/|  |' | sort -k2) > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Build provenance attestations (public repositories)
+        if: github.event.repository.private == false
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8   # v4.2.2
+        with:
+          subject-path: |
+            artifacts/**/*.exe
+            artifacts/**/*.pkg
+            artifacts/**/*.tar.gz
+            artifacts/**/*.zip
+
+      - name: Release notes
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          FOOTER=""; [ "$NOTES_FOOTER" = "true" ] || FOOTER="--no-footer"
+          python3 scripts/release_notes.py "$VERSION" --out notes.md $FOOTER \
+            --signed-windows "$(cat artifacts/windows.txt)" --signed-macos "$(cat artifacts/macos.txt)" \
+            --readme "https://github.com/${GITHUB_REPOSITORY}/blob/main/README.md#quick-start"
+          cat notes.md
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          PRE=(); case "$VERSION" in *-*) PRE=(--prerelease);; esac
+          mapfile -t FILES < <(find artifacts -type f \( -name '*.exe' -o -name '*.pkg' -o -name '*.tar.gz' -o -name '*.zip' \) | sort)
+          gh release create "${GITHUB_REF_NAME}" "${FILES[@]}" SHA256SUMS.txt "${PRE[@]}" --verify-tag \
+            --repo "${GITHUB_REPOSITORY}" --title "Chan Sampler ${VERSION}" --notes-file notes.md

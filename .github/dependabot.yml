@@ -1,0 +1,12 @@
+# Keeps the SHA-pinned actions in .github/workflows current: one pull request a week at most, which CI checks and
+# the maintainer merges. Nothing else is managed here (JUCE and clap-juce-extensions are pinned in CMakeLists.txt on
+# purpose and move only with a tested change).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    labels: [dependencies]
+    commit-message:
+      prefix: "CI"

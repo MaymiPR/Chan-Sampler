@@ -1,0 +1,161 @@
+# CI: builds Chan Sampler (VST3) with the tools, runs the unit tests through ctest (ChanSamplerTests: the engine;
+# ChanSamplerUiTests: the editor's controls and the undo history; ChanSamplerHostTest: the built VST3 hosted like a
+# DAW) and the render regression (scripts/render_regress.py, Chan Sampler's own: ChanSamplerRender against the golden
+# renders in tests/regress), and fails on any build warning (STANDARDS.md, zero warnings).
+# The build target is ci_targets: the root CMakeLists.txt (the flat layout) adds the VST3, the tests, the renderer
+# and, on Windows, the snapshot tool to it. The Windows job keeps the editor screenshots as an artifact for 14 days.
+# Trigger: push to main and pull requests (not when only documents, docs/ or the null-test harnesses change), and by
+# hand (Actions > CI > Run workflow).
+# Runners: ubuntu-24.04, windows-latest, macos-15.
+# Does not: build CLAP, AU or the installers, sign, or run pluginval and auval (release.yml does), or null against the
+# original plug-ins (they are not on the runners). A private repository keeps this workflow disabled and runs
+# scripts/check.ps1 or scripts/check.sh instead.
+name: CI
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '**/nulltest/**'
+      - 'LICENSE'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/RELEASE_CHECKLIST.md'
+  pull_request:
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '**/nulltest/**'
+      - 'LICENSE'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/RELEASE_CHECKLIST.md'
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ninja-build libasound2-dev libjack-jackd2-dev libfreetype-dev libfontconfig1-dev \
+            libx11-dev libxcomposite-dev libxcursor-dev libxext-dev libxinerama-dev libxrandr-dev libxrender-dev libxi-dev \
+            libglu1-mesa-dev mesa-common-dev xvfb
+
+      - name: Configure
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCHANSAMPLER_TOOLS=ON -DCHANSAMPLER_CLAP=OFF
+
+      - name: Build
+        shell: bash
+        run: cmake --build build --target ci_targets 2>&1 | tee build.log
+
+      - name: Warnings (zero allowed)
+        shell: bash
+        run: |
+          if grep -E 'warning C[0-9]+|warning:|warning MSB|[0-9]+ warnings? generated' build.log | grep -vE '::warning|hint:' > warnings.txt; then
+            cat warnings.txt
+            echo "$(wc -l < warnings.txt) warning line(s) in the build log: zero allowed (STANDARDS.md)"
+            exit 1
+          fi
+          echo "0 warnings"
+
+      - name: Unit tests
+        run: xvfb-run -a ctest --test-dir build --output-on-failure
+
+      - name: Render regression
+        if: hashFiles('tests/regress/**/golden/*.f32') != ''   # until the first goldens are committed there is nothing to compare
+        run: xvfb-run -a python3 scripts/render_regress.py --build build
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Configure
+        run: cmake -B build -A x64 -DCHANSAMPLER_TOOLS=ON -DCHANSAMPLER_CLAP=OFF
+
+      - name: Build
+        shell: pwsh
+        run: cmake --build build --config Release --target ci_targets --parallel 2>&1 | Tee-Object -FilePath build.log
+
+      - name: Warnings (zero allowed)
+        shell: bash
+        run: |
+          if grep -E 'warning C[0-9]+|warning:|warning MSB|[0-9]+ warnings? generated' build.log | grep -vE '::warning|hint:' > warnings.txt; then
+            cat warnings.txt
+            echo "$(wc -l < warnings.txt) warning line(s) in the build log: zero allowed (STANDARDS.md)"
+            exit 1
+          fi
+          echo "0 warnings"
+
+      - name: Unit tests
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Render regression
+        if: hashFiles('tests/regress/**/golden/*.f32') != ''
+        run: python scripts/render_regress.py --build build
+
+      - name: Editor screenshots (artifact, not committed)
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force screenshots | Out-Null
+          foreach ($line in Get-Content packaging/plugins.txt) {
+            if (-not $line.Trim() -or $line.StartsWith('#')) { continue }
+            $t, $p, $code, $mfr = $line.Split([char]0x7C)
+            $stem = $t -replace '^The', ''
+            $snap = Get-ChildItem "build/${stem}Snapshot_artefacts/Release/${stem}Snapshot.exe" -ErrorAction SilentlyContinue
+            if ($snap) { & $snap.FullName "screenshots/$($t.ToLower()).png"; & $snap.FullName "screenshots/$($t.ToLower())@2x.png" --scale=2 }
+          }
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9   # v7.0.2
+        if: hashFiles('screenshots/*.png') != ''
+        with:
+          name: screenshots
+          path: screenshots/*.png
+          retention-days: 14
+
+  macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCHANSAMPLER_TOOLS=ON -DCHANSAMPLER_CLAP=OFF
+
+      - name: Build
+        shell: bash
+        run: cmake --build build --target ci_targets --parallel 2>&1 | tee build.log
+
+      - name: Warnings (zero allowed)
+        shell: bash
+        run: |
+          if grep -E 'warning C[0-9]+|warning:|warning MSB|[0-9]+ warnings? generated' build.log | grep -vE '::warning|hint:' > warnings.txt; then
+            cat warnings.txt
+            echo "$(wc -l < warnings.txt) warning line(s) in the build log: zero allowed (STANDARDS.md)"
+            exit 1
+          fi
+          echo "0 warnings"
+
+      - name: Unit tests
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Render regression
+        if: hashFiles('tests/regress/**/golden/*.f32') != ''
+        run: python3 scripts/render_regress.py --build build

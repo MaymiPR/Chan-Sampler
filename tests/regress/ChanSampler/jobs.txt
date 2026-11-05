@@ -1,0 +1,33 @@
+# Render regression cases for Chan Sampler (scripts/render_regress.py reads this file; the header there has the format).
+# Each case: a synthesized sample, notes as key:start:length:velocity, plain parameter values. Short on purpose:
+# the goldens are committed (1 s of stereo float32 at 44.1 kHz is 353 KB).
+#
+# Playback, pitch, velocity
+default        sample=saw   notes=60:0:0.4:100                               seconds=0.6
+keys_velocity  sample=saw   notes=48:0:0.3:127;67:0.1:0.3:40;72:0.2:0.3:90   seconds=0.7
+pitch_knob     sample=sine  notes=60:0:0.4:100   pitch=700 fineTune=25       seconds=0.6
+# Envelopes and LFOs (factory presets set several parameters at once)
+env_pluck      sample=saw   notes=60:0:0.5:100   factory=Pluck               seconds=0.8
+env_swell      sample=saw   notes=60:0:0.6:100   factory=Swell               seconds=0.9
+filter_sweep   sample=saw   notes=55:0:0.6:100   factory=Filter_sweep        seconds=0.9
+wobble         sample=saw   notes=55:0:0.8:100   factory=Wobble_1/8          seconds=0.9
+tremolo        sample=sine  notes=60:0:0.8:100   factory=Tremolo             seconds=0.9
+# Filters
+filter_lp      sample=noise notes=60:0:0.4:100   filterType=1 cutoff=0.3 resonance=0.5   seconds=0.5
+filter_svf_x2  sample=saw   notes=60:0:0.4:100   filterType=7 cutoff=0.4 resonance=0.7   seconds=0.5
+filter_hp      sample=noise notes=60:0:0.4:100   filterType=3 cutoff=0.6 resonance=0.2   seconds=0.5
+# Time stretching
+stretch_resample sample=voice notes=60:0:0.9:100 stretchMode=0 stretchMul=1.5   seconds=1.0
+stretch_e3     sample=voice notes=64:0:0.9:100   stretchMode=3 stretchMul=1.5    seconds=1.0
+# Stretch Pro amplifies the compilers' float differences: -68.7 dB on Linux (GCC) and -64.9 dB on macOS (Clang)
+# against the Windows (MSVC) goldens, CI run 41288229530; the other modes stay below -100 dB. -50 keeps a 15 dB margin.
+stretch_pro    sample=voice notes=57:0:0.9:100   stretchMode=2 stretchMul=0.75   seconds=1.0   threshold=-50
+stretch_e2_speech sample=voice notes=62:0:0.9:100 stretchMode=11 stretchMul=1.25 seconds=1.0
+stretch_slice  sample=drum  notes=60:0:0.9:100   stretchMode=5 stretchMul=1.5    seconds=1.0
+# Arpeggiator, echo, precomputed effects
+arp_up         sample=sine  notes=60:0:0.9:100;64:0:0.9:100;67:0:0.9:100   arpDir=1 arpRange=2   seconds=1.0
+echo           sample=drum  notes=60:0:0.1:100   echoFeed=0.5 echoCount=4 echoTime=1             seconds=1.0
+precomputed    sample=saw   notes=60:0:0.5:100   pcReverse=1 pcReverb=0.4 pcRmMix=0.3 pcCut=0.5 seconds=0.8
+# Looping, mono and glide
+loop_pingpong  sample=voice notes=60:0:0.9:100   useLoop=1 pingPong=1 loopStart=0.2 loopEnd=0.45  seconds=1.0
+mono_porta     sample=saw   notes=60:0:0.4:100;67:0.2:0.4:100   mono=1 porta=1 slide=0.493975903614458   seconds=0.8

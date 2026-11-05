@@ -1,0 +1,6 @@
+# What may sit in this repository and what may ship: docs/EVIDENCE.md "Provenance".
+# vendor words: never in a control label, preset name, file name or plug-in name
+vendor: Image-Line, FL Studio, FL Sampler, Channel Sampler, Fruity, Edison, Slicex
+# files the check would stop, kept with their reason
+allow: tests/data/state-1.2.0.bin  a project state saved by Chan Sampler 1.2.0 itself, for the host test that old projects load unchanged (approved 2026-11-01)
+allow: Source/PresetImport.cpp  reads .fst presets from the musician's own library and finds their samples in their own FL Studio folders, for compatibility (approved 2026-11-01)

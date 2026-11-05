@@ -1,0 +1,17 @@
+# Text files are stored and checked out with LF line endings on every
+# platform; the Windows installer script and the PowerShell scripts keep CRLF.
+* text=auto eol=lf
+*.iss text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary data
+*.wav binary
+*.f32 binary
+*.npy binary
+*.npz binary
+*.png binary
+*.flp binary
+*.fst binary
+*.pkl binary
+*.bin binary
+*.ttf binary

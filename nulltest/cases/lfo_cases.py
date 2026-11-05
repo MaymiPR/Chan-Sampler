@@ -1,0 +1,47 @@
+"""In-FL null cases for the INS LFOs (event 218 fields lfo_*): FL raw values
+next to Chan Sampler's knob positions (amount raw/128, speed (raw-200)/65336,
+predelay / attack like the envelope times, shape index)."""
+import sys; from lib import flrender as F, nullfl
+from cases.fl_cases import envpos
+
+PREFIX = {'pan': 'pan', 'vol': 'vol', 'x': 'x', 'y': 'y', 'pitch': 'p'}
+
+def lfo(name, target='vol', sample='signals/dc6.wav', beats=8, amount=128, speed=32950, shape=0, delay=100, attack=100, extra_fl=(), extra_ours=None):
+    p = PREFIX[target]
+    fl = [F.env(target, 'lfo_amount', amount), F.env(target, 'lfo_speed', speed), F.env(target, 'lfo_shape', shape),
+          F.env(target, 'lfo_delay', delay), F.env(target, 'lfo_attack', attack), *extra_fl]
+    ours = {p + 'LfoAmt': amount / 128, p + 'LfoSpeed': (speed - 200) / 65336, p + 'LfoShape': shape,
+            p + 'LfoDel': envpos(delay), p + 'LfoAtt': envpos(attack), **(extra_ours or {})}
+    return dict(name=name, sample=sample, fl=fl, ours=ours, beats=beats)
+
+CASES = [lfo('l_vol_a128'), lfo('l_vol_a64', amount=64), lfo('l_vol_am64', amount=-64),
+         lfo('l_vol_tri', shape=1), lfo('l_vol_pulse', shape=2),
+         lfo('l_vol_def_att', attack=20000), lfo('l_vol_del10000', delay=10000), lfo('l_vol_att40000', attack=40000)]
+for sp in (6000, 12000, 20000, 28000, 40000, 50000, 65536):
+    CASES.append(lfo(f'l_vol_sp{sp}', speed=sp))
+CASES += [lfo('l_pan', 'pan', amount=96),
+          lfo('l_pitch', 'pitch', sample='signals/sine.wav', amount=64),
+          lfo('l_modx', 'x', sample='signals/noise.wav', amount=-128),
+          lfo('l_mody', 'y', sample='signals/noise.wav', amount=128)]
+
+# Envelope amounts on the other targets (the volume envelope is in fl_cases).
+def envamt(name, target, sample, amount):
+    p = PREFIX[target]
+    raw = dict(env_on=1, amount=amount, delay=100, attack=10000, hold=100, decay=20000, sustain=64, release=100)
+    ours = {p + 'EnvOn': 1, p + 'EnvAmt': amount / 128, p + 'Del': envpos(100), p + 'Att': envpos(10000), p + 'Hold': envpos(100),
+            p + 'Dec': envpos(20000), p + 'Sus': 64 / 128, p + 'Rel': envpos(100)}
+    return dict(name=name, sample=sample, fl=[F.env(target, k, v) for k, v in raw.items()], ours=ours, beats=8)
+CASES += [envamt('e_pitch64', 'pitch', 'signals/sine.wav', 64), envamt('e_modx-128', 'x', 'signals/noise.wav', -128)]   # FL has no panning envelope
+
+# Filter modulation on the other filter types (FL: Levels type 0 Fast LP, 1 LP, 2 BP,
+# 3 HP, 4 BS, 5 LPx2, 6 SVF LP, 7 SVF LPx2), cutoff / resonance part way
+def ftype(t, modx=160, mody=96):
+    return [F.levels('type', t), F.levels('mod_x', modx), F.levels('mod_y', mody)], {'filterType': t, 'cutoff': modx / 256, 'resonance': mody / 256}
+for t in (1, 3, 6):
+    fl, ours = ftype(t)
+    CASES.append(lfo(f'l_modx_t{t}', 'x', sample='signals/noise.wav', amount=-64, extra_fl=fl, extra_ours=ours))
+    CASES.append(lfo(f'l_mody_t{t}', 'y', sample='signals/noise.wav', amount=64, extra_fl=fl, extra_ours=ours))
+CASES += [envamt('e_mody128', 'y', 'signals/noise.wav', 128)]
+
+if __name__ == '__main__':
+    nullfl.run(CASES, [a for a in sys.argv[1:] if a != '-f'] or None, force='-f' in sys.argv)

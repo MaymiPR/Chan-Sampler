@@ -1,0 +1,3 @@
+# One line per plug-in:  CMake target|product name|AU plugin code|AU manufacturer code
+# The installers and the release workflow read this list.
+ChanSampler|Chan Sampler|Csm1|Chsm

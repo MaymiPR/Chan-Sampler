@@ -1,0 +1,10 @@
+Chan Sampler
+============
+
+Chan Sampler is a free, open-source project (AGPL-3.0): https://github.com/MaymiPR/Chan-Sampler
+
+It is an independent project. It is not affiliated with, endorsed by or sponsored by Image-Line.
+FL Studio is a trademark of Image-Line Software; it is named only to describe what Chan Sampler is
+modelled on. None of Image-Line's code, artwork, samples, preset files, fonts or other files is
+included: Chan Sampler was built from measurements of how FL Studio's sampler sounds and behaves,
+and its editor is drawn by its own code.
