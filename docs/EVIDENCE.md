@@ -11,7 +11,7 @@ are in [nulltest/E3_NOTES.md](../nulltest/E3_NOTES.md); how to run the tests is 
 | Item | Value |
 |---|---|
 | Reference | FL Studio 26.1.7, its Sampler channel |
-| Sources | **[M]** Image-Line's online manual (chansettings_sampler / _ins / _misc, screenshots for colours); **[PYFLP]** the open-source PyFLP project's description of FL's project format and raw parameter ranges; **[NULL]** runtime measurements and null tests in `nulltest/` |
+| Sources | **[M]** Image-Line's online manual (`chansettings_sampler`, `_ins` and `_misc`, screenshots for colours); **[PYFLP]** the open-source PyFLP project's description of FL's project format and raw parameter ranges; **[NULL]** runtime measurements and null tests in `nulltest/` |
 | In-FL pairs (the reference) | FL's Sampler on channel 1 and the Chan Sampler VST3 on channel 2 of one project, rendered once from FL's command line, subtracted as heard in FL with no gain correction (`nulltest/lib/nullfl.py`) |
 | Offline cases | FL's Sampler alone from FL's command line against `ChanSamplerRender` (`nulltest/lib/nulltest.py` aligns, gain-matches and subtracts); projects built by `nulltest/lib/build_project.py`, rendered by `nulltest/lib/flrender.py` |
 | Render queue | every FL render through `nulltest/lib/flqueue.py` (keyed cache, retries, resume) |
@@ -676,8 +676,8 @@ sample's file (to a DAW, an editor or a folder); when that file changes on disk 
   100-frame fall), which is why FL's Color map flickers on low notes and stripes a vocal while Multiband stays steady.
   Silence keeps the last colour (the tom's tail stays red). Stereo samples use the mean of both channels' band
   energies (a stereo loop: 6.3 to 3.8 steps). Mono samples are drawn 5% brighter (R + G + B = 257 instead of 245; FL's
-  mono wave colour is brighter too). Multiband: RGB in proportion to the band RMS. Color map: (0.4 mid + high) / (low
-  + mid + high) on FL's palette (red-pink, orange, cream, green, teal, blue, violet). Result against the captures:
+  mono wave colour is brighter too). Multiband: RGB in proportion to the band RMS. Color map: (0.4 mid + high) /
+  (low + mid + high) on FL's palette (red-pink, orange, cream, green, teal, blue, violet). Result against the captures:
   Multiband 0.4-2.5 RGB steps on solid fills (hat 0.4, vocal 1.1, t1 2.1); Color map matches FL's colours and flicker
   character, single flickering columns cannot match. The scroll-bar overview is coloured the same way.
 - File buttons (measured in FL): 32 / 19 / 19 x 23 px boxes, a #141717 frame, a lighter inner edge and a fill
