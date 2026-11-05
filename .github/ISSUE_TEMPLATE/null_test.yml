@@ -20,11 +20,15 @@ body:
     id: material
     attributes:
       label: Sample, notes and the residual you measured
-      description: What the sample is (length, mono or stereo, sample rate), the notes you played, and the residual in dB (the difference between FL's render and ours, below FL's level), if you measured one.
+      description: >-
+        What the sample is (length, mono or stereo, sample rate), the notes you played, and the residual in dB
+        (the difference between FL's render and ours, below FL's level), if you measured one.
     validations:
       required: true
   - type: textarea
     id: how
     attributes:
       label: How you nulled
-      description: Both samplers in one FL project with the same sample and settings, the same notes on both channels, one channel phase-inverted, rendered together. A short audio example of the difference helps most.
+      description: >-
+        Both samplers in one FL project with the same sample and settings, the same notes on both channels, one
+        channel phase-inverted, rendered together. A short audio example of the difference helps most.
