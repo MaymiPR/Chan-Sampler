@@ -1,4 +1,4 @@
-Release checklist for ChanSampler {{VERSION}} (branch `{{BRANCH}}`). One list for every release: tick each item
+Release checklist for Chan Sampler {{VERSION}} (branch `{{BRANCH}}`). One list for every release: tick each item
 as it happens and close this issue when the release is live. The flow in short is in CONTRIBUTING.md under
 "Making a release"; the rules are in STANDARDS.md.
 
@@ -35,7 +35,7 @@ as it happens and close this issue when the release is live. The flow in short i
 
 ## After
 
-- [ ] The release page is not a draft; the title is `ChanSampler {{VERSION}}`; the files are
+- [ ] The release page is not a draft; the title is `Chan Sampler {{VERSION}}`; the files are
   `ChanSampler-{{VERSION}}-Windows-Setup.exe`, `ChanSampler-{{VERSION}}-macOS.pkg`, `ChanSampler-{{VERSION}}-Linux.tar.gz`
   and `SHA256SUMS.txt`; the notes are the CHANGELOG section plus the footer with the signing state.
 - [ ] One file downloaded on another machine; its digest equals its line in `SHA256SUMS.txt`; `gh attestation verify <file> --repo MaymiPR/Chan-Sampler` passes on a public repository.
