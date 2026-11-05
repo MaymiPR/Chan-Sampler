@@ -11,6 +11,7 @@ A rewording update: no changes to the sound or the controls.
 ### Improved
 
 #### Undo
+
 - Undo and redo are the host's: every knob, switch and list is now
   automatable, so FL Studio's history records each change, the time stretch
   knobs and precomputed effects included (they were left out).
@@ -25,6 +26,7 @@ A rewording update: no changes to the sound or the controls.
   cleared the history before).
 
 #### Build
+
 - Built on JUCE 9.0.5, a security release that hardens how audio files (WAV,
   AIFF) and other data are read. The sound is unchanged (every offline test
   renders bit-identically to JUCE 9.0.4).
@@ -34,6 +36,7 @@ A rewording update: no changes to the sound or the controls.
 ### Fixed
 
 #### Controls
+
 - SLIDE starts at 0:03, as a new Sampler does in FL (it started at 0:12).
   Projects keep the slide they were saved with.
 - The envelope and LFO time knobs show FL's percentage: the attack, hold and
@@ -45,6 +48,7 @@ A rewording update: no changes to the sound or the controls.
 ### Improved
 
 #### Look
+
 - The envelope tab's icon is smooth: hollow rings on its start, peak and end,
   a straight rise and a curved fall that levels out.
 
@@ -53,6 +57,7 @@ A rewording update: no changes to the sound or the controls.
 ### New
 
 #### Editing
+
 - Type in value opens FL's box where its menu was clicked: the value in the
   control's own unit, with a switch to A (the knob's position from 0 to 1),
   a tick to apply and a cross to cancel. The units are FL's: dB on the
@@ -64,6 +69,7 @@ A rewording update: no changes to the sound or the controls.
 ### Improved
 
 #### Controls
+
 - OUT is FL's channel volume knob: 78 % by default, shown as 78% -5.2dB 0.55,
   0 dB at its top. The default level is unchanged; projects saved earlier
   keep their level, up to OUT's top (5.2 dB over the default).
@@ -73,6 +79,7 @@ A rewording update: no changes to the sound or the controls.
 ### New
 
 #### Editing
+
 - Type in value takes decibels on OUT and Levels VOL ("-6 dB", "-6db"), a
   percentage ("50%"), and on percent knobs a position from 0 to 1 ("0.5");
   a plain number is read in the knob's own unit, as in FL ("50" is 50 %).
@@ -80,6 +87,7 @@ A rewording update: no changes to the sound or the controls.
 ### Fixed
 
 #### Editing
+
 - Escape in the Type in value box crashed FL Studio on macOS (AU). The box
   now sits on Chan Sampler's own window and closes cleanly.
 
@@ -88,6 +96,7 @@ A rewording update: no changes to the sound or the controls.
 ### New
 
 #### Look
+
 - A true black theme with violet accents on the value arcs, the lit switches
   and the selected tabs; Chan Sampler's own mark in the top bar.
 - The filter knobs show their value as an arc, and under the mouse their ring
@@ -98,6 +107,7 @@ A rewording update: no changes to the sound or the controls.
 ### Improved
 
 #### Look
+
 - The knobs, filter knobs, switches, slider balls, value boxes and icons are
   drawn by Chan Sampler's own code from measured sizes, with its own shading,
   colours and icons. The layout is unchanged.
@@ -108,6 +118,7 @@ A rewording update: no changes to the sound or the controls.
 ### Improved
 
 #### Sound
+
 - e2 speech splices as FL's does: a whole number of a sound's periods, the
   number nearest 390 samples, and it keeps the last period it found between
   sounds (closer to FL on real material: band spectrum 2.70 -> 2.45 dB).
@@ -117,6 +128,7 @@ A rewording update: no changes to the sound or the controls.
 ### Improved
 
 #### Sound
+
 - SMP LENGTH: segments under 200 frames end as FL's do (-59 to -69 dB in FL,
   from -47 to -57 on the shortest).
 
@@ -125,11 +137,13 @@ A rewording update: no changes to the sound or the controls.
 ### New
 
 #### Files
+
 - Opus files (.opus) load.
 
 ### Improved
 
 #### Sound
+
 - Slice map nulls against FL at MUL x2 and x1.5 (-52 to -83 dB, from -11 to
   -32 on a drum loop): slices start on a zero crossing, on the sample FL
   starts them, without a fade-in, and end with FL's fade instead of a hard
@@ -140,6 +154,7 @@ A rewording update: no changes to the sound or the controls.
   nearest in either channel).
 
 #### Build
+
 - Built on JUCE 9.0.4, with the sound unchanged (the null tests against FL
   give the same results as on JUCE 8). The Windows installer is a 64-bit
   program.
@@ -149,6 +164,7 @@ A rewording update: no changes to the sound or the controls.
 ### Improved
 
 #### Sound
+
 - SMP LENGTH: a segment shorter than FL's shortest is lengthened as FL does
   instead of held at the shortest (a 30-frame trim plays about 70 frames, as
   in FL, not 40), and a short trim at the very end of the sample now fades
@@ -214,6 +230,7 @@ A rewording update: no changes to the sound or the controls.
 ### Improved
 
 #### Look
+
 - Every control is drawn as FL Studio draws it, pixel by pixel from
   captures of its channel settings window (the layout stays as it was):
   knobs with FL's bevel, body shading, value dot and full-turn arc in FL's
@@ -272,6 +289,7 @@ A rewording update: no changes to the sound or the controls.
   the right-click hint after it (Chan Sampler's own layout; FL keeps it at the right).
 
 #### Closer to FL
+
 - e3 generic, Auto, e2 generic and e2 transient stretch at FL's internal
   ratio grid and resample the rest, as FL does: e3 generic's in-FL pitch
   cases null about 2 dB deeper on average (most on sustained tones such as
@@ -307,6 +325,7 @@ A rewording update: no changes to the sound or the controls.
 ### Improved
 
 #### Faster
+
 - Stretch and e2 transient use about 9% less CPU, Stretch Pro about 6%, e2
   generic and e3 generic 3-5%, on stereo samples as well as mono; the sound
   is bit-for-bit the same.
@@ -328,6 +347,7 @@ A rewording update: no changes to the sound or the controls.
 ### Improved
 
 #### Faster
+
 - Each Chan Sampler uses about 4 MB of memory instead of about 130 MB until
   a stretch mode is used (the time stretchers are made the first time one
   is needed): ten instances in Resample went from about 1.3 GB to 40 MB.
@@ -398,12 +418,14 @@ A rewording update: no changes to the sound or the controls.
 ### Improved
 
 #### Downloads
+
 - Each release has the Windows installer, the macOS installer and the Linux
   tarball (now with the version in its name); the Windows and macOS zips are
   gone. Every download includes the licenses of the third-party software in
   Chan Sampler (THIRD-PARTY-NOTICES.txt).
 
 #### Other
+
 - Every build is now checked to open a project saved by 1.2.0 with every
   setting unchanged; each release from here on adds its own.
 - No compiler warnings on Linux (deprecated JUCE calls replaced, unused code
@@ -423,6 +445,7 @@ A rewording update: no changes to the sound or the controls.
 ### Improved
 
 #### Closer to FL's Sampler
+
 - Every stretch mode was measured against FL's renders (clicks, noise, a
   kick, a Rhodes, a voice and two drum loops at -700 / +700 cents and x1.5 /
   x0.667) and rebuilt to match:
@@ -444,12 +467,14 @@ A rewording update: no changes to the sound or the controls.
 - Every knob's drag distance is now measured in FL.
 
 #### Faster
+
 - The stretch modes use about half the CPU, with the same sound: e3 generic
   / Auto about 16% of one core for 32 voices (1.1.0: 37%), Stretch Pro 25%
   (36%), the mono and speech modes about 5%. The stretcher has its own,
   faster FFT, and e3's spectral part only works on the band it keeps.
 
 #### Other
+
 - Regression tests for the stretch modes: e3's attack timing, band split
   and pitched notes' start and length, every mode's alignment of a soft
   start, the mono modes' clicks and formants, the FFT, and a stress test of
@@ -465,6 +490,7 @@ A rewording update: no changes to the sound or the controls.
 ### New
 
 #### New formats and platforms
+
 - CLAP plugin (Windows, macOS, Linux), included in the installers.
 - Linux builds: VST3, CLAP and the standalone app (x86-64, glibc 2.35 or
   later).
@@ -472,6 +498,7 @@ A rewording update: no changes to the sound or the controls.
 ### Improved
 
 #### Closer to FL's Sampler
+
 - e3 generic and Auto are built like FL's e3 (measured from FL renders, see
   nulltest/E3_NOTES.md): a spectral stretch below 1.485 kHz and
   pitch-synchronous grains of the sound above it. Attacks are timed like
@@ -494,6 +521,7 @@ A rewording update: no changes to the sound or the controls.
   does (707 Kick starts blue).
 
 #### Other
+
 - e3 generic uses more CPU than before (about 37% of one core for 32
   voices, was 14%).
 - Releases list SHA-256 checksums; the install notes explain the security
@@ -541,6 +569,7 @@ loading.
 ### Improved
 
 #### Sound (all null-tested against FL Studio)
+
 - Filter modulation (envelopes, LFOs, Mod X / Y) matches FL, including LPx2 and
   SVF LPx2.
 - All six declicking modes match FL, including Crossfade's fades and
@@ -555,6 +584,7 @@ loading.
   at 64 voices: 118% to 54% of a core) and stay steadier on long notes.
 
 #### Look (measured from FL's screen)
+
 - Sample view: FL's colours, grid, smooth waveform, format badge (16 / 32 with
   mono / stereo icon), file markers.
 - Spectrum view modelled on FL's (sharp in time and frequency, FL's palette).
@@ -564,6 +594,7 @@ loading.
   something.
 
 #### Robustness
+
 - Offline rendering (export / bounce) never starts on an outdated sample, also
   right after loading a project or changing a precomputed setting.
 - Changing the host's sample rate mid-session keeps every sample's pitch.
