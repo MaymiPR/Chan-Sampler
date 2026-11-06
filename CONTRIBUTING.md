@@ -144,8 +144,15 @@ last. Tags are `vx.y.z`; `vx.y.z-rc.N` publishes a pre-release. `scripts/bump_ve
 
 ## Deviations from the standard
 
-- Flat layout: Chan Sampler is one plug-in and keeps `Source/` and `tests/` at the root with no `plugins/<Id>/plugin.cmake` or `shared/`; the root `CMakeLists.txt` stands in for the `plugin.cmake` (`ci_targets`, the ctest registrations with the sine fixture, the `CHANSAMPLER_TOOLS` and `CHANSAMPLER_CLAP` options), and the render regression's goldens are in `tests/regress`. The null tests are in `nulltest/` and the measurements in `docs/EVIDENCE.md` instead of a plug-in folder's MEASUREMENTS.md and NULLTESTS.md.
-- Install locations: the plug-ins install to the root plug-in folders where every release since 1.0 has put them (macOS `/Library/Audio/Plug-Ins/Components`, `VST3` and `CLAP` with the app in `/Applications`, `SUBFOLDER: ''` in release.yml; Windows the root VST3 and CLAP folders under the earlier releases' AppId; Linux `~/.vst3` and `~/.clap`), not to a suite subfolder, because a moved location would leave installed users with two copies.
+- Flat layout: Chan Sampler is one plug-in and keeps `Source/` and `tests/` at the root with no
+  `plugins/<Id>/plugin.cmake` or `shared/`; the root `CMakeLists.txt` stands in for the `plugin.cmake` (`ci_targets`,
+  the ctest registrations with the sine fixture, the `CHANSAMPLER_TOOLS` and `CHANSAMPLER_CLAP` options), and the
+  render regression's goldens are in `tests/regress`. The null tests are in `nulltest/` and the measurements in
+  `docs/EVIDENCE.md` instead of a plug-in folder's MEASUREMENTS.md and NULLTESTS.md.
+- Install locations: the plug-ins install to the root plug-in folders where every release since 1.0 has put them
+  (macOS `/Library/Audio/Plug-Ins/Components`, `VST3` and `CLAP` with the app in `/Applications`, `SUBFOLDER: ''` in
+  release.yml; Windows the root VST3 and CLAP folders under the earlier releases' AppId; Linux `~/.vst3` and
+  `~/.clap`), not to a suite subfolder, because a moved location would leave installed users with two copies.
 - Installer defaults: the standalone app is installed by default, as in every release since 1.0 (Windows: in the full installation type; macOS: the app choice selected).
 - Render regression: `scripts/render_regress.py` is Chan Sampler's own (an instrument: a synthesised sample and notes in, not audio through), with its own `jobs.txt` format.
 - auval: the release workflow validates the AU as an instrument (`aumu`), not as an effect.

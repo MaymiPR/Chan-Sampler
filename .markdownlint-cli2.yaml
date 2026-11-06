@@ -1,6 +1,9 @@
 # markdownlint for the repository (the Lint workflow and the local check run it). The double-underscore placeholders
 # read as underscore emphasis to the strong-style rule until setup fills them, so that rule is off; tables use the
-# compact separator row, so the column-style rule is off; the README opens with a picture and badges.
+# compact separator row, so the column-style rule is off; the README opens with a picture and badges. The null-test
+# reports (NULLTESTS*.md) are written by each harness's report command and are not linted.
+ignores:
+  - "**/NULLTESTS*.md"
 config:
   default: true
   MD013:

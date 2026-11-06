@@ -137,7 +137,9 @@ jobs:
           persist-credentials: false
 
       - name: Configure
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCHANSAMPLER_TOOLS=ON -DCHANSAMPLER_CLAP=OFF
+        # Ninja, as on Linux, runs one compile per core. The Makefile generator either sets no job limit (the
+        # runner runs out of memory) or, given a count, warns that JUCE's nested helper build has no jobserver.
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCHANSAMPLER_TOOLS=ON -DCHANSAMPLER_CLAP=OFF
 
       - name: Build
         shell: bash

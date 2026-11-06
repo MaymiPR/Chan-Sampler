@@ -3,7 +3,7 @@
 # Trigger: a published release, and by hand. Runner: ubuntu-24.04 (build, then deploy).
 # Pages is enabled once in the repository's settings (Settings > Pages > Source: GitHub Actions); on the free plan
 # that needs a public repository.
-# Does not: say anything the README does not, or run before Pages is enabled.
+# Does not: say anything the README does not; both jobs are skipped while Pages is not enabled.
 name: Landing page
 
 on:
@@ -20,6 +20,7 @@ concurrency:
 
 jobs:
   build:
+    if: github.event.repository.has_pages   # skipped, not failed, until Pages is enabled
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7.0.1
