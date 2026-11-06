@@ -87,8 +87,7 @@ fi
 if [ "$SKIP_BUILD" = 0 ]; then
     STAMP="$BUILD/.check-start"
     mkdir -p "$BUILD"; touch "$STAMP"
-    # one compile per core: the Makefile generator sets no job limit of its own
-    cmake --build "$BUILD" --config "$CONFIG" --target ci_targets --parallel "$(getconf _NPROCESSORS_ONLN)" 2>&1 | tee build.log
+    cmake --build "$BUILD" --config "$CONFIG" --target ci_targets --parallel 2>&1 | tee build.log
     if [ "${PIPESTATUS[0]}" -ne 0 ]; then fail build "build (log: build.log)"; else set_state build ok; pass build; fi
     HITS=$(grep -E 'warning C[0-9]+|warning:|warning MSB|[0-9]+ warnings? generated' build.log | grep -vE '::warning|hint:')
     if [ -n "$HITS" ]; then
