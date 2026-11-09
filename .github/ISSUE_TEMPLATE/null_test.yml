@@ -1,5 +1,5 @@
 name: Null-test report
-description: A setting or sample where Chan Sampler sounds different from FL Studio's Sampler more than docs/EVIDENCE.md says.
+description: A setting or sample where Chan Sampler sounds different from FL Studio's Sampler more than NULLTESTS.md and MEASUREMENTS.md (plugins/ChanSampler/) say.
 labels: [null test]
 body:
   - type: input

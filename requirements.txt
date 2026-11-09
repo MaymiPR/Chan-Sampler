@@ -1,5 +1,6 @@
-# Python packages for the scripts (nulltest/, docs/screenshots/). Not needed to build the plugin.
+# Python packages for the scripts (plugins/ChanSampler/nulltest/, plugins/ChanSampler/scripts/). Not needed to build
+# the plugin.
 # Python 3.12 or newer: numpy 2.5 requires it. Floors are the versions in use on 2026-10-30.
 #   pip install -r requirements.txt
 numpy>=2.5.4
-pillow>=13.0.0   # docs/screenshots/make.py only
+pillow>=13.0.0   # plugins/ChanSampler/scripts/make_screenshots.py only

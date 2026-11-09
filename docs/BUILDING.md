@@ -14,8 +14,8 @@ are downloaded automatically when you configure.
   sudo apt install libasound2-dev libjack-jackd2-dev libfreetype-dev libfontconfig1-dev libx11-dev libxcomposite-dev libxcursor-dev libxext-dev libxinerama-dev libxrandr-dev libxrender-dev libxi-dev libglu1-mesa-dev mesa-common-dev
   ```
 
-- Python 3 for the tests (`ctest` writes their test signal with `nulltest/make_base_signals.py`, standard library
-  only; set `CHANSAMPLER_PYTHON` to choose the interpreter).
+- Python 3 for the tests (`ctest` writes their test signal with `plugins/ChanSampler/nulltest/make_base_signals.py`,
+  standard library only; set `CHANSAMPLER_PYTHON` to choose the interpreter).
 
 | Option | Default | Effect |
 |---|---|---|
