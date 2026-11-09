@@ -22,25 +22,25 @@ __pycache__/
 *.pyc
 .venv/
 
-# Generated test renders (re-render with FL Studio, see nulltest/README.md)
-nulltest/renders/
-nulltest/renders_fl/
-nulltest/ours/
-nulltest/probe/
+# Generated test renders (re-render with FL Studio, see plugins/ChanSampler/nulltest/README.md)
+**/nulltest/renders/
+**/nulltest/renders_fl/
+**/nulltest/ours/
+**/nulltest/probe/
 # Files FL wrote (projects, the wrapper chunk): local only
-nulltest/local/
+**/nulltest/local/
 
-# Audio is never committed. Test signals are generated (python nulltest/make_base_signals.py;
+# Audio is never committed. Test signals are generated (python plugins/ChanSampler/nulltest/make_base_signals.py;
 # python -m stretch.make_signals; probes/env_time_probe.py); FL's renders stay local.
 *.wav
 
 # The originals' captures, renders and extracted material never enter the repository
 reference/
-nulltest/results*.json
+**/nulltest/results*.json
 
-# FL demo samples copied in by nulltest/cases/untested_cases.py
-nulltest/fmt_test.*
-nulltest/fst/
+# FL demo samples copied in by plugins/ChanSampler/nulltest/cases/untested_cases.py
+**/nulltest/fmt_test.*
+**/nulltest/fst/
 
 # Signing material never enters the repository (it lives in GitHub's Actions secrets)
 *.p12

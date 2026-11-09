@@ -1,0 +1,14 @@
+Chan Sampler for Windows (64-bit)
+=================================
+
+Run ChanSampler-<version>-Windows-Setup.exe. It installs Chan Sampler:
+  - VST3 to C:\Program Files\Common Files\VST3
+  - CLAP to C:\Program Files\Common Files\CLAP
+  - the standalone app to C:\Program Files\Chan Sampler (in the full installation, the default)
+Pick "Choose formats" to leave some out, then rescan plug-ins in your DAW.
+Uninstall from Settings > Apps > Chan Sampler.
+
+A signed installer opens without a warning. An unsigned one (the release notes say which) makes Windows SmartScreen
+warn: click "More info", then "Run anyway".
+To check the download, compare its SHA-256 with SHA256SUMS.txt on the Releases page:
+  certutil -hashfile ChanSampler-<version>-Windows-Setup.exe SHA256

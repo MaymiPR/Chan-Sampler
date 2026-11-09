@@ -1,6 +1,6 @@
 """Render regression: ChanSamplerRender (the whole plug-in, offline) against the golden renders committed in
 tests/regress. CI runs it on every push; it catches an unintended change in the sound without FL Studio, which CI
-does not have. The null tests against FL (nulltest/) stay on the dev machine.
+does not have. The null tests against FL (plugins/ChanSampler/nulltest/) stay on the dev machine.
 
     python scripts/render_regress.py --build build                 # compare (exit 1 on any case above its threshold)
     python scripts/render_regress.py --build build --update        # (re)write the goldens after an intended change

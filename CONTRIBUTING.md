@@ -8,10 +8,10 @@ made. [STANDARDS.md](STANDARDS.md) holds the rules in full.
 
 Chan Sampler follows FL Studio's Sampler, and FL is the reference for every behaviour. A change that affects the sound
 is measured against FL's own render of the same settings ([Null tests](#null-tests)), and what was measured goes into
-[docs/EVIDENCE.md](docs/EVIDENCE.md), so the next person can see why the code is the way it is. Knobs use FL's units
-and FL's ranges. Nothing of FL's (renders, samples, presets, projects, art) enters the repository; a decision is
-recorded as the rule it produced, with the date of its approval, and nobody's words are quoted in a file, a commit
-message, a tag or release notes.
+[MEASUREMENTS.md](plugins/ChanSampler/MEASUREMENTS.md), so the next person can see why the code is the way it is.
+Knobs use FL's units and FL's ranges. Nothing of FL's (renders, samples, presets, projects, art) enters the
+repository; a decision is recorded as the rule it produced, with the date of its approval, and nobody's words are
+quoted in a file, a commit message, a tag or release notes.
 
 ## Build
 
@@ -22,17 +22,18 @@ Requirements and the commands per platform are in the [build guide](docs/BUILDIN
 ## Tests
 
 `ctest --test-dir build -C Release --output-on-failure` runs every test program with its arguments; a fixture writes
-the 2-second test sine first (`nulltest/make_base_signals.py sine.wav`). Each command returns non-zero on a failure.
+the 2-second test sine first (`plugins/ChanSampler/nulltest/make_base_signals.py sine.wav`, into its `signals/`
+folder). Each command returns non-zero on a failure.
 
 | Test or tool | What it does |
 |---|---|
 | `ChanSamplerTests` | The engine tests (no arguments). |
-| `ChanSamplerUiTests nulltest/signals/sine.wav` | Builds the editor off screen and checks its shared controls and the undo history: every drop-down list is the shared `fl::ComboBox`, every choice reaches its parameter and is still shown after a sheet change and a rebuilt editor; gestures record single steps, unchanged values none, undo / redo restore values and the sample, the keys and the field work (one action per press, unused keys left to the host), a wheel notch eases the knob, a panel's menu arrow stays turned while its menu is open; as a plugin, every parameter is automatable, a preset, a sample load and a saved preset are each one edit for the host (the History step parameter, named after it, with their values off the message thread), the host's undo, redo and jumps over several steps put them back, and the editor has no undo arrows and leaves the keys to the host. Needs a display (`xvfb-run` on Linux). |
-| `ChanSamplerHostTest <Chan Sampler.vst3> nulltest/signals/sine.wav tests/data/state-*.bin` | Loads the built VST3 the way a DAW does: automation, MIDI, save / reload, the editor size, host rate changes, offline rendering, and projects saved by each earlier release (`tests/data`). |
+| `ChanSamplerUiTests <sine.wav>` | Builds the editor off screen and checks its shared controls and the undo history: every drop-down list is the shared `fl::ComboBox`, every choice reaches its parameter and is still shown after a sheet change and a rebuilt editor; gestures record single steps, unchanged values none, undo / redo restore values and the sample, the keys and the field work (one action per press, unused keys left to the host), a wheel notch eases the knob, a panel's menu arrow stays turned while its menu is open; as a plugin, every parameter is automatable, a preset, a sample load and a saved preset are each one edit for the host (the History step parameter, named after it, with their values off the message thread), the host's undo, redo and jumps over several steps put them back, and the editor has no undo arrows and leaves the keys to the host. Needs a display (`xvfb-run` on Linux). |
+| `ChanSamplerHostTest <Chan Sampler.vst3> <sine.wav> <state-*.bin>` | Loads the built VST3 the way a DAW does: automation, MIDI, save / reload, the editor size, host rate changes, offline rendering, and projects saved by each earlier release (`plugins/ChanSampler/tests/data`). |
 | Render regression | `python scripts/render_regress.py --build build`: `tests/regress/ChanSampler/jobs.txt` through `ChanSamplerRender` against the committed goldens; our output does not change unless intended (`--update` after an intended change in the sound, committed with it and the reason in the message). |
-| `ChanSamplerRender` | Renders notes offline for the null tests; also `bench <sample>` (CPU per stretch mode, 32 / 64 voices), `stretchtest` (the stretcher alone on a file), `fftbench` (the stretcher's FFT against JUCE's); the full list is at the top of `tests/RenderTool.cpp`. |
-| `ChanSamplerSnapshot <out.png> [--scale=2]` | Writes an editor screenshot (the standard call: a synthesised drum hit, the Sample sheet); the long form takes a sample, parameters and a sheet (`tests/SnapshotTool.cpp`). `docs/screenshots/make.py` makes the README's pictures with it. |
-| Null tests | the same notes through FL's Sampler and through Chan Sampler; the residual in dB ([nulltest/README.md](nulltest/README.md)). |
+| `ChanSamplerRender` | Renders notes offline for the null tests; also `bench <sample>` (CPU per stretch mode, 32 / 64 voices), `stretchtest` (the stretcher alone on a file), `fftbench` (the stretcher's FFT against JUCE's); the full list is at the top of `plugins/ChanSampler/tools/ChanSamplerRender.cpp`. |
+| `ChanSamplerSnapshot <out.png> [--scale=2]` | Writes an editor screenshot (the standard call: a synthesised drum hit, the Sample sheet); the long form takes a sample, parameters and a sheet (`plugins/ChanSampler/tools/Snapshot.cpp`). `plugins/ChanSampler/scripts/make_screenshots.py` makes the README's pictures with it. |
+| Null tests | the same notes through FL's Sampler and through Chan Sampler; the residual in dB ([plugins/ChanSampler/nulltest/README.md](plugins/ChanSampler/nulltest/README.md)). |
 | Repository checks | `python scripts/check_repo.py`: absolute paths, old names, attribution forms, document style, whitespace. |
 
 ## The local check
@@ -56,7 +57,9 @@ prints one `CHECK` line with the counts. Switches: `-SkipBuild`, `-SkipTests`, `
 
 Code rules:
 
-- C++17 and JUCE; the sources are in `Source/`, listed once in `CMakeLists.txt`.
+- C++17 and JUCE; the sources are in `plugins/ChanSampler/Source/` (`dsp/` the engine and its DSP, `ui/` the editor's
+  parts and theme, the processor, editor, parameters, presets and host glue at the top), listed once in
+  `plugins/ChanSampler/plugin.cmake`.
 - Match the code around you: its naming, its comment density, and comments that say what was measured in FL rather
   than restating the code.
 - Line endings are LF everywhere (`.gitattributes`); the installer script and the PowerShell scripts keep CRLF.
@@ -79,7 +82,7 @@ as an issue for a `release/x.y.z` branch or by hand. In short:
 3. Save a project of the new version for the host test, so later versions are checked against it:
 
    ```text
-   build/ChanSamplerHostTest_artefacts/Release/ChanSamplerHostTest "build/ChanSampler_artefacts/Release/VST3/Chan Sampler.vst3" --save-state tests/data/state-x.y.z.bin
+   build/ChanSamplerHostTest_artefacts/Release/ChanSamplerHostTest "build/ChanSampler_artefacts/Release/VST3/Chan Sampler.vst3" --save-state plugins/ChanSampler/tests/data/state-x.y.z.bin
    ```
 
    If it is identical to the last one (no parameter changed), leave it out. A later change that alters how a saved
@@ -113,29 +116,31 @@ pull requests wait for approval before CI runs.
 
 | Path | What it holds |
 |---|---|
-| `Source/` | the plug-in's code (engine, editor, DSP, preset import) |
-| `tests/` | the test programs and tools (`EngineTests.cpp`, `UiTests.cpp`, `HostTool.cpp`, `RenderTool.cpp`, `SnapshotTool.cpp`), `data/` (projects saved by earlier releases for the host test), `regress/` (the render regression's cases and golden renders) |
-| `nulltest/` | the null tests and measurement scripts against FL Studio (published; FL's renders and files stay in its git-ignored `renders*/` and `local/` folders) |
+| `CMakeLists.txt` | the project, the JUCE pin and commit check, the options, `ci_targets`, `include(plugins/ChanSampler/plugin.cmake)` |
+| `plugins/ChanSampler/` | the plug-in: `plugin.cmake` (the plug-in, its tests and tools, the ctest registrations with the sine fixture), `Source/` (with `dsp/` and `ui/`), `tests/` (`ChanSamplerTests.cpp`, `UiTests.cpp`, `data/`: projects saved by earlier releases for the host test), `tools/` (`ChanSamplerRender.cpp`, `Snapshot.cpp`, `HostTool.cpp`), `scripts/` (`make_screenshots.py`), `nulltest/` (the null tests and measurement scripts against FL Studio, published; FL's renders and files stay in its git-ignored `renders*/` and `local/` folders), [README.md](plugins/ChanSampler/README.md), [RESEARCH.md](plugins/ChanSampler/RESEARCH.md), [MEASUREMENTS.md](plugins/ChanSampler/MEASUREMENTS.md) (every measurement), [NULLTESTS.md](plugins/ChanSampler/NULLTESTS.md) |
+| `tests/regress/` | the render regression's cases and golden renders |
 | `cmake/` | `PatchJuceVst3Keys.cmake` |
 | `scripts/` | `bump_version.py`, `release_notes.py`, `render_regress.py`, `make_site.py`, `check_repo.py`, `check.ps1`, `check.sh` |
 | `packaging/` | the installers; `plugins.txt` lists the plug-in they hold |
-| `docs/` | the build guide, [EVIDENCE.md](docs/EVIDENCE.md) (every measurement), the banners, `branding/` (`colours.json`), `screenshots/` (with `make.py`) |
+| `docs/` | the build guide, `branding/` (the banners, the social preview, `colours.json`), `screenshots/` |
 | `.github/` | `workflows/` (Lint, CI, Build and release, Release checklist, Landing page), the issue forms, the pull request template, `RELEASE_CHECKLIST.md`, `dependabot.yml`, CODEOWNERS |
 | `local.example.yaml` | the keys of `local.yaml` (git-ignored) for machine paths |
 
 ## Null tests
 
-`nulltest/` renders the same notes through FL's Sampler and through Chan Sampler inside FL, and subtracts the two. Its
-[README](nulltest/README.md) explains how to run them; they need FL Studio (closed while rendering), Python 3.12 or
-newer with numpy (`pip install -r requirements.txt`) and the tools built. The time-stretch modes cannot null (FL's
-engine is proprietary), so `nulltest/stretch/` compares their behaviour instead. Image-Line's samples, presets and
-projects are never committed: the tests read FL's own samples from the FL install.
+`plugins/ChanSampler/nulltest/` renders the same notes through FL's Sampler and through Chan Sampler inside FL, and
+subtracts the two. Its [README](plugins/ChanSampler/nulltest/README.md) explains how to run them; they need FL Studio
+(closed while rendering), Python 3.12 or newer with numpy (`pip install -r requirements.txt`) and the tools built. The
+time-stretch modes cannot null (FL's engine is proprietary), so its `stretch/` folder compares their behaviour
+instead. Image-Line's samples, presets and projects are never committed: the tests read FL's own samples from the FL
+install.
 
 ## Working on another computer
 
 Clone the repository and build as above. Generated files are not in the repository: `build/`, FL's renders in
-`nulltest/renders*`, and every audio file. Write the test signals with `python nulltest/make_base_signals.py` and
-`python -m stretch.make_signals` (in `nulltest/`).
+`plugins/ChanSampler/nulltest/renders*`, and every audio file. Write the test signals with
+`python plugins/ChanSampler/nulltest/make_base_signals.py` and `python -m stretch.make_signals` (in
+`plugins/ChanSampler/nulltest/`).
 
 ## Versions
 
@@ -144,11 +149,6 @@ last. Tags are `vx.y.z`; `vx.y.z-rc.N` publishes a pre-release. `scripts/bump_ve
 
 ## Deviations from the standard
 
-- Flat layout: Chan Sampler is one plug-in and keeps `Source/` and `tests/` at the root with no
-  `plugins/<Id>/plugin.cmake` or `shared/`; the root `CMakeLists.txt` stands in for the `plugin.cmake` (`ci_targets`,
-  the ctest registrations with the sine fixture, the `CHANSAMPLER_TOOLS` and `CHANSAMPLER_CLAP` options), and the
-  render regression's goldens are in `tests/regress`. The null tests are in `nulltest/` and the measurements in
-  `docs/EVIDENCE.md` instead of a plug-in folder's MEASUREMENTS.md and NULLTESTS.md.
 - Install locations: the plug-ins install to the root plug-in folders where every release since 1.0 has put them
   (macOS `/Library/Audio/Plug-Ins/Components`, `VST3` and `CLAP` with the app in `/Applications`, `SUBFOLDER: ''` in
   release.yml; Windows the root VST3 and CLAP folders under the earlier releases' AppId; Linux `~/.vst3` and

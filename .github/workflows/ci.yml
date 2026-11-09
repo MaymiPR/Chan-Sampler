@@ -1,9 +1,8 @@
-# CI: builds Chan Sampler (VST3) with the tools, runs the unit tests through ctest (ChanSamplerTests: the engine;
-# ChanSamplerUiTests: the editor's controls and the undo history; ChanSamplerHostTest: the built VST3 hosted like a
-# DAW) and the render regression (scripts/render_regress.py, Chan Sampler's own: ChanSamplerRender against the golden
-# renders in tests/regress), and fails on any build warning (STANDARDS.md, zero warnings).
-# The build target is ci_targets: the root CMakeLists.txt (the flat layout) adds the VST3, the tests, the renderer
-# and, on Windows, the snapshot tool to it. The Windows job keeps the editor screenshots as an artifact for 14 days.
+# CI: builds every Chan Sampler plug-in (VST3) with the tools, runs every plug-in's tests through ctest (the DSP,
+# the processor, presets and state) and the render regression (scripts/render_regress.py: each plug-in's own renderer
+# against the golden renders in tests/regress), and fails on any build warning (STANDARDS.md, zero warnings).
+# The build target is ci_targets: every plugin.cmake adds its VST3, tests and renderer to it (CMakeLists.txt), so a
+# new plug-in needs no change here. The Windows job keeps the editor screenshots as an artifact for 14 days.
 # Trigger: push to main and pull requests (not when only documents, docs/ or the null-test harnesses change), and by
 # hand (Actions > CI > Run workflow).
 # Runners: ubuntu-24.04, windows-latest, macos-15.

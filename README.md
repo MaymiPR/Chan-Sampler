@@ -1,8 +1,8 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/banner.svg">
-    <source media="(prefers-color-scheme: light)" srcset="docs/banner-light.svg">
-    <img src="docs/banner.svg" alt="Chan Sampler: open-source recreation of FL Studio's Channel Sampler, null-tested against FL" width="100%">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/branding/chansampler-banner-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="docs/branding/chansampler-banner-light.svg">
+    <img src="docs/branding/chansampler-banner-dark.svg" alt="Chan Sampler: open-source recreation of FL Studio's Channel Sampler, null-tested against FL" width="100%">
   </picture>
 </p>
 
@@ -22,7 +22,11 @@ Standalone for Windows, macOS and Linux.
 Every knob uses FL's units, and most features render sample-identically to FL. FL Sampler presets (`.fst`) load
 with their sample.
 
-![Chan Sampler's Sample page, with a drum loop, its loop points and the precomputed effects](docs/screenshots/sampler.png)
+![Chan Sampler's Sample page, with a drum loop, its loop points and the precomputed effects](docs/screenshots/chansampler.png)
+
+| Plug-in | Recreates | What it does |
+|---|---|---|
+| **[Chan Sampler](plugins/ChanSampler)** | FL Studio's Channel Sampler | plays one sample per note with FL's precomputed effects, time stretching, envelopes, LFOs, filters, arpeggiator and echo |
 
 > Chan Sampler is an independent project, not affiliated with or endorsed by
 > Image-Line. It contains none of Image-Line's code, artwork, samples, presets or
@@ -32,7 +36,7 @@ with their sample.
 
 Chan Sampler was created entirely with Claude (Anthropic's AI): the code, the measurements behind it and
 this documentation. FL Studio was the reference throughout, as described in
-[docs/EVIDENCE.md](docs/EVIDENCE.md).
+[plugins/ChanSampler/MEASUREMENTS.md](plugins/ChanSampler/MEASUREMENTS.md).
 
 ## Features
 
@@ -61,9 +65,9 @@ this documentation. FL Studio was the reference throughout, as described in
 
 | Precomputed effects | Envelopes, LFOs and filter |
 |:---:|:---:|
-| ![Second page of the precomputed effects: boost, EQ, RM mix and frequency, cut, resonance, reverb, stereo delay and pogo knobs](docs/screenshots/effects.png) | ![Envelope page: volume envelope with tension knobs, LFO, filter and root note keyboard](docs/screenshots/envelope.png) |
+| ![Second page of the precomputed effects: boost, EQ, RM mix and frequency, cut, resonance, reverb, stereo delay and pogo knobs](docs/screenshots/chansampler-effects.png) | ![Envelope page: volume envelope with tension knobs, LFO, filter and root note keyboard](docs/screenshots/chansampler-envelope.png) |
 | **Levels, arpeggiator and echo** | **Spectrum view** |
-| ![Misc page: levels adjustment, polyphony, tracking, cut groups, arpeggiator, echo delay and root note keyboard](docs/screenshots/misc.png) | ![Sample page with the sample view showing a spectrogram](docs/screenshots/spectrum.png) |
+| ![Misc page: levels adjustment, polyphony, tracking, cut groups, arpeggiator, echo delay and root note keyboard](docs/screenshots/chansampler-misc.png) | ![Sample page with the sample view showing a spectrogram](docs/screenshots/chansampler-spectrum.png) |
 
 ## Quick start
 
@@ -137,7 +141,7 @@ Right-click the sample view and choose *Colorful waveforms* to colour the
 waveform by its sound. From top to bottom: Multiband (the default), Color map,
 and Multiband in the multichannel view.
 
-![The sample view three times: Multiband colours, Color map colours, and the multichannel view with left and right channels](docs/screenshots/waveforms.png)
+![The sample view three times: Multiband colours, Color map colours, and the multichannel view with left and right channels](docs/screenshots/chansampler-waveforms.png)
 
 ## How close is it to FL?
 
@@ -157,8 +161,9 @@ Known gaps:
   (gate, shift, swing) and the knob menus' automation and remote-control
   entries. Your DAW provides those.
 
-[docs/EVIDENCE.md](docs/EVIDENCE.md) lists every measurement and every known
-gap.
+[MEASUREMENTS.md](plugins/ChanSampler/MEASUREMENTS.md) lists every measurement,
+[NULLTESTS.md](plugins/ChanSampler/NULLTESTS.md) the null-test results and
+[RESEARCH.md](plugins/ChanSampler/RESEARCH.md) every known gap.
 
 ## Build from source
 

@@ -8,9 +8,10 @@ this page is the reference. A deviation is listed in the last section with its r
 
 | Path | Holds |
 |---|---|
-| `plugins/<Id>/` | one plug-in: `plugin.cmake`, `Source/`, `tests/`, `tools/`, `nulltest/`, README, RESEARCH, MEASUREMENTS, NULLTESTS |
+| `plugins/<Id>/` | one plug-in: `plugin.cmake`, `Source/` (with `dsp/` and `ui/`), `tests/`, `tools/`, `nulltest/` (with its README), README, RESEARCH, MEASUREMENTS, NULLTESTS; optional `scripts/` (its Python), `resources/` (its binary resources) and `NULLTESTS-<topic>.md` reports |
 | `shared/` | code shared by the plug-ins: `shared.cmake`, `ui/`, `dsp/` |
-| `tools/` | hosts for the reference plug-ins: RefRender, ParamDump, RefCapture, FocusCheck |
+| `tools/` | hosts for the reference plug-ins: RefRender, ParamDump, RefCapture, FocusCheck (C++ only; Python goes to `scripts/`) |
+| `measurements/<Id>/` | measurement data per plug-in, the id's exact case; git-ignored unless publishing was approved |
 | `packaging/` | `plugins.txt`, the Inno Setup script, `distribution.xml`, `install-linux.sh`, the INSTALL notes, THIRD-PARTY-NOTICES, ABOUT |
 | `tests/regress/` | the render regression: `<Id>/jobs.txt` and `<Id>/golden/*.f32` per plug-in target, the only place `scripts/render_regress.py`, CI and the local check read |
 | `docs/` | `BUILDING.md`, `branding/` (banners, icon, social preview, `colours.json`), `screenshots/` |
@@ -35,6 +36,10 @@ Root files: `README.md` (purpose, contents, quick start, links), `LICENSE` (AGPL
 | Bundle and CLAP id | `com.<suiteid>.<pluginid>` in lower case | com.examplesuite.theplugin |
 | Preset extension | the plug-in name without The, lower case, no spaces, at most 8 characters | `.plugin` |
 | Release files | `<SuiteId>-<version>-<OS>[-<Format>].<ext>` | ExampleSuite-1.2.0-Windows-Setup.exe |
+| Harness module | the reference product's initials in lower case; for a one-word name its first two letters (three when two make a Python keyword) | `tgp.py` |
+| Null-test scripts | lower_snake; `nulltest.py` and `first_null.py`; others start with their purpose (`probe_`, `measure_`, `fit_`, `train_`, `render_`, `check_`) and name a plug-in by its id | `probe_release.py` |
+| Documents | lower-kebab under `docs/` (`BUILDING.md` excepted); root and plug-in documents in upper case | `docs/null-testing.md` |
+| Branding and screenshots | `docs/branding/<suiteid>-*`; `docs/screenshots/<id>.png`, `<id>-<feature>.png`, ids in lower case; a view of the whole suite takes the suite id | `examplesuite-banner-light.svg` |
 
 Parameter ids are lowerCamelCase and never renamed after a release; parameter names are the names the reference
 shows in a host.

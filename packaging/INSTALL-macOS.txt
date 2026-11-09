@@ -1,0 +1,18 @@
+Chan Sampler for macOS (universal: Apple Silicon and Intel, macOS 10.13 or later)
+=================================================================================
+
+Open ChanSampler-<version>-macOS.pkg. It installs Chan Sampler as AU, VST3 and CLAP, and the standalone app
+(ticked by default; Customize lets you choose):
+  - AU   -> /Library/Audio/Plug-Ins/Components
+  - VST3 -> /Library/Audio/Plug-Ins/VST3
+  - CLAP -> /Library/Audio/Plug-Ins/CLAP
+  - App  -> /Applications
+
+A signed and notarized installer opens without a warning. An unsigned one (the release notes say which) is stopped
+by macOS the first time:
+  - macOS 15 and later: open it once, then System Settings > Privacy & Security > "Open Anyway".
+  - Earlier macOS: right-click (Control-click) the .pkg, choose Open, then Open.
+Restart your DAW afterwards (Logic rescans AUs at launch).
+
+To check the download, compare its SHA-256 with SHA256SUMS.txt on the Releases page:
+  shasum -a 256 ChanSampler-<version>-macOS.pkg
