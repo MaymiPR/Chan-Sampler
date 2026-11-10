@@ -2,6 +2,9 @@
 #include "PluginEditor.h"
 #include <cstring>
 
+namespace cs
+{
+
 ChanSamplerProcessor::ChanSamplerProcessor()
     : AudioProcessor (BusesProperties().withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
       apvts (*this, nullptr, "STATE", createParameterLayout (loopTextLength)),
@@ -9,7 +12,7 @@ ChanSamplerProcessor::ChanSamplerProcessor()
                [this] (const juce::File& f) { if (f == juce::File()) removeSample(); else if (! loadSample (f)) setMissingSample (f); },
                [this] { return apvts.state.getProperty ("presetName", "").toString(); },
                [this] (const juce::String& name) { apvts.state.setProperty ("presetName", name, nullptr); },
-               dynamic_cast<HistoryStepParameter*> (apvts.getParameter (pid::historyStep)),
+               dynamic_cast<HistoryStepParameter*> (apvts.getParameter (id::historyStep)),
                wrapperType != wrapperType_Standalone && wrapperType != wrapperType_Undefined)   // a plugin: the host's history
 {
     formatManager.registerBasicFormats();
@@ -56,7 +59,7 @@ void ChanSamplerProcessor::prepareToPlay (double sampleRate, int)
         engine.ensureStretchers();
     cutOffsets.reserve (256);
     outputGain.reset (sampleRate, 0.02);
-    outputGain.setCurrentAndTargetValue (outputLevel (param (pid::output)));
+    outputGain.setCurrentAndTargetValue (outputLevel (param (id::output)));
 }
 
 void ChanSamplerProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
@@ -134,14 +137,14 @@ void ChanSamplerProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     displayBpm.store (params.bpm);
     applyTempo (params);
     // An export can't wait for the timer: make the stretchers here when not in real time.
-    if (isNonRealtime() && SamplerEngine::usesStretcher (params.stretchMode) && ! engine.hasStretchers())
+    if (isNonRealtime() && Engine::usesStretcher (params.stretchMode) && ! engine.hasStretchers())
         engine.ensureStretchers();
     if (const int n = previewOff.exchange (-1); n >= 0)
         engine.previewNote (n, false, params);
     if (const int n = previewOn.exchange (-1); n >= 0 && audioThreadSample != nullptr)
         engine.previewNote (n, true, params);
     // Group: cut by other instances' notes, and post this block's note starts.
-    const int cutBy = (int) param (pid::cutBy), cutGroup = (int) param (pid::cutGroup);
+    const int cutBy = (int) param (id::cutBy), cutGroup = (int) param (id::cutGroup);
     cutReader.collect (cutBy, hostTime, buffer.getNumSamples(), cutOffsets);
     engine.render (buffer, midi, audioThreadSample.get(), params, cutOffsets.empty() ? nullptr : &cutOffsets);
     if (cutGroup > 0)
@@ -150,7 +153,7 @@ void ChanSamplerProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     engine.updatePlayhead (audioThreadSample.get());
 
     // OUT: FL's channel volume knob, 0.5 in total at its default (see defaultOutputPosition).
-    outputGain.setTargetValue (outputLevel (param (pid::output)));
+    outputGain.setTargetValue (outputLevel (param (id::output)));
     outputGain.applyGain (buffer, buffer.getNumSamples());
 }
 
@@ -158,35 +161,35 @@ void ChanSamplerProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
 PrecomputeSettings ChanSamplerProcessor::readPrecomputeSettings() const
 {
     PrecomputeSettings s;
-    s.removeDC        = param (pid::pcRemoveDC) > 0.5f;
-    s.reversePolarity = param (pid::pcReversePolarity) > 0.5f;
-    s.normalize       = param (pid::pcNormalize) > 0.5f;
-    s.fadeStereo      = param (pid::pcFadeStereo) > 0.5f;
-    s.reverse         = param (pid::pcReverse) > 0.5f;
-    s.swapStereo      = param (pid::pcSwapStereo) > 0.5f;
-    s.start       = param (pid::pcStart);
-    s.length      = param (pid::pcLength);
-    s.fadeIn      = param (pid::pcFadeIn);
-    s.fadeOut     = param (pid::pcFadeOut);
-    s.crossfade   = param (pid::pcCrossfade);
-    s.trim        = param (pid::pcTrim);
-    s.boost       = param (pid::pcBoost);
-    s.boostClip   = param (pid::pcBoostClip) > 0.5f;
-    s.eq          = param (pid::pcEq);
-    s.rmMix       = param (pid::pcRmMix);
-    s.rmFreq      = param (pid::pcRmFreq);
-    s.cut         = param (pid::pcCut);
-    s.res         = param (pid::pcRes);
-    s.reverbType  = (int) param (pid::pcReverbType);
-    s.reverb      = param (pid::pcReverb);
-    s.stereoDelay = param (pid::pcStereoDelay);
-    s.pogo        = param (pid::pcPogo);
-    s.useLoop     = param (pid::useLoop) > 0.5f;
-    s.loopStart   = param (pid::loopStart);
-    s.loopEnd     = param (pid::loopEnd);
+    s.removeDC        = param (id::pcRemoveDC) > 0.5f;
+    s.reversePolarity = param (id::pcReversePolarity) > 0.5f;
+    s.normalize       = param (id::pcNormalize) > 0.5f;
+    s.fadeStereo      = param (id::pcFadeStereo) > 0.5f;
+    s.reverse         = param (id::pcReverse) > 0.5f;
+    s.swapStereo      = param (id::pcSwapStereo) > 0.5f;
+    s.start       = param (id::pcStart);
+    s.length      = param (id::pcLength);
+    s.fadeIn      = param (id::pcFadeIn);
+    s.fadeOut     = param (id::pcFadeOut);
+    s.crossfade   = param (id::pcCrossfade);
+    s.trim        = param (id::pcTrim);
+    s.boost       = param (id::pcBoost);
+    s.boostClip   = param (id::pcBoostClip) > 0.5f;
+    s.eq          = param (id::pcEq);
+    s.rmMix       = param (id::pcRmMix);
+    s.rmFreq      = param (id::pcRmFreq);
+    s.cut         = param (id::pcCut);
+    s.res         = param (id::pcRes);
+    s.reverbType  = (int) param (id::pcReverbType);
+    s.reverb      = param (id::pcReverb);
+    s.stereoDelay = param (id::pcStereoDelay);
+    s.pogo        = param (id::pcPogo);
+    s.useLoop     = param (id::useLoop) > 0.5f;
+    s.loopStart   = param (id::loopStart);
+    s.loopEnd     = param (id::loopEnd);
     s.targetRate  = hostRate.load();
-    s.loadRegions = param (pid::loadRegions) > 0.5f;
-    s.loadSlices  = param (pid::loadSlices) > 0.5f;
+    s.loadRegions = param (id::loadRegions) > 0.5f;
+    s.loadSlices  = param (id::loadSlices) > 0.5f;
     return s;
 }
 
@@ -256,70 +259,70 @@ EngineParams ChanSamplerProcessor::readEngineParams() const
     };
 
     EngineParams p;
-    p.pitchRange = (int) param (pid::pitchRange);
+    p.pitchRange = (int) param (id::pitchRange);
 
-    p.startOffset = param (pid::startOffset);
-    p.useLoop     = param (pid::useLoop) > 0.5f;
-    p.loopStart   = param (pid::loopStart);
-    p.loopEnd     = param (pid::loopEnd);
-    p.pingPong    = param (pid::pingPong) > 0.5f;
-    p.declick     = (DeclickMode) (int) param (pid::declick);
+    p.startOffset = param (id::startOffset);
+    p.useLoop     = param (id::useLoop) > 0.5f;
+    p.loopStart   = param (id::loopStart);
+    p.loopEnd     = param (id::loopEnd);
+    p.pingPong    = param (id::pingPong) > 0.5f;
+    p.declick     = (DeclickMode) (int) param (id::declick);
 
-    p.rootNote = (int) param (pid::rootNote);
-    p.fineTune = param (pid::fineTune);
-    p.pitch    = param (pid::pitch) * 0.01f;            // cents
-    p.stretchMode = (StretchMode) (int) param (pid::stretchMode);
-    p.stretchMul  = param (pid::stretchMul);
-    p.stretchTime = param (pid::stretchTime);
-    p.formant     = param (pid::formant);
-    p.stretchMode = resolveStretchMode (p.stretchMode, param (pid::pitch), p.stretchMul, p.stretchTime);
+    p.rootNote = (int) param (id::rootNote);
+    p.fineTune = param (id::fineTune);
+    p.pitch    = param (id::pitch) * 0.01f;            // cents
+    p.stretchMode = (StretchMode) (int) param (id::stretchMode);
+    p.stretchMul  = param (id::stretchMul);
+    p.stretchTime = param (id::stretchTime);
+    p.formant     = param (id::formant);
+    p.stretchMode = resolveStretchMode (p.stretchMode, param (id::pitch), p.stretchMul, p.stretchTime);
 
-    p.panT   = target (pid::panPrefix);
-    p.volT   = target (pid::volPrefix);
-    p.xT     = target (pid::modXPrefix);
-    p.yT     = target (pid::modYPrefix);
-    p.pitchT = target (pid::pitchPrefix);
+    p.panT   = target (id::panPrefix);
+    p.volT   = target (id::volPrefix);
+    p.xT     = target (id::modXPrefix);
+    p.yT     = target (id::modYPrefix);
+    p.pitchT = target (id::pitchPrefix);
 
-    p.filterType = (FilterType) (int) param (pid::filterType);
-    p.cutoff     = param (pid::cutoff);
-    p.resonance  = param (pid::resonance);
+    p.filterType = (FilterType) (int) param (id::filterType);
+    p.cutoff     = param (id::cutoff);
+    p.resonance  = param (id::resonance);
 
-    p.volume = flVolumeGain (param (pid::volume));
-    p.pan    = param (pid::pan);
-    p.xOfs   = param (pid::xOfs);
-    p.yOfs   = param (pid::yOfs);
+    p.volume = flVolumeGain (param (id::volume));
+    p.pan    = param (id::pan);
+    p.xOfs   = param (id::xOfs);
+    p.yOfs   = param (id::yOfs);
 
-    p.velPan = param (pid::velPan);
-    p.velX   = param (pid::velX);
-    p.velY   = param (pid::velY);
-    p.velMid = param (pid::velMid);
-    p.keyPan = param (pid::keyPan);
-    p.keyX   = param (pid::keyX);
-    p.keyY   = param (pid::keyY);
-    p.keyMid = (int) param (pid::keyMid);
+    p.velPan = param (id::velPan);
+    p.velX   = param (id::velX);
+    p.velY   = param (id::velY);
+    p.velMid = param (id::velMid);
+    p.keyPan = param (id::keyPan);
+    p.keyX   = param (id::keyX);
+    p.keyY   = param (id::keyY);
+    p.keyMid = (int) param (id::keyMid);
 
-    p.slideTicks = flSlideTicks (param (pid::slide));
-    p.mono      = param (pid::mono) > 0.5f;
-    p.porta     = param (pid::porta) > 0.5f;
-    p.cutItself = param (pid::cutItself) > 0.5f;
+    p.slideTicks = flSlideTicks (param (id::slide));
+    p.mono      = param (id::mono) > 0.5f;
+    p.porta     = param (id::porta) > 0.5f;
+    p.cutItself = param (id::cutItself) > 0.5f;
 
-    p.arpDir    = (int) param (pid::arpDir);
-    p.arpRange  = (int) param (pid::arpRange);
-    p.arpRepeat = (int) param (pid::arpRepeat);
-    p.arpTime   = (float) flArpSteps (param (pid::arpTime));   // steps, 0 = hold
-    p.arpGate   = param (pid::arpGate);
-    p.arpSlide  = param (pid::arpSlide) > 0.5f;
-    p.arpChord  = (int) param (pid::arpChord);
+    p.arpDir    = (int) param (id::arpDir);
+    p.arpRange  = (int) param (id::arpRange);
+    p.arpRepeat = (int) param (id::arpRepeat);
+    p.arpTime   = (float) flArpSteps (param (id::arpTime));   // steps, 0 = hold
+    p.arpGate   = param (id::arpGate);
+    p.arpSlide  = param (id::arpSlide) > 0.5f;
+    p.arpChord  = (int) param (id::arpChord);
 
-    p.echoFeed  = param (pid::echoFeed);
-    p.echoPan   = param (pid::echoPan);
-    p.echoX     = param (pid::echoX);
-    p.echoY     = param (pid::echoY);
-    p.echoPitch = param (pid::echoPitch) * 0.01f;        // cents
-    p.echoTime  = param (pid::echoTime);
-    p.echoCount = (int) param (pid::echoCount);
-    p.echoPing  = param (pid::echoPing) > 0.5f;
-    p.echoFat   = param (pid::echoFat) > 0.5f;
+    p.echoFeed  = param (id::echoFeed);
+    p.echoPan   = param (id::echoPan);
+    p.echoX     = param (id::echoX);
+    p.echoY     = param (id::echoY);
+    p.echoPitch = param (id::echoPitch) * 0.01f;        // cents
+    p.echoTime  = param (id::echoTime);
+    p.echoCount = (int) param (id::echoCount);
+    p.echoPing  = param (id::echoPing) > 0.5f;
+    p.echoFat   = param (id::echoFat) > 0.5f;
     return p;
 }
 
@@ -329,7 +332,7 @@ void ChanSamplerProcessor::resetParameters()
     const History::Transaction edit (history, "Reset");
     for (auto* p : getParameters())
         if (auto* rp = dynamic_cast<juce::RangedAudioParameter*> (p))
-            if (rp->getParameterID() != pid::historyStep && rp->getValue() != rp->getDefaultValue())
+            if (rp->getParameterID() != id::historyStep && rp->getValue() != rp->getDefaultValue())
                 setParameterValue (*rp, rp->getDefaultValue());
 }
 
@@ -346,21 +349,21 @@ void ChanSamplerProcessor::applyLoopLink (const juce::String& changedId)
     // Applied to the user's edits only (knobs, menu, the sample view), so host
     // automation sets exactly the values it shows; the engine treats an END
     // below START as START.
-    const auto start = param (pid::loopStart), end = param (pid::loopEnd);
+    const auto start = param (id::loopStart), end = param (id::loopEnd);
     const auto oneSample = 1.0f / (float) juce::jmax (1, getSampleLength());
     float newEnd = end;
-    if (changedId == pid::loopStart && start > 0.0f && start > end)
+    if (changedId == id::loopStart && start > 0.0f && start > end)
         newEnd = juce::jmin (1.0f, start + oneSample);
-    else if (changedId == pid::loopEnd && end < start)
+    else if (changedId == id::loopEnd && end < start)
         newEnd = start;
     if (newEnd != end)
-        setParameterAsGesture (*apvts.getParameter (pid::loopEnd), newEnd);
+        setParameterAsGesture (*apvts.getParameter (id::loopEnd), newEnd);
 }
 
 bool ChanSamplerProcessor::needsStretchers() const
 {
-    const auto mode = resolveStretchMode ((StretchMode) (int) param (pid::stretchMode), param (pid::pitch), param (pid::stretchMul), param (pid::stretchTime));
-    return SamplerEngine::usesStretcher (mode);
+    const auto mode = resolveStretchMode ((StretchMode) (int) param (id::stretchMode), param (id::pitch), param (id::stretchMul), param (id::stretchTime));
+    return Engine::usesStretcher (mode);
 }
 
 void ChanSamplerProcessor::parameterChanged (const juce::String& parameterID, float)
@@ -375,8 +378,8 @@ void ChanSamplerProcessor::parameterChanged (const juce::String& parameterID, fl
     }
 
     // Loop points only touch the sample data when a loop crossfade is baked in.
-    const bool loopParam = parameterID == pid::useLoop || parameterID == pid::loopStart || parameterID == pid::loopEnd;
-    if (loopParam && param (pid::pcCrossfade) <= 0.0f)
+    const bool loopParam = parameterID == id::useLoop || parameterID == id::loopStart || parameterID == id::loopEnd;
+    if (loopParam && param (id::pcCrossfade) <= 0.0f)
         return;
 
     rebuildPending = true;
@@ -388,19 +391,19 @@ void ChanSamplerProcessor::timerCallback()
     // FL: switching Cut self on sets Cut and By to the channel's own number, so
     // other channels can be cut by it too (here the instance number); off
     // clears them again if they still hold it.
-    const int cutSelf = param (pid::cutItself) > 0.5f ? 1 : 0;
+    const int cutSelf = param (id::cutItself) > 0.5f ? 1 : 0;
     if (lastCutSelf >= 0 && cutSelf != lastCutSelf)
     {
         auto set = [this] (const char* id, float v) { setParameterAsGesture (*apvts.getParameter (id), v); };
         if (cutSelf == 1)
         {
-            set (pid::cutGroup, (float) instanceNumber);
-            set (pid::cutBy, (float) instanceNumber);
+            set (id::cutGroup, (float) instanceNumber);
+            set (id::cutBy, (float) instanceNumber);
         }
         else
         {
-            if ((int) param (pid::cutGroup) == instanceNumber) set (pid::cutGroup, 0.0f);
-            if ((int) param (pid::cutBy) == instanceNumber)    set (pid::cutBy, 0.0f);
+            if ((int) param (id::cutGroup) == instanceNumber) set (id::cutGroup, 0.0f);
+            if ((int) param (id::cutBy) == instanceNumber)    set (id::cutBy, 0.0f);
         }
     }
     lastCutSelf = cutSelf;
@@ -698,24 +701,24 @@ bool ChanSamplerProcessor::loadSample (const juce::File& file)
     {
         const auto valid = [] (int n) { return n >= 0 && n <= 127; };
         const int stored = valid (wav.instNote) ? wav.instNote : (valid (wav.unityNote) ? wav.unityNote : 60);
-        set (pid::rootNote, (float) (file.hasFileExtension (".wav;.wave") ? stored : 60));
+        set (id::rootNote, (float) (file.hasFileExtension (".wav;.wave") ? stored : 60));
     }
     // A file's own loop points become the loop markers; Use loop points is
     // left as the user set it (FL does not switch it on).
     if (loaded->embeddedLoopStart >= 0 && loaded->embeddedLoopEnd > loaded->embeddedLoopStart)
     {
-        set (pid::startOffset, 0.0f);
-        set (pid::loopStart, (float) loaded->embeddedLoopStart / (float) length);
-        set (pid::loopEnd,   (float) loaded->embeddedLoopEnd / (float) length);   // END is inclusive, as in the file
+        set (id::startOffset, 0.0f);
+        set (id::loopStart, (float) loaded->embeddedLoopStart / (float) length);
+        set (id::loopEnd,   (float) loaded->embeddedLoopEnd / (float) length);   // END is inclusive, as in the file
     }
     else
     {
         // A new sample starts clean (no Start or Loop markers in the view):
         // start offset and loop points back to 0. A restored project puts
         // its own values back afterwards (setStateInformation).
-        set (pid::startOffset, 0.0f);
-        set (pid::loopStart, 0.0f);
-        set (pid::loopEnd, 0.0f);
+        set (id::startOffset, 0.0f);
+        set (id::loopStart, 0.0f);
+        set (id::loopEnd, 0.0f);
     }
 
     rebuildSample();
@@ -781,7 +784,7 @@ void ChanSamplerProcessor::setStateInformation (const void* data, int sizeInByte
     const juce::String path = state.getProperty ("samplePath").toString();
     upgradeState (state);
     apvts.replaceState (state);
-    lastCutSelf = param (pid::cutItself) > 0.5f ? 1 : 0;   // a restored Cut self keeps its saved groups
+    lastCutSelf = param (id::cutItself) > 0.5f ? 1 : 0;   // a restored Cut self keeps its saved groups
 
     // The project's sample, or none: never the sample that was here before.
     if (path.isEmpty())
@@ -811,7 +814,7 @@ void ChanSamplerProcessor::setStateInformation (const void* data, int sizeInByte
 void ChanSamplerProcessor::upgradeState (juce::ValueTree& state)
 {
     if ((int) state.getProperty ("stateVersion", 1) < 2)
-        if (auto out = state.getChildWithProperty ("id", pid::output); out.isValid())
+        if (auto out = state.getChildWithProperty ("id", id::output); out.isValid())
             out.setProperty ("value", outputPositionForOldDb ((float) out.getProperty ("value")), nullptr);
 }
 
@@ -830,14 +833,14 @@ void ChanSamplerProcessor::loadPreset (juce::ValueTree state, const juce::String
     for (auto* p : getParameters())
     {
         auto* rp = dynamic_cast<juce::RangedAudioParameter*> (p);
-        if (rp == nullptr || rp->getParameterID() == pid::historyStep)
+        if (rp == nullptr || rp->getParameterID() == id::historyStep)
             continue;
         const auto saved = state.getChildWithProperty ("id", rp->getParameterID());
         const auto value = saved.isValid() ? rp->convertTo0to1 ((float) saved.getProperty ("value")) : rp->getDefaultValue();
         if (rp->getValue() != value)
             setParameterValue (*rp, value);
     }
-    lastCutSelf = param (pid::cutItself) > 0.5f ? 1 : 0;   // the preset's Cut and By stay as saved
+    lastCutSelf = param (id::cutItself) > 0.5f ? 1 : 0;   // the preset's Cut and By stay as saved
     // The rest of what it saved (the sample's tempo, the view), but not the window's size
     for (int i = 0; i < state.getNumProperties(); ++i)
         if (const auto key = state.getPropertyName (i); key != juce::Identifier ("uiWidth") && key != juce::Identifier ("samplePath")
@@ -851,8 +854,9 @@ juce::AudioProcessorEditor* ChanSamplerProcessor::createEditor()
 {
     return new ChanSamplerEditor (*this);
 }
+}
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
-    return new ChanSamplerProcessor();
+    return new cs::ChanSamplerProcessor();
 }

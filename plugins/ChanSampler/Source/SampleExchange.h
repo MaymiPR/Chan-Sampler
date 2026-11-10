@@ -2,6 +2,9 @@
 
 #include <juce_core/juce_core.h>
 
+namespace cs
+{
+
 // The sample's way in and out of other programs (the sample menu): the system
 // clipboard. Dragging the sample out of the view uses JUCE's external file drag
 // (WaveformView).
@@ -18,4 +21,5 @@ namespace exchange
     // The clipboard's audio as a file: a copied file as it is, or copied audio
     // data saved as a new file in folder. File() when there is none.
     juce::File pasteFromClipboard (const juce::File& folder);
+}
 }

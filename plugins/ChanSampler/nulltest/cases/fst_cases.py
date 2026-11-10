@@ -10,7 +10,7 @@ channel), so ours is scaled by 0.8; no gain fitting, so levels are checked too.
   python -m cases.fst_cases [name filters...]   (from nulltest/)
 """
 import os, sys, subprocess
-from lib import flp, nullfl, wavio, paths
+from lib import flp, wavio, paths; import cs_ref
 
 HERE = paths.ROOT
 R = paths.RENDER_TOOL
@@ -31,9 +31,9 @@ def run(cases, only=None):
     res = []
     for c in cases:
         if only and not any(o in c['name'] for o in only): continue
-        proj = os.path.join(nullfl.OUT, c['name'] + '.flp')
+        proj = os.path.join(cs_ref.OUT, c['name'] + '.flp')
         if not os.path.exists(proj): continue
-        a, _ = nullfl.render_pair(c['name'], None, gap=c.get('gap'))
+        a, _ = cs_ref.render_pair(c['name'], None, gap=c.get('gap'))
         fst = os.path.join(OUT, c['name'] + '.fst'); write_fst(proj, fst)
         notes = c.get('notes') or [(0, c.get('beats', 8), 60, c.get('vel', 100))]
         spec = ';'.join(f'{k}:{st * 60 / 130}:{ln * 60 / 130}:{v}' for st, ln, k, v in notes)
@@ -41,7 +41,7 @@ def run(cases, only=None):
         wav = os.path.join(OUT, c['name'] + '.wav')
         subprocess.run([R, fst, wav, str(len(a) / 44100), empty, spec], check=True)
         y, _ = wavio.read(wav); n = min(len(a), len(y))
-        d = nullfl.null_db(a[:n], 0.8 * y[:n])
+        d = cs_ref.null_db(a[:n], 0.8 * y[:n])
         res.append((c['name'], d))
         print(f"{'NULL' if d < -60 else ('close' if d < -30 else 'DIFF'):5s} {d:7.1f} dB  {c['name']}", flush=True)
     return res

@@ -8,7 +8,7 @@ pitch behaviour (MEASUREMENTS.md, e3 generic in detail).
     python -m stretch.e3_in_fl -f     # re-render in FL (close FL first; rebuild the VST3)"""
 import sys
 import numpy as np
-from lib import nullfl
+import cs_ref
 from cases import e3_pitch_cases as E
 from stretch.metrics import envdist, specdist, null
 
@@ -22,7 +22,7 @@ def run(force=False):
         row = []
         for c in CENTS:
             cs = next(x for x in E.CASES if x['name'] == f'e3p_{k}_{c}')
-            a, b = nullfl.render_pair(cs['name'], cs['sample'], cs['fl'], cs['ours'], beats=cs['beats'], force=force)
+            a, b = cs_ref.render_pair(cs['name'], cs['sample'], cs['fl'], cs['ours'], beats=cs['beats'], force=force)
             n = LENGTH[k]; fl, ours = a[:n, 0], b[:n, 0]
             e, s, nr, nf = envdist(fl, ours, floor=False), specdist(fl, ours), null(fl, ours, fit=False), null(fl, ours)
             En.append(e); Sp.append(s); Nr.append(nr); Nf.append(nf)

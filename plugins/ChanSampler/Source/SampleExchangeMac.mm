@@ -4,6 +4,9 @@
 
 #include "SampleExchangeMac.h"
 
+namespace cs
+{
+
 namespace exchange
 {
 static NSString* const wavType = @"com.microsoft.waveform-audio";
@@ -67,5 +70,6 @@ bool macPasteFromClipboard (std::string& path, std::vector<char>& data, std::str
         }
         return false;
     }
+}
 }
 }

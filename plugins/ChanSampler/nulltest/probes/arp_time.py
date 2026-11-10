@@ -1,10 +1,10 @@
 """FL's arpeggiator TIME: renders FL alone at a given raw value and finds the note starts."""
-import numpy as np; from lib import nullfl, flrender as F; from cases import arp_cases as A
+import numpy as np; from lib import flrender as F; import cs_ref; from cases import arp_cases as A
 def fl_only(name, raw_time, raw_gate=48):
     c = A.arp(name, 1)
     c['fl'] += [F.params(52, '<i', raw_time), F.params(56, '<i', raw_gate)]
-    nullfl.render_pair(name, c['sample'], c['fl'], c['ours'], c['notes'], beats=8, force=True)
-    a, _ = nullfl.render_pair(name, None)   # the render just made, by name
+    cs_ref.render_pair(name, c['sample'], c['fl'], c['ours'], c['notes'], beats=8, force=True)
+    a, _ = cs_ref.render_pair(name, None)   # the render just made, by name
     return a[:, 0]
 def onsets(y, thr=1e-3):
     # note starts: where the signal returns after a gap or the pitch changes (sine3 notes)

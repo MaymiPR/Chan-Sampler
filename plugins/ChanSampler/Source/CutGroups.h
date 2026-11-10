@@ -5,6 +5,9 @@
 #include <cstdint>
 #include <vector>
 
+namespace cs
+{
+
 // FL's channel Group (Cut / By) across plugin instances. Every Chan Sampler
 // in the same host process shares this bus: an instance whose Cut group is N
 // posts "group N triggered at host sample T" for each note it starts, and every
@@ -47,4 +50,5 @@ namespace cutgroups
         uint64_t cursor;
         std::vector<Item> waiting;
     };
+}
 }

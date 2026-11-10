@@ -4,6 +4,9 @@
 
 #include "PluginProcessor.h"
 
+namespace cs
+{
+
 // FL-style sample view: the precomputed waveform with a draggable Start flag,
 // Loop flags and region, a zoom/scroll bar, and mouse-wheel zoom.
 // Clicking the waveform previews the sample at the root key; dragging it out
@@ -126,3 +129,4 @@ private:
     float playhead = -1.0f;   // fraction of the sample, -1 when not playing
     float playDirection = 1.0f;   // +1 forwards, -1 backwards (the trail is drawn behind)
 };
+}

@@ -1,5 +1,5 @@
 """The offline null-test cases: FL's Sampler rendered alone from the command
-line against ChanSamplerRender (lib/nulltest.py; results in NULLTESTS.md).
+line against CsRender (lib/nulltest.py; results in NULLTESTS.md).
 They play at FL's unity velocity, 100, which reaches the plugin unchanged as
 MIDI velocity 100 (FL's 128 cannot: MIDI stops at 127).
 

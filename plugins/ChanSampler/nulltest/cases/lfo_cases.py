@@ -1,7 +1,7 @@
 """In-FL null cases for the INS LFOs (event 218 fields lfo_*): FL raw values
 next to Chan Sampler's knob positions (amount raw/128, speed (raw-200)/65336,
 predelay / attack like the envelope times, shape index)."""
-import sys; from lib import flrender as F, nullfl
+import sys; from lib import flrender as F; import cs_ref
 from cases.fl_cases import envpos
 
 PREFIX = {'pan': 'pan', 'vol': 'vol', 'x': 'x', 'y': 'y', 'pitch': 'p'}
@@ -44,4 +44,4 @@ for t in (1, 3, 6):
 CASES += [envamt('e_mody128', 'y', 'signals/noise.wav', 128)]
 
 if __name__ == '__main__':
-    nullfl.run(CASES, [a for a in sys.argv[1:] if a != '-f'] or None, force='-f' in sys.argv)
+    cs_ref.run(CASES, [a for a in sys.argv[1:] if a != '-f'] or None, force='-f' in sys.argv)

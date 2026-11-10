@@ -89,7 +89,7 @@ if [ "$SKIP_BUILD" = 0 ]; then
     mkdir -p "$BUILD"; touch "$STAMP"
     cmake --build "$BUILD" --config "$CONFIG" --target ci_targets --parallel 2>&1 | tee build.log
     if [ "${PIPESTATUS[0]}" -ne 0 ]; then fail build "build (log: build.log)"; else set_state build ok; pass build; fi
-    HITS=$(grep -E 'warning C[0-9]+|warning:|warning MSB|[0-9]+ warnings? generated' build.log | grep -vE '::warning|hint:')
+    HITS=$(grep -E 'warning C[0-9]+|warning ?:|warning MSB|[0-9]+ warnings? generated' build.log | grep -vE '::warning|hint:')
     if [ -n "$HITS" ]; then
         echo "$HITS"
         WARNINGS=$(echo "$HITS" | wc -l | tr -d ' ')

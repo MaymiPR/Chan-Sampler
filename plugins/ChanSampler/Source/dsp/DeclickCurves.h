@@ -3,6 +3,9 @@
 #include <algorithm>
 #include <cmath>
 
+namespace cs
+{
+
 // Declick fade curves measured in FL (constant, noise and sine samples):
 // Transient (no bleeding)'s out-fade (at the sample end and at cuts) and the
 // Crossfade mode's in- and out-fades. Lengths are at 44.1 kHz and keep their
@@ -72,4 +75,5 @@ namespace declick
 
     inline float crossfadeIn (double u)  { return u >= 1.0 ? 1.0f : poly (crossfadeInPoly, std::max (0.0, u)); }
     inline float crossfadeOut (double u) { return u >= 1.0 ? 0.0f : poly (crossfadeOutPoly, std::max (0.0, u)); }
+}
 }

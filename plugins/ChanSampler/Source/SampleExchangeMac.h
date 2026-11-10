@@ -5,9 +5,13 @@
 #include <string>
 #include <vector>
 
+namespace cs
+{
+
 namespace exchange
 {
 bool macCopyToClipboard (const char* path, const void* wav, size_t size);
 bool macClipboardHasAudio();
 bool macPasteFromClipboard (std::string& path, std::vector<char>& data, std::string& extension);
+}
 }

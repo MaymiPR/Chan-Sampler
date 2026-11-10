@@ -56,8 +56,9 @@ UninstallDisplayIcon={app}\Chan Sampler.exe
 CloseApplications=yes
 
 [Types]
-; The standalone app is part of the full installation, as in every release since 1.0 (CONTRIBUTING.md).
-Name: "full"; Description: "Plug-in (VST3 and CLAP) and the standalone app"
+; The standalone app is not installed unless chosen (the "all" type or a custom installation).
+Name: "full"; Description: "Plug-in, VST3 and CLAP"
+Name: "all"; Description: "Plug-in, VST3, CLAP and the standalone app"
 Name: "custom"; Description: "Choose formats"; Flags: iscustom
 
 ; [Components], [Files], [Icons] and [UninstallDelete] for every plug-in in plugins.txt

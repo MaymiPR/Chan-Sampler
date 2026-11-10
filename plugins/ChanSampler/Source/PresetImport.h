@@ -2,13 +2,16 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
+namespace cs
+{
+
 class ChanSamplerProcessor;
 
 // Imports an FL Studio Sampler channel preset (.fst): the sample and every
 // setting Chan Sampler has (field meanings and scales measured against FL's
 // Sampler, see MEASUREMENTS.md and nulltest/). The preset's own channel
 // volume and pan are folded into Chan Sampler's Levels.
-namespace flpreset
+namespace presetimport
 {
     struct Result
     {
@@ -19,4 +22,5 @@ namespace flpreset
     Result import (ChanSamplerProcessor& processor, const juce::File& fst);
 
     bool isPresetFile (const juce::File& f);
+}
 }

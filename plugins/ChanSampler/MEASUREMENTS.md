@@ -13,8 +13,8 @@ elastique measurements in [e3 generic in detail](#e3-generic-in-detail); how to 
 |---|---|
 | Reference | FL Studio 26.1.7, its Sampler channel |
 | Sources | **[M]** the manual, **[PYFLP]** the project-format description and **[NULL]** the runtime measurements and null tests in `nulltest/` ([RESEARCH.md](RESEARCH.md#sources)) |
-| In-FL pairs (the reference) | FL's Sampler on channel 1 and the Chan Sampler VST3 on channel 2 of one project, rendered once from FL's command line, subtracted as heard in FL with no gain correction (`nulltest/lib/nullfl.py`) |
-| Offline cases | FL's Sampler alone from FL's command line against `ChanSamplerRender` (`nulltest/lib/nulltest.py` aligns, gain-matches and subtracts); projects built by `nulltest/lib/build_project.py`, rendered by `nulltest/lib/flrender.py` |
+| In-FL pairs (the reference) | FL's Sampler on channel 1 and the Chan Sampler VST3 on channel 2 of one project, rendered once from FL's command line, subtracted as heard in FL with no gain correction (`nulltest/cs_ref.py`) |
+| Offline cases | FL's Sampler alone from FL's command line against `CsRender` (`nulltest/lib/nulltest.py` aligns, gain-matches and subtracts); projects built by `nulltest/lib/build_project.py`, rendered by `nulltest/lib/flrender.py` |
 | Render queue | every FL render through `nulltest/lib/flqueue.py` (keyed cache, retries, resume) |
 | Export | FL's command-line export is 16-bit: the best residual is about −65 to −95 dB, depending on signal level |
 | Velocity | FL velocity 100 (unity; FL passes it to a plug-in unchanged as MIDI velocity 100) |
@@ -332,7 +332,7 @@ summary for every stretch mode; the tools that reproduce these measurements are 
 | Item | Value |
 |---|---|
 | Reference | FL Studio 26.1.7, Sampler in e3 generic; FL's own Resample render is the reference source |
-| Renders | FL renders only, through `nulltest/lib/nullfl.py` and `nulltest/lib/flqueue.py` |
+| Renders | FL renders only, through `nulltest/cs_ref.py` and `nulltest/lib/flqueue.py` |
 | Probing the stretcher alone | MUL (2^(raw/10000)) with PITCH 0: TIME / MUL show the stretcher with no interpolation; MUL 1.5 = raw 5850, 0.667 = raw -5850; MUL = 1 is transparent (output == input) |
 | Tape version in FL | FL ignores PITCH in Resample mode when it comes from a project: play the note key instead |
 | The 30 pitch cases | `nulltest/cases/e3_pitch_cases.py` through `nulltest/stretch/e3_in_fl.py`: FL's 707 Kick, a Rhodes, a voice, two drum loops at -1200 ... +1200 cents, in FL; envelope and band-spectrum distance in dB, null raw and with the level fitted |
@@ -643,7 +643,7 @@ FL-written files are untested here.
 Captures of FL's channel settings window at 100 % (Windows, default theme, no scaling) were measured for positions,
 sizes, colours, gradient directions, font metrics, timings and drag laws. The colours measured are recorded below; the
 editor uses Chan Sampler's own palette (true black, neutral greys and white, violet for the value arcs, lit switches and
-selected tabs; `Source/ui/Style.h`) with the measured sizes and positions. `Source/ui/Style.cpp` and `Source/ui/Parts.cpp` draw
+selected tabs; `shared/ui/Theme.h`) with the measured sizes and positions. `shared/ui/Widgets.cpp` and `Source/ui/Controls.cpp` draw
 every part in code from them with our own shading (discs, rings, arcs, rounded rectangles, gradients between measured
 end colours), and each icon is our own glyph in the box FL's occupies. The editor is compared with FL's by layout:
 positions and sizes within 1 px (the icons' ink boxes: 0 to 1 px), not by pixel difference. Every right-hand panel edge
@@ -993,7 +993,7 @@ modes the stretcher's read position folds into the loop on every pass, forward a
   after a change or a project load uses the new sample; a stretch mode chosen while playing plays stretched; a project
   without its sample plays nothing and keeps the path; projects saved by earlier releases load with every setting
   unchanged. All pass; ctest runs it.
-- `ChanSamplerRender statetest <sample>`: in-process round trip of all 160 parameters, sample and window width, bit-identical audio.
+- `CsRender statetest <sample>`: in-process round trip of all 160 parameters, sample and window width, bit-identical audio.
 - `nulltest/probes/robust_check.py`: 44.1 / 48 / 96 kHz hosts with stereo float, mono 16-bit, stereo 24-bit and 48 kHz
   files all play at the right pitch and length; a 10-minute file loads and plays in 0.4 s.
 - Memory (one instance, peak private bytes): about 4 MB in Resample; about 130 MB once a stretch mode is used, almost
@@ -1003,7 +1003,7 @@ modes the stretcher's read position folds into the loop on every pass, forward a
 
 ## CPU and performance
 
-`ChanSamplerRender bench`, one core, % of real time, 32 / 64 looping voices (the bench's notes run from C2 up to B5, and
+`CsRender bench`, one core, % of real time, 32 / 64 looping voices (the bench's notes run from C2 up to B5, and
 a stretcher's work grows with the note's pitch ratio):
 
 | Mode | 32 / 64 voices |

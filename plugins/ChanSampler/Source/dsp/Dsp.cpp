@@ -1,5 +1,8 @@
 #include "Dsp.h"
 
+namespace cs
+{
+
 // Curves measured by rendering FL Studio's Sampler and fitting its output
 // (nulltest/, MEASUREMENTS.md).
 
@@ -90,5 +93,6 @@ double flBiquadQ (double res)
     static const double my[] = { 0, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80, 88, 96, 104, 112, 120, 128, 136, 144, 152, 160, 168, 176, 184, 192, 200, 208, 216, 224, 256 };
     static const double qs[] = { 0.1000, 0.1319, 0.1660, 0.2035, 0.2440, 0.2876, 0.3345, 0.3850, 0.4393, 0.4980, 0.5615, 0.6302, 0.7046, 0.7851, 0.8722, 0.9662, 1.0676, 1.1769, 1.2946, 1.4213, 1.5580, 1.7056, 1.8651, 2.0380, 2.2253, 2.4283, 2.6475, 2.8827, 3.1322, 4.3697 };
     return interpolateLog (my, qs, res * 256.0);
+}
 }
 }

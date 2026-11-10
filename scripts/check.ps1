@@ -122,7 +122,7 @@ if (-not $SkipBuild) {
     & cmake --build $build --config $Config --target ci_targets --parallel 2>&1 | ForEach-Object { "$_" } | Tee-Object -FilePath $log
     $code = $LASTEXITCODE
     if ($code -ne 0) { Fail "build" "build (exit code $code, log: build.log)" } else { $state["build"] = "ok"; Pass "build" }
-    $hits = @(Select-String -Path $log -CaseSensitive -Pattern 'warning C\d+|warning:|warning MSB|\d+ warnings? generated' |
+    $hits = @(Select-String -Path $log -CaseSensitive -Pattern 'warning C\d+|warning ?:|warning MSB|\d+ warnings? generated' |
         Where-Object { $_.Line -notmatch '::warning|hint:' })
     $warnings = $hits.Count
     if ($warnings -gt 0) {

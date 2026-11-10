@@ -7,6 +7,9 @@
 #include <cstdio>
 #include <cstdlib>
 
+namespace cs
+{
+
 // Every process here was measured against FL Studio's Sampler by rendering
 // test projects through FL and null-testing (nulltest/, MEASUREMENTS.md).
 // "Raw" values below are FL's stored parameter values.
@@ -751,4 +754,5 @@ SampleData::Ptr buildProcessedSample (const RawSample& raw, const PrecomputeSett
     out->audio = std::move (main);
     out->computePeaks();
     return out;
+}
 }

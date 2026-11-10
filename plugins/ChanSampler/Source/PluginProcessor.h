@@ -15,7 +15,10 @@
 #include "History.h"
 #include "Params.h"
 #include "dsp/SampleData.h"
-#include "dsp/SamplerEngine.h"
+#include "dsp/Engine.h"
+
+namespace cs
+{
 
 class ChanSamplerProcessor : public juce::AudioProcessor,
                              public juce::ChangeBroadcaster,
@@ -105,7 +108,7 @@ public:
     History history;
 
     // The parameters that decide whether the time stretchers are needed.
-    static constexpr const char* stretchParamIDs[] = { pid::stretchMode, pid::pitch, pid::stretchMul, pid::stretchTime };
+    static constexpr const char* stretchParamIDs[] = { id::stretchMode, id::pitch, id::stretchMul, id::stretchTime };
 
     // Sample-view preview, sent to the engine directly (not as MIDI) so only
     // these notes show the playback bar. Thread-safe, called from the UI.
@@ -166,7 +169,7 @@ private:
     std::pair<juce::int64, juce::int64> changedStamp, failedStamp;   // reloadIfFileChanged: (time, size)
     std::shared_ptr<const RawSample> builtFrom;
     PrecomputeSettings builtWith;
-    SamplerEngine engine;
+    Engine engine;
     const uint32_t instanceId = cutgroups::newInstanceId();
     cutgroups::Reader cutReader { instanceId };
     const int instanceNumber = cutgroups::claimNumber();   // FL's channel number for Cut self
@@ -197,3 +200,4 @@ private:
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChanSamplerProcessor)
 };
+}

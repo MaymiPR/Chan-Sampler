@@ -11,6 +11,9 @@
 #include "SampleData.h"
 #include "TimeStretch.h"
 
+namespace cs
+{
+
 // Per-block snapshot of every realtime parameter.
 struct EngineParams
 {
@@ -82,7 +85,7 @@ struct NoteMods
     bool legatoOnly = false;   // arpeggio slide step after the first: never starts a note
 };
 
-class SamplerEngine
+class Engine
 {
 public:
     static constexpr int maxVoices = 64;
@@ -282,3 +285,4 @@ private:
     int arpIndex = 0, sustainedNote = -1;
     juce::Random arpRandom { 1234 };
 };
+}

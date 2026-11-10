@@ -4,9 +4,12 @@
 
 #include <juce_audio_utils/juce_audio_utils.h>
 
-#include "Style.h"
+#include "shared/ui/Widgets.h"
 #include "History.h"
 #include <map>
+
+namespace cs
+{
 
 // Live drawing of one INS target's envelope (DAHDSR with tension), using the
 // same curve formula as the engine.
@@ -83,7 +86,7 @@ public:
 
     void show();
     // Type in value...: FL's box where the menu was clicked (see TypeInBox in
-    // Parts.cpp); Return or its tick applies, Escape or its cross cancels.
+    // Controls.cpp); Return or its tick applies, Escape or its cross cancels.
     void typeIn();
     // How a typed value is read, as FL reads it per control: its own unit
     // (dB, % with 0..1 as a fraction, C as whole percents, cents, steps:ticks
@@ -219,7 +222,7 @@ private:
     Walker walker { *this };
     bool walking = false;
 
-    ui::HoverFade hover { *this };
+    chansampler::ui::HoverFade hover { *this };
     bool locked = false;
     // FL's drag detents (measured in FL): a two-sided control holds at its
     // centre, and PITCH at every semitone, for 20 px of drag when a drag
@@ -237,7 +240,7 @@ private:
 };
 
 // FL's digital value box (pitch range, echoes, polyphony...) with the menu.
-class ParamDigiBox : public ui::DigiBox
+class ParamDigiBox : public chansampler::ui::DigiBox
 {
 public:
     ParamDigiBox (juce::RangedAudioParameter&, bool redStyle);
@@ -288,7 +291,7 @@ private:
 };
 
 // "Root note" panel shared by the INS and FUNC sheets.
-class RootNotePanel : public ui::Panel, private juce::Timer
+class RootNotePanel : public chansampler::ui::Panel, private juce::Timer
 {
 public:
     RootNotePanel (juce::AudioProcessorValueTreeState&, juce::MidiKeyboardState&, History&);
@@ -305,3 +308,4 @@ private:
     RootKeyboard keyboard;
     int shownRoot = -1;
 };
+}

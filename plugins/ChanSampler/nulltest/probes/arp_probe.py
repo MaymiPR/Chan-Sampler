@@ -1,5 +1,5 @@
 """The arpeggiator's note sequence, FL's against ours: pitch per block and the steps it makes."""
-import numpy as np, sys; from lib import nullfl
+import numpy as np, sys; import cs_ref
 def track(y, hop=256, win=2048):
     out = []
     for i in range(0, len(y) - win, hop):
@@ -14,6 +14,6 @@ def segments(fr, hop=256):
             segs.append((round(start * hop / 44100, 3), round(float(np.median(fr[start:i])))));  start = i
     return segs
 for name in sys.argv[1:]:
-    a, b = nullfl.render_pair(name, 'signals/sine3.wav')
+    a, b = cs_ref.render_pair(name, 'signals/sine3.wav')
     for lab, y in (('FL', a[:, 0]), ('ours', b[:, 0])):
         print(name, lab, segments(track(y[:44100 * 2]))[:16])

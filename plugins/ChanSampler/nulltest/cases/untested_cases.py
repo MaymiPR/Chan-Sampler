@@ -15,7 +15,7 @@ FL storage (found by saving from FL's GUI and comparing the files):
   fine tune: levels (219) pitch field (cents)
 """
 import os, shutil, struct, sys
-from lib import flrender as F, nullfl, paths
+from lib import flrender as F, paths; import cs_ref
 
 def loop_points(start, end):
     payload = (struct.pack('<5i', 2, start, 0, end, 0) + struct.pack('<d', -1.0) + struct.pack('<i', -1)
@@ -214,4 +214,4 @@ for c in CASES:
         c['gap'] = 26
 
 if __name__ == '__main__':
-    nullfl.run(CASES, [a for a in sys.argv[1:] if a != '-f'] or None, force='-f' in sys.argv)
+    cs_ref.run(CASES, [a for a in sys.argv[1:] if a != '-f'] or None, force='-f' in sys.argv)

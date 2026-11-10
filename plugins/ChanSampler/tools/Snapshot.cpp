@@ -6,7 +6,7 @@
 //   ChanSamplerSnapshot menus <out.png>     both of FL's menu styles
 //   ChanSamplerSnapshot fontwidth           the reference text's width (sizes the macOS font)
 //
-// params.txt as for ChanSamplerRender. With playMs > 0 a note plays for that
+// params.txt as for CsRender. With playMs > 0 a note plays for that
 // long first, so the sample view shows its playback bar. Environment:
 // SNAPSHOT_SR (host rate), SNAPSHOT_SCALE (e.g. 2 for Retina; --scale wins), SNAPSHOT_PROPS
 // ("name=value ..." state properties, e.g. viewSpectrum=1), SNAPSHOT_VIEW
@@ -24,6 +24,8 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 #include "ui/WaveformView.h"
+
+using namespace cs;
 
 namespace
 {
@@ -81,25 +83,25 @@ int main (int argc, char** argv)
     }
     juce::ScopedJuceInitialiser_GUI init;
 
-    // "fontwidth" mode: width of ui::font's reference text per unit height
+    // "fontwidth" mode: width of chansampler::ui::font's reference text per unit height
     // (used to size the macOS font like Segoe UI).
     if (juce::String (argv[1]) == "fontwidth")
     {
         for (bool bold : { false, true })
-            std::cout << (bold ? "bold " : "plain ") << juce::GlyphArrangement::getStringWidth (ui::font (90.0f, bold), ui::fontReferenceText) / 100.0f << "\n";
+            std::cout << (bold ? "bold " : "plain ") << juce::GlyphArrangement::getStringWidth (chansampler::ui::font (90.0f, bold), chansampler::ui::fontReferenceText) / 100.0f << "\n";
         return 0;
     }
 
     // "menus" mode: draws both FL menu styles with the plugin's look-and-feel.
     if (juce::String (argv[1]) == "menus")
     {
-        ui::LookAndFeel lnf;
+        chansampler::ui::LookAndFeel lnf;
         juce::ComboBox box;
         juce::Slider knobComp;
         const auto ddOpts = juce::PopupMenu::Options().withTargetComponent (&box);
         const auto rmOpts = juce::PopupMenu::Options().withTargetComponent (&knobComp);
-        juce::Component ctxComp;   // the sample / preset menus (ui::showContextMenu)
-        ctxComp.getProperties().set (ui::contextMenuProperty, true);
+        juce::Component ctxComp;   // the sample / preset menus (chansampler::ui::showContextMenu)
+        ctxComp.getProperties().set (chansampler::ui::contextMenuProperty, true);
         const auto ctxOpts = juce::PopupMenu::Options().withTargetComponent (&ctxComp);
         juce::Image img (juce::Image::RGB, 460, 330, true);
         {
@@ -134,7 +136,7 @@ int main (int argc, char** argv)
                     juce::PopupMenu::Item item (text);
                     item.isEnabled = kind != 3 && kind != 6 && kind != 9;
                     if (kind == 8 || kind == 9)
-                        item.shortcutKeyDescription = ui::commandShortcutText (kind == 8 ? 'c' : 'v');
+                        item.shortcutKeyDescription = chansampler::ui::commandShortcutText (kind == 8 ? 'c' : 'v');
                     item.isTicked = kind == 5 || kind == 6;
                     if (kind == 7)
                         item.subMenu = std::make_unique<juce::PopupMenu>();
@@ -234,7 +236,7 @@ int main (int argc, char** argv)
     }
     // SNAPSHOT_DIALOG="message": an FL-style message dialog over the editor
     if (auto* d = std::getenv ("SNAPSHOT_DIALOG"))
-        ui::showDialog (*ed->getChildComponent (0), "Chan Sampler", d, false);
+        chansampler::ui::showDialog (*ed->getChildComponent (0), "Chan Sampler", d, false);
     // SNAPSHOT_HOVER="knob name[=position]": draws that knob as under the
     // mouse (its hover fade at full), at the position 0..1 if one is given.
     if (auto* spec = std::getenv ("SNAPSHOT_HOVER"))

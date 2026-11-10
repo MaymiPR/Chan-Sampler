@@ -1,5 +1,9 @@
-#include "SamplerEngine.h"
+#include "Engine.h"
 #include "Chords.h"
+#include "Tuning.h"
+
+namespace cs
+{
 
 namespace
 {
@@ -27,8 +31,7 @@ namespace
 
         Interpolator()
         {
-            static constexpr double a[] = { 0.362684569, 0.509910674, 0.132162708, -0.006084749,
-                                            0.001926633, -0.000879890, 0.000296751 };
+            const auto& a = dsp::tuning().interpWindow;   // the fitted window (dsp/Tuning.h)
             const int n = halfTaps * steps + 2;
             window.resize ((size_t) n);
             kernel.resize ((size_t) n);
@@ -200,7 +203,7 @@ namespace
     }
 }
 
-SamplerEngine::DeclickSpec SamplerEngine::declickSpec (DeclickMode m)
+Engine::DeclickSpec Engine::declickSpec (DeclickMode m)
 {
     // Measured in FL (cosine S-curves): the in-fade applies only when a note
     // starts after the sample's first frame (start offset); the out-fade
@@ -219,7 +222,7 @@ SamplerEngine::DeclickSpec SamplerEngine::declickSpec (DeclickMode m)
     return { 0, false, 10, false };
 }
 
-void SamplerEngine::prepare (double newSampleRate)
+void Engine::prepare (double newSampleRate)
 {
     sampleRate = newSampleRate;
     for (auto& v : voices)
@@ -236,7 +239,7 @@ void SamplerEngine::prepare (double newSampleRate)
     now = 0;
 }
 
-void SamplerEngine::updatePlayhead (const SampleData* sample) noexcept
+void Engine::updatePlayhead (const SampleData* sample) noexcept
 {
     const Voice* newest = nullptr;
     for (auto& v : voices)
@@ -246,7 +249,7 @@ void SamplerEngine::updatePlayhead (const SampleData* sample) noexcept
     playhead.store (newest != nullptr && total > 0 ? (float) juce::jlimit (0.0, 1.0, newest->pos / total) : -1.0f);
 }
 
-void SamplerEngine::ensureStretchers()
+void Engine::ensureStretchers()
 {
     const std::lock_guard<std::mutex> lock (stretcherLock);
     if (hasStretchers())
@@ -262,7 +265,7 @@ void SamplerEngine::ensureStretchers()
     stretchersReady.store (true, std::memory_order_release);
 }
 
-int SamplerEngine::getNumActiveVoices() const noexcept
+int Engine::getNumActiveVoices() const noexcept
 {
     int n = 0;
     for (auto& v : voices)
@@ -270,7 +273,7 @@ int SamplerEngine::getNumActiveVoices() const noexcept
     return n;
 }
 
-void SamplerEngine::render (juce::AudioBuffer<float>& out, const juce::MidiBuffer& midi,
+void Engine::render (juce::AudioBuffer<float>& out, const juce::MidiBuffer& midi,
                             const SampleData* sample, const EngineParams& p, const std::vector<int>* cuts)
 {
     noteStarts.clear();
@@ -402,13 +405,13 @@ void SamplerEngine::render (juce::AudioBuffer<float>& out, const juce::MidiBuffe
     now += n;
 }
 
-void SamplerEngine::schedule (const Scheduled& e)
+void Engine::schedule (const Scheduled& e)
 {
     if (pending.size() < maxPending)
         pending.push_back (e);
 }
 
-void SamplerEngine::previewNote (int note, bool on, const EngineParams& p)
+void Engine::previewNote (int note, bool on, const EngineParams& p)
 {
     if (on)
     {
@@ -424,7 +427,7 @@ void SamplerEngine::previewNote (int note, bool on, const EngineParams& p)
     }
 }
 
-void SamplerEngine::handleNoteOn (int64_t time, int note, float velocity, const EngineParams& p)
+void Engine::handleNoteOn (int64_t time, int note, float velocity, const EngineParams& p)
 {
     if (p.arpDir != 0)
     {
@@ -449,7 +452,7 @@ void SamplerEngine::handleNoteOn (int64_t time, int note, float velocity, const 
 // Measured in FL: an arpeggio note ends when its step (gate) or the key ends
 // (one note at a time), unlike a normal note-off, which lets the sample play
 // on when the volume envelope is off.
-void SamplerEngine::endArpNote (int note, const EngineParams& p, bool keyReleased)
+void Engine::endArpNote (int note, const EngineParams& p, bool keyReleased)
 {
     // With slide and a full gate the next step takes over this note (legato).
     if (! keyReleased && p.arpSlide && p.arpGate >= 0.999f && ! held.empty())
@@ -463,7 +466,7 @@ void SamplerEngine::endArpNote (int note, const EngineParams& p, bool keyRelease
         }
 }
 
-void SamplerEngine::handleNoteOff (int64_t time, int note, const EngineParams& p)
+void Engine::handleNoteOff (int64_t time, int note, const EngineParams& p)
 {
     for (size_t i = 0; i < held.size(); ++i)
         if (held[i] == note)
@@ -486,7 +489,7 @@ void SamplerEngine::handleNoteOff (int64_t time, int note, const EngineParams& p
         playNoteOff (time, note, 0, p);
 }
 
-void SamplerEngine::advanceArp (int64_t until, const EngineParams& p)
+void Engine::advanceArp (int64_t until, const EngineParams& p)
 {
     if (p.arpDir == 0 || held.empty() || arpNextStep < 0)
         return;
@@ -615,7 +618,7 @@ void SamplerEngine::advanceArp (int64_t until, const EngineParams& p)
     }
 }
 
-void SamplerEngine::playNoteOn (int64_t time, int note, float velocity, NoteMods mods, const EngineParams& p)
+void Engine::playNoteOn (int64_t time, int note, float velocity, NoteMods mods, const EngineParams& p)
 {
     if (mods.echo != 0 || p.echoFeed <= 0.0f)
     {
@@ -669,7 +672,7 @@ void SamplerEngine::playNoteOn (int64_t time, int note, float velocity, NoteMods
     }
 }
 
-void SamplerEngine::playNoteOff (int64_t time, int note, int echo, const EngineParams& p)
+void Engine::playNoteOff (int64_t time, int note, int echo, const EngineParams& p)
 {
     noteOff (note, echo, p);
     if (echo != 0 || p.echoFeed <= 0.0f)
@@ -684,7 +687,7 @@ void SamplerEngine::playNoteOff (int64_t time, int note, int echo, const EngineP
     }
 }
 
-SamplerEngine::Voice& SamplerEngine::allocateVoice (const EngineParams& p)
+Engine::Voice& Engine::allocateVoice (const EngineParams& p)
 {
     // FL's Max polyphony has no effect on what it renders (measured: 1 and 2
     // voices, same and different keys, with and without the volume envelope),
@@ -720,7 +723,7 @@ SamplerEngine::Voice& SamplerEngine::allocateVoice (const EngineParams& p)
     return *oldest;
 }
 
-void SamplerEngine::cutByGroup (const EngineParams& p)
+void Engine::cutByGroup (const EngineParams& p)
 {
     ++eventSerial;
     // Like Cut itself: voices go to their release, or fade out with the
@@ -734,7 +737,7 @@ void SamplerEngine::cutByGroup (const EngineParams& p)
         }
 }
 
-void SamplerEngine::noteOn (int note, float velocity, NoteMods mods, const SampleData& s, const EngineParams& p)
+void Engine::noteOn (int note, float velocity, NoteMods mods, const SampleData& s, const EngineParams& p)
 {
     ++eventSerial;
     if (! mods.preview && noteStarts.size() < 128)
@@ -850,7 +853,7 @@ void SamplerEngine::noteOn (int note, float velocity, NoteMods mods, const Sampl
         lastNote = (float) note;
 }
 
-void SamplerEngine::eraseMonoKey (int key)
+void Engine::eraseMonoKey (int key)
 {
     for (int i = 0; i < numMonoKeys; ++i)
         if (monoKeys[(size_t) i] == key)
@@ -862,12 +865,12 @@ void SamplerEngine::eraseMonoKey (int key)
         }
 }
 
-void SamplerEngine::startGlide (Voice& v, int note, const EngineParams& p)
+void Engine::startGlide (Voice& v, int note, const EngineParams& p)
 {
     beginGlide (v, v.glideTicks > 0 ? v.glideCents : v.targetNote * 100.0f, note, p);
 }
 
-void SamplerEngine::beginGlide (Voice& v, float fromCents, int note, const EngineParams& p) const
+void Engine::beginGlide (Voice& v, float fromCents, int note, const EngineParams& p) const
 {
     v.targetNote = (float) note;
     v.glideCents = fromCents;
@@ -883,7 +886,7 @@ void SamplerEngine::beginGlide (Voice& v, float fromCents, int note, const Engin
     v.glideTick0 = std::abs (ticks - nearest) * tickSamples (sampleRate, p) <= 1.0 ? nearest : std::floor (ticks);
 }
 
-double SamplerEngine::soundingNote (Voice& v, const EngineParams& p, double songSeconds) const
+double Engine::soundingNote (Voice& v, const EngineParams& p, double songSeconds) const
 {
     if (v.glideTicks <= 0)
         return v.targetNote;
@@ -902,7 +905,7 @@ double SamplerEngine::soundingNote (Voice& v, const EngineParams& p, double song
     return (double) v.glideCents / 100.0;
 }
 
-void SamplerEngine::noteOff (int note, int echo, const EngineParams& p)
+void Engine::noteOff (int note, int echo, const EngineParams& p)
 {
     ++eventSerial;
 
@@ -942,7 +945,7 @@ void SamplerEngine::noteOff (int note, int echo, const EngineParams& p)
         releaseVoice (*oldest, p);
 }
 
-void SamplerEngine::releaseVoice (Voice& v, const EngineParams& p)
+void Engine::releaseVoice (Voice& v, const EngineParams& p)
 {
     ++eventSerial;
     v.released = true;
@@ -958,7 +961,7 @@ void SamplerEngine::releaseVoice (Voice& v, const EngineParams& p)
     // after note release (manual: default sampler behaviour).
 }
 
-void SamplerEngine::startKill (Voice& v, const EngineParams& p)
+void Engine::startKill (Voice& v, const EngineParams& p)
 {
     if (v.killing)
         return;
@@ -975,7 +978,7 @@ void SamplerEngine::startKill (Voice& v, const EngineParams& p)
         v.active = false;
 }
 
-void SamplerEngine::startModKnots (Voice& v, const EngineParams& p)
+void Engine::startModKnots (Voice& v, const EngineParams& p)
 {
     const auto tick = tickSeconds (p.bpm);
     for (int xy = 0; xy < 2; ++xy)
@@ -990,7 +993,7 @@ void SamplerEngine::startModKnots (Voice& v, const EngineParams& p)
     }
 }
 
-float SamplerEngine::modEnvelopeAt (Voice& v, int xy, double t, const EngineParams& p)
+float Engine::modEnvelopeAt (Voice& v, int xy, double t, const EngineParams& p)
 {
     const auto tick = tickSeconds (p.bpm);
     const auto& ep = (xy == 0 ? p.xT : p.yT).env;
@@ -1008,7 +1011,7 @@ float SamplerEngine::modEnvelopeAt (Voice& v, int xy, double t, const EnginePara
     return k.prev + (k.next - k.prev) * (float) frac;
 }
 
-void SamplerEngine::releaseModKnots (Voice& v, double t, const EngineParams& p)
+void Engine::releaseModKnots (Voice& v, double t, const EngineParams& p)
 {
     for (int xy = 0; xy < 2; ++xy)
     {
@@ -1025,7 +1028,7 @@ void SamplerEngine::releaseModKnots (Voice& v, double t, const EngineParams& p)
     }
 }
 
-void SamplerEngine::setupFilterAt (Voice& v, double t, double songT, const EngineParams& p)
+void Engine::setupFilterAt (Voice& v, double t, double songT, const EngineParams& p)
 {
     // FL (measured): Mod X / Y are worked out at each tick of the note (the
     // first tick holding the second knot) and the filter's coefficients move
@@ -1065,7 +1068,7 @@ void SamplerEngine::setupFilterAt (Voice& v, double t, double songT, const Engin
     v.filter.setBetween (v.coefPrev, v.coefNext, juce::jlimit (0.0, 1.0, (t - (v.filterKnot - tick)) / tick));
 }
 
-void SamplerEngine::refreshControls (Voice& v, const SampleData& s, const EngineParams& p)
+void Engine::refreshControls (Voice& v, const SampleData& s, const EngineParams& p)
 {
     // Recomputes pitch, gain and pan targets for the rest of the current
     // control block without moving the envelopes / LFOs on.
@@ -1078,7 +1081,7 @@ void SamplerEngine::refreshControls (Voice& v, const SampleData& s, const Engine
     v.panR = juce::MathConstants<float>::sqrt2 * std::sin (angle);
 }
 
-void SamplerEngine::updateControls (Voice& v, int numSamples, const SampleData& s, const EngineParams& p)
+void Engine::updateControls (Voice& v, int numSamples, const SampleData& s, const EngineParams& p)
 {
     const auto dt = (float) (numSamples / sampleRate);
 
@@ -1176,7 +1179,7 @@ void SamplerEngine::updateControls (Voice& v, int numSamples, const SampleData& 
     v.panValue = juce::jlimit (-1.0f, 1.0f, v.panBase + 2.0f * lfo[0]);
 }
 
-void SamplerEngine::renderRange (juce::AudioBuffer<float>& out, int start, int num,
+void Engine::renderRange (juce::AudioBuffer<float>& out, int start, int num,
                                  const SampleData& s, const EngineParams& p)
 {
     const auto loop = loopFrames (s, p);
@@ -1560,4 +1563,5 @@ void SamplerEngine::renderRange (juce::AudioBuffer<float>& out, int start, int n
             v.ctlLeft -= chunk;
         }
     }
+}
 }

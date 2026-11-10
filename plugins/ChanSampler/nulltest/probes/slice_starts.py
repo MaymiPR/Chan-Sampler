@@ -10,7 +10,7 @@ rules apart (the rule itself is in MEASUREMENTS.md, "Slices"):
 
 At MUL x2 a slice plays at its own speed from floor(start x 2), with silence
 before it, so its first sample in FL's render gives the start exactly (in
-each output channel). Ours is measured the same way (ChanSamplerRender).
+each output channel). Ours is measured the same way (CsRender).
 
     python -m probes.slice_starts           # FL renders cached in renders/"""
 import os, struct, subprocess, tempfile

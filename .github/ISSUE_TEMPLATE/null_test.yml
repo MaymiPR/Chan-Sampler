@@ -1,34 +1,30 @@
 name: Null-test report
-description: A setting or sample where Chan Sampler sounds different from FL Studio's Sampler more than NULLTESTS.md and MEASUREMENTS.md (plugins/ChanSampler/) say.
+description: A setting or material where a plug-in differs from the original more than NULLTESTS.md says.
 labels: [null test]
 body:
   - type: input
-    id: versions
+    id: plugin
     attributes:
-      label: Chan Sampler version and FL Studio version
-      placeholder: "Chan Sampler 1.x.y against FL Studio 2x.y"
+      label: Plug-in, its version and the original's version
+      placeholder: "Chan Sampler 1.x.y against the original vX.Y"
     validations:
       required: true
   - type: textarea
     id: settings
     attributes:
       label: Settings
-      description: Every control that is not at its default (in both samplers), or attach the FL channel preset (.fst) or a small project.
+      description: Every control that is not at its default, or attach the preset.
     validations:
       required: true
   - type: textarea
     id: material
     attributes:
-      label: Sample, notes and the residual you measured
-      description: >-
-        What the sample is (length, mono or stereo, sample rate), the notes you played, and the residual in dB
-        (the difference between FL's render and ours, below FL's level), if you measured one.
+      label: Material and the residual you measured
+      description: Genre and level of the audio, and the residual in dB (the difference between the original and ours, below the original's level), if you measured one.
     validations:
       required: true
   - type: textarea
     id: how
     attributes:
       label: How you nulled
-      description: >-
-        Both samplers in one FL project with the same sample and settings, the same notes on both channels, one
-        channel phase-inverted, rendered together. A short audio example of the difference helps most.
+      description: DAW, sample rate, both plug-ins on copies of the same track, one phase-inverted, delay compensation on. A short audio example of the difference helps most.

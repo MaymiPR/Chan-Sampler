@@ -97,7 +97,7 @@ def kill_tree(pid):
 # On Windows it is started on a desktop of its own that nobody looks at, so
 # renders don't take over the screen (the WAV is byte-identical);
 # FLQUEUE_VISIBLE=1 renders on the visible desktop instead.
-HIDDEN_DESKTOP = 'ChanSamplerRenders'
+HIDDEN_DESKTOP = 'CsRenders'
 _desktop = None
 
 
@@ -472,11 +472,11 @@ class Queue:
 
 def jobs_from_cases(cases, kind='pair', only=None, plugin_dep=True):
     """(out_dir, deps, [(name, build, deps)]) for the harness case dicts:
-    kind 'pair' = lib.nullfl (FL's Sampler and our VST3 in one project),
+    kind 'pair' = cs_ref (FL's Sampler and our VST3 in one project),
     'fl' = lib.flrender (FL's Sampler alone)."""
     from lib import paths
     if kind == 'pair':
-        from lib import nullfl as M
+        import cs_ref as M
         deps = [paths.PLUGIN_VST3] if plugin_dep and getattr(paths, 'PLUGIN_VST3', None) else []
     else:
         from lib import flrender as M
@@ -631,7 +631,7 @@ def main(argv=None):
     import argparse, importlib
     ap = argparse.ArgumentParser(description='Render the FL cases of one or more case modules through the queue.')
     ap.add_argument('modules', nargs='*', help='case modules with CASES (cases.fl_cases ...)')
-    ap.add_argument('--kind', choices=['pair', 'fl'], default='pair', help='pair: lib.nullfl projects (renders_fl); fl: lib.flrender (renders)')
+    ap.add_argument('--kind', choices=['pair', 'fl'], default='pair', help='pair: cs_ref projects (renders_fl); fl: lib.flrender (renders)')
     ap.add_argument('--only', nargs='*', help='name substrings')
     ap.add_argument('--dry', action='store_true', help='plan only: what is cached, stale, new')
     ap.add_argument('--adopt', action='store_true', help='trust every existing WAV whose record is missing (a rebuild that changed nothing)')
@@ -645,8 +645,8 @@ def main(argv=None):
     if a.selftest:
         return selftest()
     if a.status and not a.modules:
-        from lib import nullfl, flrender
-        Queue(nullfl.OUT if a.kind == 'pair' else flrender.OUT).status()
+        from lib import flrender; import cs_ref
+        Queue(cs_ref.OUT if a.kind == 'pair' else flrender.OUT).status()
         return 0
     cases = []
     for m in a.modules:

@@ -3,9 +3,12 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "History.h"
 
+namespace cs
+{
+
 // Parameter IDs. Grouping follows FL Studio's channel settings window
 // (top bar, SMP / INS / FUNC sheets); see MEASUREMENTS.md.
-namespace pid
+namespace id
 {
     // MIDI pitch bend range (semitones)
     inline constexpr auto pitchRange = "pitchRange";
@@ -241,3 +244,4 @@ float flVolumeGain (float x);
 // Envelope tension (FL raw / 128, -1..1) to the curve exponent k of
 // (e^(kx) - 1) / (e^k - 1), interpolated from measurements.
 float flTensionToK (float tension);
+}

@@ -7,6 +7,9 @@
 #include "FastFFT.h"
 #include "Params.h"
 
+namespace cs
+{
+
 // Real-time time stretching for the stretch modes (FL keeps pitch and length
 // independent in these modes: a note's key changes the pitch, MUL / TIME the
 // length; measured with FL renders, see MEASUREMENTS.md).
@@ -913,3 +916,4 @@ private:
     std::vector<float> hfKernel[2];         // high-pass spectra, FFT orders 12 and 13
     std::vector<std::complex<float>> hfBuf, hfWork;
 };
+}

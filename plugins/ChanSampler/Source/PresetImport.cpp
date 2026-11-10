@@ -5,6 +5,9 @@
 #include <cmath>
 #include <map>
 
+namespace cs
+{
+
 namespace
 {
     // FLP / FST event stream: id < 64 one byte, < 128 two, < 192 four, then
@@ -108,8 +111,8 @@ namespace
             factory.add (d.getChildFile ("Contents/Resources/FL"));
        #endif
         user.add (juce::File::getSpecialLocation (juce::File::userDocumentsDirectory).getChildFile ("Image-Line/FL Studio"));
-        replace ("%FLStudioFactoryData%", factory);
-        replace ("%FLStudioUserData%", user);
+        replace ("%FL" "StudioFactoryData%", factory);   // the format's placeholder for the install folder
+        replace ("%FL" "StudioUserData%", user);         // and for the user data folder
 
         juce::File f (path.replaceCharacter (juce::File::getSeparatorChar() == '/' ? '\\' : '/', juce::File::getSeparatorChar()));
         if (juce::File::isAbsolutePath (f.getFullPathName()) && f.existsAsFile())
@@ -124,12 +127,12 @@ namespace
     float volKnob (double gain)     { return (float) (std::log (10.0 * juce::jmax (0.0, gain) + 1.0) / std::log (11.0)); }
 }
 
-bool flpreset::isPresetFile (const juce::File& f)
+bool presetimport::isPresetFile (const juce::File& f)
 {
     return f.hasFileExtension (".fst");
 }
 
-flpreset::Result flpreset::import (ChanSamplerProcessor& processor, const juce::File& fst)
+presetimport::Result presetimport::import (ChanSamplerProcessor& processor, const juce::File& fst)
 {
     Result result;
     std::vector<Event> all;
@@ -207,12 +210,12 @@ flpreset::Result flpreset::import (ChanSamplerProcessor& processor, const juce::
     {
         chanPan = (float) juce::jlimit (-1.0, 1.0, (e->i32 (0, 64) * old - 6400.0) / 6400.0);
         chanGain = volGain (e->i32 (4, 100) * old / 12800.0) / volGain (10000.0 / 12800.0);
-        set (pid::fineTune, (float) e->i32 (8));
+        set (id::fineTune, (float) e->i32 (8));
         if (e->has (24))
         {
-            set (pid::cutoff, (float) e->i32 (12, 256) / 256.0f);
-            set (pid::resonance, (float) e->i32 (16) / 256.0f);
-            set (pid::filterType, (float) e->i32 (20));
+            set (id::cutoff, (float) e->i32 (12, 256) / 256.0f);
+            set (id::resonance, (float) e->i32 (16) / 256.0f);
+            set (id::filterType, (float) e->i32 (20));
         }
     }
     // FUNC Levels (229): pan, volume multiplier, -, Mod X, Mod Y. The channel's
@@ -223,40 +226,40 @@ flpreset::Result flpreset::import (ChanSamplerProcessor& processor, const juce::
         {
             pan = e->i32 (0) * old / 6400.0;
             vol = e->i32 (4, 128) * old / 12800.0;
-            set (pid::xOfs, (float) e->i32 (12) / 256.0f);
-            set (pid::yOfs, (float) e->i32 (16) / 256.0f);
+            set (id::xOfs, (float) e->i32 (12) / 256.0f);
+            set (id::yOfs, (float) e->i32 (16) / 256.0f);
         }
-        set (pid::pan, (float) juce::jlimit (-1.0, 1.0, pan + chanPan));
-        set (pid::volume, juce::jlimit (0.0f, 2.0f, volKnob (volGain (vol) * chanGain)));
+        set (id::pan, (float) juce::jlimit (-1.0, 1.0, pan + chanPan));
+        set (id::volume, juce::jlimit (0.0f, 2.0f, volKnob (volGain (vol) * chanGain)));
     }
 
     // Parameters (215)
     if (auto* e = get (215))
     {
-        set (pid::pcRemoveDC, e->byte (9) ? 1.0f : 0.0f);
+        set (id::pcRemoveDC, e->byte (9) ? 1.0f : 0.0f);
         const int echoFlags = e->byte (10);
-        set (pid::echoPing, (echoFlags & 2) ? 1.0f : 0.0f);
-        set (pid::echoFat,  (echoFlags & 4) ? 1.0f : 0.0f);
+        set (id::echoPing, (echoFlags & 2) ? 1.0f : 0.0f);
+        set (id::echoFat,  (echoFlags & 4) ? 1.0f : 0.0f);
         if (e->has (64))
         {
-            set (pid::arpDir,   (float) e->i32 (40));
-            set (pid::arpRange, (float) e->i32 (44, 1));
-            set (pid::arpChord, (float) (e->i32 (48, -1) + 2));
-            set (pid::arpTime,  (float) (e->i32 (52, 1024) - 450) / 997.0f);
-            set (pid::arpGate,  (float) e->i32 (56, 48) / 48.0f);
-            set (pid::arpSlide, e->byte (60) ? 1.0f : 0.0f);
+            set (id::arpDir,   (float) e->i32 (40));
+            set (id::arpRange, (float) e->i32 (44, 1));
+            set (id::arpChord, (float) (e->i32 (48, -1) + 2));
+            set (id::arpTime,  (float) (e->i32 (52, 1024) - 450) / 997.0f);
+            set (id::arpGate,  (float) e->i32 (56, 48) / 48.0f);
+            set (id::arpSlide, e->byte (60) ? 1.0f : 0.0f);
         }
-        set (pid::pcNormalize, e->byte (80) ? 1.0f : 0.0f);
-        set (pid::pcReversePolarity, e->byte (81) ? 1.0f : 0.0f);
-        if (e->has (84)) set (pid::declick, (float) e->byte (83));
-        if (e->has (88)) set (pid::pcCrossfade, (float) e->u32 (84) / 1024.0f);
-        if (e->has (92)) set (pid::pcTrim, (float) e->u32 (88) / 256.0f);
-        if (e->has (96)) set (pid::arpRepeat, (float) e->i32 (92, 1));
+        set (id::pcNormalize, e->byte (80) ? 1.0f : 0.0f);
+        set (id::pcReversePolarity, e->byte (81) ? 1.0f : 0.0f);
+        if (e->has (84)) set (id::declick, (float) e->byte (83));
+        if (e->has (88)) set (id::pcCrossfade, (float) e->u32 (84) / 1024.0f);
+        if (e->has (92)) set (id::pcTrim, (float) e->u32 (88) / 256.0f);
+        if (e->has (96)) set (id::arpRepeat, (float) e->i32 (92, 1));
         if (e->has (112))
         {
-            set (pid::stretchTime, e->f32 (96, 0.0f) / 192.0f);
-            set (pid::pitch, (float) e->i32 (100));
-            set (pid::stretchMul, (float) std::pow (2.0, e->i32 (104) / 10000.0));
+            set (id::stretchTime, e->f32 (96, 0.0f) / 192.0f);
+            set (id::pitch, (float) e->i32 (100));
+            set (id::stretchMul, (float) std::pow (2.0, e->i32 (104) / 10000.0));
             // FL's stored method: -2 Stretch Pro, -1 Stretch, 0 Resample, 1 e3 generic,
             // 2 e3 mono, 3 Slice stretch, 4 Slice map, 5 Auto, 6..9 e2 generic / transient / mono / speech
             static const std::map<int, StretchMode> modes {
@@ -265,42 +268,42 @@ flpreset::Result flpreset::import (ChanSamplerProcessor& processor, const juce::
                 { 4, StretchMode::sliceMap }, { 5, StretchMode::autoMode }, { 6, StretchMode::e2Generic },
                 { 7, StretchMode::e2Transient }, { 8, StretchMode::e2Mono }, { 9, StretchMode::e2Speech } };
             const auto m = modes.find (e->i32 (108));
-            set (pid::stretchMode, (float) (int) (m == modes.end() ? StretchMode::resample : m->second));
+            set (id::stretchMode, (float) (int) (m == modes.end() ? StretchMode::resample : m->second));
         }
         if (e->has (152))   // precomputed start / length and the start offset as doubles
         {
-            set (pid::pcStart,  (float) e->f64 (128, 0.0));
-            set (pid::pcLength, (float) e->f64 (136, 1.0));
-            set (pid::startOffset, (float) e->f64 (144, 0.0));
+            set (id::pcStart,  (float) e->f64 (128, 0.0));
+            set (id::pcLength, (float) e->f64 (136, 1.0));
+            set (id::startOffset, (float) e->f64 (144, 0.0));
         }
     }
 
     // Precomputed effects (word / dword events)
-    if (auto* e = get (69)) set (pid::pcEq, ((float) e->value() - 128.0f) / 128.0f);
+    if (auto* e = get (69)) set (id::pcEq, ((float) e->value() - 128.0f) / 128.0f);
     if (auto* e = get (70))
     {
         const auto f = e->value();
-        set (pid::pcFadeStereo, (f & 1) ? 1.0f : 0.0f);
-        set (pid::pcReverse,    (f & 2) ? 1.0f : 0.0f);
-        set (pid::pcBoostClip,  (f & 4) ? 1.0f : 0.0f);
-        set (pid::pcSwapStereo, (f & 256) ? 1.0f : 0.0f);
+        set (id::pcFadeStereo, (f & 1) ? 1.0f : 0.0f);
+        set (id::pcReverse,    (f & 2) ? 1.0f : 0.0f);
+        set (id::pcBoostClip,  (f & 4) ? 1.0f : 0.0f);
+        set (id::pcSwapStereo, (f & 256) ? 1.0f : 0.0f);
     }
-    if (auto* e = get (71)) set (pid::pcCut, (float) e->value() / 1024.0f);
-    if (auto* e = get (74)) set (pid::pcBoost, (float) e->value() / 256.0f);
-    if (auto* e = get (75)) set (pid::pcFadeOut, (float) e->value() / 1024.0f);
-    if (auto* e = get (76)) set (pid::pcFadeIn, (float) e->value() / 1024.0f);
-    if (auto* e = get (83)) set (pid::pcRes, (float) e->value() / 640.0f);
-    if (auto* e = get (85)) set (pid::pcStereoDelay, ((float) e->value() - 2048.0f) / 2048.0f);
-    if (auto* e = get (86)) set (pid::pcPogo, ((float) e->value() - 256.0f) / 256.0f);
+    if (auto* e = get (71)) set (id::pcCut, (float) e->value() / 1024.0f);
+    if (auto* e = get (74)) set (id::pcBoost, (float) e->value() / 256.0f);
+    if (auto* e = get (75)) set (id::pcFadeOut, (float) e->value() / 1024.0f);
+    if (auto* e = get (76)) set (id::pcFadeIn, (float) e->value() / 1024.0f);
+    if (auto* e = get (83)) set (id::pcRes, (float) e->value() / 640.0f);
+    if (auto* e = get (85)) set (id::pcStereoDelay, ((float) e->value() - 2048.0f) / 2048.0f);
+    if (auto* e = get (86)) set (id::pcPogo, ((float) e->value() - 256.0f) / 256.0f);
     if (auto* e = get (131))
     {
-        set (pid::pcRmMix,  (float) (e->value() & 0xffff) / 256.0f);
-        set (pid::pcRmFreq, (float) (e->value() >> 16) / 256.0f);
+        set (id::pcRmMix,  (float) (e->value() & 0xffff) / 256.0f);
+        set (id::pcRmFreq, (float) (e->value() >> 16) / 256.0f);
     }
     if (auto* e = get (139))
     {
-        set (pid::pcReverbType, (float) (e->value() >> 16));
-        set (pid::pcReverb, (float) (e->value() & 0xffff) / 256.0f);
+        set (id::pcReverbType, (float) (e->value() >> 16));
+        set (id::pcReverb, (float) (e->value() & 0xffff) / 256.0f);
     }
 
     // Group: Cut / By; FL's Cut self sets both to the channel's own group.
@@ -308,57 +311,57 @@ flpreset::Result flpreset::import (ChanSamplerProcessor& processor, const juce::
     {
         const int cut = (int) (e->value() & 0xffff), by = (int) (e->value() >> 16);
         if (cut > 0 && cut == by)
-            set (pid::cutItself, 1.0f);
+            set (id::cutItself, 1.0f);
         else
         {
-            set (pid::cutGroup, (float) juce::jlimit (0, 99, cut));
-            set (pid::cutBy, (float) juce::jlimit (0, 99, by));
+            set (id::cutGroup, (float) juce::jlimit (0, 99, cut));
+            set (id::cutBy, (float) juce::jlimit (0, 99, by));
         }
     }
 
     // Root note (only stored when not C5)
     // FL writes the root only when it isn't C5 (and the preset's root wins over the file's).
-    if (auto* e = get (135)) set (pid::rootNote, (float) juce::jlimit (0, 127, (int) e->value()));
-    else set (pid::rootNote, 60.0f);
+    if (auto* e = get (135)) set (id::rootNote, (float) juce::jlimit (0, 127, (int) e->value()));
+    else set (id::rootNote, 60.0f);
 
     // Sample flags (143): 2 load regions, 4 load slice markers, 8 use loop points
     if (auto* e = get (143))
     {
-        set (pid::loadRegions, (e->value() & 2) ? 1.0f : 0.0f);
-        set (pid::loadSlices,  (e->value() & 4) ? 1.0f : 0.0f);
-        set (pid::useLoop,     (e->value() & 8) ? 1.0f : 0.0f);
+        set (id::loadRegions, (e->value() & 2) ? 1.0f : 0.0f);
+        set (id::loadSlices,  (e->value() & 4) ? 1.0f : 0.0f);
+        set (id::useLoop,     (e->value() & 8) ? 1.0f : 0.0f);
     }
     // Loop points (251), ping pong (20)
-    if (auto* e = get (20)) set (pid::pingPong, e->value() ? 1.0f : 0.0f);
+    if (auto* e = get (20)) set (id::pingPong, e->value() ? 1.0f : 0.0f);
     if (auto* e = get (251); e != nullptr && e->has (20) && e->i32 (0) >= 2)
         if (const int length = processor.getSampleLength(); length > 0)
         {
-            set (pid::loopStart, (float) e->i32 (4) / (float) length);
-            set (pid::loopEnd,   (float) e->i32 (12) / (float) length);
+            set (id::loopStart, (float) e->i32 (4) / (float) length);
+            set (id::loopEnd,   (float) e->i32 (12) / (float) length);
         }
 
     // Echo delay (209) and its Mod X / Y (138: byte 2 = X, byte 0 = Y, centre 128)
     if (auto* e = get (209); e != nullptr && e->has (20))
     {
-        set (pid::echoFeed,  (float) e->u32 (0) / 25600.0f);
-        set (pid::echoPan,   (float) ((e->i32 (4) * old - 6400.0) / 6400.0));
-        set (pid::echoPitch, (float) e->i32 (8));
-        set (pid::echoCount, (float) e->i32 (12));
-        set (pid::echoTime,  (float) e->i32 (16) / 48.0f);
+        set (id::echoFeed,  (float) e->u32 (0) / 25600.0f);
+        set (id::echoPan,   (float) ((e->i32 (4) * old - 6400.0) / 6400.0));
+        set (id::echoPitch, (float) e->i32 (8));
+        set (id::echoCount, (float) e->i32 (12));
+        set (id::echoTime,  (float) e->i32 (16) / 48.0f);
     }
     if (auto* e = get (138))
     {
-        set (pid::echoX, (float) (e->byte (2, 128) - 128) / 128.0f);
-        set (pid::echoY, (float) (e->byte (0, 128) - 128) / 128.0f);
+        set (id::echoX, (float) (e->byte (2, 128) - 128) / 128.0f);
+        set (id::echoY, (float) (e->byte (0, 128) - 128) / 128.0f);
     }
 
     // Polyphony (221): max, slide, flags (1 mono, 2 porta)
     if (auto* e = get (221))
     {
-        set (pid::maxPoly, (float) juce::jlimit (0, 64, e->i32 (0)));
-        set (pid::slide, (float) e->i32 (4, 500) / 1660.0f);
-        set (pid::mono,  (e->byte (8) & 1) ? 1.0f : 0.0f);
-        set (pid::porta, (e->byte (8) & 2) ? 1.0f : 0.0f);
+        set (id::maxPoly, (float) juce::jlimit (0, 64, e->i32 (0)));
+        set (id::slide, (float) e->i32 (4, 500) / 1660.0f);
+        set (id::mono,  (e->byte (8) & 1) ? 1.0f : 0.0f);
+        set (id::porta, (e->byte (8) & 2) ? 1.0f : 0.0f);
     }
 
     // Tracking (228: velocity, then key): mid, pan, mod X, mod Y
@@ -366,21 +369,21 @@ flpreset::Result flpreset::import (ChanSamplerProcessor& processor, const juce::
     {
         const auto* e = tracking[i];
         const bool vel = i == 0;
-        if (vel) set (pid::velMid, (float) e->i32 (0, 100) / 128.0f);
-        else     set (pid::keyMid, (float) juce::jlimit (0, 120, e->i32 (0, 60)));
-        set (vel ? pid::velPan : pid::keyPan, (float) e->i32 (4) / 256.0f);
-        set (vel ? pid::velX   : pid::keyX,   (float) e->i32 (8) / 256.0f);
-        set (vel ? pid::velY   : pid::keyY,   (float) e->i32 (12) / 256.0f);
+        if (vel) set (id::velMid, (float) e->i32 (0, 100) / 128.0f);
+        else     set (id::keyMid, (float) juce::jlimit (0, 120, e->i32 (0, 60)));
+        set (vel ? id::velPan : id::keyPan, (float) e->i32 (4) / 256.0f);
+        set (vel ? id::velX   : id::keyX,   (float) e->i32 (8) / 256.0f);
+        set (vel ? id::velY   : id::keyY,   (float) e->i32 (12) / 256.0f);
     }
 
     // Envelopes / LFOs (218 x5: Panning, Volume, Mod X, Mod Y, Pitch). Fields:
     // flags, on, delay, attack, hold, decay, sustain, release, amount, LFO delay,
     // attack, amount, speed, shape, then the attack / decay / release tensions.
-    const char* prefixes[] = { pid::panPrefix, pid::volPrefix, pid::modXPrefix, pid::modYPrefix, pid::pitchPrefix };
+    const char* prefixes[] = { id::panPrefix, id::volPrefix, id::modXPrefix, id::modYPrefix, id::pitchPrefix };
     for (size_t i = 0; i < envs.size() && i < 5; ++i)
     {
         const auto* e = envs[i];
-        const auto p = [pre = prefixes[i]] (const char* s) { return pid::env (pre, s); };
+        const auto p = [pre = prefixes[i]] (const char* s) { return id::env (pre, s); };
         auto field = [e] (int k, int fallback) { return e->i32 ((size_t) (4 * k), fallback); };
         const int flags = field (0, 0);
         if (i != 0)   // FL's Panning page has no envelope
@@ -410,4 +413,5 @@ flpreset::Result flpreset::import (ChanSamplerProcessor& processor, const juce::
 
     result.ok = true;
     return result;
+}
 }

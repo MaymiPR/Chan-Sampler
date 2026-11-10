@@ -2,6 +2,9 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
+namespace cs
+{
+
 class ChanSamplerProcessor;
 
 // The plugin's own preset menu (top bar): the current preset's name with
@@ -46,3 +49,4 @@ private:
     std::unique_ptr<juce::FileChooser> chooser;
     float flash[2] = { 0.0f, 0.0f };   // the arrows' click flash, fading
 };
+}

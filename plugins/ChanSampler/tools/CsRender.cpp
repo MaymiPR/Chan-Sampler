@@ -1,11 +1,20 @@
-// Offline renderer for null tests against FL Studio renders, and the
-// developer checks that need the whole plugin without a host.
+// Offline renderer: the whole plug-in without a host, for the null tests, the render regression and the developer
+// checks.
 //
-//   ChanSamplerRender <sample.wav> <out.wav> <seconds> <params.txt> <notes>
+//   CsRender <jobs.txt> [fs=44100] [block=512] [tune:key=value ...] [tuning=<file>]
+//   CsRender <sample.wav> <out.wav> <seconds> <params.txt> <notes>
 //
-// params.txt: one "paramID value" per line (plain, unnormalised values).
-// notes: "key:startSec:lengthSec:velocity;..." with FL's note velocity, which
-// FL's plugin wrapper passes on unchanged as the MIDI velocity (so 1-127).
+// The job file (the render regression's form, scripts/render_regress.py): one render per line,
+//   <in.f32> <out.f32> sample=<sample.wav> notes=<key:start:length:velocity;...> [factory=<name>] [bpm=130]
+//   [<paramID>=<plain value> ...]
+// in.f32 is the (silent) input, interleaved stereo float32; its length is the render's length, and out.f32 is written
+// in the same form. A factory preset's name takes _ for a space. Each line renders in a fresh instance.
+// tune:key=value and tuning=<file> set the fitted constants of dsp/Tuning.h for the whole run (the interpolator's
+// table is built once per process).
+//
+// The single form writes a 32-bit float WAV of <seconds>. params.txt: one "paramID value" per line (plain,
+// unnormalised values). notes: "key:startSec:lengthSec:velocity;..." with FL's note velocity, which FL's plug-in
+// wrapper passes on unchanged as the MIDI velocity (so 1-127).
 //
 // Other commands (each described where it is handled below):
 //   loadcheck <sample>                 a file's loop points don't switch looping on; prints its root note
@@ -19,11 +28,10 @@
 //   bench <sample>                     CPU per stretch mode, 32 / 64 voices
 //   decode <file> <out-prefix>         what each audio format reader decodes
 //
-// Environment: RENDER_SR (render rate, default 44100), RENDER_BPM (host
-// tempo, default 130 as in FL's test projects), RENDER_FACTORY (a factory
-// preset's name, applied on top of params.txt); bench takes BENCH_MODE (one
-// stretch method by index), BENCH_VOICES ("16,32,..."), BENCH_PARAM (automate
-// one parameter) and BENCH_AUTOMATION_ONLY.
+// Environment (the single form): RENDER_SR (render rate, default 44100), RENDER_BPM (host tempo, default 130 as in
+// FL's test projects), RENDER_FACTORY (a factory preset's name, applied on top of params.txt); bench takes BENCH_MODE
+// (one stretch method by index), BENCH_VOICES ("16,32,..."), BENCH_PARAM (automate one parameter) and
+// BENCH_AUTOMATION_ONLY.
 
 #include <juce_audio_formats/juce_audio_formats.h>
 #include <juce_events/juce_events.h>
@@ -37,11 +45,14 @@
 #include "PresetImport.h"
 #include "Params.h"
 #include "Presets.h"
+#include "dsp/Tuning.h"
+
+using namespace cs;
 
 // Group test: two instances in one process. A (Cut 1) plays a note at 1 s
 // while B (By 1) holds a long note; reports where B goes silent, with A
 // processed before B and after B.
-//   ChanSamplerRender cuttest <sample.wav>
+//   CsRender cuttest <sample.wav>
 static int cutTest (const juce::File& sampleFile)
 {
     constexpr double sr = 44100.0;
@@ -76,8 +87,8 @@ static int cutTest (const juce::File& sampleFile)
             auto* prm = p.apvts.getParameter (id);
             prm->setValueNotifyingHost (prm->convertTo0to1 (v));
         };
-        setInt (a, pid::cutGroup, 1.0f);
-        setInt (b, pid::cutBy, 1.0f);
+        setInt (a, id::cutGroup, 1.0f);
+        setInt (b, id::cutBy, 1.0f);
 
         const int cutAt = 44100 + 300;   // mid-block
         juce::AudioBuffer<float> ba (2, bs), bb (2, bs);
@@ -105,7 +116,7 @@ static int cutTest (const juce::File& sampleFile)
 
 // Save / reload test: random settings, state round trip into a new instance,
 // then the same notes through both.
-//   ChanSamplerRender statetest <sample.wav>
+//   CsRender statetest <sample.wav>
 static int stateTest (const juce::File& sampleFile)
 {
     constexpr double sr = 44100.0;
@@ -115,7 +126,7 @@ static int stateTest (const juce::File& sampleFile)
     a.loadSample (sampleFile);
     for (auto* p : a.getParameters())
         if (auto* rp = dynamic_cast<juce::RangedAudioParameter*> (p))
-            if (rp->getParameterID() != pid::stretchMode && ! rp->getParameterID().startsWith ("pc"))
+            if (rp->getParameterID() != id::stretchMode && ! rp->getParameterID().startsWith ("pc"))
                 rp->setValueNotifyingHost (rng.nextFloat());
     a.apvts.state.setProperty ("uiWidth", 777, nullptr);
     juce::MemoryBlock block;
@@ -169,21 +180,208 @@ static int stateTest (const juce::File& sampleFile)
     return mismatches == 0 && sampleOk && widthOk && maxDiff < 1.0e-6f ? 0 : 1;
 }
 
+namespace
+{
+// One render: what a job line or the single form asks for.
+struct Job
+{
+    juce::File sampleFile;
+    std::vector<std::pair<juce::String, float>> params;   // in the order given, plain values
+    juce::String factory;                                  // a factory preset applied on top, or empty
+    juce::String notes;
+    double bpm = 130.0;
+};
+
+// Renders the job into out (2 channels, its length the render's); false with a message on an error.
+bool render (const Job& job, double sampleRate, int blockSize, juce::AudioBuffer<float>& out)
+{
+    const int total = out.getNumSamples();
+    ChanSamplerProcessor proc;
+
+    // Load first so embedded loop points cannot override explicit settings.
+    // An FL Sampler preset (.fst) brings its own sample and settings.
+    if (presetimport::isPresetFile (job.sampleFile))
+    {
+        const auto r = presetimport::import (proc, job.sampleFile);
+        if (! r.ok || r.message.isNotEmpty())
+            std::cerr << r.message << "\n";
+        if (! r.ok)
+            return false;
+    }
+    else if (! proc.loadSample (job.sampleFile))
+    {
+        std::cerr << proc.getLoadError() << "\n";
+        return false;
+    }
+    else
+    {
+        // As in an FL project (the null tests' other half): the root stays C5
+        // unless set, whatever root the file stores.
+        auto* root = proc.apvts.getParameter (id::rootNote);
+        root->setValueNotifyingHost (root->convertTo0to1 (60.0f));
+    }
+
+    for (auto& [pid, value] : job.params)
+    {
+        auto* p = proc.apvts.getParameter (pid);
+        if (p == nullptr)
+        {
+            std::cerr << "unknown parameter " << pid << "\n";
+            return false;
+        }
+        p->setValueNotifyingHost (p->convertTo0to1 (value));
+    }
+    // a factory preset (on top of the parameters)
+    if (job.factory.isNotEmpty())
+    {
+        bool found = false;
+        for (auto& fp : factoryPresets())
+            if (juce::String (fp.name) == job.factory) { applyFactoryPreset (proc, fp); found = true; }
+        if (! found) { std::cerr << "no factory preset " << job.factory << "\n"; return false; }
+    }
+    proc.waitForPendingRebuilds();
+    proc.rebuildNow();
+
+    // Host tempo (FL's test projects run at 130 BPM).
+    struct FixedTempo : juce::AudioPlayHead
+    {
+        double bpm = 130.0;
+        juce::Optional<PositionInfo> getPosition() const override
+        {
+            PositionInfo info;
+            info.setBpm (bpm);
+            return info;
+        }
+    } tempo;
+    tempo.bpm = job.bpm;
+    proc.setPlayHead (&tempo);
+    proc.setPlayConfigDetails (0, 2, sampleRate, blockSize);
+    proc.prepareToPlay (sampleRate, blockSize);
+
+    // Notes: FL's plugin wrapper sends a note's velocity unchanged as the MIDI
+    // velocity (measured; Engine reads it so), so FL's 128 can't reach
+    // a plugin: it is clamped to 127.
+    juce::MidiBuffer all;
+    for (auto& n : juce::StringArray::fromTokens (job.notes, ";", {}))
+    {
+        auto f = juce::StringArray::fromTokens (n, ":", {});
+        if (f.size() < 4)
+            continue;
+        const int key = f[0].getIntValue();
+        const int on = (int) std::round (f[1].getDoubleValue() * sampleRate);
+        const int off = on + (int) std::round (f[2].getDoubleValue() * sampleRate);
+        const auto vel = (juce::uint8) juce::jlimit (1, 127, (int) std::round (f[3].getDoubleValue()));
+        all.addEvent (juce::MidiMessage::noteOn (1, key, vel), on);
+        all.addEvent (juce::MidiMessage::noteOff (1, key), off);
+    }
+
+    juce::AudioBuffer<float> block (2, blockSize);
+    for (int pos = 0; pos < total; pos += blockSize)
+    {
+        const int n = juce::jmin (blockSize, total - pos);
+        block.setSize (2, n, false, false, true);
+        juce::MidiBuffer midi;
+        for (const auto m : all)
+            if (m.samplePosition >= pos && m.samplePosition < pos + n)
+                midi.addEvent (m.getMessage(), m.samplePosition - pos);
+        proc.processBlock (block, midi);
+        for (int ch = 0; ch < 2; ++ch)
+            out.copyFrom (ch, pos, block, ch, 0, n);
+    }
+    return true;
+}
+
+// The job-file form: every line a fresh instance, f32 in and out.
+int runJobs (int argc, char** argv)
+{
+    juce::ScopedJuceInitialiser_GUI init;
+    const auto cwd = juce::File::getCurrentWorkingDirectory();
+    double sampleRate = 44100.0;
+    int blockSize = 512;
+    for (int i = 2; i < argc; ++i)
+    {
+        const juce::String a (argv[i]);
+        const auto key = a.upToFirstOccurrenceOf ("=", false, false), value = a.fromFirstOccurrenceOf ("=", false, false);
+        if (key == "fs") sampleRate = value.getDoubleValue();
+        else if (key == "block") blockSize = value.getIntValue();
+        else if (key == "tuning") { if (dsp::tuning().load (cwd.getChildFile (value).getFullPathName().toRawUTF8()) != 0) return 1; }
+        else if (key.startsWith ("tune:"))
+        {
+            if (! dsp::tuning().set (key.substring (5).toStdString(), value.getDoubleValue()))
+            {
+                std::cerr << "unknown tuning key " << key.substring (5) << "\n";
+                return 1;
+            }
+        }
+        else { std::cerr << "unknown option " << a << "\n"; return 2; }
+    }
+    juce::StringArray lines;
+    cwd.getChildFile (argv[1]).readLines (lines);
+    int done = 0;
+    for (auto& line : lines)
+    {
+        auto words = juce::StringArray::fromTokens (line.trim(), " ", {});
+        words.removeEmptyStrings();
+        if (words.isEmpty() || words[0].startsWith ("#"))
+            continue;
+        if (words.size() < 2) { std::cerr << "bad job line: " << line << "\n"; return 1; }
+        const auto in = cwd.getChildFile (words[0]), outFile = cwd.getChildFile (words[1]);
+        Job job;
+        for (int i = 2; i < words.size(); ++i)
+        {
+            const auto key = words[i].upToFirstOccurrenceOf ("=", false, false);
+            const auto value = words[i].fromFirstOccurrenceOf ("=", false, false);
+            if (key == "sample") job.sampleFile = cwd.getChildFile (value);
+            else if (key == "notes") job.notes = value;
+            else if (key == "factory") job.factory = value.replaceCharacter ('_', ' ');
+            else if (key == "bpm") job.bpm = value.getDoubleValue();
+            else job.params.emplace_back (key, value.getFloatValue());
+        }
+        const int total = (int) (in.getSize() / (2 * (juce::int64) sizeof (float)));
+        juce::AudioBuffer<float> out (2, total);
+        if (! render (job, sampleRate, blockSize, out))
+        {
+            std::cerr << "job failed: " << line << "\n";
+            return 1;
+        }
+        std::vector<float> interleaved ((size_t) total * 2);
+        for (int i = 0; i < total; ++i)
+        {
+            interleaved[(size_t) i * 2] = out.getSample (0, i);
+            interleaved[(size_t) i * 2 + 1] = out.getSample (1, i);
+        }
+        outFile.deleteFile();
+        if (! outFile.replaceWithData (interleaved.data(), interleaved.size() * sizeof (float)))
+        {
+            std::cerr << "cannot write " << outFile.getFullPathName() << "\n";
+            return 1;
+        }
+        ++done;
+    }
+    std::cout << done << " job(s) rendered\n";
+    return 0;
+}
+}
+
 int main (int argc, char** argv)
 {
+    // "<jobs.txt> [fs=] [block=] ...": the job-file form (the render regression)
+    if (argc >= 2 && argc < 6 && juce::String (argv[1]).endsWithIgnoreCase (".txt"))
+        return runJobs (argc, argv);
+
     // "loadcheck <sample>": Use loop points off, load, print the loop state
     // (a file's loop points set the markers but must not switch looping on).
     if (argc >= 3 && juce::String (argv[1]) == "loadcheck")
     {
         juce::ScopedJuceInitialiser_GUI init;
         ChanSamplerProcessor p;
-        auto* use = p.apvts.getParameter (pid::useLoop);
+        auto* use = p.apvts.getParameter (id::useLoop);
         use->setValueNotifyingHost (0.0f);
         if (! p.loadSample (juce::File (juce::String (argv[2]))))
             return 1;
-        std::cout << "useLoop " << use->getCurrentValueAsText() << ", loopStart " << p.apvts.getParameter (pid::loopStart)->getCurrentValueAsText()
-                  << ", loopEnd " << p.apvts.getParameter (pid::loopEnd)->getCurrentValueAsText()
-                  << ", root " << p.apvts.getParameter (pid::rootNote)->getCurrentValueAsText() << "\n";
+        std::cout << "useLoop " << use->getCurrentValueAsText() << ", loopStart " << p.apvts.getParameter (id::loopStart)->getCurrentValueAsText()
+                  << ", loopEnd " << p.apvts.getParameter (id::loopEnd)->getCurrentValueAsText()
+                  << ", root " << p.apvts.getParameter (id::rootNote)->getCurrentValueAsText() << "\n";
         return use->getValue() < 0.5f ? 0 : 2;
     }
     if (argc >= 5 && juce::String (argv[1]) == "stretchtest")
@@ -247,7 +445,7 @@ int main (int argc, char** argv)
         ChanSamplerProcessor p;
         if (! p.loadSample (copy))
             return 1;
-        auto* offset = p.apvts.getParameter (pid::startOffset);
+        auto* offset = p.apvts.getParameter (id::startOffset);
         offset->setValueNotifyingHost (0.3f);
         const int before = p.getSampleLength();
         p.reloadIfFileChanged();
@@ -340,9 +538,9 @@ int main (int argc, char** argv)
             if (! proc.loadSample (juce::File (juce::String (argv[2]))))
                 return -1.0;
             auto set = [&proc] (const char* id, float v) { auto* p = proc.apvts.getParameter (id); p->setValueNotifyingHost (p->convertTo0to1 (v)); };
-            set (pid::stretchMode, (float) stretchMode);
-            set (pid::useLoop, 1.0f); set (pid::loopStart, 0.1f); set (pid::loopEnd, 0.9f);
-            if (stretchMode != 0) set (pid::stretchMul, 1.3f);
+            set (id::stretchMode, (float) stretchMode);
+            set (id::useLoop, 1.0f); set (id::loopStart, 0.1f); set (id::loopEnd, 0.9f);
+            if (stretchMode != 0) set (id::stretchMul, 1.3f);
             proc.waitForPendingRebuilds();
             proc.rebuildNow();
             proc.setPlayConfigDetails (0, 2, rate, block);
@@ -364,11 +562,11 @@ int main (int argc, char** argv)
                     }
                     else
                     {
-                        set (pid::cutoff, 0.5f + 0.4f * std::sin (ph));
-                        set (pid::pan, 0.8f * std::sin (ph * 1.3f));
-                        set (pid::volume, 1.0f + 0.3f * std::sin (ph * 0.7f));
-                        set (pid::fineTune, 50.0f * std::sin (ph * 0.9f));
-                        set (pid::resonance, 0.3f + 0.2f * std::sin (ph * 1.1f));
+                        set (id::cutoff, 0.5f + 0.4f * std::sin (ph));
+                        set (id::pan, 0.8f * std::sin (ph * 1.3f));
+                        set (id::volume, 1.0f + 0.3f * std::sin (ph * 0.7f));
+                        set (id::fineTune, 50.0f * std::sin (ph * 0.9f));
+                        set (id::resonance, 0.3f + 0.2f * std::sin (ph * 1.1f));
                     }
                 }
                 buf.clear();
@@ -424,7 +622,7 @@ int main (int argc, char** argv)
 
     if (argc < 6)
     {
-        std::cerr << "usage: ChanSamplerRender sample.wav out.wav seconds params.txt notes\n";
+        std::cerr << "usage: CsRender sample.wav out.wav seconds params.txt notes\n";
         return 2;
     }
 
@@ -433,110 +631,30 @@ int main (int argc, char** argv)
     const juce::File outFile { juce::String (argv[2]) };
     const double seconds = juce::String (argv[3]).getDoubleValue();
     const juce::File paramFile { juce::String (argv[4]) };
-    const juce::String noteSpec (argv[5]);
     const double sampleRate = std::getenv ("RENDER_SR") ? juce::String (std::getenv ("RENDER_SR")).getDoubleValue() : 44100.0;
     constexpr int blockSize = 512;
 
-    ChanSamplerProcessor proc;
-
-    // Load first so embedded loop points cannot override explicit settings.
-    // An FL Sampler preset (.fst) brings its own sample and settings.
-    if (flpreset::isPresetFile (sampleFile))
-    {
-        const auto r = flpreset::import (proc, sampleFile);
-        if (! r.ok || r.message.isNotEmpty())
-            std::cerr << r.message << "\n";
-        if (! r.ok)
-            return 1;
-    }
-    else if (! proc.loadSample (sampleFile))
-    {
-        std::cerr << proc.getLoadError() << "\n";
-        return 1;
-    }
-    else
-    {
-        // As in an FL project (the null tests' other half): the root stays C5
-        // unless set, whatever root the file stores.
-        auto* root = proc.apvts.getParameter (pid::rootNote);
-        root->setValueNotifyingHost (root->convertTo0to1 (60.0f));
-    }
-
+    Job job;
+    job.sampleFile = sampleFile;
+    job.notes = juce::String (argv[5]);
     juce::StringArray lines;
     paramFile.readLines (lines);
     for (auto& line : lines)
     {
-        const auto id = line.upToFirstOccurrenceOf (" ", false, false).trim();
-        if (id.isEmpty())
-            continue;
-        auto* p = proc.apvts.getParameter (id);
-        if (p == nullptr)
-        {
-            std::cerr << "unknown parameter " << id << "\n";
-            return 1;
-        }
-        p->setValueNotifyingHost (p->convertTo0to1 (line.fromFirstOccurrenceOf (" ", false, false).getFloatValue()));
+        const auto pid = line.upToFirstOccurrenceOf (" ", false, false).trim();
+        if (pid.isNotEmpty())
+            job.params.emplace_back (pid, line.fromFirstOccurrenceOf (" ", false, false).getFloatValue());
     }
-    // RENDER_FACTORY="name": a factory preset (on top of the params file)
+    // RENDER_FACTORY="name": a factory preset (on top of the params file); RENDER_BPM: the host tempo
     if (auto* f = std::getenv ("RENDER_FACTORY"))
-    {
-        bool found = false;
-        for (auto& fp : factoryPresets())
-            if (juce::String (fp.name) == f) { applyFactoryPreset (proc, fp); found = true; }
-        if (! found) { std::cerr << "no factory preset " << f << "\n"; return 1; }
-    }
-    proc.waitForPendingRebuilds();
-    proc.rebuildNow();
-
-    // Host tempo (FL's test projects run at 130 BPM); override with RENDER_BPM.
-    struct FixedTempo : juce::AudioPlayHead
-    {
-        double bpm = 130.0;
-        juce::Optional<PositionInfo> getPosition() const override
-        {
-            PositionInfo info;
-            info.setBpm (bpm);
-            return info;
-        }
-    } tempo;
+        job.factory = f;
     if (auto* env = std::getenv ("RENDER_BPM"))
-        tempo.bpm = juce::String (env).getDoubleValue();
-    proc.setPlayHead (&tempo);
-    proc.setPlayConfigDetails (0, 2, sampleRate, blockSize);
-    proc.prepareToPlay (sampleRate, blockSize);
-
-    // Notes: FL's plugin wrapper sends a note's velocity unchanged as the MIDI
-    // velocity (measured; SamplerEngine reads it so), so FL's 128 can't reach
-    // a plugin: it is clamped to 127.
-    juce::MidiBuffer all;
-    for (auto& n : juce::StringArray::fromTokens (noteSpec, ";", {}))
-    {
-        auto f = juce::StringArray::fromTokens (n, ":", {});
-        if (f.size() < 4)
-            continue;
-        const int key = f[0].getIntValue();
-        const int on = (int) std::round (f[1].getDoubleValue() * sampleRate);
-        const int off = on + (int) std::round (f[2].getDoubleValue() * sampleRate);
-        const auto vel = (juce::uint8) juce::jlimit (1, 127, (int) std::round (f[3].getDoubleValue()));
-        all.addEvent (juce::MidiMessage::noteOn (1, key, vel), on);
-        all.addEvent (juce::MidiMessage::noteOff (1, key), off);
-    }
+        job.bpm = juce::String (env).getDoubleValue();
 
     const int total = (int) (seconds * sampleRate);
     juce::AudioBuffer<float> out (2, total);
-    juce::AudioBuffer<float> block (2, blockSize);
-    for (int pos = 0; pos < total; pos += blockSize)
-    {
-        const int n = juce::jmin (blockSize, total - pos);
-        block.setSize (2, n, false, false, true);
-        juce::MidiBuffer midi;
-        for (const auto m : all)
-            if (m.samplePosition >= pos && m.samplePosition < pos + n)
-                midi.addEvent (m.getMessage(), m.samplePosition - pos);
-        proc.processBlock (block, midi);
-        for (int ch = 0; ch < 2; ++ch)
-            out.copyFrom (ch, pos, block, ch, 0, n);
-    }
+    if (! render (job, sampleRate, blockSize, out))
+        return 1;
 
     outFile.deleteFile();
     juce::WavAudioFormat wav;

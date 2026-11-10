@@ -5,7 +5,7 @@ starts within a few frames of the end of the sample.
     python -m cases.trim_short_cases [-f]"""
 import sys
 import numpy as np
-from lib import flrender as F, nullfl
+from lib import flrender as F; import cs_ref
 
 N = 88200   # signals/noise.wav
 
@@ -36,6 +36,6 @@ def sounding(x):
 if __name__ == '__main__':
     force = '-f' in sys.argv
     for c in CASES:
-        a, b = nullfl.render_pair(c['name'], c['sample'], c['fl'], c['ours'], None, 100, c['beats'], force, None, None)
-        d = nullfl.null_db(a, b)
+        a, b = cs_ref.render_pair(c['name'], c['sample'], c['fl'], c['ours'], None, 100, c['beats'], force, None, None)
+        d = cs_ref.null_db(a, b)
         print(f"{F.verdict(d):5s} {d:7.1f} dB  {c['name']:28s} FL {sounding(a):4d} frames, ours {sounding(b):4d}", flush=True)

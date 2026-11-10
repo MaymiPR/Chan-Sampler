@@ -20,7 +20,8 @@ are downloaded automatically when you configure.
 | Option | Default | Effect |
 |---|---|---|
 | `CHANSAMPLER_CLAP` | `ON` | the CLAP version (and its download) |
-| `CHANSAMPLER_TOOLS` | `ON` | the developer tools: `ChanSamplerRender` (the null tests and the render regression) and `ChanSamplerSnapshot` (editor screenshots) |
+| `CHANSAMPLER_TOOLS` | `ON` | the developer tools: `CsRender` and `CsRenderDev` (the null tests and the render regression), `ChanSamplerSnapshot` (editor screenshots) and the reference hosts `RefRender`, `ParamDump`, `RefCapture`, `FocusCheck` |
+| `CHANSAMPLER_DEV_COPY` | `ON` | a copy of the VST3 at `build/plugins/Chan Sampler.vst3` after each build, the folder a DAW's plug-in junction points at |
 
 ## Windows (VST3, CLAP, Standalone)
 

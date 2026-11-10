@@ -71,7 +71,7 @@ jobs:
       - name: Warnings (zero allowed)
         shell: bash
         run: |
-          if grep -E 'warning C[0-9]+|warning:|warning MSB|[0-9]+ warnings? generated' build.log | grep -vE '::warning|hint:' > warnings.txt; then
+          if grep -E 'warning C[0-9]+|warning ?:|warning MSB|[0-9]+ warnings? generated' build.log | grep -vE '::warning|hint:' > warnings.txt; then
             cat warnings.txt
             echo "$(wc -l < warnings.txt) warning line(s) in the build log: zero allowed (STANDARDS.md)"
             exit 1
@@ -269,7 +269,7 @@ jobs:
       - name: Warnings (zero allowed)
         shell: bash
         run: |
-          if grep -E 'warning C[0-9]+|warning:|warning MSB|[0-9]+ warnings? generated' build.log | grep -vE '::warning|hint:' > warnings.txt; then
+          if grep -E 'warning C[0-9]+|warning ?:|warning MSB|[0-9]+ warnings? generated' build.log | grep -vE '::warning|hint:' > warnings.txt; then
             cat warnings.txt
             echo "$(wc -l < warnings.txt) warning line(s) in the build log: zero allowed (STANDARDS.md)"
             exit 1
@@ -338,8 +338,8 @@ jobs:
           curl -fsSL -o pluginval.zip "$PLUGINVAL/pluginval_macOS.zip"
           unzip -q pluginval.zip
           P=pluginval.app/Contents/MacOS/pluginval
-          grep -v '^#' packaging/plugins.txt | grep -v '^\s*$' | while IFS='|' read -r _ p code mfr; do
-            auval -v aumu "$code" "$mfr"   # an instrument (aumu), not an effect
+          grep -v '^#' packaging/plugins.txt | grep -v '^\s*$' | while IFS='|' read -r _ p code mfr type; do
+            auval -v "${type:-aufx}" "$code" "$mfr"   # the AU type column: aufx an effect, aumu an instrument
             $P --strictness-level 10 --skip-gui-tests --timeout-ms 900000 --validate ~/Library/Audio/Plug-Ins/Components/"$p.component"
             $P --strictness-level 10 --skip-gui-tests --timeout-ms 900000 --validate "stage/vst3/$p.vst3"
           done
@@ -465,7 +465,7 @@ jobs:
       - name: Warnings (zero allowed)
         shell: bash
         run: |
-          if grep -E 'warning C[0-9]+|warning:|warning MSB|[0-9]+ warnings? generated' build.log | grep -vE '::warning|hint:' > warnings.txt; then
+          if grep -E 'warning C[0-9]+|warning ?:|warning MSB|[0-9]+ warnings? generated' build.log | grep -vE '::warning|hint:' > warnings.txt; then
             cat warnings.txt
             echo "$(wc -l < warnings.txt) warning line(s) in the build log: zero allowed (STANDARDS.md)"
             exit 1

@@ -30,7 +30,7 @@ FL's channel Group is a host feature; Chan Sampler rebuilds it across its own in
 note start of an instance with Cut = n is posted on a process-wide lock-free bus with its host timeline position, and
 instances with By = n stop their voices there (release, or the declick fade without a volume envelope, as Cut self). An
 instance never cuts itself through its group (Cut self does that). Sample-exact when the cut instance is processed after
-the cutting one, otherwise at the start of its next block (`ChanSamplerRender cuttest dc6.wav`: 0 and 144 samples late
+the cutting one, otherwise at the start of its next block (`CsRender cuttest dc6.wav`: 0 and 144 samples late
 at 512-sample blocks). With the transport stopped the cut happens at the next block. Bridged / sandboxed instances in
 other processes cannot see each other. FL's Time panel (gate / shift / swing / full porta) edits FL's note events and is
 not reproduced. FL has no Panning envelope (LFO only), so neither does Chan Sampler.

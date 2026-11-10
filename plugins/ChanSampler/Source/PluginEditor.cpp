@@ -3,11 +3,13 @@
 #include "ui/PresetBar.h"
 #include "dsp/Chords.h"
 #include "dsp/TempoDetect.h"
-#include "HostFocus.h"
+
+namespace cs
+{
 
 namespace
 {
-    const juce::String repository = "https://github.com/MaymiPR/Chan-Sampler";
+    const juce::String repository = SUITE_REPOSITORY;
 
     // Chan Sampler's mark and name in the top bar: a click opens the plugin's
     // own menu (version, About, the project's links). The mark is a C drawn
@@ -21,10 +23,10 @@ namespace
         }
         static constexpr float size = 11.25f;
         static constexpr int markWidth = 18;   // the 14 px mark and a 4 px gap before the name
-        static int widthFor (const juce::String& s) { return (int) std::ceil (juce::GlyphArrangement::getStringWidth (ui::font (size, true), s)) + 4 + markWidth; }
+        static int widthFor (const juce::String& s) { return (int) std::ceil (juce::GlyphArrangement::getStringWidth (chansampler::ui::font (size, true), s)) + 4 + markWidth; }
         void paint (juce::Graphics& g) override
         {
-            const auto c = isMouseOver() ? ui::colour::accent.brighter (0.35f) : ui::colour::accent;
+            const auto c = isMouseOver() ? chansampler::ui::colour::accent.brighter (0.35f) : chansampler::ui::colour::accent;
             g.setColour (c);
             const juce::Point<float> m (7.0f, (float) getHeight() * 0.5f);
             juce::Path ring;
@@ -33,7 +35,7 @@ namespace
             const float heights[] = { 3.0f, 6.0f, 3.0f };
             for (int i = 0; i < 3; ++i)
                 g.fillRoundedRectangle (m.x - 2.9f + 2.2f * (float) i, m.y - heights[i] * 0.5f, 1.4f, heights[i], 0.7f);
-            g.setFont (ui::font (size, true));
+            g.setFont (chansampler::ui::font (size, true));
             g.drawText (text, getLocalBounds().withTrimmedLeft (markWidth).withTrimmedRight (1), juce::Justification::centredRight);
         }
         void mouseEnter (const juce::MouseEvent&) override { repaint(); }
@@ -53,8 +55,8 @@ namespace
         explicit HistoryButton (bool isRedo) : juce::Button (isRedo ? "Redo" : "Undo"), redo (isRedo) {}
         void paintButton (juce::Graphics& g, bool, bool down) override
         {
-            auto c = isEnabled() ? ui::colour::dim.interpolatedWith (juce::Colours::white, 0.55f * ui::hoverOf (*this))
-                                 : ui::colour::dim.withAlpha (0.4f);
+            auto c = isEnabled() ? chansampler::ui::colour::dim.interpolatedWith (juce::Colours::white, 0.55f * chansampler::ui::hoverOf (*this))
+                                 : chansampler::ui::colour::dim.withAlpha (0.4f);
             if (down && isEnabled())
                 c = juce::Colours::white;
             // drawn for undo (head at the left) and mirrored for redo
@@ -74,7 +76,7 @@ namespace
         void mouseEnter (const juce::MouseEvent& e) override { hover.setTarget (true); juce::Button::mouseEnter (e); }
         void mouseExit (const juce::MouseEvent& e) override { hover.setTarget (false); juce::Button::mouseExit (e); }
         bool redo;
-        ui::HoverFade hover { *this };
+        chansampler::ui::HoverFade hover { *this };
     };
 
     // The field behind the two halves: the preset bar's well and edge, with a
@@ -96,75 +98,13 @@ namespace
         void paint (juce::Graphics& g) override
         {
             const auto r = getLocalBounds().toFloat();
-            g.setColour (ui::colour::well);
+            g.setColour (chansampler::ui::colour::well);
             g.fillRoundedRectangle (r, 2.0f);
-            g.setColour (ui::colour::fieldEdge);
+            g.setColour (chansampler::ui::colour::fieldEdge);
             g.drawRoundedRectangle (r.reduced (0.5f), 2.0f, 1.0f);
             g.fillRect ((float) (getWidth() / 2), 4.0f, 1.0f, r.getHeight() - 8.0f);
         }
         HistoryButton undo { false }, redo { true };
-    };
-
-    // Clicks anywhere in the editor give it the keyboard focus (not to the
-    // control clicked, so the space bar is not swallowed): in a plugin window
-    // whose host does not offer it the keys, that is what lets Ctrl+Z / Ctrl+Y
-    // reach it, and JUCE passes every key the editor does not use on to the
-    // host's window. Not for VST3 (the host offers each key to the view:
-    // cmake/PatchJuceVst3Keys.cmake; holding the focus there upset FL's own
-    // keys, the space bar starting playback only on its second press) nor
-    // standalone (the window has the keys).
-    // FL Studio (VST3): the plugin's FL window keeps the keyboard focus. A
-    // click moves the Windows focus into the plugin's own window (Windows or
-    // FL's panel does it, not JUCE); FL then sends the keys there and no longer
-    // acts on those the plugin leaves, so after touching a knob the space bar
-    // did not play or stop (logged in FL, see HostFocus.h). After a click
-    // this hands the focus to FL's window for the plugin, as a click on FL's own
-    // Sampler leaves it, unless a value box is being typed in: FL then offers
-    // every key to the view (cmake/PatchJuceVst3Keys.cmake), the editor takes
-    // Ctrl+Z / Ctrl+Y and FL acts on the rest.
-    struct KeepHostFocus : juce::MouseListener, private juce::Timer
-    {
-        explicit KeepHostFocus (juce::Component& c) : editor (c) { startTimerHz (4); }
-        // not for a right-click: its menu would close the moment the focus left
-        void mouseDown (const juce::MouseEvent& e) override { if (! e.mods.isPopupMenu()) handBackSoon(); }
-        void mouseUp (const juce::MouseEvent& e) override { if (! e.mods.isPopupMenu()) handBackSoon(); }
-
-        // after JUCE has handled the click and the focus change it brought
-        void handBackSoon()
-        {
-            juce::MessageManager::callAsync ([safe = juce::Component::SafePointer<juce::Component> (&editor), this]
-            {
-                if (safe != nullptr)
-                    handBack();
-            });
-        }
-        // also when a typed value, a menu or a dialog is done with the focus
-        void timerCallback() override { handBack(); }
-
-        void handBack()
-        {
-            if (dynamic_cast<juce::TextEditor*> (juce::Component::getCurrentlyFocusedComponent()) != nullptr)
-                return;   // typing a value: the keys are the editor's
-            if (juce::ModalComponentManager::getInstance()->getNumModalComponents() > 0)
-                return;   // a menu or dialog is open: moving the focus would close it
-            auto* peer = editor.getPeer();
-            if (peer == nullptr || ! hostfocus::isWithin (hostfocus::current(), peer->getNativeHandle()))
-                return;
-            hostfocus::giveTo (hostfocus::titledAncestor (peer->getNativeHandle()));
-        }
-        juce::Component& editor;
-    };
-
-    struct FocusOnClick : juce::MouseListener
-    {
-        explicit FocusOnClick (juce::Component& c) : editor (c) {}
-        void mouseDown (const juce::MouseEvent& e) override
-        {
-            if (editor.hasKeyboardFocus (true) || (e.eventComponent != nullptr && e.eventComponent->getWantsKeyboardFocus()))
-                return;   // a value box being typed in keeps it
-            editor.grabKeyboardFocus();
-        }
-        juce::Component& editor;
     };
 
     // Plain filled rectangle (bevels).
@@ -186,8 +126,8 @@ namespace
         TopBar() { setInterceptsMouseClicks (false, true); }
         void paint (juce::Graphics& g) override
         {
-            g.fillAll (ui::colour::well);
-            g.setColour (ui::colour::barLine);
+            g.fillAll (chansampler::ui::colour::well);
+            g.setColour (chansampler::ui::colour::barLine);
             g.fillRect (0, 0, getWidth(), 1);
             g.fillRect (0, getHeight() - 1, getWidth(), 1);
         }
@@ -228,17 +168,9 @@ ChanSamplerEditor::ChanSamplerEditor (ChanSamplerProcessor& p)
     noFocus (*this);
     // ... except the editor itself (see FocusOnClick)
     setWantsKeyboardFocus (true);
-    if (samplerProcessor.wrapperType != juce::AudioProcessor::wrapperType_VST3
-        && samplerProcessor.wrapperType != juce::AudioProcessor::wrapperType_Standalone)
-    {
-        focusOnClick = std::make_unique<FocusOnClick> (*this);
-        addMouseListener (focusOnClick.get(), true);
-    }
-    else if (samplerProcessor.wrapperType == juce::AudioProcessor::wrapperType_VST3 && juce::PluginHostType().isFruityLoops())
-    {
-        focusOnClick = std::make_unique<KeepHostFocus> (*this);
-        addMouseListener (focusOnClick.get(), true);
-    }
+    // The host keeps its keys after a click (FL Studio, VST3); elsewhere a click gives the editor the keys, so
+    // Ctrl+Z / Ctrl+Y reach it and JUCE passes the rest to the host (shared/ui/HostFocus.h).
+    hostFocus = std::make_unique<chansampler::HostFocus> (*this, true);
 
     samplerProcessor.addChangeListener (this);
     samplerProcessor.history.addChangeListener (this);
@@ -259,8 +191,7 @@ ChanSamplerEditor::ChanSamplerEditor (ChanSamplerProcessor& p)
 
 ChanSamplerEditor::~ChanSamplerEditor()
 {
-    if (focusOnClick != nullptr)
-        removeMouseListener (focusOnClick.get());
+    hostFocus.reset();
     samplerProcessor.history.removeChangeListener (this);
     samplerProcessor.removeChangeListener (this);
     if (keyWindow != nullptr)
@@ -270,7 +201,7 @@ ChanSamplerEditor::~ChanSamplerEditor()
 
 void ChanSamplerEditor::paint (juce::Graphics& g)
 {
-    g.fillAll (ui::colour::sheet);
+    g.fillAll (chansampler::ui::colour::sheet);
 }
 
 // FL's Ctrl+C / Ctrl+V, heard on the window that holds the editor (the
@@ -329,12 +260,12 @@ void ChanSamplerEditor::refreshHistoryButtons()
     if (undoButton != nullptr)
     {
         undoButton->setEnabled (h.canUndo());
-        undoButton->setTooltip (h.canUndo() ? "Undo " + h.getUndoName() + " (" + ui::commandShortcutText ('Z') + ")" : juce::String ("Nothing to undo"));
+        undoButton->setTooltip (h.canUndo() ? "Undo " + h.getUndoName() + " (" + chansampler::ui::commandShortcutText ('Z') + ")" : juce::String ("Nothing to undo"));
     }
     if (redoButton != nullptr)
     {
         redoButton->setEnabled (h.canRedo());
-        redoButton->setTooltip (h.canRedo() ? "Redo " + h.getRedoName() + " (" + ui::commandShortcutText ('Y') + ")" : juce::String ("Nothing to redo"));
+        redoButton->setTooltip (h.canRedo() ? "Redo " + h.getRedoName() + " (" + chansampler::ui::commandShortcutText ('Y') + ")" : juce::String ("Nothing to redo"));
     }
 }
 
@@ -378,7 +309,7 @@ juce::Label& ChanSamplerEditor::caption (juce::Component& parent, const juce::St
 {
     // FL's small all-caps knob captions (7 px bold); widen a little so text never clips.
     auto& l = text (parent, t, x - 8, y, w + 16, h, em, true, juce::Justification::centredTop);
-    l.setColour (juce::Label::textColourId, ui::colour::caption);
+    l.setColour (juce::Label::textColourId, chansampler::ui::colour::caption);
     l.setBorderSize ({});
     l.getProperties().set ("captionBaseline", true);   // FL: the caps stand on the label's last row
     return l;
@@ -394,7 +325,7 @@ juce::Rectangle<int> ChanSamplerEditor::comboBounds (int x, int y, int w, int h)
 juce::ToggleButton& ChanSamplerEditor::led (juce::Component& parent, const juce::String& paramId, const juce::String& t,
                                             int x, int y, int w, int h)
 {
-    auto& b = own (std::make_unique<ui::Switch> (t), parent, { x, y, w, h });
+    auto& b = own (std::make_unique<chansampler::ui::Switch> (t), parent, { x, y, w, h });
     buttonAttachments.push_back (std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (samplerProcessor.apvts, paramId, b));
     b.setTooltip (samplerProcessor.apvts.getParameter (paramId)->getName (64));
     return b;
@@ -402,7 +333,7 @@ juce::ToggleButton& ChanSamplerEditor::led (juce::Component& parent, const juce:
 
 juce::ComboBox& ChanSamplerEditor::combo (juce::Component& parent, const juce::String& paramId, int x, int y, int w, int h)
 {
-    auto& c = own (std::make_unique<ui::ComboBox>(), parent, comboBounds (x, y, w, h));
+    auto& c = own (std::make_unique<chansampler::ui::ComboBox>(), parent, comboBounds (x, y, w, h));
     if (auto* choice = dynamic_cast<juce::AudioParameterChoice*> (samplerProcessor.apvts.getParameter (paramId)))
     {
         c.addItemList (choice->choices, 1);
@@ -412,7 +343,7 @@ juce::ComboBox& ChanSamplerEditor::combo (juce::Component& parent, const juce::S
     return c;
 }
 
-ui::DigiBox& ChanSamplerEditor::digi (juce::Component& parent, const juce::String& paramId, int x, int y, int w, int h, bool red)
+chansampler::ui::DigiBox& ChanSamplerEditor::digi (juce::Component& parent, const juce::String& paramId, int x, int y, int w, int h, bool red)
 {
     auto* param = samplerProcessor.apvts.getParameter (paramId);
     auto& d = own (std::make_unique<ParamDigiBox> (*param, red), parent, { x, y, w, h });
@@ -426,16 +357,16 @@ juce::Label& ChanSamplerEditor::text (juce::Component& parent, const juce::Strin
                                       float size, bool bold, juce::Justification just)
 {
     auto& l = own (std::make_unique<juce::Label> (juce::String(), s), parent, { x, y, w, h });
-    l.setFont (ui::font (size, bold));
+    l.setFont (chansampler::ui::font (size, bold));
     l.setJustificationType (just);
     l.setBorderSize ({ 0, 1, 0, 1 });
     l.setInterceptsMouseClicks (false, false);
     return l;
 }
 
-ui::Panel& ChanSamplerEditor::panel (juce::Component& parent, const juce::String& title, int x, int y, int w, int h, int headerInset)
+chansampler::ui::Panel& ChanSamplerEditor::panel (juce::Component& parent, const juce::String& title, int x, int y, int w, int h, int headerInset)
 {
-    return own (std::make_unique<ui::Panel> (title, headerInset), parent, { x, y, w, h });
+    return own (std::make_unique<chansampler::ui::Panel> (title, headerInset), parent, { x, y, w, h });
 }
 
 juce::Component& ChanSamplerEditor::group (juce::Component& parent, int x, int y, int w, int h)
@@ -452,8 +383,8 @@ void ChanSamplerEditor::buildTopBar()
     auto& bar = own (std::make_unique<TopBar>(), canvas, { 1, 0, 561, 47 });
 
     // FL's sheet tabs: three 44 px cells from 2 px in.
-    auto tabs = std::make_unique<ui::IconTabs> (std::vector<ui::Icon> { ui::Icon::sampler, ui::Icon::envelope, ui::Icon::wrench }, true);
-    tabs->selectedColour = ui::colour::accent;
+    auto tabs = std::make_unique<chansampler::ui::IconTabs> (std::vector<chansampler::ui::Icon> { chansampler::ui::Icon::sampler, chansampler::ui::Icon::envelope, chansampler::ui::Icon::wrench }, true);
+    tabs->selectedColour = chansampler::ui::colour::accent;
     sheetTabs = &own (std::move (tabs), bar, { 2, 1, 132, 45 });
     sheetTabs->onChange = [this] (int i) { showSheet (i); };
     sheetTabs->setTooltip ("Sampler / Envelopes / Misc");
@@ -473,10 +404,10 @@ void ChanSamplerEditor::buildTopBar()
     auto& presets = own (std::make_unique<PresetBar> (samplerProcessor), bar, { 146, 11, ownHistory ? 168 : 217, 23 });
     presets.onMessage = [&presets] (const juce::String& message, bool ok)
     {
-        ui::showDialog (presets, "Chan Sampler", message, ! ok);
+        chansampler::ui::showDialog (presets, "Chan Sampler", message, ! ok);
     };
 
-    knob (bar, pid::output, 517, 3, 30, ui::colour::arcAlt);
+    knob (bar, id::output, 517, 3, 30, chansampler::ui::colour::arcAlt);
     caption (bar, "OUT", 518, 35, 28, 7);
 
     // Undo / redo, beside the presets and as tall as their field
@@ -488,7 +419,7 @@ void ChanSamplerEditor::buildTopBar()
         undoButton = &history.undo;
         redoButton = &history.redo;
     }
-    sampleInfo->setColour (juce::Label::textColourId, ui::colour::dim);
+    sampleInfo->setColour (juce::Label::textColourId, chansampler::ui::colour::dim);
 }
 
 void ChanSamplerEditor::showAboutMenu (juce::Component& target)
@@ -499,7 +430,7 @@ void ChanSamplerEditor::showAboutMenu (juce::Component& target)
     menu.addItem ("About Chan Sampler", [this, version]
     {
         const auto format = juce::AudioProcessor::getWrapperTypeDescription (samplerProcessor.wrapperType);
-        ui::showInfo (canvas, "About Chan Sampler", {
+        chansampler::ui::showInfo (canvas, "About Chan Sampler", {
             { "Version", version + (samplerProcessor.wrapperType == juce::AudioProcessor::wrapperType_Undefined ? juce::String() : " (" + juce::String (format) + ")") },
             { {}, {} },
             { "What it is", "Open-source recreation of FL Studio's Channel Sampler, null-tested against FL itself" },
@@ -512,7 +443,7 @@ void ChanSamplerEditor::showAboutMenu (juce::Component& target)
     menu.addItem ("Chan Sampler on GitHub", [] { juce::URL (repository).launchInDefaultBrowser(); });
     menu.addItem ("Report an Issue", [] { juce::URL (repository + "/issues/new/choose").launchInDefaultBrowser(); });
     menu.addItem ("License (AGPL-3.0)", [] { juce::URL (repository + "/blob/main/LICENSE").launchInDefaultBrowser(); });
-    ui::showContextMenu (menu, target, false);
+    chansampler::ui::showContextMenu (menu, target, false);
 }
 
 void ChanSamplerEditor::buildSampleSheet()
@@ -523,11 +454,11 @@ void ChanSamplerEditor::buildSampleSheet()
     auto& file = panel (sheet, {}, 7, 7, 270, 35);
     text (file, "File", 7, 10, 24, 15, 11.0f, true);
     fileName = &text (file, {}, 33, 10, 159, 15, 11.7f);
-    fileName->setColour (juce::Label::textColourId, ui::colour::fileName);
-    auto& open = own (std::make_unique<ui::IconButton> (ui::Icon::folder), file, { 193, 7, 32, 23 });
+    fileName->setColour (juce::Label::textColourId, chansampler::ui::colour::fileName);
+    auto& open = own (std::make_unique<chansampler::ui::IconButton> (chansampler::ui::Icon::folder), file, { 193, 7, 32, 23 });
     open.setTooltip ("Load sample file");
     open.onClick = [this] { chooseFile(); };
-    auto& locate = own (std::make_unique<ui::IconButton> (ui::Icon::locate), file, { 225, 7, 19, 23 });
+    auto& locate = own (std::make_unique<chansampler::ui::IconButton> (chansampler::ui::Icon::locate), file, { 225, 7, 19, 23 });
    #if JUCE_WINDOWS
     locate.setTooltip ("Show sample file in Explorer");
    #elif JUCE_MAC
@@ -536,7 +467,7 @@ void ChanSamplerEditor::buildSampleSheet()
     locate.setTooltip ("Show sample file in its folder");
    #endif
     locate.onClick = [this] { if (samplerProcessor.getSampleFile().existsAsFile()) samplerProcessor.getSampleFile().revealToUser(); };
-    auto& remove = own (std::make_unique<ui::IconButton> (ui::Icon::close), file, { 244, 7, 19, 23 });
+    auto& remove = own (std::make_unique<chansampler::ui::IconButton> (chansampler::ui::Icon::close), file, { 244, 7, 19, 23 });
     remove.setTooltip ("Remove sample");
     remove.onClick = [this] { samplerProcessor.removeSample(); };
 
@@ -544,26 +475,26 @@ void ChanSamplerEditor::buildSampleSheet()
     // FL holds the file in memory, so they are left out. Regions / slice
     // markers feed the slice methods.
     auto& content = panel (sheet, "Content", 7, 50, 270, 110);
-    led (content, pid::loadRegions, "Load regions", 3, 26, 128, 21);
-    led (content, pid::loadSlices, "Load slice markers", 3, 46, 128, 21);
+    led (content, id::loadRegions, "Load regions", 3, 26, 128, 21);
+    led (content, id::loadSlices, "Load slice markers", 3, 46, 128, 21);
     text (content, "Declicking mode", 9, 76, 98, 23, 11.7f);
-    combo (content, pid::declick, 111, 76, 148, 23);
+    combo (content, id::declick, 111, 76, 148, 23);
 
     // Playback (FL's LoopPanel: knobs left, switches right)
     auto& playback = panel (sheet, "Playback", 7, 168, 270, 79);
-    knob (playback, pid::startOffset, 17, 26, 34);
+    knob (playback, id::startOffset, 17, 26, 34);
     caption (playback, "START OFFSET", 4, 63, 60, 9);
-    loopKnobs[0] = &knob (playback, pid::loopStart, 70, 26, 34);
-    static_cast<ParamKnob&> (*loopKnobs[0]).onUserChange = [this] { samplerProcessor.applyLoopLink (pid::loopStart); };
+    loopKnobs[0] = &knob (playback, id::loopStart, 70, 26, 34);
+    static_cast<ParamKnob&> (*loopKnobs[0]).onUserChange = [this] { samplerProcessor.applyLoopLink (id::loopStart); };
     caption (playback, "START", 57, 63, 60, 9);
     // FL: the link symbol sits on the caption row between START and END (START carries END along).
-    own (std::make_unique<ui::IconView> (ui::Icon::link, ui::colour::caption), playback, { 104, 64, 9, 9 });
-    loopKnobs[1] = &knob (playback, pid::loopEnd, 112, 26, 34);
-    static_cast<ParamKnob&> (*loopKnobs[1]).onUserChange = [this] { samplerProcessor.applyLoopLink (pid::loopEnd); };
+    own (std::make_unique<chansampler::ui::IconView> (chansampler::ui::Icon::link, chansampler::ui::colour::caption), playback, { 104, 64, 9, 9 });
+    loopKnobs[1] = &knob (playback, id::loopEnd, 112, 26, 34);
+    static_cast<ParamKnob&> (*loopKnobs[1]).onUserChange = [this] { samplerProcessor.applyLoopLink (id::loopEnd); };
     caption (playback, "END", 99, 63, 60, 9);
     // FL draws these two lights 3 px further left and 1 px higher than its other switches (measured).
-    led (playback, pid::useLoop, "Use loop points", 162, 23, 103, 21);
-    led (playback, pid::pingPong, "Ping pong loop", 162, 43, 103, 21);
+    led (playback, id::useLoop, "Use loop points", 162, 23, 103, 21);
+    led (playback, id::pingPong, "Ping pong loop", 162, 43, 103, 21);
 
     // Time stretching (FL's StretchPanel layout)
     auto& stretch = panel (sheet, "Time stretching", 283, 7, 270, 76);
@@ -571,9 +502,9 @@ void ChanSamplerEditor::buildSampleSheet()
         // FL switches Resample to Auto when PITCH is let go away from 0
         // (resampling cannot shift pitch on its own); the menu stays as it is
         // while dragging (measured in FL).
-        auto& pk = static_cast<ParamKnob&> (knob (stretch, pid::pitch, 8, 26, 32));
-        auto* modeParam = samplerProcessor.apvts.getParameter (pid::stretchMode);
-        auto* pitchParam = samplerProcessor.apvts.getParameter (pid::pitch);
+        auto& pk = static_cast<ParamKnob&> (knob (stretch, id::pitch, 8, 26, 32));
+        auto* modeParam = samplerProcessor.apvts.getParameter (id::stretchMode);
+        auto* pitchParam = samplerProcessor.apvts.getParameter (id::pitch);
         auto toAuto = [modeParam, pitchParam]
         {
             if (juce::roundToInt (modeParam->convertFrom0to1 (modeParam->getValue())) == (int) StretchMode::resample
@@ -584,9 +515,9 @@ void ChanSamplerEditor::buildSampleSheet()
         pk.onUserChange = [&pk, toAuto] { if (! pk.isMouseButtonDown()) toAuto(); };   // the wheel and the menu
     }
     caption (stretch, "PITCH", 10, 61, 28, 7);
-    knob (stretch, pid::stretchMul, 52, 26, 32);   caption (stretch, "MUL", 56, 61, 28, 7);
+    knob (stretch, id::stretchMul, 52, 26, 32);   caption (stretch, "MUL", 56, 61, 28, 7);
     {
-        auto& t = static_cast<ParamKnob&> (knob (stretch, pid::stretchTime, 88, 26, 32));
+        auto& t = static_cast<ParamKnob&> (knob (stretch, id::stretchTime, 88, 26, 32));
         t.menu.noTypeIn = true;   // as FL's TIME menu
         // "Project tempo": the sample's own length at the host tempo (FL: 2 s
         // at 130 BPM gives 1:01:08).
@@ -604,7 +535,7 @@ void ChanSamplerEditor::buildSampleSheet()
             waveform.detectTempo ([this] (double bpm)
             {
                 const auto raw = samplerProcessor.getRaw();
-                setParam (pid::stretchTime, bpm > 0 ? (float) tempo::beats (raw->audio.getNumSamples(), raw->sampleRate, bpm) : 0.0f);
+                setParam (id::stretchTime, bpm > 0 ? (float) tempo::beats (raw->audio.getNumSamples(), raw->sampleRate, bpm) : 0.0f);
             });
         };
         t.menu.presets = { { "(none)", 0.0f }, { "Autodetect...", 0.0f }, { "Project tempo", 0.0f }, { "-", 0.0f }, { "1 beat", 1.0f }, { "2 beats", 2.0f }, { "1 bar", 4.0f },
@@ -612,14 +543,14 @@ void ChanSamplerEditor::buildSampleSheet()
     }
     caption (stretch, "TIME", 90, 61, 28, 7);
     text (stretch, "Mode", 126, 22, 40, 23, 11.7f);
-    auto& mode = own (std::make_unique<ui::ComboBox>(), stretch, comboBounds (167, 22, 95, 23));
+    auto& mode = own (std::make_unique<chansampler::ui::ComboBox>(), stretch, comboBounds (167, 22, 95, 23));
     {
         // FL's menu with its group headings; item ids follow the parameter's choices.
         struct Entry { const char* heading; int index; };
         const Entry entries[] = { { "Realtime", 0 }, { nullptr, 1 }, { nullptr, 2 }, { "Elastique", 3 }, { nullptr, 4 },
                                   { "Special", 5 }, { nullptr, 6 }, { "-", 7 }, { "Legacy elastique", 8 }, { nullptr, 9 },
                                   { nullptr, 10 }, { nullptr, 11 } };
-        auto* choice = dynamic_cast<juce::AudioParameterChoice*> (samplerProcessor.apvts.getParameter (pid::stretchMode));
+        auto* choice = dynamic_cast<juce::AudioParameterChoice*> (samplerProcessor.apvts.getParameter (id::stretchMode));
         for (auto& e : entries)
         {
             if (e.heading != nullptr)
@@ -631,32 +562,32 @@ void ChanSamplerEditor::buildSampleSheet()
         }
         mode.setTooltip ("Stretching method. Resample: pitch follows speed. Others keep length and pitch independent "
                          "(granular stretch; slice modes restart at transients).");
-        comboAttachments.push_back (std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (samplerProcessor.apvts, pid::stretchMode, mode));
+        comboAttachments.push_back (std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (samplerProcessor.apvts, id::stretchMode, mode));
     }
     {
         // Under the menu FL names the method Auto uses: always "e3 generic"
         // (it stays so with PITCH back at 0, measured in FL).
         auto& autoText = text (stretch, {}, 205, 49, 60, 14, 10.0f);
-        autoText.setColour (juce::Label::textColourId, ui::colour::dim);
+        autoText.setColour (juce::Label::textColourId, chansampler::ui::colour::dim);
         auto& apvts = samplerProcessor.apvts;
-        auto* choice = dynamic_cast<juce::AudioParameterChoice*> (apvts.getParameter (pid::stretchMode));
+        auto* choice = dynamic_cast<juce::AudioParameterChoice*> (apvts.getParameter (id::stretchMode));
         auto update = [&autoText, choice] (float value)   // the new value (the stored one can lag behind)
         {
             autoText.setText (juce::roundToInt (value) == (int) StretchMode::autoMode ? choice->choices[(int) StretchMode::e3Generic] : juce::String(),
                               juce::dontSendNotification);
         };
         paramAttachments.push_back (std::make_unique<juce::ParameterAttachment> (*choice, update));
-        update (apvts.getRawParameterValue (pid::stretchMode)->load());
+        update (apvts.getRawParameterValue (id::stretchMode)->load());
     }
     {
         // FORMANT slider: FL shows it under the menu in Stretch Pro mode only.
         // MIDI pitch bend range sits here otherwise; FORMANT takes its place in Stretch Pro.
         auto& rangeText = text (stretch, "Range", 126, 50, 40, 20, 11.5f);
-        auto& range = digi (stretch, pid::pitchRange, 167, 50, 36, 20, false);
+        auto& range = digi (stretch, id::pitchRange, 167, 50, 36, 20, false);
         range.setTooltip ("Pitch bend range (semitones)");
         auto& fcap = caption (stretch, "FORMANT", 124, 56, 40, 7);
-        auto& fs = hslider (stretch, pid::formant, 163, 49, 98, 20);
-        auto* modeParam = samplerProcessor.apvts.getParameter (pid::stretchMode);
+        auto& fs = hslider (stretch, id::formant, 163, 49, 98, 20);
+        auto* modeParam = samplerProcessor.apvts.getParameter (id::stretchMode);
         auto show = [&fcap, &fs, &rangeText, &range, modeParam] (float)
         {
             const bool pro = juce::roundToInt (modeParam->convertFrom0to1 (modeParam->getValue())) == (int) StretchMode::stretchPro;
@@ -676,10 +607,10 @@ void ChanSamplerEditor::buildSampleSheet()
     auto& effects = group (fx, 1, 22, 265, 130);
     effects.setVisible (false);
 
-    auto& fxSel = own (std::make_unique<ui::IconTabs> (std::vector<ui::Icon> { ui::Icon::wrench, ui::Icon::valve }, false), fx, { 0, 1, 52, 18 });
+    auto& fxSel = own (std::make_unique<chansampler::ui::IconTabs> (std::vector<chansampler::ui::Icon> { chansampler::ui::Icon::wrench, chansampler::ui::Icon::valve }, false), fx, { 0, 1, 52, 18 });
     fxTabs = &fxSel;
-    fxSel.selectedColour = ui::colour::fxIconOn;   // FL: the chosen icon amber, the other light grey (measured)
-    fxSel.unselectedColour = ui::colour::fxIconOff;
+    fxSel.selectedColour = chansampler::ui::colour::fxIconOn;   // FL: the chosen icon amber, the other light grey (measured)
+    fxSel.unselectedColour = chansampler::ui::colour::fxIconOff;
     fxSel.setTooltip ("Tools / Effects");
     fxSel.onChange = [&tools, &effects] (int i)
     {
@@ -687,36 +618,36 @@ void ChanSamplerEditor::buildSampleSheet()
         effects.setVisible (i == 1);
     };
 
-    led (tools, pid::pcRemoveDC,        "Remove DC offset", 3, 25, 128, 23);
-    led (tools, pid::pcNormalize,       "Normalize",        3, 47, 128, 23);
-    led (tools, pid::pcReverse,         "Reverse",          3, 69, 128, 23);
-    led (tools, pid::pcReversePolarity, "Reverse polarity", 131, 25, 128, 23);
-    led (tools, pid::pcFadeStereo,      "Fade stereo",      131, 47, 128, 23);
-    led (tools, pid::pcSwapStereo,      "Swap stereo",      131, 69, 128, 23);
-    knob (tools, pid::pcStart,     7,   104, 34);  caption (tools, "SMP START", -3, 141, 54, 7);
-    knob (tools, pid::pcLength,    49,  104, 34);  caption (tools, "LENGTH", 51, 141, 31, 7);
-    knob (tools, pid::pcFadeIn,    103, 104, 34);  caption (tools, "IN", 106, 141, 28, 7);
-    knob (tools, pid::pcFadeOut,   142, 104, 34);  caption (tools, "OUT", 145, 141, 28, 7);
-    knob (tools, pid::pcCrossfade, 189, 104, 34);  caption (tools, "CROSSFADE", 182, 141, 48, 7);
-    knob (tools, pid::pcTrim,      228, 104, 34);  caption (tools, "TRIM", 231, 141, 28, 7);
+    led (tools, id::pcRemoveDC,        "Remove DC offset", 3, 25, 128, 23);
+    led (tools, id::pcNormalize,       "Normalize",        3, 47, 128, 23);
+    led (tools, id::pcReverse,         "Reverse",          3, 69, 128, 23);
+    led (tools, id::pcReversePolarity, "Reverse polarity", 131, 25, 128, 23);
+    led (tools, id::pcFadeStereo,      "Fade stereo",      131, 47, 128, 23);
+    led (tools, id::pcSwapStereo,      "Swap stereo",      131, 69, 128, 23);
+    knob (tools, id::pcStart,     7,   104, 34);  caption (tools, "SMP START", -3, 141, 54, 7);
+    knob (tools, id::pcLength,    49,  104, 34);  caption (tools, "LENGTH", 51, 141, 31, 7);
+    knob (tools, id::pcFadeIn,    103, 104, 34);  caption (tools, "IN", 106, 141, 28, 7);
+    knob (tools, id::pcFadeOut,   142, 104, 34);  caption (tools, "OUT", 145, 141, 28, 7);
+    knob (tools, id::pcCrossfade, 189, 104, 34);  caption (tools, "CROSSFADE", 182, 141, 48, 7);
+    knob (tools, id::pcTrim,      228, 104, 34);  caption (tools, "TRIM", 231, 141, 28, 7);
 
     // FL's FXLegacyPanel layout
-    own (std::make_unique<Fill> (ui::colour::sheet, 2.0f), effects, { 4, 2, 42, 69 });   // FL: a sheet-coloured well behind BOOST and CLIP (measured)
-    knob (effects, pid::pcBoost, 7, 5, 34);          caption (effects, "BOOST", 10, 42, 28, 7);
-    led (effects, pid::pcBoostClip, "CLIP", 3, 55, 38, 13).getProperties().set ("captionStyle", true);   // FL: an 11 px light with a knob caption
-    knob (effects, pid::pcEq, 49, 5, 34);            caption (effects, "EQ", 54, 42, 28, 7);
-    knob (effects, pid::pcRmMix, 97, 5, 34);         caption (effects, "RM MIX", 100, 42, 28, 7);
-    knob (effects, pid::pcRmFreq, 137, 5, 34);       caption (effects, "RM FREQ", 137, 42, 34, 7);
-    knob (effects, pid::pcCut, 188, 4, 34);          caption (effects, "CUT", 191, 42, 28, 7);
-    knob (effects, pid::pcRes, 227, 4, 34);          caption (effects, "RES", 230, 42, 28, 7);
-    knob (effects, pid::pcReverb, 49, 82, 34);       caption (effects, "REVERB", 27, 119, 36, 7);
-    knob (effects, pid::pcStereoDelay, 97, 82, 34);  caption (effects, "STEREO DELAY", 84, 119, 60, 7);
-    knob (effects, pid::pcPogo, 227, 82, 34);        caption (effects, "POGO", 230, 119, 28, 7);
+    own (std::make_unique<Fill> (chansampler::ui::colour::sheet, 2.0f), effects, { 4, 2, 42, 69 });   // FL: a sheet-coloured well behind BOOST and CLIP (measured)
+    knob (effects, id::pcBoost, 7, 5, 34);          caption (effects, "BOOST", 10, 42, 28, 7);
+    led (effects, id::pcBoostClip, "CLIP", 3, 55, 38, 13).getProperties().set ("captionStyle", true);   // FL: an 11 px light with a knob caption
+    knob (effects, id::pcEq, 49, 5, 34);            caption (effects, "EQ", 54, 42, 28, 7);
+    knob (effects, id::pcRmMix, 97, 5, 34);         caption (effects, "RM MIX", 100, 42, 28, 7);
+    knob (effects, id::pcRmFreq, 137, 5, 34);       caption (effects, "RM FREQ", 137, 42, 34, 7);
+    knob (effects, id::pcCut, 188, 4, 34);          caption (effects, "CUT", 191, 42, 28, 7);
+    knob (effects, id::pcRes, 227, 4, 34);          caption (effects, "RES", 230, 42, 28, 7);
+    knob (effects, id::pcReverb, 49, 82, 34);       caption (effects, "REVERB", 27, 119, 36, 7);
+    knob (effects, id::pcStereoDelay, 97, 82, 34);  caption (effects, "STEREO DELAY", 84, 119, 60, 7);
+    knob (effects, id::pcPogo, 227, 82, 34);        caption (effects, "POGO", 230, 119, 28, 7);
 
     // Reverb type switch (A / B): FL's upright pill, its knob at the bottom for B
-    auto& revType = own (std::make_unique<ui::SlideSwitch>(), effects, { 14, 86, 24, 27 });
+    auto& revType = own (std::make_unique<chansampler::ui::SlideSwitch>(), effects, { 14, 86, 24, 27 });
     revType.setTooltip ("Reverb type: A = close source, tight space; B = distant source, larger space");
-    buttonAttachments.push_back (std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (samplerProcessor.apvts, pid::pcReverbType, revType));
+    buttonAttachments.push_back (std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (samplerProcessor.apvts, id::pcReverbType, revType));
 
     // Sample view
     waveform.setBounds (7, 255, 546, 134);   // FL's view and bar (measured)
@@ -726,20 +657,20 @@ void ChanSamplerEditor::buildSampleSheet()
 juce::Component& ChanSamplerEditor::buildTargetPage (const char* prefix, bool hasAmount, bool hasEnvelope)
 {
     auto& page = group (insSheet, 0, 0, 452, 240);
-    auto id = [prefix] (const char* s) { return pid::env (prefix, s); };
+    auto id = [prefix] (const char* s) { return id::env (prefix, s); };
 
     // Envelope panel (FL's EnvPanel; none on the Panning page). The header
     // LED is "Use envelope".
     if (hasEnvelope)
     {
         auto& env = panel (page, "Envelope", 7, 42, 287, 195, 16);
-        auto& envMenu = own (std::make_unique<ui::MenuArrow> (true), env, { 262, 4, 20, 20 });
+        auto& envMenu = own (std::make_unique<chansampler::ui::MenuArrow> (true), env, { 262, 4, 20, 20 });
         envMenu.onClick = [this, p = juce::String (prefix), &envMenu] { showEnvelopeMenu (p, envMenu); };
         auto* envOn = samplerProcessor.apvts.getParameter (id ("EnvOn"));
         // FL turns an envelope on as soon as one of its knobs is edited.
         auto envKnob = [this, envOn] (juce::Component& parent, const juce::String& paramId, int x, int y, int size) -> juce::Slider&
         {
-            auto& s = knob (parent, paramId, x, y, size, ui::colour::arcAlt);   // FL: green arcs on INS
+            auto& s = knob (parent, paramId, x, y, size, chansampler::ui::colour::arcAlt);   // FL: green arcs on INS
             s.onDragStart = [envOn]
             {
                 if (envOn->getValue() < 0.5f)
@@ -775,12 +706,12 @@ juce::Component& ChanSamplerEditor::buildTargetPage (const char* prefix, bool ha
 
     auto lfoKnob = [this] (juce::Component& parent, const juce::String& paramId, int x, int y, int size) -> juce::Slider&
     {
-        return knob (parent, paramId, x, y, size, ui::colour::arcAlt);
+        return knob (parent, paramId, x, y, size, chansampler::ui::colour::arcAlt);
     };
 
     // LFO panel; the header holds the shape selector.
     auto& lfo = panel (page, "LFO", 300, 42, 146, 195, 69);
-    auto& shapes = own (std::make_unique<ui::IconTabs> (std::vector<ui::Icon> { ui::Icon::sine, ui::Icon::triangle, ui::Icon::square }, false),
+    auto& shapes = own (std::make_unique<chansampler::ui::IconTabs> (std::vector<chansampler::ui::Icon> { chansampler::ui::Icon::sine, chansampler::ui::Icon::triangle, chansampler::ui::Icon::square }, false),
                         lfo, { 0, 0, 69, 19 });
     shapes.setTooltip ("LFO shape");
     auto* shapeParam = samplerProcessor.apvts.getParameter (id ("LfoShape"));
@@ -810,15 +741,15 @@ juce::Component& ChanSamplerEditor::buildTargetPage (const char* prefix, bool ha
 void ChanSamplerEditor::buildInsSheet()
 {
     // Target selector: Panning, Volume, Mod X, Mod Y, Pitch
-    auto& targets = own (std::make_unique<ui::TextTabs> (juce::StringArray { "Panning", "Volume", "Mod X", "Mod Y", "Pitch" }, 11.7f, false),
+    auto& targets = own (std::make_unique<chansampler::ui::TextTabs> (juce::StringArray { "Panning", "Volume", "Mod X", "Mod Y", "Pitch" }, 11.7f, false),
                          insSheet, { 8, 6, 260, 29 });
 
     std::array<juce::Component*, 5> pages {
-        &buildTargetPage (pid::panPrefix,   false, false),
-        &buildTargetPage (pid::volPrefix,   false),
-        &buildTargetPage (pid::modXPrefix,  true),
-        &buildTargetPage (pid::modYPrefix,  true),
-        &buildTargetPage (pid::pitchPrefix, true) };
+        &buildTargetPage (id::panPrefix,   false, false),
+        &buildTargetPage (id::volPrefix,   false),
+        &buildTargetPage (id::modXPrefix,  true),
+        &buildTargetPage (id::modYPrefix,  true),
+        &buildTargetPage (id::pitchPrefix, true) };
 
     targets.onChange = [pages] (int i)
     {
@@ -833,10 +764,10 @@ void ChanSamplerEditor::buildInsSheet()
     // Filter panel (shared by all targets)
     auto& filter = panel (insSheet, "Filter", 452, 42, 101, 195);
     caption (filter, "MOD X", 45, 13, 37, 9, 9.5f);   // FL sets the filter captions larger (measured: 7 px caps)
-    knob (filter, pid::cutoff, 5, 22, 66, ui::colour::bigDotX);
-    knob (filter, pid::resonance, 32, 87, 66, ui::colour::bigDotY);
+    knob (filter, id::cutoff, 5, 22, 66, chansampler::ui::colour::bigDotX);
+    knob (filter, id::resonance, 32, 87, 66, chansampler::ui::colour::bigDotY);
     caption (filter, "MOD Y", 4, 145, 37, 9, 9.5f);
-    combo (filter, pid::filterType, 5, 167, 89, 23);   // FL's field: measured a pixel higher and 89 px wide
+    combo (filter, id::filterType, 5, 167, 89, 23);   // FL's field: measured a pixel higher and 89 px wide
 
     own (std::make_unique<RootNotePanel> (samplerProcessor.apvts, samplerProcessor.keyboardState, samplerProcessor.history), insSheet, { 7, 245, 546, 137 });
 }
@@ -846,18 +777,18 @@ void ChanSamplerEditor::buildFuncSheet()
     auto& sheet = funcSheet;
 
     auto& levels = panel (sheet, "Levels adjustment", 7, 7, 178, 100);
-    knob (levels, pid::pan,    6,   26, 38, ui::colour::knobPan);  caption (levels, "PAN",   6,   69, 38, 9);
-    knob (levels, pid::volume, 48,  26, 38, ui::colour::arcAlt);  caption (levels, "VOL",   48,  69, 38, 9);
-    knob (levels, pid::xOfs,   90,  26, 38, ui::colour::knobModX);  caption (levels, "MOD X", 90,  69, 38, 9);
-    knob (levels, pid::yOfs,   132, 26, 38);  caption (levels, "MOD Y", 132, 69, 38, 9);
+    knob (levels, id::pan,    6,   26, 38, chansampler::ui::colour::knobPan);  caption (levels, "PAN",   6,   69, 38, 9);
+    knob (levels, id::volume, 48,  26, 38, chansampler::ui::colour::arcAlt);  caption (levels, "VOL",   48,  69, 38, 9);
+    knob (levels, id::xOfs,   90,  26, 38, chansampler::ui::colour::knobModX);  caption (levels, "MOD X", 90,  69, 38, 9);
+    knob (levels, id::yOfs,   132, 26, 38);  caption (levels, "MOD Y", 132, 69, 38, 9);
 
     auto& poly = panel (sheet, "Polyphony", 191, 7, 178, 100);
     text (poly, "Max", 7, 30, 26, 23, 11.7f);
-    digi (poly, pid::maxPoly, 33, 30, 32, 23, false);
-    auto& slide = knob (poly, pid::slide, 82, 26, 30);
+    digi (poly, id::maxPoly, 33, 30, 32, 23, false);
+    auto& slide = knob (poly, id::slide, 82, 26, 30);
     auto& slideCap = caption (poly, "SLIDE", 83, 59, 28, 7);
-    led (poly, pid::porta, "Porta", 3, 74, 56, 19);
-    led (poly, pid::mono,  "Mono",  59, 74, 56, 19);
+    led (poly, id::porta, "Porta", 3, 74, 56, 19);
+    led (poly, id::mono,  "Mono",  59, 74, 56, 19);
     {
         // As in FL, SLIDE is greyed out until Mono or Porta is on. The states
         // come from the attachments' own values: a parameter's listeners run
@@ -870,7 +801,7 @@ void ChanSamplerEditor::buildFuncSheet()
             slide.setEnabled (on);
             slideCap.setEnabled (on);
         };
-        const char* ids[] = { pid::mono, pid::porta };
+        const char* ids[] = { id::mono, id::porta };
         for (size_t i = 0; i < 2; ++i)
         {
             (*states)[i] = apvts.getRawParameterValue (ids[i])->load() > 0.5f;
@@ -885,17 +816,17 @@ void ChanSamplerEditor::buildFuncSheet()
     auto& velPage = group (tracking, 0, 0, 177, 100);
     auto& keyPage = group (tracking, 0, 0, 177, 100);
     keyPage.setVisible (false);
-    for (auto [page, ids] : { std::pair<juce::Component*, std::array<const char*, 4>> { &velPage, { pid::velPan, pid::velX, pid::velY, pid::velMid } },
-                              std::pair<juce::Component*, std::array<const char*, 4>> { &keyPage, { pid::keyPan, pid::keyX, pid::keyY, pid::keyMid } } })
+    for (auto [page, ids] : { std::pair<juce::Component*, std::array<const char*, 4>> { &velPage, { id::velPan, id::velX, id::velY, id::velMid } },
+                              std::pair<juce::Component*, std::array<const char*, 4>> { &keyPage, { id::keyPan, id::keyX, id::keyY, id::keyMid } } })
     {
         // FL's controls spread over the panel's width (Polyphony and Tracking share the row equally here)
-        knob (*page, ids[0], 12,  26, 30, ui::colour::knobPan);   caption (*page, "PAN",   12,  59, 30, 7);
-        knob (*page, ids[1], 73,  26, 30, ui::colour::knobModX); caption (*page, "MOD X", 73,  59, 30, 7);
-        knob (*page, ids[2], 134, 26, 30, ui::colour::knobModY);   caption (*page, "MOD Y", 134, 59, 30, 7);
+        knob (*page, ids[0], 12,  26, 30, chansampler::ui::colour::knobPan);   caption (*page, "PAN",   12,  59, 30, 7);
+        knob (*page, ids[1], 73,  26, 30, chansampler::ui::colour::knobModX); caption (*page, "MOD X", 73,  59, 30, 7);
+        knob (*page, ids[2], 134, 26, 30, chansampler::ui::colour::knobModY);   caption (*page, "MOD Y", 134, 59, 30, 7);
         text (*page, "Mid", 13, 76, 28, 14, 10.0f);
         hslider (*page, ids[3], 33, 74, 141, 22);
     }
-    auto& trackTabs = own (std::make_unique<ui::TextTabs> (juce::StringArray { "Vol", "Key" }, 11.5f, true), tracking, { 0, 0, 52, 19 });
+    auto& trackTabs = own (std::make_unique<chansampler::ui::TextTabs> (juce::StringArray { "Vol", "Key" }, 11.5f, true), tracking, { 0, 0, 52, 19 });
     trackTabs.nudges = { 1, 0 };   // FL: Vol a pixel further right (measured)
     trackTabs.setTooltip ("Velocity / keyboard tracking");
     trackTabs.onChange = [&velPage, &keyPage] (int i)
@@ -909,23 +840,23 @@ void ChanSamplerEditor::buildFuncSheet()
     // Sampler instances in the host (CutGroups.h), and Cut self.
     auto& groupPanel = panel (sheet, "Group", 7, 115, 69, 122);
     text (groupPanel, "Cut", 2, 29, 26, 22, 11.7f, false, juce::Justification::centredRight);
-    digi (groupPanel, pid::cutGroup, 30, 29, 32, 23, false).setTooltip ("Cut group: notes on this instance cut instances whose By is this number");
+    digi (groupPanel, id::cutGroup, 30, 29, 32, 23, false).setTooltip ("Cut group: notes on this instance cut instances whose By is this number");
     text (groupPanel, "By", 2, 58, 26, 22, 11.7f, false, juce::Justification::centredRight);
-    digi (groupPanel, pid::cutBy, 30, 58, 32, 23, false).setTooltip ("Cut by group: this instance is cut by instances whose Cut is this number");
+    digi (groupPanel, id::cutBy, 30, 58, 32, 23, false).setTooltip ("Cut by group: this instance is cut by instances whose Cut is this number");
     auto& cutSelf = own (std::make_unique<juce::TextButton> ("Cut self"), groupPanel, { 4, 88, 61, 31 });
     cutSelf.setClickingTogglesState (true);
     cutSelf.getProperties().set ("bigText", true);
     cutSelf.setTooltip ("Cut itself when retriggered");
-    buttonAttachments.push_back (std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (samplerProcessor.apvts, pid::cutItself, cutSelf));
+    buttonAttachments.push_back (std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (samplerProcessor.apvts, id::cutItself, cutSelf));
 
     // Arpeggiator: the direction selector sits in the header, as in FL.
     auto& arpPanel = panel (sheet, "Arpeggiator", 82, 115, 231, 122, 150);
     // FL draws the directions as symbols: off, up, down, up/down, sticky, random.
-    auto& arpDir = own (std::make_unique<ui::IconTabs> (std::vector<ui::Icon> { ui::Icon::arpOff, ui::Icon::arpUp, ui::Icon::arpDown, ui::Icon::arpUpDown, ui::Icon::arpSticky, ui::Icon::arpRandom }, false),
+    auto& arpDir = own (std::make_unique<chansampler::ui::IconTabs> (std::vector<chansampler::ui::Icon> { chansampler::ui::Icon::arpOff, chansampler::ui::Icon::arpUp, chansampler::ui::Icon::arpDown, chansampler::ui::Icon::arpUpDown, chansampler::ui::Icon::arpSticky, chansampler::ui::Icon::arpRandom }, false),
                         arpPanel, { 0, 0, 114, 19 });
-    arpDir.selectedColour = ui::colour::text;   // FL: the chosen symbol sits on a dark box, all of them light
+    arpDir.selectedColour = chansampler::ui::colour::text;   // FL: the chosen symbol sits on a dark box, all of them light
     arpDir.setTooltip ("Arpeggio direction: off, up, down, up/down, up/down (ends twice), random");
-    auto* dirParam = samplerProcessor.apvts.getParameter (pid::arpDir);
+    auto* dirParam = samplerProcessor.apvts.getParameter (id::arpDir);
     auto dirAttachment = std::make_unique<juce::ParameterAttachment> (*dirParam,
         [&arpDir] (float v) { arpDir.setSelected (juce::roundToInt (v), false); });
     auto* dirAtt = dirAttachment.get();
@@ -933,15 +864,15 @@ void ChanSamplerEditor::buildFuncSheet()
     dirAttachment->sendInitialUpdate();
     paramAttachments.push_back (std::move (dirAttachment));
 
-    knob (arpPanel, pid::arpTime, 6,  26, 30);  caption (arpPanel, "TIME", 6,  59, 30, 7);
-    knob (arpPanel, pid::arpGate, 40, 26, 30);  caption (arpPanel, "GATE", 40, 59, 30, 7);
+    knob (arpPanel, id::arpTime, 6,  26, 30);  caption (arpPanel, "TIME", 6,  59, 30, 7);
+    knob (arpPanel, id::arpGate, 40, 26, 30);  caption (arpPanel, "GATE", 40, 59, 30, 7);
     text (arpPanel, "Range", 78, 30, 40, 23, 11.7f);
-    digi (arpPanel, pid::arpRange, 115, 30, 26, 23, false);
+    digi (arpPanel, id::arpRange, 115, 30, 26, 23, false);
     text (arpPanel, "Repeat", 158, 30, 44, 23, 11.7f);
-    digi (arpPanel, pid::arpRepeat, 198, 30, 26, 23, false);
-    led (arpPanel, pid::arpSlide, "Slide", 3, 84, 60, 21);
+    digi (arpPanel, id::arpRepeat, 198, 30, 26, 23, false);
+    led (arpPanel, id::arpSlide, "Slide", 3, 84, 60, 21);
     text (arpPanel, "Chord", 80, 84, 40, 23, 11.7f);
-    auto& chordBox = own (std::make_unique<ui::ComboBox>(), arpPanel, comboBounds (116, 84, 107, 23));   // FL's field is 107 px wide (measured)
+    auto& chordBox = own (std::make_unique<chansampler::ui::ComboBox>(), arpPanel, comboBounds (116, 84, 107, 23));   // FL's field is 107 px wide (measured)
     {
         chordBox.addSectionHeading ("Automatic");
         chordBox.addItem ("Auto", 1);
@@ -959,17 +890,17 @@ void ChanSamplerEditor::buildFuncSheet()
             chordBox.addItem (chordPresets[i].shortName, i + 4);
         }
         chordBox.setTooltip ("Arpeggio chord: Auto uses the held keys; presets build the chord on the lowest key");
-        comboAttachments.push_back (std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (samplerProcessor.apvts, pid::arpChord, chordBox));
+        comboAttachments.push_back (std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (samplerProcessor.apvts, id::arpChord, chordBox));
     }
 
     // Echo delay / fat mode
     auto& echoPanel = panel (sheet, "Echo delay / fat mode", 319, 115, 234, 122, 10);
-    auto& echoMenu = own (std::make_unique<ui::MenuArrow>(), echoPanel, { 2, 2, 12, 16 });
+    auto& echoMenu = own (std::make_unique<chansampler::ui::MenuArrow>(), echoPanel, { 2, 2, 12, 16 });
     echoMenu.onClick = [this, &echoMenu] { showEchoPresets (echoMenu); };
     // FL colours the echo knobs by what they control (measured): green, teal, yellow, blue, pink, amber.
     const std::tuple<const char*, const char*, juce::Colour> echoKnobs[] = {
-        { pid::echoFeed, "FEED", ui::colour::arcAlt }, { pid::echoPan, "PAN", ui::colour::knobPan }, { pid::echoX, "MOD X", ui::colour::knobModX },
-        { pid::echoY, "MOD Y", ui::colour::knobModY }, { pid::echoPitch, "PITCH", ui::colour::knobPitch }, { pid::echoTime, "TIME", ui::colour::arc } };
+        { id::echoFeed, "FEED", chansampler::ui::colour::arcAlt }, { id::echoPan, "PAN", chansampler::ui::colour::knobPan }, { id::echoX, "MOD X", chansampler::ui::colour::knobModX },
+        { id::echoY, "MOD Y", chansampler::ui::colour::knobModY }, { id::echoPitch, "PITCH", chansampler::ui::colour::knobPitch }, { id::echoTime, "TIME", chansampler::ui::colour::arc } };
     const int echoX[] = { 6, 38, 80, 112, 154, 196 };   // FL (measured): FEED / PAN and MOD X / MOD Y sit in pairs
     int k = 0;
     for (auto [pidName, label, ring] : echoKnobs)
@@ -979,10 +910,10 @@ void ChanSamplerEditor::buildFuncSheet()
         ++k;
     }
     text (echoPanel, "Echoes", 8, 84, 48, 23, 11.7f);
-    digi (echoPanel, pid::echoCount, 48, 85, 32, 23, false);
+    digi (echoPanel, id::echoCount, 48, 85, 32, 23, false);
     // FL stacks the two switches on the right.
-    for (auto* sw : { &led (echoPanel, pid::echoPing, "Ping pong", 153, 76, 76, 18),    // FL: the lights at the right (measured),
-                      &led (echoPanel, pid::echoFat,  "Fat mode",  158, 96, 71, 18) })  // the labels ending 4 px before them
+    for (auto* sw : { &led (echoPanel, id::echoPing, "Ping pong", 153, 76, 76, 18),    // FL: the lights at the right (measured),
+                      &led (echoPanel, id::echoFat,  "Fat mode",  158, 96, 71, 18) })  // the labels ending 4 px before them
     {
         sw->getProperties().set ("textFirst", true);
         sw->getProperties().set ("ledRight", true);
@@ -1022,21 +953,21 @@ void ChanSamplerEditor::showEchoPresets (juce::Component& anchor)
         menu.addItem (e.name, [this, e]
         {
             const History::Transaction edit (samplerProcessor.history, juce::String ("Echo preset: ") + e.name);
-            setParam (pid::echoFeed, e.feed);
-            setParam (pid::echoPan, e.pan);
-            setParam (pid::echoX, 0.0f);
-            setParam (pid::echoY, 0.0f);
-            setParam (pid::echoPitch, e.pitch);
-            setParam (pid::echoTime, e.time);
-            setParam (pid::echoCount, (float) e.count);
-            setParam (pid::echoPing, e.ping ? 1.0f : 0.0f);
-            setParam (pid::echoFat, e.fat ? 1.0f : 0.0f);
+            setParam (id::echoFeed, e.feed);
+            setParam (id::echoPan, e.pan);
+            setParam (id::echoX, 0.0f);
+            setParam (id::echoY, 0.0f);
+            setParam (id::echoPitch, e.pitch);
+            setParam (id::echoTime, e.time);
+            setParam (id::echoCount, (float) e.count);
+            setParam (id::echoPing, e.ping ? 1.0f : 0.0f);
+            setParam (id::echoFat, e.fat ? 1.0f : 0.0f);
         });
     }
-    if (auto* arrow = dynamic_cast<ui::MenuArrow*> (&anchor))
+    if (auto* arrow = dynamic_cast<chansampler::ui::MenuArrow*> (&anchor))
         arrow->showMenu (menu);
     else
-        ui::showContextMenu (menu, anchor, false);
+        chansampler::ui::showContextMenu (menu, anchor, false);
 }
 
 namespace
@@ -1060,13 +991,13 @@ void ChanSamplerEditor::showEnvelopeMenu (const juce::String& prefix, juce::Comp
             auto xml = juce::parseXML (f);
             if (xml == nullptr)
             {
-                ui::showDialog (canvas, "Chan Sampler", "Could not read " + f.getFileName() + ".", true);
+                chansampler::ui::showDialog (canvas, "Chan Sampler", "Could not read " + f.getFileName() + ".", true);
                 return;
             }
             const History::Transaction edit (samplerProcessor.history, "Envelope preset: " + f.getFileNameWithoutExtension());
             for (auto* key : envelopeKeys)
-                if (xml->hasAttribute (key) && samplerProcessor.apvts.getParameter (pid::env (prefix.toRawUTF8(), key)) != nullptr)
-                    setParam (pid::env (prefix.toRawUTF8(), key), (float) xml->getDoubleAttribute (key));
+                if (xml->hasAttribute (key) && samplerProcessor.apvts.getParameter (id::env (prefix.toRawUTF8(), key)) != nullptr)
+                    setParam (id::env (prefix.toRawUTF8(), key), (float) xml->getDoubleAttribute (key));
         });
     menu.addItem ("Save as...", [this, prefix]
     {
@@ -1081,16 +1012,16 @@ void ChanSamplerEditor::showEnvelopeMenu (const juce::String& prefix, juce::Comp
                                       return;
                                   juce::XmlElement xml ("CHANSAMPLER_ENVELOPE");
                                   for (auto* key : envelopeKeys)
-                                      if (auto* p = samplerProcessor.apvts.getParameter (pid::env (prefix.toRawUTF8(), key)))
+                                      if (auto* p = samplerProcessor.apvts.getParameter (id::env (prefix.toRawUTF8(), key)))
                                           xml.setAttribute (key, p->convertFrom0to1 (p->getValue()));
                                   if (! xml.writeTo (file.withFileExtension (".csenv")))
-                                      ui::showDialog (canvas, "Chan Sampler", "Could not save " + file.withFileExtension (".csenv").getFullPathName() + ".", true);
+                                      chansampler::ui::showDialog (canvas, "Chan Sampler", "Could not save " + file.withFileExtension (".csenv").getFullPathName() + ".", true);
                               });
     });
-    if (auto* arrow = dynamic_cast<ui::MenuArrow*> (&anchor))
+    if (auto* arrow = dynamic_cast<chansampler::ui::MenuArrow*> (&anchor))
         arrow->showMenu (menu);
     else
-        ui::showContextMenu (menu, anchor, false);
+        chansampler::ui::showContextMenu (menu, anchor, false);
 }
 
 //==============================================================================
@@ -1131,7 +1062,7 @@ void ChanSamplerEditor::refreshSample()
     if (fileName != nullptr)
     {
         fileName->setText (raw->file == juce::File() ? juce::String() : raw->file.getFileName() + (raw->missing ? " (missing)" : ""), juce::dontSendNotification);
-        fileName->setColour (juce::Label::textColourId, raw->missing ? ui::colour::ledOn : ui::colour::fileName);
+        fileName->setColour (juce::Label::textColourId, raw->missing ? chansampler::ui::colour::ledOn : chansampler::ui::colour::fileName);
         fileName->setTooltip (raw->missing ? "Not found or unreadable: " + raw->file.getFullPathName() : samplerProcessor.getSampleInfo());
     }
     if (sampleInfo != nullptr)
@@ -1153,20 +1084,20 @@ void ChanSamplerEditor::chooseFile()
 void ChanSamplerEditor::loadFile (const juce::File& file)
 {
     // An FL Studio Sampler preset brings its sample and settings.
-    if (flpreset::isPresetFile (file))
+    if (presetimport::isPresetFile (file))
     {
-        const auto r = flpreset::import (samplerProcessor, file);
+        const auto r = presetimport::import (samplerProcessor, file);
         if (! r.ok || r.message.isNotEmpty())
-            ui::showDialog (canvas, "Chan Sampler", r.message, ! r.ok);
+            chansampler::ui::showDialog (canvas, "Chan Sampler", r.message, ! r.ok);
         return;
     }
     if (! samplerProcessor.loadSample (file))
-        ui::showDialog (canvas, "Chan Sampler", samplerProcessor.getLoadError(), true);
+        chansampler::ui::showDialog (canvas, "Chan Sampler", samplerProcessor.getLoadError(), true);
 }
 
 bool ChanSamplerEditor::canLoad (const juce::File& f)
 {
-    return flpreset::isPresetFile (f) || samplerProcessor.getFormatManager().findFormatForFileExtension (f.getFileExtension()) != nullptr;
+    return presetimport::isPresetFile (f) || samplerProcessor.getFormatManager().findFormatForFileExtension (f.getFileExtension()) != nullptr;
 }
 
 bool ChanSamplerEditor::isInterestedInFileDrag (const juce::StringArray& files)
@@ -1184,4 +1115,5 @@ void ChanSamplerEditor::filesDropped (const juce::StringArray& files, int, int)
             loadFile (juce::File (f));
             return;
         }
+}
 }

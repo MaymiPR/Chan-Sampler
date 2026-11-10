@@ -1,5 +1,5 @@
 """SMP LENGTH / trim: where FL's and our renders sit in the source and how they end."""
-import numpy as np; from lib import nullfl, wavio
+import numpy as np; from lib import wavio; import cs_ref
 x, _ = wavio.read('signals/noise.wav'); x = x[:, 0].astype(float); N = len(x)
 def locate(seg, src):
     """Offset of seg inside src (normalised cross-correlation via FFT)."""
@@ -7,7 +7,7 @@ def locate(seg, src):
     c = np.fft.irfft(np.fft.rfft(src, L) * np.conj(np.fft.rfft(seg, L)), L)[:len(src) - n + 1]
     i = int(np.argmax(np.abs(c))); return i, c[i] / (seg @ seg + 1e-30)
 def probe(name, at=(0,)):
-    a, b = nullfl.render_pair(name, 'signals/noise.wav')
+    a, b = cs_ref.render_pair(name, 'signals/noise.wav')
     out = {}
     for lab, y in (('FL', a[:, 0]), ('our', b[:, 0])):
         nz = np.nonzero(np.abs(y) > 1e-4)[0]
