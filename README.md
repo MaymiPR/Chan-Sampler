@@ -22,7 +22,7 @@ Standalone for Windows, macOS and Linux.
 Every knob uses FL's units, and most features render sample-identically to FL. FL Sampler presets (`.fst`) load
 with their sample.
 
-![Chan Sampler's Sample page, with a drum loop, its loop points and the precomputed effects](docs/screenshots/chansampler.png)
+![Chan Sampler's Sample page, with a drum loop, its loop points and the precomputed effects](docs/screenshots/hero.png)
 
 | Plug-in | Recreates | What it does |
 |---|---|---|

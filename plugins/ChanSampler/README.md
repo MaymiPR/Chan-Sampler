@@ -45,4 +45,4 @@ MEASUREMENTS.md. The time-stretch modes cannot null (FL's engine is proprietary)
   (`tools/Snapshot.cpp`).
 - Null tests against FL: `nulltest/` ([nulltest/README.md](nulltest/README.md); needs FL Studio and the tools
   built).
-- `scripts/make_screenshots.py` makes the README's pictures with the snapshot tool.
+- `scripts/make_screenshots.py` at the repository root makes the screenshots with the snapshot tool.

@@ -14,6 +14,8 @@
   `--dry` without FL) and `nulltest.py --report`, which writes NULLTESTS.md from the saved results. The measured data
   is published in `measurements/ChanSampler/`. Every FL project the harness builds is byte-identical to before, so
   the cached renders stay valid.
+- **Screenshots and branding:** the screenshots are the editor at its design size (100 %), with `hero.png` on the
+  README; the icon and the social preview are drawn from the banner's mark as SVG, with PNG exports.
 
 ## 1.7.1 (2026-11-04)
 
