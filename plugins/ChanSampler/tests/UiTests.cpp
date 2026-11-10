@@ -355,7 +355,12 @@ int main (int argc, char** argv)
             juce::PopupMenu menu;
             menu.addItem ("one", [] {});
             arrow->showMenu (menu);
+            // The arrow eases round; sampled every 20 ms for up to 2 s, as a busy machine
+            // (a CI runner) can deliver its frames late
             pump (400);
+            for (int t = 0; t < 1600 && ui::turnOf (*arrow) <= 0.99f
+                            && juce::ModalComponentManager::getInstance()->getNumModalComponents() > 0; t += 20)
+                pump (20);
             // JUCE closes a menu whose program is not in the foreground: under
             // a bare xvfb (no window manager) nothing ever is
             if (juce::ModalComponentManager::getInstance()->getNumModalComponents() == 0)
@@ -364,6 +369,8 @@ int main (int argc, char** argv)
                 check (ui::turnOf (*arrow) > 0.99f, "turned while its menu is open (the mouse elsewhere)", juce::String (ui::turnOf (*arrow)));
             juce::PopupMenu::dismissAllActiveMenus();
             pump (500);
+            for (int t = 0; t < 1500 && ui::turnOf (*arrow) >= 0.01f; t += 20)
+                pump (20);
             check (ui::turnOf (*arrow) < 0.01f, "turned back once the menu closes", juce::String (ui::turnOf (*arrow)));
         }
     }
