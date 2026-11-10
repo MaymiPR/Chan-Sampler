@@ -1,13 +1,13 @@
 """In-FL null tests: FL's Sampler and Chan Sampler in the same project.
 
-Channel 1 is FL's Sampler (patched like flrender cases), channel 2 is Chan
+Channel 1 is FL's Sampler (patched like ref_solo_lib cases), channel 2 is Chan
 Sampler (state XML built from the case's parameters). The Sampler plays at
 beat 0, Chan Sampler at beat 16; FL renders once and the two halves are
 subtracted directly, with no gain correction, exactly as heard in FL."""
 import os, struct, numpy as np
-from lib import flrender as F, vstchannel as V, wavio, paths
+import ref_solo_lib as F; import channel_lib as V; import wav_lib; import paths_lib
 
-HERE = paths.ROOT
+HERE = paths_lib.ROOT
 OUT = os.path.join(HERE, "renders_fl")
 os.makedirs(OUT, exist_ok=True)
 TEMPO = 130.0
@@ -35,9 +35,9 @@ def project(case):
     # echo trails); it sounds after both compared windows.
     all_notes.append((2 * gap + 2, 0.25, 60, 1, 0))   # +2 beats: reverb rings slightly ahead of a note
     def write(path, deps=None):
-        sample = deps[0] if deps else paths.signal(case["sample"])
+        sample = deps[0] if deps else paths_lib.signal(case["sample"])
         V.build_vst_project(path, sample, case.get("ours") or {}, all_notes, sampler_patch=patch)
-    # FL renders at least to the end of the last note (lib/flqueue rejects a
+    # FL renders at least to the end of the last note (queue_lib rejects a
     # shorter render: FL now and then stops early).
     write.min_seconds = max(st + ln for st, ln, *_ in all_notes) * 60.0 / bpm
     return write
@@ -47,7 +47,7 @@ def halves(wav, gap=None, bpm=None):
     """FL's half and ours from a rendered pair, same length."""
     gap = gap or GAP_BEATS
     bpm = bpm or TEMPO
-    y, sr = wavio.read(wav)
+    y, sr = wav_lib.read(wav)
     split = int(round(gap * 60.0 / bpm * sr))
     a = y[:split]
     b = y[split:2 * split]
@@ -56,11 +56,11 @@ def halves(wav, gap=None, bpm=None):
 
 
 def render_pair(name, sample, fl_patches=(), ours=None, notes=None, vel=100, beats=8, force=False, gap=None, bpm=None, attempts=3):
-    """One pair render through the queue (lib/flqueue: reused when the project,
+    """One pair render through the queue (queue_lib: reused when the project,
     the sample, our VST3 and FL are unchanged; retried on a sporadic failure).
     sample=None reads the render of that name as it is (a probe reading a case
     rendered by its suite), without rebuilding its project."""
-    from lib import flqueue
+    import queue_lib
     if sample is None:
         wav = os.path.join(OUT, name + ".wav")
         if not os.path.exists(wav):
@@ -68,14 +68,14 @@ def render_pair(name, sample, fl_patches=(), ours=None, notes=None, vel=100, bea
         return halves(wav, gap, bpm)
     case = dict(name=name, sample=sample, fl=fl_patches, ours=ours, notes=notes, vel=vel, beats=beats, gap=gap, bpm=bpm)
     if force:
-        for ext in (".wav", flqueue.SIDECAR):
+        for ext in (".wav", queue_lib.SIDECAR):
             p = os.path.join(OUT, name + ext)
             if os.path.exists(p):
                 if ext == ".wav" and F.fl_running():
                     raise RuntimeError('FL Studio is open: close it first (a running FL swallows the command-line render)')
                 os.remove(p)
-    q = flqueue.Queue(OUT, deps=[paths.PLUGIN_VST3], log=lambda s: None)
-    q.add(name, project(case), [paths.signal(sample)])
+    q = queue_lib.Queue(OUT, deps=[paths_lib.PLUGIN_VST3], log=lambda s: None)
+    q.add(name, project(case), [paths_lib.signal(sample)])
     wavs = q.run(attempts=attempts)
     if name not in wavs:
         raise RuntimeError(f'FL render failed after {attempts} attempts: {q.failed[name]}')
@@ -93,13 +93,13 @@ def run(cases, only=None, force=False, attempts=3, adopt=False, plugin_dep=True)
     force=True renders everything again; adopt=True trusts old WAVs without a
     record (a rebuild that changed nothing); plugin_dep=False leaves our VST3
     out of the key."""
-    from lib import flqueue
-    q = flqueue.queue_for(cases, 'pair', only, plugin_dep)
+    import queue_lib
+    q = queue_lib.queue_for(cases, 'pair', only, plugin_dep)
     if force:
         if F.fl_running():
             raise RuntimeError('FL Studio is open: close it first (a running FL swallows the command-line render)')
         for j in q.jobs:
-            for ext in (".wav", flqueue.SIDECAR):
+            for ext in (".wav", queue_lib.SIDECAR):
                 p = os.path.join(OUT, j.name + ext)
                 if os.path.exists(p): os.remove(p)
     wavs = q.run(attempts=attempts, adopt=adopt)

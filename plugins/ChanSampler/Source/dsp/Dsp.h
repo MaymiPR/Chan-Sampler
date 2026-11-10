@@ -40,8 +40,8 @@ namespace dsp
     }
 
     // DAHDSR envelope from the INS tab, as FL works it out (measured:
-    // nulltest/probes/env_tick_probe.py, env_time_probe.py and
-    // nulltest/cases/tempo_env_cases.py): once per song tick (96 per beat)
+    // nulltest/probe_env_tick.py, probe_env_time.py and
+    // nulltest/cases_tempo_env.py): once per song tick (96 per beat)
     // from the note start, interpolated linearly in between. Every stage lasts a whole number of ticks, N = ceil (time / tick
     // + 1/2), none for no time. From one tick to the next the level moves at
     // most the full range per 8.83 ms, which is what smooths a jump (a stage
@@ -156,7 +156,7 @@ namespace dsp
         // ends it once the sum reaches 1: N ticks, or one more when the float
         // sum falls short (N = 12, 23, 28, 49 ... at full level for that tick).
         // Measured: right for all 26 attack lengths in the hold runs of
-        // nulltest/probes/env_hold_probe.py (double precision gets 13 wrong).
+        // nulltest/probe_env_hold.py (double precision gets 13 wrong).
         int attackTicks (int n)
         {
             if (n != attackStepsFor)
@@ -175,7 +175,7 @@ namespace dsp
         // own and its last tick is where the decay starts (or, with no decay
         // time, the last tick before the fall); the decay's ticks are its own
         // (it runs at a rate down to the sustain level). Measured over 225
-        // attack / hold / tempo combinations (nulltest/probes/env_hold_probe.py,
+        // attack / hold / tempo combinations (nulltest/probe_env_hold.py,
         // with the attack's float steps): 221 exact, the rest holds within
         // 0.03 tick of a half tick, where the time table's precision decides.
         float level (const Params& p)
@@ -221,8 +221,8 @@ namespace dsp
     };
 
     // Per-note LFO (retriggered at note-on) with delay and fade-in.
-    // FL's channel LFO (measured from FL renders, nulltest/cases/lfo_cases.py,
-    // nulltest/probes/tempo_probe.py). FL evaluates it once per song tick (96 per beat) and
+    // FL's channel LFO (measured from FL renders, nulltest/cases_lfo.py,
+    // nulltest/probe_tempo.py). FL evaluates it once per song tick (96 per beat) and
     // interpolates linearly in between. The speed and predelay knobs give a
     // length T in ticks at 130 BPM; the period is round (T * ref / 130) ticks
     // with ref = the project tempo (Tempo off: the same length in seconds at

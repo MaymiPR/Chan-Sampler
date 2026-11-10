@@ -158,7 +158,7 @@ void TimeStretcher::configure (StretchMode mode, double sourceRate)
     {
         hfMinPeriod = juce::roundToInt (40.0 * scale);
         // FL's e3 / e2 mono find periods up to 1100 samples (40 Hz), e2
-        // speech up to 750 (pulse trains, nulltest/stretch/mono_marks.py).
+        // speech up to 750 (pulse trains, nulltest/measure_grain_marks.py).
         // Ours stop at 512: past that our search picks long periods where
         // FL's trackers don't (a kick's attack), which measured further from
         // FL on real material.

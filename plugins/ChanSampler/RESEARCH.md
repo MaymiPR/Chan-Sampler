@@ -40,7 +40,7 @@ not reproduced. FL has no Panning envelope (LFO only), so neither does Chan Samp
 - **Time-stretch modes:** our own algorithms (pitch-synchronous grains, phase vocoder, e3's band split; see [Time
   stretching](MEASUREMENTS.md#time-stretching-against-fls-renders)). FL's elastique is proprietary, so they match FL
   in duration, pitch, attack timing and character, not sample for sample. Resample with TIME nulls.
-- **LPx2:** −47…−63 dB, SVF LPx2 bit-exact (nulltest/cases/filter_x2_cases.py): SVF LPx2 = two Chamberlin stages with
+- **LPx2:** −47…−63 dB, SVF LPx2 bit-exact (nulltest/cases_filter_fourth_order.py): SVF LPx2 = two Chamberlin stages with
   q1 = 1 − 0.8 res, q2 = 1 − 0.6 res; LPx2 = two identical LP biquads (no Q floor) times a level compensation linear
   in the stage's Q times its frequency, 1 − Q(a − ω)b (a and b fitted to the 8 × 8 compensation measured on noise,
   within 0.001 everywhere; worst in-FL case −47 dB). A note starts the compensation at unity and moves it tick by

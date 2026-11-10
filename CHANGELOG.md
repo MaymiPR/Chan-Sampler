@@ -9,6 +9,11 @@
   load as before: the plug-in codes, bundle IDs and parameter IDs are unchanged.
 - **Installers:** the standalone app is no longer installed unless chosen (Windows: the "all" installation type or a
   custom one; macOS: the app choice), as for every suite; the VST3 and CLAP plug-ins install as before.
+- **Null tests:** the scripts against FL Studio sit in one flat `nulltest/` folder named by purpose (`cases_`,
+  `measure_`, `probe_`, `fit_`, `compare_`, `check_`), with the harness `cs_ref.py`, `first_null.py` (one in-FL pair,
+  `--dry` without FL) and `nulltest.py --report`, which writes NULLTESTS.md from the saved results. The measured data
+  is published in `measurements/ChanSampler/`. Every FL project the harness builds is byte-identical to before, so
+  the cached renders stay valid.
 
 ## 1.7.1 (2026-11-04)
 

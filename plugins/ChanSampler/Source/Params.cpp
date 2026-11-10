@@ -170,8 +170,8 @@ namespace
     // Hold. FL plays a whole number of ticks (24 per step): an exponential of
     // the integer raw value rounded to half ticks, then halved downwards (the
     // two values fitted to
-    // the 55 measured raw values, nulltest/data/arp_ticks_dense.txt and the 13
-    // where the earlier fit was a tick out, probes/arp_period.py).
+    // the 55 measured raw values, measurements/ChanSampler/arp_ticks_dense.txt and the 13
+    // where the earlier fit was a tick out, measure_arp_period.py).
     double arpTicksForRaw (double raw)
     {
         const auto halfTicks = std::nearbyint (1.84558 * (std::pow (24.99798, raw / 1000.0) - 1.0));
@@ -182,7 +182,7 @@ namespace
 
 float flEnvSeconds (float knob)
 {
-    // FL's own times, measured at six tempos (nulltest/probes/env_time_probe.py,
+    // FL's own times, measured at six tempos (nulltest/probe_env_time.py,
     // env_times.txt): FL rounds every stage to whole ticks (dsp::Envelope), so
     // a time read at one tempo is only known to a tick; the tempos together
     // pin it down. Between the points the time follows log (t - c) linearly,
@@ -223,7 +223,7 @@ double flLfoDelayT130 (float delayKnob)
 int flSlideTicks (float knob)
 {
     // Glide length in ticks, measured in FL renders at 17 raw values
-    // (nulltest/cases/untested_cases.py): raw 0 -> 1, 500 -> 4, 820 -> 13,
+    // (nulltest/cases_untested.py): raw 0 -> 1, 500 -> 4, 820 -> 13,
     // 1000 -> 23, 1660 -> 193 (raw = knob * 1660). FL shows one tick less.
     const auto raw = juce::jlimit (0.0, 1660.0, (double) knob * 1660.0);
     return juce::jmax (1, (int) std::lround (0.92049 * std::pow (209.414, raw / 1660.0) - 0.15));

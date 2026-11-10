@@ -20,7 +20,7 @@ namespace
     }
 
     // FL's sample interpolator, measured from impulses played at many pitches
-    // (nulltest/probes/kernel_extract.py, nulltest/probes/window_fit.py): a 30-tap windowed sinc,
+    // (nulltest/measure_kernel.py, nulltest/fit_window.py): a 30-tap windowed sinc,
     // k(d) = c sinc(c d) w(d) for |d| < 15 input samples, with c = min(1, 1/ratio)
     // (the cutoff follows the playback ratio; the window stays 15 samples wide)
     // and w a 7-term cosine series. It reproduces FL's renders to < 1 LSB.
@@ -497,7 +497,7 @@ void Engine::advanceArp (int64_t until, const EngineParams& p)
     // Measured in FL: step k starts at round (k * step) samples after the
     // first (not a rounded step added up). TIME "Hold": only the first step
     // plays, ignoring GATE, keys pressed later and the sample running out,
-    // until every key is up (nulltest/probes/arp_hold_probe.py).
+    // until every key is up (nulltest/probe_arp_hold.py).
     const bool hold = p.arpTime <= 0.0f;
     const auto step = samplesPerStep (p) * (hold ? 1.0 : (double) p.arpTime);
     auto advance = [this, step, hold]
@@ -606,7 +606,7 @@ void Engine::advanceArp (int64_t until, const EngineParams& p)
             // The gate ends on the same absolute grid as the steps, so a full
             // gate ends exactly where the next step starts, and on a whole
             // tick: GATE of the step's ticks rounded down, at least one
-            // (nulltest/cases/arp_cases.py a_t*).
+            // (nulltest/cases_arp.py a_t*).
             const auto stepTicks = juce::jmax (1.0, std::round ((double) p.arpTime * 24.0));
             const auto gateTicks = juce::jmax (1.0, std::floor (stepTicks * juce::jlimit (0.0, 1.0, (double) p.arpGate) + 1.0e-6));
             const auto offTime = arpStart + (int64_t) std::llround (((double) arpSteps + gateTicks / stepTicks) * step);

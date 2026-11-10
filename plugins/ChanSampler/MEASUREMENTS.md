@@ -14,8 +14,8 @@ elastique measurements in [e3 generic in detail](#e3-generic-in-detail); how to 
 | Reference | FL Studio 26.1.7, its Sampler channel |
 | Sources | **[M]** the manual, **[PYFLP]** the project-format description and **[NULL]** the runtime measurements and null tests in `nulltest/` ([RESEARCH.md](RESEARCH.md#sources)) |
 | In-FL pairs (the reference) | FL's Sampler on channel 1 and the Chan Sampler VST3 on channel 2 of one project, rendered once from FL's command line, subtracted as heard in FL with no gain correction (`nulltest/cs_ref.py`) |
-| Offline cases | FL's Sampler alone from FL's command line against `CsRender` (`nulltest/lib/nulltest.py` aligns, gain-matches and subtracts); projects built by `nulltest/lib/build_project.py`, rendered by `nulltest/lib/flrender.py` |
-| Render queue | every FL render through `nulltest/lib/flqueue.py` (keyed cache, retries, resume) |
+| Offline cases | FL's Sampler alone from FL's command line against `CsRender` (`nulltest/nulltest.py` aligns, gain-matches and subtracts); projects built by `nulltest/project_lib.py`, rendered by `nulltest/ref_solo_lib.py` |
+| Render queue | every FL render through `nulltest/queue_lib.py` (keyed cache, retries, resume) |
 | Export | FL's command-line export is 16-bit: the best residual is about −65 to −95 dB, depending on signal level |
 | Velocity | FL velocity 100 (unity; FL passes it to a plug-in unchanged as MIDI velocity 100) |
 | Tempo and gap | 130 BPM unless a case sets `bpm`; a tick is 11025 / 52 samples at 130 BPM, so multi-note cases use a 26-beat gap between the halves (it also lines up at 65, 100, 120 and 160 BPM) |
@@ -32,7 +32,7 @@ elastique measurements in [e3 generic in detail](#e3-generic-in-detail); how to 
 | Boost | gain = 1 + 16·knob (raw/256), up to ×17; CLIP hard-clips at ±1 | NULL −76…−95 dB |
 | EQ | y[n] = x[n] + 0.75·eq·y[n−1] (one-pole; right = more lows) | NULL −66…−69 dB |
 | Fade IN / OUT | Linear slopes relative to sample length: IN = clamp(1 − (1−x)·4k), OUT = clamp(1 − x·4k) | NULL −67…−75 dB |
-| Sample start / Length | start = round(start·(N−1)); length = round(fraction · (N − 1 − start·(N−1))), half to even, one frame more with Reverse, 100% the whole rest (FL's end found in 85 forward and 15 reversed in-FL trims of noise by fitting the end filter's position: all exact); a segment shorter than 41 frames is lengthened by 41 (LENGTH 0 plays 40, a 30-frame trim about 70, 40 about 80, 41 about 40), growing backwards within that much of the sample's end, and the end filter runs whenever LENGTH < 100%, even at the sample's end (nulltest/cases/trim_short_cases.py, 16 in-FL cases: FL's lengths matched to a frame). Segments shorter than the 200-frame table use the same filter as a model, a swept one-pole high-pass whose window is the whole segment as FL keeps it, its last frame included, its sweep rate per frame 9.87 / (window − 1.3) (fitted to FL's click matrices of segments of 41, 50, 60, 80, 100, 150 and 190 frames, nulltest/probes/trim_matrix.py: −67…−72 dB up to 150 frames, −54 at 190): −59…−69 dB in FL (16 cases; LENGTH 0 keeps its own table and sits at FL's 16-bit floor, a few one-step differences). The parameter is a float, so the fraction is taken as the shortest decimal that reads back as it, the double FL holds (0.05f → 0.05). Trailing digital silence inside a trimmed segment is left out of the end filter: FL fades where the sound stops (a trim landing in a gap of loud.wav: −77 dB fitted, −62 dB in the plugin, against −49 dB with the filter at the cut). **Reverse applies to the trimmed segment.** The trimmed start and end are linear filters, not gain fades (measured with clicks, superposition verified; nulltest/probes/tail_measure.py, nulltest/probes/head_measure.py, nulltest/probes/tail_short.py → Source/dsp/TrimTail.h): at the end each output keeps its own frame and subtracts a weighted average of the frames behind it, up to twice its distance from the end (low frequencies fade first, DC reaches 0 at the end); at the start each output mixes the input from n to about 3n over 22 frames. The shortest segment (LENGTH 0 = 40 frames) has its own measured table and carries two silent frames after it. Order: start filter, end filter, then Reverse. A segment of pure digital silence around the cut renders silent in FL. START exactly 0.5 (a half-sample tie): the play position rounds the tie up but the length count rounds it down, so the segment runs one frame past the sample end (silence; the end then holds that silence): modelled, NULL −69 dB with and without Reverse. Fades are applied before Reverse (measured) | Full length NULL −66…−90 dB at any start, with or without Reverse; trimmed: median −75 dB over 137 in-FL cases (122 NULL, 15 close, worst −52.5 dB: LENGTH 0 with a start, and cuts in real material); reversed, the segment keeps FL's last frame and the table ends a frame before it (reversed trims −65…−85 dB) |
+| Sample start / Length | start = round(start·(N−1)); length = round(fraction · (N − 1 − start·(N−1))), half to even, one frame more with Reverse, 100% the whole rest (FL's end found in 85 forward and 15 reversed in-FL trims of noise by fitting the end filter's position: all exact); a segment shorter than 41 frames is lengthened by 41 (LENGTH 0 plays 40, a 30-frame trim about 70, 40 about 80, 41 about 40), growing backwards within that much of the sample's end, and the end filter runs whenever LENGTH < 100%, even at the sample's end (nulltest/cases_trim_short.py, 16 in-FL cases: FL's lengths matched to a frame). Segments shorter than the 200-frame table use the same filter as a model, a swept one-pole high-pass whose window is the whole segment as FL keeps it, its last frame included, its sweep rate per frame 9.87 / (window − 1.3) (fitted to FL's click matrices of segments of 41, 50, 60, 80, 100, 150 and 190 frames, nulltest/measure_trim_matrix.py: −67…−72 dB up to 150 frames, −54 at 190): −59…−69 dB in FL (16 cases; LENGTH 0 keeps its own table and sits at FL's 16-bit floor, a few one-step differences). The parameter is a float, so the fraction is taken as the shortest decimal that reads back as it, the double FL holds (0.05f → 0.05). Trailing digital silence inside a trimmed segment is left out of the end filter: FL fades where the sound stops (a trim landing in a gap of loud.wav: −77 dB fitted, −62 dB in the plugin, against −49 dB with the filter at the cut). **Reverse applies to the trimmed segment.** The trimmed start and end are linear filters, not gain fades (measured with clicks, superposition verified; nulltest/measure_tail.py, nulltest/measure_head.py, nulltest/measure_tail_short.py → Source/dsp/TrimTail.h): at the end each output keeps its own frame and subtracts a weighted average of the frames behind it, up to twice its distance from the end (low frequencies fade first, DC reaches 0 at the end); at the start each output mixes the input from n to about 3n over 22 frames. The shortest segment (LENGTH 0 = 40 frames) has its own measured table and carries two silent frames after it. Order: start filter, end filter, then Reverse. A segment of pure digital silence around the cut renders silent in FL. START exactly 0.5 (a half-sample tie): the play position rounds the tie up but the length count rounds it down, so the segment runs one frame past the sample end (silence; the end then holds that silence): modelled, NULL −69 dB with and without Reverse. Fades are applied before Reverse (measured) | Full length NULL −66…−90 dB at any start, with or without Reverse; trimmed: median −75 dB over 137 in-FL cases (122 NULL, 15 close, worst −52.5 dB: LENGTH 0 with a start, and cuts in real material); reversed, the segment keeps FL's last frame and the table ends a frame before it (reversed trims −65…−85 dB) |
 | Crossfade | Knob position = raw/1024; loop start = position/2 of the sample (FL truncates). Without loop points the sample loops from there to the end; the last stretch of that length blends linearly into the audio before the loop start | NULL −82…−84 dB (5 cases, in FL) |
 | Output level | FL's plugin wrapper outputs twice what a default Sampler channel does, so a default Chan Sampler must output 0.5. OUT is FL's channel volume knob (measured in FL: gain (11^x − 1)/10 of its position, 78 % = raw 10000 of 12800 by default showing "78%  -5.2dB  0.55", 100 % = 0 dB at its top); its gain is scaled by 0.5 / 0.551 so the default puts out 0.5 (OUT's top is 0.907, +5.2 dB over the default). Projects saved before state version 2 kept OUT as a trim in dB; they load with the same level, capped at the knob's top | NULL −78.8 dB (defaults, in FL) |
 | Arpeggiator chords | Auto, Auto (sustain), (none) plus 66 chord presets (standard chord names and intervals, in the order of FL's chord menu so a preset's choice carries over); presets build on the lowest held key | FL's chord menu |
@@ -42,24 +42,24 @@ elastique measurements in [e3 generic in detail](#e3-generic-in-detail); how to 
 | Precomputed cut/res | y = y1 + f(x − y1) + r(y1 − y2), f = (601^u − 1)/600; r measured at raw resonance 0, 32 … 640 (cutoff open: y = x + r(y1 − y2)), cubic in log(1 − r) | NULL −70…−100 dB (all settings tested) |
 | Stereo delay | Delays one channel by \|raw − 2048\| samples (≤ 2048); right = delays left; the sample grows | NULL −76 dB |
 | Pogo | Length-preserving time warp: (1−\|a\|)x + \|a\|·w(x), w = sin(πx/2) or 1 − (2/π)asin(1−x); 4-point Hermite with silence outside the sample | NULL −75 dB (full range) |
-| Playback interpolation | 30-tap windowed sinc, k(d) = c·sinc(c·d)·w(d), \|d\| < 15 source frames, c = min(1, 1/ratio); the window stays 15 frames wide; w = 7-term cosine series (nulltest/probes/kernel_extract.py, nulltest/probes/window_fit.py) | < 1 LSB vs 686k measured points; pitched notes NULL |
+| Playback interpolation | 30-tap windowed sinc, k(d) = c·sinc(c·d)·w(d), \|d\| < 15 source frames, c = min(1, 1/ratio); the window stays 15 frames wide; w = 7-term cosine series (nulltest/measure_kernel.py, nulltest/fit_window.py) | < 1 LSB vs 686k measured points; pitched notes NULL |
 | Sample-rate conversion | Files at another rate are converted to the project rate on load with an 88-tap windowed sinc (\|d\| < 44, near-Hann 9-term window), then played through the 30-tap kernel | 1 LSB; 48 kHz mono sweep NULL |
 | Envelope graph | Stage width = knob position × ⅓ of the view (decay × (1 − sustain)); no sustain plateau; release drawn from the sustain level at full width; delay is empty space; curves bend with each tension | matches FL screenshots (9 settings) |
-| Arpeggiator | Auto (sustain) is FL's default chord. Step k starts at round(k·step) after the first. TIME position = (raw−450)/997, raw 1447 = Hold; FL plays whole ticks: an exponential of the raw value rounded to half ticks and halved downwards (two values fitted to 55 measured raws, nulltest/data/arp_ticks_dense.txt and probes/arp_period.py: all exact). GATE ends a whole number of ticks after the step, GATE × the step's ticks rounded down, at least one (cases a_t*: 7 ticks × 50% = 3). Hold plays only the first step (the sequence's first note) and ends it when every key is up; keys pressed later, GATE and the sample running out change nothing (nulltest/probes/arp_hold_probe.py; 4 cases NULL −74…−100 dB). Arp notes end at the gate end or key release (cut with the declick fade when the volume envelope is off), unlike normal notes. Auto (sustain) holds a single key and restarts it on the next step once the sample has run out. Slide = legato: the sounding note takes the next pitch at the step, no glide; once it runs out later steps stay silent. FL sends All-notes-off right before the note-off | NULL −61…−83 dB (27 cases); short steps (3 to 7 ticks, 6 cases) −45…−48 dB (half-sample ties) |
+| Arpeggiator | Auto (sustain) is FL's default chord. Step k starts at round(k·step) after the first. TIME position = (raw−450)/997, raw 1447 = Hold; FL plays whole ticks: an exponential of the raw value rounded to half ticks and halved downwards (two values fitted to 55 measured raws, measurements/ChanSampler/arp_ticks_dense.txt and measure_arp_period.py: all exact). GATE ends a whole number of ticks after the step, GATE × the step's ticks rounded down, at least one (cases a_t*: 7 ticks × 50% = 3). Hold plays only the first step (the sequence's first note) and ends it when every key is up; keys pressed later, GATE and the sample running out change nothing (nulltest/probe_arp_hold.py; 4 cases NULL −74…−100 dB). Arp notes end at the gate end or key release (cut with the declick fade when the volume envelope is off), unlike normal notes. Auto (sustain) holds a single key and restarts it on the next step once the sample has run out. Slide = legato: the sounding note takes the next pitch at the step, no glide; once it runs out later steps stay silent. FL sends All-notes-off right before the note-off | NULL −61…−83 dB (27 cases); short steps (3 to 7 ticks, 6 cases) −45…−48 dB (half-sample ties) |
 | Stretch modes | Pitch and length independent in every stretch mode (a key change keeps the length; MUL / TIME change the length, not the pitch). How each mode behaves and how close it comes: [Time stretching](#time-stretching-against-fls-renders) | cannot null: FL's engine (elastique) is proprietary |
-| Envelope on the tick grid | FL works the envelope out once per song tick (96 per beat) from the note start and interpolates linearly; every FL render is piecewise linear on that grid to the 16-bit floor (nulltest/probes/env_tick_probe.py). Each stage lasts N = ceil(time / tick + ½) ticks (none for no time), counted from the note start for delay and attack; the attack then lasts as many ticks as FL's single-precision steps of 1 / N take to reach 1 (N, or N + 1 when the float sum falls short: N = 12, 23, 28, 49, 58, 75, 107, 120, 132 among those measured; the extra tick is at full level, so it moves the hold and decay a tick later; all 26 attack lengths measured, double precision gets 13 wrong); the hold's ticks are its own, and its last tick is the decay's first (with no decay time, the last tick before the fall). From tick to tick the level moves at most the full range per 8.83 ms (389.5 samples): that is what smooths a jump and limits very short attacks (at 130 BPM it reads as 424-sample ramps and a 19.23 ms attack floor). The first tick holds the second's level when there is no delay or attack. A note-off starts the release on the next tick (FL's notes end on ticks; within a sample of one counts as on it); once the release is silent FL ends the voice with the declick fade. Default release tension (−101) exponent 4.62 | NULL −63…−99 dB at 65, 100, 130 and 160 BPM, Tempo off and on (nulltest/cases/fl_cases.py, nulltest/cases/tempo_env_cases.py: 41 of 44 cases; the other three −45…−54 dB, see [Known gaps](RESEARCH.md#known-gaps-diff--approximate)) |
+| Envelope on the tick grid | FL works the envelope out once per song tick (96 per beat) from the note start and interpolates linearly; every FL render is piecewise linear on that grid to the 16-bit floor (nulltest/probe_env_tick.py). Each stage lasts N = ceil(time / tick + ½) ticks (none for no time), counted from the note start for delay and attack; the attack then lasts as many ticks as FL's single-precision steps of 1 / N take to reach 1 (N, or N + 1 when the float sum falls short: N = 12, 23, 28, 49, 58, 75, 107, 120, 132 among those measured; the extra tick is at full level, so it moves the hold and decay a tick later; all 26 attack lengths measured, double precision gets 13 wrong); the hold's ticks are its own, and its last tick is the decay's first (with no decay time, the last tick before the fall). From tick to tick the level moves at most the full range per 8.83 ms (389.5 samples): that is what smooths a jump and limits very short attacks (at 130 BPM it reads as 424-sample ramps and a 19.23 ms attack floor). The first tick holds the second's level when there is no delay or attack. A note-off starts the release on the next tick (FL's notes end on ticks; within a sample of one counts as on it); once the release is silent FL ends the voice with the declick fade. Default release tension (−101) exponent 4.62 | NULL −63…−99 dB at 65, 100, 130 and 160 BPM, Tempo off and on (nulltest/cases_core.py, nulltest/cases_tempo_env.py: 41 of 44 cases; the other three −45…−54 dB, see [Known gaps](RESEARCH.md#known-gaps-diff--approximate)) |
 | MUL (Resample) | 2^(raw/10000); tape-style speed 1/MUL | NULL −68…−80 dB (×¼ … ×4) |
 | LFO | Tempo-synced: FL evaluates the LFO once per song tick (96/beat, from the note start) and interpolates linearly; the first tick holds tick 1's value. Period ticks = max(3, round(13.5755·982.5^p − 13.2745)), p = speed position (42 speeds measured); predelay ticks = same law on the predelay raw, no minimum (11 values). Attack fade in seconds like the envelope times. Shapes start at 0 going up; triangle in phase with the sine; pulse edges cross over 4 ticks (0.27205 per tick for 3 ticks, then the rest). Volume: gain × (1 + lfo); pan: + 2 × lfo (clipped); pitch envelope and LFO in cents (raw amount = cents, ±128) and half a tick early (−2.5 samples); Mod X / Y: + lfo (full scale). Note: with the volume envelope off a note plays to the end of the sample (note-off ignored), so test samples must be shorter than the gap | NULL −67…−96 dB (17 volume/pan/pitch cases), pitch envelope −60 dB |
 | Stretch fields | PITCH in cents, MUL 2^(raw/10000), TIME in ticks at 192 per beat ("1 bar" = 768). Resample + TIME plays the whole sample in TIME at the host tempo, tape-style (in-FL NULL −62…−77 dB; TIME values that are not powers of two show a ~3e-8 rate difference, −57 dB). Auto + TIME / PITCH / MUL is bit-identical to FL's e3 generic (−300 dB), i.e. elastique. Past the sample end FL keeps interpolating at the advancing position with clamped neighbours while the declick fades (noise case −72 dB). TIME menu: (none) / Autodetect… / Project tempo (sample length at the host tempo) / 1 beat … 4 bars, long menu without Type in value; hint shows bars:steps:ticks at 24 ticks per step. Turning PITCH in Resample switches FL to Auto, which shows the method it picked (e3 generic) | FL GUI readout |
 | Start offset | Fraction of the sample | NULL −74 dB |
-| Declick in-fade | Only when starting past frame 0: none / 4 ms / 4 ms / 20 ms / 100 ms / Crossfade's own curve (8750 samples at 44.1 kHz, a degree-10 polynomial fit, max error 0.6 LSB of 3192). Transient modes remove only the start step: x − x0·(1 − S) | NULL −77…−82 dB (nulltest/cases/declick_cases.py) |
+| Declick in-fade | Only when starting past frame 0: none / 4 ms / 4 ms / 20 ms / 100 ms / Crossfade's own curve (8750 samples at 44.1 kHz, a degree-10 polynomial fit, max error 0.6 LSB of 3192). Transient modes remove only the start step: x − x0·(1 − S) | NULL −77…−82 dB (nulltest/cases_declick.py) |
 | Declick out / cut | Cosine 10 ms (Out only) / 20 / 20 / 100 ms; Crossfade's own curve (8781 samples, polynomial fit). Transient (no bleeding) is not a gain fade: a one-pole high-pass (input minus a one-pole low-pass starting at 0) whose coefficient sweeps up, 1 − exp(−ΔL) with L(n) = 0.002015·(e^(0.0228 n) − 1), so a held value decays smoothly while noise rings on, then a closing gain table silences it by 440 samples (separated with DC, noise and sine renders). A cut voice keeps playing while fading | NULL −64…−98 dB (DC, noise, sine; all six modes) |
 | Cut itself | New note fades earlier voices with the declick out-fade | NULL −80 dB |
-| Envelope times | Knob position = (raw − 100)/65436; the minimum is zero time. FL's own times, without the tick rounding: attacks measured at six tempos, each giving the time to a tick, intersected (nulltest/probes/env_time_probe.py, env_times.txt; 28 points from raw 1000, typically ±0.3 ms). Close to t = 0.0646 e^(6.90 p) − 0.0637 s; the table interpolates log (t + 0.0637) between points | NULL −66…−99 dB (11 cases at 130 BPM, in FL) |
+| Envelope times | Knob position = (raw − 100)/65436; the minimum is zero time. FL's own times, without the tick rounding: attacks measured at six tempos, each giving the time to a tick, intersected (nulltest/probe_env_time.py, env_times.txt; 28 points from raw 1000, typically ±0.3 ms). Close to t = 0.0646 e^(6.90 p) − 0.0637 s; the table interpolates log (t + 0.0637) between points | NULL −66…−99 dB (11 cases at 130 BPM, in FL) |
 | Envelope shape | Linear at tension 0; tension = (e^{kx}−1)/(e^k−1) with k fitted per tension; decay/release = attack curve reversed. The decay runs the whole curve from 1 to 0 over its time and stops at the sustain level (positive decay tension: −55…−74 dB) | NULL |
 | Decay / release | Decay is rate-based (time = full 1→0 travel). Release joins its curve where the curve equals the current level (from sustain 0.39 at tension −101 it takes 79% of the time) | NULL −65…−78 dB |
 | Sustain | Linear (raw/128) | measured |
-| Precomputed reverb | A type (A or B) and a mix (0 to 256). Identified from impulse responses (nulltest/probes/rvb): Schroeder reverb per channel. Parallel combs with feedback g = 10^(−3D/T60), T60 = mix/256 s, then allpasses (g 0.7), then a smoothing filter; dry 0.7. **A:** combs 1777/1847/1993/2137 × 0.15, allpasses 43/127/389, output w/2 + w[−1] + w[−2]/2. **B:** combs 2467/2767/3217/3533/3877/4127 × 0.027, allpasses 67/97 (R: 79)/101/197/599, output one-pole y = w + 0.7y[−1]. The tail is then trimmed after the last sample ≥ 65/32768. Default type B | Model matches FL's IR to 0.29 LSB; NULL −60…−95 dB (14 cases, in FL; the impulse residual is 1 LSB) |
+| Precomputed reverb | A type (A or B) and a mix (0 to 256). Identified from impulse responses (nulltest/fit_reverb_*.py): Schroeder reverb per channel. Parallel combs with feedback g = 10^(−3D/T60), T60 = mix/256 s, then allpasses (g 0.7), then a smoothing filter; dry 0.7. **A:** combs 1777/1847/1993/2137 × 0.15, allpasses 43/127/389, output w/2 + w[−1] + w[−2]/2. **B:** combs 2467/2767/3217/3533/3877/4127 × 0.027, allpasses 67/97 (R: 79)/101/197/599, output one-pole y = w + 0.7y[−1]. The tail is then trimmed after the last sample ≥ 65/32768. Default type B | Model matches FL's IR to 0.29 LSB; NULL −60…−95 dB (14 cases, in FL; the impulse residual is 1 LSB) |
 | Knob mapping | Every knob's 0..1 position equals FL's "Copy value" text, collected per knob in FL's GUI (e.g. PITCH ±1200 cents, MUL 2^(4p−2), TIME beats/192, LFO speed raw = 200 + p·65336, slide raw/1660 (glide ticks below), arp time table, echo time p·8 steps, echo pan ±2). Right-click menu: Reset / Copy value / Paste value (xx%) / Type in value… | unit tests + in-FL nulls |
 | Filter: Fast LP | Same recursion as the precomputed filter (Mod X/256 = u, Mod Y/256 = res). Below u = 1/64 the coefficient falls linearly to 0, so Mod X 0 is silence (the precomputed filter keeps its 1/64 floor) | NULL/close; cutoff 0 and 2/256 in FL: silent / 16-bit floor |
 | Filter: LP/BP/HP/BS | RBJ biquads (direct form I); f0 and Q from tables every 8 raw, traced tick by tick with Mod X / Mod Y LFOs (agree with the static points). Above raw 240 f0 = 16412·e^(3.99(u − 0.9375)), and modulation can push it past the knob's end up to FL's cap of 3.0 rad/sample (21056 Hz at 44.1 kHz, reached at Mod X 100%) | NULL −65…−77 dB static |
@@ -71,7 +71,7 @@ elastique measurements in [e3 generic in detail](#e3-generic-in-detail); how to 
 - LFO period / predelay: the knob gives a length T in ticks at 130 BPM (13.5755 \* 982.5^p - 13.2745); FL rounds T \*
   ref / 130 to whole ticks with ref = the project tempo (Tempo off: the same length in seconds at any tempo, at tick
   resolution) or 120 (Tempo on: a fixed musical length). At 130 BPM the two readings coincide. Matches FL at 65 / 100
-  / 130 BPM (-62...-77 dB, nulltest/probes/tempo_probe.py).
+  / 130 BPM (-62...-77 dB, nulltest/probe_tempo.py).
 - Envelope Tempo: times are for 120 BPM (x 120 / tempo), then rounded to the song's ticks like any other. With Tempo off, the tick rounding of stage lengths makes a stage about 1 % slower at 65 BPM.
 - Global: the LFO phase runs from the song start (host position); it is at full value from the note's first sample. -77 dB.
 - LFO graph: drawn in knob units, not time: on a 130 px view one period is 8 + 64 x SPEED, the predelay 64 x DELAY, the linear fade 64 x ATT; height = AMT (negative starts downwards).
@@ -89,7 +89,7 @@ ties that FL rounds both ways (its internal arithmetic is not visible).
 ## Echo delay (in FL)
 
 The echo's settings: feedback (raw / 25600), pan (centre 6400; ours (raw − 6400)/6400), pitch (cents), echoes, time
-(raw / 48 steps). NULL −95…−108 dB for feedback, count, time and pan (nulltest/cases/echo_cases.py); echo pitch close
+(raw / 48 steps). NULL −95…−108 dB for feedback, count, time and pan (nulltest/cases_echo.py); echo pitch close
 (−57/−59 dB: only the first ~6 frames of each pitched echo differ).
 
 - **Mod X / Y:** knob = (raw − 128)/128 (checked by sound). Echo k moves the filter value by 1 − (1 − |m|)^k towards
@@ -100,7 +100,7 @@ The echo's settings: feedback (raw / 25600), pan (centre 6400; ours (raw − 640
   cos(π/4 · min(1, k·|pan|)); Ping pong has no effect. NULL −97…−107 dB (5 cases).
 - **Ping pong:** NULL −102 dB. The in-FL test projects end with a placeholder note so FL renders the whole second half (it stops a fixed tail after the last note, which would cut long echo trails).
 
-## Filter modulation (in FL, nulltest/cases/lfo_cases.py)
+## Filter modulation (in FL, nulltest/cases_lfo.py)
 
 Read from FL's output by fitting the filter coefficients in short windows against the known noise input. With an
 envelope or LFO on Mod X / Y, FL works the values out once per tick of the note (the first tick holds the second knot,
@@ -112,7 +112,7 @@ as for the LFOs) and then:
 
 NULL −59…−72 dB for LFO / envelope on Mod X and Mod Y with Fast LP, LP, HP and SVF.
 
-## Tracking, root note, polyphony (in FL, nulltest/cases/untested_cases.py)
+## Tracking, root note, polyphony (in FL, nulltest/cases_untested.py)
 
 - **Tracking** (velocity and key, each with mid, pan, mod X and mod Y; knob = raw/256): velocity offset =
   (raw/128)·(f(vel) − M(mid))/M(128), with f FL's velocity-to-gain curve (11^(v/100) − 1)/10 and M(m) = (6.5^(m/100) −
@@ -153,9 +153,9 @@ conversion, Sample Start and Reverse; its slice boundaries land within 2 samples
 
 FL keeps pitch and length independent in every stretch mode: a key change keeps the length, MUL / TIME change the
 length and not the pitch (FL renders). FL's engine (elastique) is proprietary, so these modes cannot null; they are
-compared by behaviour, attack timing and envelope / band-spectrum distance to FL's renders (`nulltest/stretch/`,
-[e3 generic in detail](#e3-generic-in-detail)). Evidence: nulltest/stretch/stretch_check.py,
-nulltest/stretch/stretch_vs_fl.py, nulltest/stretch/real_material.py, e3_clicks.wav.
+compared by behaviour, attack timing and envelope / band-spectrum distance to FL's renders (`nulltest/compare_stretch*.py`,
+[e3 generic in detail](#e3-generic-in-detail)). Evidence: nulltest/check_stretch.py,
+nulltest/compare_stretch.py, nulltest/compare_stretch_material.py, e3_clicks.wav.
 
 ### Our modes
 
@@ -183,7 +183,7 @@ FL renders of clicks, noise and saws at MUL x1.5 / x0.667, and of a kick, a Rhod
 
 ### Distance to FL
 
-Envelope / band-spectrum distance in dB over the 20 cases above (`nulltest/stretch/real_material.py`); log-spectrogram
+Envelope / band-spectrum distance in dB over the 20 cases above (`nulltest/compare_stretch_material.py`); log-spectrogram
 distance to FL's renders 7-10 dB. The earlier column is the model each mode replaced.
 
 | Mode | Current | Earlier model |
@@ -205,7 +205,7 @@ Stretch Pro in detail: FL's Stretch Pro matched our Stretch (1.84 / 2.17) better
 
 ### e3 generic
 
-- **Pitch** (nulltest/cases/e3_pitch_cases.py: FL's 707 Kick, a Rhodes, a voice, two drum loops, -1200 ... +1200
+- **Pitch** (nulltest/cases_e3_pitch.py: FL's 707 Kick, a Rhodes, a voice, two drum loops, -1200 ... +1200
   cents, in FL): FL's e3 on noise plays resampled stretches of the source with constant offsets for 400-700 samples,
   then jumps (a time-domain-like engine), and keeps a kick's envelope at any pitch. Ours: the vocoder's synthesis hop
   shrinks below +1 octave (0.5 x the analysis rate) and an attack is held 1:1 only up to the frame centred on it, so a
@@ -241,7 +241,7 @@ Stretch Pro in detail: FL's Stretch Pro matched our Stretch (1.84 / 2.17) better
   sets most splices) and a lean to the middle of the 40..512 range: FL's splices on noise span 132 / 215 / 283 / 337 /
   397 samples (10th..90th percentile). Ours: the treble's modulation spectrum flutters 3-4 dB where FL has 3 dB (20 dB
   with a 0.3 floor and a fixed 256 fallback on noise and weak periodicity: splices every 256 samples). FL's exact
-  choice on noise is not reproduced (21% of splices). nulltest/stretch/ratio_grid.py, [e3: period
+  choice on noise is not reproduced (21% of splices). nulltest/measure_ratio_grid.py, [e3: period
   estimator](#e3-period-estimator).
 - **The band below the split after an attack:** FL's low band is a phase vocoder whose steady partials keep one phase
   relation to the source until the next restart, so the phase of FL's low band against ours locates where FL restarts
@@ -255,11 +255,11 @@ Stretch Pro in detail: FL's Stretch Pro matched our Stretch (1.84 / 2.17) better
   raw (-3.06 without), -4.57 fitted (-4.44); envelope 1.70 (1.64), spectrum 2.02 (1.99) (the drum loop, where FL skips
   some restarts). Not modelled: FL skips the restart on some decaying attacks by their place in the grid, and finds a
   swell's start earlier than ours (the "ah": about sample 320 against our 603), which costs the vocal at -300 and
-  +1200 cents. nulltest/stretch/lowband.py, [e3: low band after an
+  +1200 cents. nulltest/measure_e3_lowband.py, [e3: low band after an
   attack](#e3-low-band-after-an-attack).
 - **The split at large stretches:** FL's e3 keeps the split at 1.485 kHz up to x2 of MUL / TIME, then raises it: on
   noise the bands that stop being pieces of the source start at 2.5 / 3.2 / 4 / 5 / 6.3 / 8 / 12.7 kHz at x2.2 / 2.3 /
-  2.4 / 2.5 / 2.6 / 2.75 / 3, and at x4 none are (nulltest/stretch/split_rise.py). Ours follows (stretch - 1)^3 x
+  2.4 / 2.5 / 2.6 / 2.75 / 3, and at x4 none are (nulltest/measure_split_rise.py). Ours follows (stretch - 1)^3 x
   1.485 kHz and gives the same rows. Real material at x2.5 / x3 / x4 (15 FL renders, the stretcher alone): envelope
   2.29 (2.30 with a fixed split), spectrum 3.78 (3.77) (the Rhodes and the voice closer, e.g. the voice at x4 1.58
   (2.30); the kick's quiet tail further, 7.60 (6.48)). FL's Stretch Pro splits the same way (grains above 1.5 kHz,
@@ -274,7 +274,7 @@ Stretch Pro in detail: FL's Stretch Pro matched our Stretch (1.84 / 2.17) better
   generic at each slice. FL's slices (Slice map at x2, where they show as runs of sound) start where a hit leaves the
   level before it, to a sample on e3_loop, and a fade-in (the "ah") has none. Ours takes a 128-sample block far above
   the four before it (the rule e3's attacks use) and the first sample above the level before the hit, within a sample
-  of FL's on e3_loop. Against FL (nulltest/stretch/slices.py, 20 cases each): Slice stretch envelope 1.75, spectrum
+  of FL's on e3_loop. Against FL (nulltest/compare_slices.py, 20 cases each): Slice stretch envelope 1.75, spectrum
   2.16, null -5.54 dB; e2 transient, which also restarts at the slices, spectrum 3.19.
 - **Slice map's slice edges:** fitted per slice on e3_loop at MUL x1.5 and x2, where silence separates the slices. FL
   starts a slice on a zero crossing: from the detected point it steps back to an exact zero or to the first sample
@@ -290,10 +290,10 @@ Stretch Pro in detail: FL's Stretch Pro matched our Stretch (1.84 / 2.17) better
   before the play head reaches the next slice (-62.2 / -43.6 dB on e3_loop's two cuts with sound in them; at full
   speed -26 at best), so the old slice fades out under the new one for 379 samples. At x0.667: e3_loop -53.3 dB, DL
   Groover -74.7.
-- **Slice map null** (stretch/slices.py, FL's channel volume applied, no gain fitted, ours with Use loop points on as
+- **Slice map null** (compare_slices.py, FL's channel volume applied, no gain fitted, ours with Use loop points on as
   in the FL template): mean -61.4 dB; x2 and x1.5 -52 ... -83 dB on all five samples. Not matched at x0.667: the
   Rhodes's 252-sample loop, which FL replays about every 168 samples once the play head wraps (-5.0 dB).
-- **Which channel starts a slice** (stereo test files, nulltest/probes/slice_starts.py, MUL x2, 38 slice starts, all
+- **Which channel starts a slice** (stereo test files, nulltest/measure_slice_starts.py, MUL x2, 38 slice starts, all
   identical to FL's): FL stops at the first sign change in either channel, not in L + R (with the louder channel's
   crossing further back, L + R is wrong in 8 of 16); a digitally silent channel never stops it; both output channels
   start on the same sample. File markers are not moved: cue points (regions) and ACID slice markers start exactly
@@ -303,7 +303,7 @@ Stretch Pro in detail: FL's Stretch Pro matched our Stretch (1.84 / 2.17) better
 ### The grain modes' periods
 
 Where FL's e3 mono, e2 mono and e2 speech splice, from which source sample each short piece of the output plays (FL's
-output is pieces of the source; nulltest/stretch/mono_marks.py, pulse trains of known period over a faint noise floor
+output is pieces of the source; nulltest/measure_grain_marks.py, pulse trains of known period over a faint noise floor
 at MUL x1.5 and x0.667, the same at both). All three jump by the period itself on pulse trains of 64 ... 1000 samples,
 as ours; FL's e3 / e2 mono go on to 1100 (none at 1150), e2 speech to 750 (none at 800); ours stop at 512.
 
@@ -324,7 +324,7 @@ as ours; FL's e3 / e2 mono go on to 1100 (none at 1150), e2 speech to 750 (none 
 
 What FL Studio's e3 generic stretch mode does, measured from its output alone, and how Chan Sampler's e3 generic / Auto
 follows it. Everything below is behaviour, not code. [Time stretching](#time-stretching-against-fls-renders) has the
-summary for every stretch mode; the tools that reproduce these measurements are in `nulltest/stretch/`
+summary for every stretch mode; the tools that reproduce these measurements are the stretch scripts in `nulltest/`
 ([nulltest/README.md](nulltest/README.md)).
 
 ### e3: setup
@@ -332,11 +332,11 @@ summary for every stretch mode; the tools that reproduce these measurements are 
 | Item | Value |
 |---|---|
 | Reference | FL Studio 26.1.7, Sampler in e3 generic; FL's own Resample render is the reference source |
-| Renders | FL renders only, through `nulltest/cs_ref.py` and `nulltest/lib/flqueue.py` |
+| Renders | FL renders only, through `nulltest/cs_ref.py` and `nulltest/queue_lib.py` |
 | Probing the stretcher alone | MUL (2^(raw/10000)) with PITCH 0: TIME / MUL show the stretcher with no interpolation; MUL 1.5 = raw 5850, 0.667 = raw -5850; MUL = 1 is transparent (output == input) |
 | Tape version in FL | FL ignores PITCH in Resample mode when it comes from a project: play the note key instead |
-| The 30 pitch cases | `nulltest/cases/e3_pitch_cases.py` through `nulltest/stretch/e3_in_fl.py`: FL's 707 Kick, a Rhodes, a voice, two drum loops at -1200 ... +1200 cents, in FL; envelope and band-spectrum distance in dB, null raw and with the level fitted |
-| The 20 offline cases | `nulltest/stretch/real_material.py`: the stretcher alone, fed FL's decode of each sample |
+| The 30 pitch cases | `nulltest/cases_e3_pitch.py` through `nulltest/null_e3_pairs.py`: FL's 707 Kick, a Rhodes, a voice, two drum loops at -1200 ... +1200 cents, in FL; envelope and band-spectrum distance in dB, null raw and with the level fitted |
+| The 20 offline cases | `nulltest/compare_stretch_material.py`: the stretcher alone, fed FL's decode of each sample |
 
 ### e3: architecture
 
@@ -367,7 +367,7 @@ summary for every stretch mode; the tools that reproduce these measurements are 
 
 - Noise plus one echo (x = w + w(n - D)), MUL 1.5: every jump equals D for D = 40 ... 512 exactly; D = 530 and up
   gives random jumps, so the search range is 40..512 samples. D = 20 / 30 give constant 50 / 256 (fallbacks).
-- Noise plus echoes, FL's splice jumps (ratio_grid.py's tracker, refined per splice): upper band only (an echo only
+- Noise plus echoes, FL's splice jumps (measure_ratio_grid.py's tracker, refined per splice): upper band only (an echo only
   below 1.4 kHz gives random jumps); the stronger of two echoes wins; a 0.1 echo sets 20% of splices, 0.2 78%, 0.35
   all (no floor); an echo that changes delay mid-file changes the splices from one near the change (window around the
   splice).
@@ -476,7 +476,7 @@ summary for every stretch mode; the tools that reproduce these measurements are 
   phases were last restarted: a restart from the source frame at P, played where the stretch puts P, turns a partial
   of frequency w by -w (stretch - 1) P against ours. So the low band's phase against ours locates FL's restart
   (several inharmonic tones make it unambiguous); the cross-spectrum of FL's low band and ours gives it as a phase
-  delay on real material (stretch/lowband.py case).
+  delay on real material (measure_e3_lowband.py case).
 - **The rule.** Five steady tones (211 ... 1129 Hz) switched on by a treble click, the onset stepped 16 samples
   through 512 (lowband.py probe): FL restarts from the loudest sample of the band below the split in [onset + 660,
   onset + 1172), 20 earlier where the timing grid times attacks by their peak, played where the stretch puts it. The
@@ -529,7 +529,7 @@ click probe to 1.6 deg); the restart frame's own bias fits best with a 2048-samp
   spectral flux (against the spectrum a few hops back, so level-free) and the energy's time centroid inside the frame;
   a peak whose energy sits late waits, and restarts once its centroid reaches the frame's centre; the restart point is
   the loudest sample of the windowed full-band frame within a hop of its centre. Against the 80 swells (FL's restarts
-  from the cached renders by `stretch.lowband swell`), with the frame grid, window shape and centroid threshold
+  from the cached renders by `measure_e3_lowband swell`), with the frame grid, window shape and centroid threshold
   fitted: 52 / 80 first restarts to the sample (a 4096-sample frame on a 512 grid from the note's start, offset ~100,
   Hann or Blackman window). Where it is right it is right to the sample (3978 against FL's 3977, 1571 against 1571),
   which supports the restart point; where it is wrong it is one frame late (+527 / +528) or ~200 late. The restart
@@ -543,13 +543,13 @@ click probe to 1.6 deg); the restart frame's own bias fits best with a 2048-samp
   frame whose energy is above 1.05x the last frame's with its energy centre past 0.35 half frames marks a swell under
   way; the first later frame whose centre is back within 0.35 restarts at the loudest sample within a hop of its
   centre, weighted by Hann^3: 62 / 80 to the sample, most misses a frame late.
-- Ours (`stretch.lowband swellours`): 26 / 80 to within 3 samples, all at 5 and 8 dB / 128 where our attack rule
+- Ours (`measure_e3_lowband swellours`): 26 / 80 to within 3 samples, all at 5 and 8 dB / 128 where our attack rule
   fires; the slow swells never restart (no 128-sample block 8x the four before it). Our attack rule's 1:1 lock is
   itself a restart (its frames take the source's phases) and claims 4 dB / 128 swells ~200 samples before FL.
 
 ### e3: the split at large stretches
 
-Measured with `stretch.split_rise` (in `nulltest/`) (noise, per third-octave band, correlation with the source: grains ~0.85+, the
+Measured with `measure_split_rise` (in `nulltest/`) (noise, per third-octave band, correlation with the source: grains ~0.85+, the
 vocoder a falling trend):
 
 - FL's e3: the split stays at 1.485 kHz up to x2, then the bands that stop being pieces of the source start at 2.5 /
@@ -634,7 +634,7 @@ A channel preset holds one channel's settings as a project does. Source/PresetIm
 with the scales above and tells a Sampler preset from another instrument's. The preset's own channel pan / volume are
 folded into Levels, as a plugin channel applies its own. FL 4 and earlier store pans and volumes at 1/100 of today's
 scale (echo pan centre 64, not 6400; FL 9 onwards are current, measured across FL's preset library). Checked by writing
-each in-FL null case's Sampler channel out as a preset (nulltest/cases/fst_cases.py): the import renders
+each in-FL null case's Sampler channel out as a preset (nulltest/cases_preset_import.py): the import renders
 bit-identically to the parameter settings that null in FL, in all 177 cases. The FL trial cannot save presets, so
 FL-written files are untested here.
 
@@ -994,7 +994,7 @@ modes the stretcher's read position folds into the loop on every pass, forward a
   without its sample plays nothing and keeps the path; projects saved by earlier releases load with every setting
   unchanged. All pass; ctest runs it.
 - `CsRender statetest <sample>`: in-process round trip of all 160 parameters, sample and window width, bit-identical audio.
-- `nulltest/probes/robust_check.py`: 44.1 / 48 / 96 kHz hosts with stereo float, mono 16-bit, stereo 24-bit and 48 kHz
+- `nulltest/check_robust.py`: 44.1 / 48 / 96 kHz hosts with stereo float, mono 16-bit, stereo 24-bit and 48 kHz
   files all play at the right pitch and length; a 10-minute file loads and plays in 0.4 s.
 - Memory (one instance, peak private bytes): about 4 MB in Resample; about 130 MB once a stretch mode is used, almost
   all of it the 64 voices' time stretchers (plus 16 MB of e3 / e2 loop takes), which are made the first time a stretch
@@ -1086,7 +1086,7 @@ How each part of Chan Sampler was made (the release check requires this section)
   (positions, sizes, colours, gradient directions, font metrics, timings, drag laws).
 - **Fitted or identified from FL's output:** every law and constant in the tables above (the interpolation and
   resampling kernels, the envelope, LFO, filter, echo, reverb and declick laws, the trim filters), held as formulas and
-  tables of our own in `Source/` and `nulltest/data/`. The time-stretch modes are our own algorithms, tuned against
+  tables of our own in `Source/` and `measurements/ChanSampler/`. The time-stretch modes are our own algorithms, tuned against
   FL's renders.
 - **Redrawn:** the editor, drawn in code from measured positions and sizes in Chan Sampler's own palette with our own
   shading; every icon is our own glyph. No table of FL's on-screen brightness and no outline traced from FL's screen
@@ -1094,6 +1094,9 @@ How each part of Chan Sampler was made (the release check requires this section)
 - **Kept for compatibility:** the import of `.fst` presets from the musician's own library, which finds their samples
   in their own FL folders, and the arpeggiator's chord list in the order of FL's chord menu (standard chord names and
   intervals), so a preset's choice carries over.
+- **Published on recorded approval:** the measured data in `measurements/ChanSampler/` (kernels, matrices, curves and
+  tables measured or fitted from FL's output, with vendor names kept out of the file names; approval recorded
+  2026-11-09). No render of FL's and no file FL wrote is among them.
 - **Shipped on recorded approval:** none. The repository keeps one file of ours under `.provenance`: a project state
   saved by Chan Sampler 1.2.0, for the host test that old projects load unchanged.
 - None of Image-Line's code, artwork, samples, preset files, fonts or other files ships with Chan Sampler or sits in

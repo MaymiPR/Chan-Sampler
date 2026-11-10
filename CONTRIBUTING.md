@@ -22,7 +22,7 @@ Requirements and the commands per platform are in the [build guide](docs/BUILDIN
 ## Tests
 
 `ctest --test-dir build -C Release --output-on-failure` runs every test program with its arguments; a fixture writes
-the 2-second test sine first (`plugins/ChanSampler/nulltest/make_base_signals.py sine.wav`, into its `signals/`
+the 2-second test sine first (`plugins/ChanSampler/nulltest/render_signals.py sine.wav`, into its `signals/`
 folder). Each command returns non-zero on a failure.
 
 | Test or tool | What it does |
@@ -125,6 +125,7 @@ pull requests wait for approval before CI runs.
 | `shared/` | the code every plug-in of the suite links, as the static library `ChanSamplerShared`: `shared.cmake`, `ui/` (`Theme.h`, `Widgets`, `HostFocus`), `dsp/Math.h` |
 | `plugins/ChanSampler/` | the plug-in: `plugin.cmake` (the plug-in, its tests and tools, the ctest registrations with the sine fixture), `Source/` (with `dsp/` and `ui/`), `tests/` (`ChanSamplerTests.cpp`, `ChanSamplerUiTests.cpp`, `data/`: projects saved by earlier releases for the host test), `tools/` (`CsRender.cpp`, and its own `Snapshot.cpp`: a sample, the sheets and the menus beyond the suite's generic tool), `scripts/` (`make_screenshots.py`), `nulltest/` (the null tests and measurement scripts against FL Studio, published; FL's renders and files stay in its git-ignored `renders*/` and `local/` folders), [README.md](plugins/ChanSampler/README.md), [RESEARCH.md](plugins/ChanSampler/RESEARCH.md), [MEASUREMENTS.md](plugins/ChanSampler/MEASUREMENTS.md) (every measurement), [NULLTESTS.md](plugins/ChanSampler/NULLTESTS.md) |
 | `tools/` | C++ only: the reference hosts `RefRender.cpp`, `ParamDump.cpp`, `RefCapture.cpp`, `FocusCheck.cpp`, the suite's `Snapshot.cpp` and `HostTest.cpp` (built per plug-in as `<Stem>HostTest`) |
+| `measurements/ChanSampler/` | the measured data (kernels, matrices, curves, tables), published (approval recorded 2026-11-09); the null-test scripts read and write it |
 | `tests/regress/` | the render regression's cases and golden renders |
 | `cmake/` | `PatchJuceVst3Keys.cmake` |
 | `scripts/` | `bump_version.py`, `release_notes.py`, `render_regress.py`, `make_site.py`, `check_repo.py`, `check.ps1`, `check.sh` |
@@ -138,15 +139,15 @@ pull requests wait for approval before CI runs.
 `plugins/ChanSampler/nulltest/` renders the same notes through FL's Sampler and through Chan Sampler inside FL, and
 subtracts the two. Its [README](plugins/ChanSampler/nulltest/README.md) explains how to run them; they need FL Studio
 (closed while rendering), Python 3.12 or newer with numpy (`pip install -r requirements.txt`) and the tools built. The
-time-stretch modes cannot null (FL's engine is proprietary), so its `stretch/` folder compares their behaviour
-instead. Image-Line's samples, presets and projects are never committed: the tests read FL's own samples from the FL
+time-stretch modes cannot null (FL's engine is proprietary), so its stretch scripts (`compare_stretch*.py` and
+others) compare their behaviour instead. Image-Line's samples, presets and projects are never committed: the tests read FL's own samples from the FL
 install.
 
 ## Working on another computer
 
 Clone the repository and build as above. Generated files are not in the repository: `build/`, FL's renders in
 `plugins/ChanSampler/nulltest/renders*`, and every audio file. Write the test signals with
-`python plugins/ChanSampler/nulltest/make_base_signals.py` and `python -m stretch.make_signals` (in
+`python plugins/ChanSampler/nulltest/render_signals.py` and `python render_stretch_signals.py` (in
 `plugins/ChanSampler/nulltest/`).
 
 ## Versions
