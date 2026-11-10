@@ -11,7 +11,7 @@ namespace cs
 namespace
 {
     // FLP / FST event stream: id < 64 one byte, < 128 two, < 192 four, then
-    // text / data with a 7-bit length prefix (nulltest/lib/flp.py).
+    // text / data with a 7-bit length prefix (nulltest/project_file_lib.py).
     struct Event
     {
         int id = 0;

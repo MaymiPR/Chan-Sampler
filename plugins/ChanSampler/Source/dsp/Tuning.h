@@ -14,7 +14,7 @@ namespace cs::dsp
 struct Tuning
 {
     // The sample interpolator's window: a 7-term cosine series over 15 input samples each side (MEASUREMENTS.md
-    // "Measured laws", Playback interpolation; nulltest/probes/window_fit.py). Read once, when the interpolator's
+    // "Measured laws", Playback interpolation; nulltest/fit_window.py). Read once, when the interpolator's
     // table is first built.
     double interpWindow[7] = { 0.362684569, 0.509910674, 0.132162708, -0.006084749,
                                0.001926633, -0.000879890, 0.000296751 };

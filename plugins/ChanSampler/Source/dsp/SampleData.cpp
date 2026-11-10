@@ -17,7 +17,7 @@ namespace cs
 namespace
 {
     // FL's sample-rate conversion on load, measured from impulse trains in
-    // 22.05/32/48/88.2 kHz files (nulltest/probes/src_extract.py): an 88-tap windowed
+    // 22.05/32/48/88.2 kHz files (nulltest/measure_src_kernel.py): an 88-tap windowed
     // sinc, k(d) = c sinc(c d) w(d), |d| < 44 input samples, c = min(1, 1/ratio),
     // w a 9-term cosine series (close to Hann). Matches FL to 1 LSB.
     juce::AudioBuffer<float> convertRate (const juce::AudioBuffer<float>& in, double fromRate, double toRate)
@@ -141,7 +141,7 @@ namespace
     }
 
     // FL's precomputed reverb, identified from its impulse responses
-    // (nulltest/probes/rvb, MEASUREMENTS.md); it matches FL to the 16-bit LSB.
+    // (nulltest/fit_reverb_*.py, MEASUREMENTS.md); it matches FL to the 16-bit LSB.
     // Both types are Schroeder reverbs run on each channel separately:
     // parallel combs whose feedback gives every comb the same decay time,
     // T60 = mix / 256 seconds (g = 10^(-3 D / T60)), then a chain of allpasses
@@ -385,7 +385,7 @@ namespace
     // starts on an exact zero or on the first sample past a sign change;
     // a sung "ah" fading in has none). In stereo, the first sign change in
     // either channel, and an exact zero only in both (FL, stereo test files;
-    // nulltest/probes/slice_starts.py).
+    // nulltest/measure_slice_starts.py).
     std::vector<int> detectOnsets (const juce::AudioBuffer<float>& b)
     {
         constexpr int block = 128;
@@ -550,7 +550,7 @@ SampleData::Ptr buildProcessedSample (const RawSample& raw, const PrecomputeSett
     // A segment shorter than FL's shortest is lengthened by that much rather
     // than held at it (a 30-frame trim plays about 70 frames, 40 about 80, 41
     // about 40); within that much of the end of the sample it grows backwards,
-    // starting earlier (nulltest/cases/trim_short_cases.py).
+    // starting earlier (nulltest/cases_trim_short.py).
     // LENGTH 0 keeps its own measured shape (the shortest segment, below).
     constexpr int shortest = minLength + 1;
     if (lengthCut && span < shortest)

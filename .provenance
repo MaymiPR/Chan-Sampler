@@ -3,4 +3,5 @@
 vendor: Image-Line, FL Studio, FL Sampler, Channel Sampler, Fruity, Edison, Slicex
 # files the check would stop, kept with their reason
 allow: plugins/ChanSampler/tests/data/state-1.2.0.bin  a project state saved by Chan Sampler 1.2.0 itself, for the host test that old projects load unchanged (approved 2026-11-01)
+allow: measurements/ChanSampler/  the measured data of the null tests and measurement scripts (kernels, matrices, curves, tables of our own; no render and no file FL wrote), published (approval recorded 2026-11-09)
 allow: plugins/ChanSampler/Source/PresetImport.cpp  reads .fst presets from the musician's own library and finds their samples in their own FL Studio folders, for compatibility (approved 2026-11-01)

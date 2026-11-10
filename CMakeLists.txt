@@ -61,7 +61,7 @@ option(CHANSAMPLER_TOOLS "Build the measurement tools" ON)
 # at in every suite.
 option(CHANSAMPLER_DEV_COPY "Copy each VST3 to build/plugins after a build" ON)
 
-# The Python that writes the test signal fixture (plugins/ChanSampler/nulltest/make_base_signals.py, standard library
+# The Python that writes the test signal fixture (plugins/ChanSampler/nulltest/render_signals.py, standard library
 # only); set CHANSAMPLER_PYTHON to use another interpreter than the one find_package finds.
 if(NOT CHANSAMPLER_PYTHON)
     find_package(Python3 COMPONENTS Interpreter)

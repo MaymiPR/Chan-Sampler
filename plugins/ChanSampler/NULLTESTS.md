@@ -18,8 +18,7 @@ Offline suite: **82 cases: 65 NULL, 17 close, 0 diff** ([full table](#offline-ca
 
 ## Offline cases
 
-Offline cases (`python -c "from lib import nulltest; from cases import cases; nulltest.run(cases.CASES)"` in
-`nulltest/`), FL velocity 100.
+Offline cases (`python nulltest.py` in `nulltest/`; this page: `python nulltest.py --report`), FL velocity 100.
 
 | Case | Residual (dB) | Result |
 |---|---|---|

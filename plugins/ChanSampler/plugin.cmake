@@ -79,11 +79,11 @@ if(CHANSAMPLER_CLAP)
     set_target_properties(ChanSampler_CLAP PROPERTIES XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "com.chansampler.chansampler")
 endif()
 
-# The test signal the UI and host tests load: a 2-second sine that nulltest/make_base_signals.py writes (audio is
+# The test signal the UI and host tests load: a 2-second sine that nulltest/render_signals.py writes (audio is
 # never committed). A fixture, so ctest writes it before the tests that need it.
 set(CS_SINE ${CS_DIR}/nulltest/signals/sine.wav)
 add_test(NAME ChanSamplerSineFixture
-    COMMAND ${CHANSAMPLER_PYTHON} ${CS_DIR}/nulltest/make_base_signals.py sine.wav)
+    COMMAND ${CHANSAMPLER_PYTHON} ${CS_DIR}/nulltest/render_signals.py sine.wav)
 set_tests_properties(ChanSamplerSineFixture PROPERTIES FIXTURES_SETUP sine)
 
 # Offline engine tests (tests/ChanSamplerTests.cpp): no arguments.

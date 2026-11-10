@@ -30,15 +30,15 @@ __pycache__/
 # Files FL wrote (projects, the wrapper chunk): local only
 **/nulltest/local/
 
-# Audio is never committed. Test signals are generated (python plugins/ChanSampler/nulltest/make_base_signals.py;
-# python -m stretch.make_signals; probes/env_time_probe.py); FL's renders stay local.
+# Audio is never committed. Test signals are generated (python plugins/ChanSampler/nulltest/render_signals.py;
+# python render_stretch_signals.py and probe_env_time.py in the same folder); FL's renders stay local.
 *.wav
 
 # The originals' captures, renders and extracted material never enter the repository
 reference/
 **/nulltest/results*.json
 
-# FL demo samples copied in by plugins/ChanSampler/nulltest/cases/untested_cases.py
+# FL demo samples copied in by plugins/ChanSampler/nulltest/cases_untested.py
 **/nulltest/fmt_test.*
 **/nulltest/fst/
 

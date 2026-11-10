@@ -6,7 +6,7 @@ namespace cs
 {
 
 // FL Sampler's trimmed-sample tail (SMP LENGTH < 100%), measured in FL with
-// clicks at every distance from the cut (nulltest/probes/tail_measure.py): a
+// clicks at every distance from the cut (nulltest/measure_tail.py): a
 // linear filter over the last 200 frames. Output at distance D from the end
 // = sum over k < count[D-1] of coef[start[D-1] + k] * input at distance D + k.
 
@@ -1081,8 +1081,8 @@ namespace trimtail
 // cosine closing fade. The window is the whole segment as FL keeps it (its
 // last trimmed frame included). The sweep's rate per frame is
 // sweepRate / (window - sweepOffset): fitted to FL's click responses on
-// segments of 41, 50, 60, 80, 100, 150 and 190 frames (nulltest/probes/
-// trim_matrix.py; -67 ... -72 dB up to 150 frames, -53 at 190, where the
+// segments of 41, 50, 60, 80, 100, 150 and 190 frames (nulltest/
+// measure_trim_matrix.py; -67 ... -72 dB up to 150 frames, -53 at 190, where the
 // window stops growing), after a fit on 100 frames alone, which scaled the
 // sweep by the window and drifted to -53 dB on the shortest. LENGTH 0 keeps
 // its own table.
@@ -1116,7 +1116,7 @@ namespace trimtail
     }
 }
 
-// FL's trimmed start (SMP START > 0), measured the same way (nulltest/probes/head_measure.py):
+// FL's trimmed start (SMP START > 0), measured the same way (nulltest/measure_head.py):
 // head22[n * 22 + e] = output n frames after the start per input e frames after it.
 // From frame 22 on the input passes unchanged.
 namespace trimtail
