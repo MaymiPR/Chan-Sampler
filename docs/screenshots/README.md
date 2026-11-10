@@ -1,24 +1,23 @@
 # Screenshots
 
-The images the README and the plug-in page show. Rules: PNG, no window chrome, no cursor. The snapshot tool renders
-the editor without a window and gives the same image on every machine:
+The images the README and the plug-in pages show. Rules: PNG, the editor at its design size at 100 %, no window
+chrome, no cursor, the default preset unless the shot shows a feature. The suite's one snapshot tool
+(`tools/Snapshot.cpp`, built for each plug-in as `<Stem>Snapshot`) renders an editor without a window and gives the
+same image on every machine:
 
 ```text
-build/ChanSamplerSnapshot_artefacts/Release/ChanSamplerSnapshot docs/screenshots/chansampler.png
-python plugins/ChanSampler/scripts/make_screenshots.py
+build/<Stem>Snapshot_artefacts/Release/<Stem>Snapshot docs/screenshots/<pluginid>.png
+build/<Stem>Snapshot_artefacts/Release/<Stem>Snapshot docs/screenshots/<pluginid>-<view>.png paramId=value
 ```
-
-The first line is the standard call (a synthesised drum hit, the Sample sheet; `--scale=2` for a double-size image).
-The second makes every image below at 1.6x from a synthesised drum loop.
 
 | File | What |
 |---|---|
-| `chansampler.png` | the Sample page with the drum loop, its loop points and the precomputed effects (the README's first image and the plug-in page's) |
-| `chansampler-effects.png` | the precomputed effects' second page |
-| `chansampler-envelope.png` | the Envelope page: volume envelope, LFO, filter and root note keyboard |
-| `chansampler-misc.png` | the Misc page: levels, polyphony, tracking, cut groups, arpeggiator and echo |
-| `chansampler-spectrum.png` | the sample view as a spectrogram |
-| `chansampler-waveforms.png` | the sample view in its three colour modes, one above the other |
+| `hero.png` | the suite's plug-ins side by side, 24 px apart, at most 1800 px wide (the README's first image) |
+| `<pluginid>.png` | one plug-in at its design size (its page's image) |
+| `<pluginid>-<view>.png` | one view or feature of one plug-in (optional) |
+| `<suite>-<view>.png` | a view the suite's plug-ins share, such as a toolbar (optional) |
+| `<pluginid>.gif` | at most 8 s and 5 MB, 20 to 30 fps (optional) |
 
-The images are named after the plug-in id in lower case. CI's Windows job renders the snapshot on each push and
-keeps it as the `screenshots` artifact for 14 days.
+`<pluginid>` is the plug-in id in lower case, `<suite>` the suite id in lower case. Until the first editor exists,
+`hero.png` is a placeholder. CI's Windows job renders every plug-in's snapshot on each push and keeps them as the
+`screenshots` artifact for 14 days, so a release's screenshots can be taken from the run that built it.

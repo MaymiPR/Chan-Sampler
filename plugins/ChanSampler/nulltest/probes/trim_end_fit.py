@@ -3,7 +3,7 @@ applied at every candidate end of the source segment and matched to FL's half
 of each in-FL trim case; prints the formula's length and FL's (best) end.
 FL: round(fraction * (N - 1 - start * (N - 1))) half to even, +1 reversed."""
 import os, re, math, numpy as np
-from lib import nullfl, wavio, paths
+from lib import wavio, paths; import cs_ref
 from cases import trim_sweep as T, trim_fit_cases as TF
 
 TXT = open(os.path.join(paths.ROOT, '..', 'Source', 'dsp', 'TrimTail.h')).read()
@@ -22,7 +22,7 @@ def tail(x):
     return d
 
 def fl_end(name, st, ln, reverse, src):
-    a, _ = nullfl.render_pair(name, None); a = a[:, 0]; N = len(src)
+    a, _ = cs_ref.render_pair(name, None); a = a[:, 0]; N = len(src)
     sp = st * (N - 1); start = math.floor(sp + 0.5)
     formula = max(40, round(ln * (N - 1 - sp)) + (1 if reverse else 0))
     best = None

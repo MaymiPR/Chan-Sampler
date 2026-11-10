@@ -3,6 +3,9 @@
 #include <juce_audio_basics/juce_audio_basics.h>
 #include <tuple>
 
+namespace cs
+{
+
 // The "precomputed" sample: the loaded file with every Tools / Effects process
 // baked in. FL's manual describes these as processes that replace the sample
 // data rather than realtime effects, so they run once, off the audio thread
@@ -97,3 +100,4 @@ SampleData::Ptr buildProcessedSample (const RawSample& raw, const PrecomputeSett
 
 // Sample Start / Length knob position (0..1) to a fraction of the sample.
 double trimKnobToFraction (float knob);
+}

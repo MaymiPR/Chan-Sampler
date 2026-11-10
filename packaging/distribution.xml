@@ -22,7 +22,7 @@
     <choice id="clap" title="CLAP" description="Chan Sampler for Bitwig, Reaper and other CLAP hosts. Installs to /Library/Audio/Plug-Ins/CLAP.">
         <pkg-ref id="com.chansampler.clap"/>
     </choice>
-    <choice id="app" title="Standalone app" description="Chan Sampler as an app of its own, without a DAW. Installs to /Applications." start_selected="true">
+    <choice id="app" title="Standalone app" description="Chan Sampler as an app of its own, without a DAW. Installs to /Applications." start_selected="false">
         <pkg-ref id="com.chansampler.app"/>
     </choice>
     <pkg-ref id="com.chansampler.au" version="VERSION">ChanSampler-AU.pkg</pkg-ref>

@@ -2,7 +2,7 @@
 SVF LPx2: two Chamberlin stages, q1 = 1 - 0.8 res, q2 = 1 - 0.6 res (bit-exact).
 LPx2: two identical LP biquads plus a level compensation (Dsp.cpp flLpx2Gain)
 that FL glides to from unity over the note's first tick."""
-import sys; from lib import flrender as F, nullfl
+import sys; from lib import flrender as F; import cs_ref
 
 CASES = []
 for t in (5, 7):
@@ -12,4 +12,4 @@ for t in (5, 7):
                               ours={'filterType': t, 'cutoff': mx / 256, 'resonance': my / 256}, beats=2))
 
 if __name__ == '__main__':
-    nullfl.run(CASES, [a for a in sys.argv[1:] if a != '-f'] or None, force='-f' in sys.argv)
+    cs_ref.run(CASES, [a for a in sys.argv[1:] if a != '-f'] or None, force='-f' in sys.argv)

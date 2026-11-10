@@ -10,6 +10,9 @@
 
 #include "Params.h"
 
+namespace cs
+{
+
 namespace dsp
 {
     // Curved 0..1 ramp (e^(kx) - 1) / (e^k - 1): k = 0 is linear, k > 0
@@ -473,4 +476,5 @@ namespace dsp
         double f = 1, r = 0, q = 1, q2 = 1, b0 = 1, b1 = 0, b2 = 0, a1 = 0, a2 = 0;
         State st[4];   // [0..1] first stage L/R, [2..3] second stage L/R
     };
+}
 }

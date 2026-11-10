@@ -1,6 +1,9 @@
 #include "Params.h"
 #include "dsp/Chords.h"
 
+namespace cs
+{
+
 // Every knob's range, display text and typed-value parser follow FL Studio's
 // Sampler: a knob's 0..1 position (what FL's "Copy value" puts on the
 // clipboard) maps to the same value here, and the text matches FL's hint bar.
@@ -26,7 +29,7 @@ namespace
     using ToText = std::function<juce::String (float, int)>;
     using FromText = std::function<float (const juce::String&)>;
 
-    juce::ParameterID id (const juce::String& s) { return { s, 1 }; }
+    juce::ParameterID paramId (const juce::String& s) { return { s, 1 }; }
 
     double firstNumber (const juce::String& t)
     {
@@ -106,18 +109,18 @@ namespace
     void addFloat (Layout& l, const juce::String& pidStr, const juce::String& name,
                    juce::NormalisableRange<float> range, float def, FloatAttr a)
     {
-        l.add (std::make_unique<juce::AudioParameterFloat> (id (pidStr), name, range, def, a));
+        l.add (std::make_unique<juce::AudioParameterFloat> (paramId (pidStr), name, range, def, a));
     }
 
     void addBool (Layout& l, const juce::String& pidStr, const juce::String& name, bool def)
     {
-        l.add (std::make_unique<juce::AudioParameterBool> (id (pidStr), name, def));
+        l.add (std::make_unique<juce::AudioParameterBool> (paramId (pidStr), name, def));
     }
 
     void addChoice (Layout& l, const juce::String& pidStr, const juce::String& name,
                     const juce::StringArray& items, int def)
     {
-        l.add (std::make_unique<juce::AudioParameterChoice> (id (pidStr), name, items, def));
+        l.add (std::make_unique<juce::AudioParameterChoice> (paramId (pidStr), name, items, def));
     }
 
     // FL knobs hold whole raw values; these ranges snap to the same steps so a
@@ -131,8 +134,8 @@ namespace
     // FL's Panning page has no envelope, only the LFO.
     void addTarget (Layout& l, const char* prefix, const juce::String& target, bool hasAmount, bool hasEnvelope = true)
     {
-        auto p = [prefix] (const char* s) { return pid::env (prefix, s); };
-        const bool isVolume = juce::String (prefix) == pid::volPrefix;
+        auto p = [prefix] (const char* s) { return id::env (prefix, s); };
+        const bool isVolume = juce::String (prefix) == id::volPrefix;
         const juce::NormalisableRange<float> unit { 0.0f, 1.0f }, bipolar { -1.0f, 1.0f };
         if (hasEnvelope)
         {
@@ -297,13 +300,13 @@ int parseNoteName (const juce::String& text)
 const juce::StringArray& precomputeParamIDs()
 {
     static const juce::StringArray ids {
-        pid::pcRemoveDC, pid::pcReversePolarity, pid::pcNormalize, pid::pcFadeStereo,
-        pid::pcReverse, pid::pcSwapStereo, pid::pcStart, pid::pcLength, pid::pcFadeIn,
-        pid::pcFadeOut, pid::pcCrossfade, pid::pcTrim, pid::pcBoost, pid::pcBoostClip, pid::pcEq,
-        pid::pcRmMix, pid::pcRmFreq, pid::pcCut, pid::pcRes, pid::pcReverbType, pid::pcReverb,
-        pid::pcStereoDelay, pid::pcPogo, pid::loadRegions, pid::loadSlices,
+        id::pcRemoveDC, id::pcReversePolarity, id::pcNormalize, id::pcFadeStereo,
+        id::pcReverse, id::pcSwapStereo, id::pcStart, id::pcLength, id::pcFadeIn,
+        id::pcFadeOut, id::pcCrossfade, id::pcTrim, id::pcBoost, id::pcBoostClip, id::pcEq,
+        id::pcRmMix, id::pcRmFreq, id::pcCut, id::pcRes, id::pcReverbType, id::pcReverb,
+        id::pcStereoDelay, id::pcPogo, id::loadRegions, id::loadSlices,
         // The loop crossfade is baked into the data, so it depends on the loop points.
-        pid::useLoop, pid::loopStart, pid::loopEnd
+        id::useLoop, id::loopStart, id::loopEnd
     };
     return ids;
 }
@@ -315,21 +318,21 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout (const
 
     // MIDI pitch bend range. FL's channel VOL / PAN / PITCH / RANGE / TRACK
     // belong to the host channel, which applies them to any plugin.
-    l.add (std::make_unique<juce::AudioParameterInt> (id (pid::pitchRange), "Pitch bend range", 0, 48, 2));
+    l.add (std::make_unique<juce::AudioParameterInt> (paramId (id::pitchRange), "Pitch bend range", 0, 48, 2));
 
     // Content / Playback. Option names are FL's own (its declicking menu's).
-    addChoice (l, pid::declick, "Declicking mode",
+    addChoice (l, id::declick, "Declicking mode",
                { "Out only (no bleeding)", "Transient (no bleeding)", "Transient (bleeding)",
                  "Generic (bleeding)", "Smooth (bleeding)", "Crossfade (bleeding)" }, 0);
     // Markers stored in the file replace the detected transients of the slice
     // methods (measured in FL): regions = WAV cue points, slice markers = the
     // ACID "strc" chunk. FL's defaults: regions on, slice markers off.
-    addBool  (l, pid::loadRegions, "Load regions", true);
-    addBool  (l, pid::loadSlices,  "Load slice markers", false);
-    addFloat (l, pid::startOffset, "Sample start offset", unit, 0.0f, percentAttr());
+    addBool  (l, id::loadRegions, "Load regions", true);
+    addBool  (l, id::loadSlices,  "Load slice markers", false);
+    addFloat (l, id::startOffset, "Sample start offset", unit, 0.0f, percentAttr());
     // FL Sampler defaults (a new channel): Use loop points off, START = END = 0
     // (no loop set). FL's Basic project template has it on in its channels.
-    addBool  (l, pid::useLoop,   "Use loop points", false);
+    addBool  (l, id::useLoop,   "Use loop points", false);
 
     // Loop points: FL shows sample positions (position = frame / sample length).
     auto frames = [&sampleLength] (float v, int) { return juce::String (juce::roundToInt (v * (float) sampleLength.load())); };
@@ -338,12 +341,12 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout (const
         const auto n = sampleLength.load();
         return n > 0 ? (float) (firstNumber (t) / n) : 0.0f;
     };
-    addFloat (l, pid::loopStart, "Loop start position", unit, 0.0f, attr (frames, fromFrames));
-    addFloat (l, pid::loopEnd,   "Loop end position",   unit, 0.0f, attr (frames, fromFrames));
-    addBool  (l, pid::pingPong,  "Ping pong loop", false);
+    addFloat (l, id::loopStart, "Loop start position", unit, 0.0f, attr (frames, fromFrames));
+    addFloat (l, id::loopEnd,   "Loop end position",   unit, 0.0f, attr (frames, fromFrames));
+    addBool  (l, id::pingPong,  "Ping pong loop", false);
 
     // OUT: FL's channel volume knob, shown as FL shows it ("78%  -5.2dB  0.55").
-    addFloat (l, pid::output, "Output", unit, defaultOutputPosition,
+    addFloat (l, id::output, "Output", unit, defaultOutputPosition,
               attr ([] (float v, int)
                     {
                         const auto g = flVolumeGain (v);
@@ -353,22 +356,22 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout (const
                     }, fromPct()));
 
     // Time stretching (SMP > Time stretching).
-    addChoice (l, pid::stretchMode, "Stretch method",
+    addChoice (l, id::stretchMode, "Stretch method",
                { "Resample", "Stretch", "Stretch Pro", "e3 generic", "e3 mono", "Slice stretch", "Slice map",
                  "Auto", "e2 generic", "e2 transient", "e2 mono", "e2 speech" }, 0);
     // MUL: 2^(raw / 10000), raw +/-20000, so the knob is linear in octaves (x0.25 .. x4).
     juce::NormalisableRange<float> mulRange { 0.25f, 4.0f,
         [] (float, float, float n) { return std::pow (2.0f, 4.0f * n - 2.0f); },
         [] (float, float, float v) { return (std::log2 (v) + 2.0f) / 4.0f; } };
-    addFloat (l, pid::stretchMul, "Time stretch (multiplicator)", mulRange, 1.0f,
+    addFloat (l, id::stretchMul, "Time stretch (multiplicator)", mulRange, 1.0f,
               attr ([] (float v, int) { return juce::String (v * 100.0f, 2) + "%"; }, fromPct()));
     // TIME: position = beats / 192, shown as bars:steps:ticks.
-    addFloat (l, pid::stretchTime, "Time stretch (time)", { 0.0f, 192.0f }, 0.0f,
+    addFloat (l, id::stretchTime, "Time stretch (time)", { 0.0f, 192.0f }, 0.0f,
               attr ([] (float v, int) { return barsStepsTicks (v); },
                     [] (const juce::String& t) { return (float) (parseStepsTicks (t) / 4.0); }));
     // FORMANT (Stretch Pro only, measured in FL): +/-1200 cents, linear, centre
     // shows "preserve"; a plain typed number is a percentage of the slider.
-    addFloat (l, pid::formant, "Formant shift amount", { -1200.0f, 1200.0f }, 0.0f,
+    addFloat (l, id::formant, "Formant shift amount", { -1200.0f, 1200.0f }, 0.0f,
               attr ([] (float v, int)
                     {
                         const auto c = juce::roundToInt (v);
@@ -381,54 +384,54 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout (const
                         return (float) ((firstNumber (t) / 100.0 - 0.5) * 2400.0);
                     }));
     // PITCH: +/-1200 cents.
-    addFloat (l, pid::pitch, "Pitch shift", { -1200.0f, 1200.0f }, 0.0f, attr (cents(), fromNum()));
+    addFloat (l, id::pitch, "Pitch shift", { -1200.0f, 1200.0f }, 0.0f, attr (cents(), fromNum()));
 
     // Precomputed tools (FL does not automate them; here they are, so a host's
     // undo history records them)
-    addBool (l, pid::pcRemoveDC,        "Remove DC offset", false);
-    addBool (l, pid::pcReversePolarity, "Reverse polarity", false);
-    addBool (l, pid::pcNormalize,       "Normalize",        false);
-    addBool (l, pid::pcFadeStereo,      "Fade stereo",      false);
-    addBool (l, pid::pcReverse,         "Reverse",          false);
-    addBool (l, pid::pcSwapStereo,      "Swap stereo",      false);
-    addFloat (l, pid::pcStart,     "Sample start offset (precomputed)", unit, 0.0f, attr (pctSpace(), fromPct()));
-    addFloat (l, pid::pcLength,    "Sample end offset",          unit, 1.0f, attr (pctSpace(), fromPct()));
-    addFloat (l, pid::pcFadeIn,    "Quick fade in",              step (1024), 0.0f, percentAttr());   // raw / 1024
-    addFloat (l, pid::pcFadeOut,   "Quick fade out",             step (1024), 0.0f, percentAttr());   // raw / 1024
-    addFloat (l, pid::pcCrossfade, "Crossfade loop",             step (1024), 0.0f, percentAttr());   // raw / 1024
-    addFloat (l, pid::pcTrim,      "Silence trimming threshold", step (256), 0.0f, percentAttr());   // raw / 256
+    addBool (l, id::pcRemoveDC,        "Remove DC offset", false);
+    addBool (l, id::pcReversePolarity, "Reverse polarity", false);
+    addBool (l, id::pcNormalize,       "Normalize",        false);
+    addBool (l, id::pcFadeStereo,      "Fade stereo",      false);
+    addBool (l, id::pcReverse,         "Reverse",          false);
+    addBool (l, id::pcSwapStereo,      "Swap stereo",      false);
+    addFloat (l, id::pcStart,     "Sample start offset (precomputed)", unit, 0.0f, attr (pctSpace(), fromPct()));
+    addFloat (l, id::pcLength,    "Sample end offset",          unit, 1.0f, attr (pctSpace(), fromPct()));
+    addFloat (l, id::pcFadeIn,    "Quick fade in",              step (1024), 0.0f, percentAttr());   // raw / 1024
+    addFloat (l, id::pcFadeOut,   "Quick fade out",             step (1024), 0.0f, percentAttr());   // raw / 1024
+    addFloat (l, id::pcCrossfade, "Crossfade loop",             step (1024), 0.0f, percentAttr());   // raw / 1024
+    addFloat (l, id::pcTrim,      "Silence trimming threshold", step (256), 0.0f, percentAttr());   // raw / 256
 
     // Precomputed effects
-    addFloat (l, pid::pcBoost, "Boosts the gain", step (256), 0.0f, percentAttr());                   // raw / 256
-    addBool  (l, pid::pcBoostClip, "Add clipping at 0dB", false);
-    addFloat (l, pid::pcEq,          "Shifts the frequency balance", step (128, -1.0f), 0.0f, percentAttr());
-    addFloat (l, pid::pcRmMix,       "Ring modulation mix",          step (256), 0.0f, percentAttr());
-    addFloat (l, pid::pcRmFreq,      "Ring modulation frequency",    step (256), 0.5f, percentAttr());
+    addFloat (l, id::pcBoost, "Boosts the gain", step (256), 0.0f, percentAttr());                   // raw / 256
+    addBool  (l, id::pcBoostClip, "Add clipping at 0dB", false);
+    addFloat (l, id::pcEq,          "Shifts the frequency balance", step (128, -1.0f), 0.0f, percentAttr());
+    addFloat (l, id::pcRmMix,       "Ring modulation mix",          step (256), 0.0f, percentAttr());
+    addFloat (l, id::pcRmFreq,      "Ring modulation frequency",    step (256), 0.5f, percentAttr());
     // Cutoff: position = (raw - 16) / 1008, shown as raw / 1024.
-    addFloat (l, pid::pcCut,         "Filter cutoff", { 16.0f / 1024.0f, 1.0f, 1.0f / 1024.0f }, 1.0f, percentAttr());
-    addFloat (l, pid::pcRes,         "Filter resonance",             step (640), 0.0f, percentAttr());  // raw / 640
-    addChoice (l, pid::pcReverbType, "Reverb type", { "A", "B" }, 1);   // FL default: B
-    addFloat (l, pid::pcReverb,      "Reverb amount",                step (256), 0.0f, percentAttr());
-    addFloat (l, pid::pcStereoDelay, "Stereo delay",                 step (2048, -1.0f), 0.0f, attr (leftRight(), fromLeftRight()));
-    addFloat (l, pid::pcPogo,        "Pogo effect",                  step (256, -1.0f), 0.0f, percentAttr());
+    addFloat (l, id::pcCut,         "Filter cutoff", { 16.0f / 1024.0f, 1.0f, 1.0f / 1024.0f }, 1.0f, percentAttr());
+    addFloat (l, id::pcRes,         "Filter resonance",             step (640), 0.0f, percentAttr());  // raw / 640
+    addChoice (l, id::pcReverbType, "Reverb type", { "A", "B" }, 1);   // FL default: B
+    addFloat (l, id::pcReverb,      "Reverb amount",                step (256), 0.0f, percentAttr());
+    addFloat (l, id::pcStereoDelay, "Stereo delay",                 step (2048, -1.0f), 0.0f, attr (leftRight(), fromLeftRight()));
+    addFloat (l, id::pcPogo,        "Pogo effect",                  step (256, -1.0f), 0.0f, percentAttr());
 
     // INS targets
-    addTarget (l, pid::panPrefix,   "Panning", false, false);
-    addTarget (l, pid::volPrefix,   "Volume",  false);
-    addTarget (l, pid::modXPrefix,  "Mod X",   true);
-    addTarget (l, pid::modYPrefix,  "Mod Y",   true);
-    addTarget (l, pid::pitchPrefix, "Pitch",   true);
+    addTarget (l, id::panPrefix,   "Panning", false, false);
+    addTarget (l, id::volPrefix,   "Volume",  false);
+    addTarget (l, id::modXPrefix,  "Mod X",   true);
+    addTarget (l, id::modYPrefix,  "Mod Y",   true);
+    addTarget (l, id::pitchPrefix, "Pitch",   true);
 
-    addChoice (l, pid::filterType, "Filter type",
+    addChoice (l, id::filterType, "Filter type",
                { "Fast LP", "LP", "BP", "HP", "BS", "LPx2", "SVF LP", "SVF LPx2" }, 0);
-    addFloat  (l, pid::cutoff,    "Filter frequency (modulation X)", unit, 1.0f, percentAttr());   // raw / 256
-    addFloat  (l, pid::resonance, "Filter bandwidth (modulation Y)", unit, 0.0f, percentAttr());   // raw / 256
+    addFloat  (l, id::cutoff,    "Filter frequency (modulation X)", unit, 1.0f, percentAttr());   // raw / 256
+    addFloat  (l, id::resonance, "Filter bandwidth (modulation Y)", unit, 0.0f, percentAttr());   // raw / 256
 
     // FUNC: Levels adjustment (FL's channel levels: pan raw 0..12800, centre 6400)
-    addFloat (l, pid::pan,    "Panning offset", bipolar, 0.0f, attr (leftRight(), fromLeftRight()));       // raw +/-6400
+    addFloat (l, id::pan,    "Panning offset", bipolar, 0.0f, attr (leftRight(), fromLeftRight()));       // raw +/-6400
     // FL's Levels "Volume multiplier" (event 229, raw / 12800; measured: gain
     // (11^x - 1) / 10, 100% = unity at the knob's centre, 200% = 12.00).
-    addFloat (l, pid::volume, "Volume multiplier", { 0.0f, 2.0f }, 1.0f,
+    addFloat (l, id::volume, "Volume multiplier", { 0.0f, 2.0f }, 1.0f,
               attr ([] (float v, int)
                     {
                         const auto g = flVolumeGain (v);
@@ -436,49 +439,49 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout (const
                              + (g > 0.0f ? juce::String (juce::Decibels::gainToDecibels (g), 1) + "dB" : juce::String ("-INFdB"))
                              + "  " + juce::String (g, 2);
                     }, fromPct()));
-    addFloat (l, pid::xOfs, "Modulation X offset", bipolar, 0.0f, percentAttr());                            // raw +/-256
-    addFloat (l, pid::yOfs, "Modulation Y offset", bipolar, 0.0f, percentAttr());
+    addFloat (l, id::xOfs, "Modulation X offset", bipolar, 0.0f, percentAttr());                            // raw +/-256
+    addFloat (l, id::yOfs, "Modulation Y offset", bipolar, 0.0f, percentAttr());
 
     // FUNC: Polyphony / Group
-    l.add (std::make_unique<juce::AudioParameterInt> (id (pid::maxPoly), "Maximum polyphony", 0, 64, 0,
+    l.add (std::make_unique<juce::AudioParameterInt> (paramId (id::maxPoly), "Maximum polyphony", 0, 64, 0,
                juce::AudioParameterIntAttributes().withStringFromValueFunction ([] (int v, int) { return v == 0 ? juce::String ("--") : juce::String (v); })));
-    addBool  (l, pid::mono,  "Monophonic mode", false);
-    addBool  (l, pid::porta, "Portamento mode", false);
+    addBool  (l, id::mono,  "Monophonic mode", false);
+    addBool  (l, id::porta, "Portamento mode", false);
     // Slide: position = raw / 1660, shown as steps:ticks; a new Sampler in FL
     // starts at raw 500 (0:03).
-    addFloat (l, pid::slide, "Portamento time", unit, 500.0f / 1660.0f,
+    addFloat (l, id::slide, "Portamento time", unit, 500.0f / 1660.0f,
               attr ([] (float v, int) { return stepsTicks (flSlideSteps (v)); },
                     [] (const juce::String& t)
                     {
                         const auto ticks = juce::jmax (0.0, parseStepsTicks (t)) * 24.0 + 1.0;
                         return (float) juce::jlimit (0.0, 1.0, std::log ((ticks + 0.15) / 0.92049) / std::log (209.414));
                     }));
-    addBool  (l, pid::cutItself, "Cut itself", false);
+    addBool  (l, id::cutItself, "Cut itself", false);
     // Group (FL's Cut / By), shared between Chan Sampler instances (CutGroups.h); 0 = none ("--").
-    for (auto* gid : { pid::cutGroup, pid::cutBy })
-        l.add (std::make_unique<juce::AudioParameterInt> (id (gid), gid == pid::cutGroup ? "Cut group" : "Cut by group", 0, 99, 0,
+    for (auto* gid : { id::cutGroup, id::cutBy })
+        l.add (std::make_unique<juce::AudioParameterInt> (paramId (gid), gid == id::cutGroup ? "Cut group" : "Cut by group", 0, 99, 0,
                    juce::AudioParameterIntAttributes().withStringFromValueFunction ([] (int v, int) { return v == 0 ? juce::String ("--") : juce::String (v); })));
 
     // FUNC: Tracking (raw +/-256)
-    addFloat (l, pid::velPan, "Velocity to panning",      bipolar, 0.0f, percentAttr());
-    addFloat (l, pid::velX,   "Velocity to modulation X", bipolar, 0.0f, percentAttr());
-    addFloat (l, pid::velY,   "Velocity to modulation Y", bipolar, 0.0f, percentAttr());
-    addFloat (l, pid::velMid, "Velocity middle value", unit, 100.0f / 128.0f, percentAttr());
-    addFloat (l, pid::keyPan, "Key to panning",      bipolar, 0.0f, percentAttr());
-    addFloat (l, pid::keyX,   "Key to modulation X", bipolar, 0.0f, percentAttr());
-    addFloat (l, pid::keyY,   "Key to modulation Y", bipolar, 0.0f, percentAttr());
+    addFloat (l, id::velPan, "Velocity to panning",      bipolar, 0.0f, percentAttr());
+    addFloat (l, id::velX,   "Velocity to modulation X", bipolar, 0.0f, percentAttr());
+    addFloat (l, id::velY,   "Velocity to modulation Y", bipolar, 0.0f, percentAttr());
+    addFloat (l, id::velMid, "Velocity middle value", unit, 100.0f / 128.0f, percentAttr());
+    addFloat (l, id::keyPan, "Key to panning",      bipolar, 0.0f, percentAttr());
+    addFloat (l, id::keyX,   "Key to modulation X", bipolar, 0.0f, percentAttr());
+    addFloat (l, id::keyY,   "Key to modulation Y", bipolar, 0.0f, percentAttr());
     // FL's key range is C0..C10 (note 0..120; C5 = 0.5, measured with Copy value).
-    l.add (std::make_unique<juce::AudioParameterInt> (id (pid::keyMid), "Middle value", 0, 120, 60,
+    l.add (std::make_unique<juce::AudioParameterInt> (paramId (id::keyMid), "Middle value", 0, 120, 60,
                juce::AudioParameterIntAttributes()
                    .withStringFromValueFunction ([] (int v, int) { return flNoteName (v); })
                    .withValueFromStringFunction ([] (const juce::String& t) { return parseNoteName (t); })));
 
     // Arpeggiator
-    addChoice (l, pid::arpDir, "Arpeggio direction",
+    addChoice (l, id::arpDir, "Arpeggio direction",
                { "Off", "Up", "Down", "Up / down", "Up / down (sticky)", "Random" }, 0);
-    l.add (std::make_unique<juce::AudioParameterInt> (id (pid::arpRange), "Arpeggio range (octaves)", 1, 6, 1));
-    l.add (std::make_unique<juce::AudioParameterInt> (id (pid::arpRepeat), "Arpeggio repeat", 1, 16, 1));
-    addFloat (l, pid::arpTime, "Arpeggio time", unit, (1024.0f - 450.0f) / 997.0f,
+    l.add (std::make_unique<juce::AudioParameterInt> (paramId (id::arpRange), "Arpeggio range (octaves)", 1, 6, 1));
+    l.add (std::make_unique<juce::AudioParameterInt> (paramId (id::arpRepeat), "Arpeggio repeat", 1, 16, 1));
+    addFloat (l, id::arpTime, "Arpeggio time", unit, (1024.0f - 450.0f) / 997.0f,
               attr ([] (float v, int) { const auto s = flArpSteps (v); return s <= 0.0 ? juce::String ("Hold") : stepsTicks (s); },
                     [] (const juce::String& t)
                     {
@@ -490,38 +493,39 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout (const
                                 return (float) (raw - 450) / 997.0f;
                         return (float) (1446 - 450) / 997.0f;
                     }));
-    addFloat (l, pid::arpGate, "Arpeggio gate", unit, 1.0f, percentAttr());
-    addBool  (l, pid::arpSlide, "Arpeggio slide", false);
+    addFloat (l, id::arpGate, "Arpeggio gate", unit, 1.0f, percentAttr());
+    addBool  (l, id::arpSlide, "Arpeggio slide", false);
     juce::StringArray chords { "Auto", "Auto (sustain)", "(none)" };
     for (auto& ch : chordPresets)
         chords.add (ch.shortName);   // FL shows the short names (sus2, 6...)
-    addChoice (l, pid::arpChord, "Arpeggio chord", chords, 1);   // FL default: Auto (sustain) (raw -1)
+    addChoice (l, id::arpChord, "Arpeggio chord", chords, 1);   // FL default: Auto (sustain) (raw -1)
 
     // Echo delay / fat mode. Each echo is an extra note voice.
-    addFloat (l, pid::echoFeed, "Delay feedback", unit, 0.0f,                         // raw / 25600, shown /12800
+    addFloat (l, id::echoFeed, "Delay feedback", unit, 0.0f,                         // raw / 25600, shown /12800
               attr ([] (float v, int) { return juce::String (juce::roundToInt (v * 200.0f)) + "%"; },
                     [] (const juce::String& t) { return (float) (firstNumber (t) / 200.0); }));
     // Echo pan: position = 0.5 + (raw - 6400) / 25600, so 100% sits at 0.25 / 0.75.
-    addFloat (l, pid::echoPan,   "Delay panning",      { -2.0f, 2.0f }, 0.0f, attr (leftRight(), fromLeftRight()));
-    addFloat (l, pid::echoX,     "Delay modulation X", bipolar, 0.0f, percentAttr());
-    addFloat (l, pid::echoY,     "Delay modulation Y", bipolar, 0.0f, percentAttr());
-    addFloat (l, pid::echoPitch, "Delay pitch", { -1200.0f, 1200.0f }, 0.0f, attr (cents(), fromNum()));
-    addFloat (l, pid::echoTime,  "Delay time", { 0.0f, 8.0f }, 3.0f,                // raw / 48 steps
+    addFloat (l, id::echoPan,   "Delay panning",      { -2.0f, 2.0f }, 0.0f, attr (leftRight(), fromLeftRight()));
+    addFloat (l, id::echoX,     "Delay modulation X", bipolar, 0.0f, percentAttr());
+    addFloat (l, id::echoY,     "Delay modulation Y", bipolar, 0.0f, percentAttr());
+    addFloat (l, id::echoPitch, "Delay pitch", { -1200.0f, 1200.0f }, 0.0f, attr (cents(), fromNum()));
+    addFloat (l, id::echoTime,  "Delay time", { 0.0f, 8.0f }, 3.0f,                // raw / 48 steps
               attr ([] (float v, int) { return stepsTicks (v); }, [] (const juce::String& t) { return (float) parseStepsTicks (t); }));
-    l.add (std::make_unique<juce::AudioParameterInt> (id (pid::echoCount), "Echoes", 1, 16, 4));
-    addBool  (l, pid::echoPing, "Ping pong", false);
-    addBool  (l, pid::echoFat,  "Fat mode", false);
+    l.add (std::make_unique<juce::AudioParameterInt> (paramId (id::echoCount), "Echoes", 1, 16, 4));
+    addBool  (l, id::echoPing, "Ping pong", false);
+    addBool  (l, id::echoFat,  "Fat mode", false);
 
     // Root note (FL default C5)
-    l.add (std::make_unique<juce::AudioParameterInt> (id (pid::rootNote), "Root note", 0, 127, 60,
+    l.add (std::make_unique<juce::AudioParameterInt> (paramId (id::rootNote), "Root note", 0, 127, 60,
                juce::AudioParameterIntAttributes()
                    .withStringFromValueFunction ([] (int v, int) { return flNoteName (v); })
                    .withValueFromStringFunction ([] (const juce::String& t) { return parseNoteName (t); })));
-    addFloat (l, pid::fineTune, "Fine tuning", { -100.0f, 100.0f }, 0.0f,
+    addFloat (l, id::fineTune, "Fine tuning", { -100.0f, 100.0f }, 0.0f,
               attr ([] (float v, int) { return juce::String (juce::roundToInt (v)) + " cents"; }, fromNum()));
 
     // The host's undo step for group edits, renamed after each (History)
-    l.add (std::make_unique<HistoryStepParameter> (id (pid::historyStep), "History step"));
+    l.add (std::make_unique<HistoryStepParameter> (paramId (id::historyStep), "History step"));
 
     return l;
+}
 }

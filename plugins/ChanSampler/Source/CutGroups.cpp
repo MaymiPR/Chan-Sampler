@@ -2,6 +2,9 @@
 #include <algorithm>
 #include <mutex>
 
+namespace cs
+{
+
 namespace cutgroups
 {
     namespace
@@ -138,4 +141,5 @@ namespace cutgroups
         }
         std::sort (offsets.begin(), offsets.end());
     }
+}
 }

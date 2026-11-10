@@ -8,41 +8,53 @@ this page is the reference. A deviation is listed in the last section with its r
 
 | Path | Holds |
 |---|---|
-| `plugins/<Id>/` | one plug-in: `plugin.cmake`, `Source/` (with `dsp/` and `ui/`), `tests/`, `tools/`, `nulltest/` (with its README), README, RESEARCH, MEASUREMENTS, NULLTESTS; optional `scripts/` (its Python), `resources/` (its binary resources) and `NULLTESTS-<topic>.md` reports |
-| `shared/` | code shared by the plug-ins: `shared.cmake`, `ui/`, `dsp/` |
-| `tools/` | hosts for the reference plug-ins: RefRender, ParamDump, RefCapture, FocusCheck (C++ only; Python goes to `scripts/`) |
-| `measurements/<Id>/` | measurement data per plug-in, the id's exact case; git-ignored unless publishing was approved |
-| `packaging/` | `plugins.txt`, the Inno Setup script, `distribution.xml`, `install-linux.sh`, the INSTALL notes, THIRD-PARTY-NOTICES, ABOUT |
+| `plugins/<Id>/` | one plug-in: `plugin.cmake`, `Source/` (`Params.h`, `PluginProcessor`, `PluginEditor`, `Presets`, a generated `PresetTable.h`; `dsp/` with `Engine` and `Tuning.h`; `ui/` with the plug-in's own `Theme.h` and `Controls`), `tests/` (`<Stem>Tests.cpp`, `<Stem><Area>Tests.cpp`, `data/state-<x.y.z>.bin`), `tools/` (`<Ab>Render.cpp`, `<Ab><Part>Render.cpp`), a flat `nulltest/` (with its README), README, RESEARCH, MEASUREMENTS, NULLTESTS; optional `scripts/` (every script that writes under `Source/` or `resources/`, the editor-measuring scripts) and `resources/` (its binary resources) |
+| `shared/` | code shared by the plug-ins, built as the static library `<SuiteId>Shared`: `shared.cmake`, `ui/` (`Theme.h`, `Widgets`, `HostFocus`), `dsp/` (`Math.h`); a suite of one plug-in has it too |
+| `tools/` | C++ only: the reference hosts RefRender, ParamDump, RefCapture, FocusCheck, and `Snapshot.cpp` and `HostTest.cpp`, built per plug-in (Python goes to `scripts/`) |
+| `measurements/<Id>/` | measurement data per plug-in, the id's exact case; published by a public suite with the approval recorded, git-ignored while the suite is private |
+| `packaging/` | `plugins.txt` (`Target\|Product name\|PluginCode\|ManufacturerCode\|AU type`), the Inno Setup script, `distribution.xml`, `install-linux.sh`, the INSTALL notes, THIRD-PARTY-NOTICES, ABOUT; the standalone apps unticked by default |
 | `tests/regress/` | the render regression: `<Id>/jobs.txt` and `<Id>/golden/*.f32` per plug-in target, the only place `scripts/render_regress.py`, CI and the local check read |
 | `docs/` | `BUILDING.md`, `branding/` (banners, icon, social preview, `colours.json`), `screenshots/` |
-| `scripts/` | `bump_version.py`, `release_notes.py`, `render_regress.py`, `make_site.py`, `check_repo.py`, `check.ps1`, `check.sh` |
+| `scripts/` | `bump_version.py`, `release_notes.py`, `render_regress.py`, `make_site.py`, `check_repo.py`, `check.ps1`, `check.sh`; `build_native.py` when a plug-in has native null-test helpers; `nulltest/` for a host the plug-ins share and `ref_state_lib.py` |
 | `.github/` | the five workflows, `dependabot.yml`, the issue forms, the pull request template, `RELEASE_CHECKLIST.md`, CODEOWNERS |
 
 Root files: `README.md` (purpose, contents, quick start, links), `LICENSE` (AGPL-3.0), `CONTRIBUTING.md`,
 `CHANGELOG.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, `STANDARDS.md`, `CMakeLists.txt`, `.provenance`,
-`local.example.yaml` (the keys of the git-ignored `local.yaml`, which holds every machine path), `.editorconfig`,
+`local.example.yaml` (the keys of the git-ignored `local.yaml`, which holds every machine path; the suite's own keys
+in its closing "Suite keys" block), `.editorconfig`,
 `.gitattributes`, `.gitignore`, `.markdownlint-cli2.yaml`, `.yamllint.yaml`, `requirements.txt`.
 
 ## Naming
 
 | Item | Rule | Example |
 |---|---|---|
-| Suite | display name `<Word> Suite`; id without the space | Example Suite, ExampleSuite |
+| Suite | the repository's name; the id without spaces; the company name hosts show | Example, Example |
 | Plug-in id | PascalCase, no spaces; the folder, the CMake target, the state tag | ThePlugin |
 | Class stem | the id without a leading The | PluginProcessor, PluginEditor, PluginTests |
-| Tool abbreviation | two letters, the initials without The, or the first two letters of one word | Tp: TpRender |
-| Namespace | the abbreviation in lower case | `tp` |
+| Tool abbreviation | two letters, the initials without The, or the first two letters of one word; a renderer of one part is `<Ab><Part>Render` | Tp: TpRender, TpMeterRender |
+| Namespace | the abbreviation in lower case; one suite namespace for `shared/` (the suite name's first word in lower case) | `tp`, `example` |
 | Four-character codes | first upper case, then lower case or digits; the manufacturer code is the suite's | Exmp, Expl |
-| Bundle and CLAP id | `com.<suiteid>.<pluginid>` in lower case | com.examplesuite.theplugin |
+| Bundle and CLAP id | `com.<suiteid>.<pluginid>` in lower case | com.example.theplugin |
 | Preset extension | the plug-in name without The, lower case, no spaces, at most 8 characters | `.plugin` |
-| Release files | `<SuiteId>-<version>-<OS>[-<Format>].<ext>` | ExampleSuite-1.2.0-Windows-Setup.exe |
-| Harness module | the reference product's initials in lower case; for a one-word name its first two letters (three when two make a Python keyword) | `tgp.py` |
-| Null-test scripts | lower_snake; `nulltest.py` and `first_null.py`; others start with their purpose (`probe_`, `measure_`, `fit_`, `train_`, `render_`, `check_`) and name a plug-in by its id | `probe_release.py` |
+| Release files | `<SuiteId>-<version>-<OS>[-<Format>].<ext>` | Example-1.2.0-Windows-Setup.exe |
+| Look and controls | suite colours `shared/ui/Theme.h`, a plug-in's own look `Source/ui/Theme.h`; shared controls `shared/ui/Widgets`, a plug-in's own `Source/ui/Controls`; no forwarding headers | `Source/ui/Controls.cpp` |
+| Test programs | `tests/<Stem>Tests.cpp`, a further one `tests/<Stem><Area>Tests.cpp`; `<Stem>HostTest` from `tools/HostTest.cpp` | `PluginUiTests.cpp` |
+| Harness module | `<ab>_ref.py`, the tool abbreviation in lower case (never the reference's initials or name) | `tp_ref.py` |
+| Null-test scripts | lower_snake in a flat `nulltest/`; `nulltest.py` and `first_null.py`; others start with their purpose (`measure_`, `probe_`, `fit_`, `train_`, `null_`, `render_`, `compare_`, `check_`, `read_`, `cases_`), helpers are `<topic>_lib.py`, a plug-in is named by its id; no numbered iterations (the script whose output ships keeps the name); native helpers in `nulltest/native/`, built into `build/native/` | `probe_release.py` |
+| Plug-in scripts | `plugins/<Id>/scripts/`: `make_`, `export_`, `pack_` for a script that writes under `Source/` or `resources/`; `measure_ui.py`, `compare_ui.py`, `fit_<part>.py` for the editor | `make_presets.py` |
+| Null-test report | one generated `NULLTESTS.md` per plug-in, a section per kind of case (Settings, Stages, Presets, Grid); the data as JSON in `measurements/<Id>/` | NULLTESTS.md |
 | Documents | lower-kebab under `docs/` (`BUILDING.md` excepted); root and plug-in documents in upper case | `docs/null-testing.md` |
-| Branding and screenshots | `docs/branding/<suiteid>-*`; `docs/screenshots/<id>.png`, `<id>-<feature>.png`, ids in lower case; a view of the whole suite takes the suite id | `examplesuite-banner-light.svg` |
+| Branding | `docs/branding/<suiteid>-` banner dark and light (SVG), icon (SVG and 512 px PNG), social (SVG and PNG) | `example-banner-light.svg` |
+| Screenshots | `docs/screenshots/hero.png`; `<pluginid>.png` and `<pluginid>-<view>.png`, ids in lower case; `<suiteid>-<view>.png` for a view the plug-ins share | `theplugin.png`, `example-toolbar.png` |
 
 Parameter ids are lowerCamelCase and never renamed after a release; parameter names are the names the reference
-shows in a host.
+shows in a host. No vendor word in a control label, a preset name, a plug-in name, a code identifier, a tracked file
+name or a local file a script reads (`.provenance` lists the words; `scripts/check_repo.py` checks them); the
+reference is named only where a document says what a plug-in recreates.
+
+The frozen identity never changes once a release has shipped: the manufacturer and plug-in codes (and the VST3 class
+IDs from them), the bundle and CLAP IDs, the parameter IDs, the company name, the installer's AppId and the install
+folders. CONTRIBUTING.md records the values under "Frozen identity".
 
 ## Branches
 

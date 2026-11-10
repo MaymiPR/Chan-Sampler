@@ -1,5 +1,5 @@
 """Offline sanity check of every stretch mode (no FL needed): renders a sine
-and a drum loop with PITCH +600 cents and MUL x2 through ChanSamplerRender and
+and a drum loop with PITCH +600 cents and MUL x2 through CsRender and
 reports duration, pitch, level, the largest sample step and render time."""
 import subprocess, numpy as np, time, os, sys; from lib import wavio
 from lib import paths

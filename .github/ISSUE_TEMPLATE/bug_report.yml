@@ -10,7 +10,6 @@ body:
     attributes:
       label: What happened?
       description: What you did, what you expected, and what happened instead.
-      placeholder: "Loaded a 24-bit WAV with loop points, pressed a key, and..."
     validations:
       required: true
   - type: textarea
@@ -24,17 +23,17 @@ body:
     validations:
       required: true
   - type: input
-    id: version
+    id: plugin
     attributes:
-      label: Chan Sampler version
-      description: Click CHAN SAMPLER at the top of the plugin; the menu starts with the version.
-      placeholder: "1.x.y"
+      label: Plug-in and version
+      description: The logo menu at the top of the plug-in shows the version.
+      placeholder: "Chan Sampler 1.x.y"
     validations:
       required: true
   - type: dropdown
     id: format
     attributes:
-      label: Plugin format
+      label: Plug-in format
       options: [VST3, CLAP, AU, Standalone]
     validations:
       required: true
@@ -42,7 +41,7 @@ body:
     id: host
     attributes:
       label: DAW and version
-      placeholder: "Ableton Live 12.1, Logic Pro 11, Reaper 7..."
+      placeholder: "FL Studio 2026, Ableton Live 12.1, Logic Pro 11, Reaper 7 ..."
     validations:
       required: true
   - type: input
@@ -53,12 +52,12 @@ body:
     validations:
       required: true
   - type: textarea
-    id: fl
+    id: original
     attributes:
-      label: Difference from FL Studio's Sampler (if any)
-      description: If it sounds or behaves differently from FL's Sampler with the same settings, describe how. An FL preset (.fst) or the sample helps a lot.
+      label: Difference from the original (if any)
+      description: If it sounds or behaves differently from the original plug-in with the same settings, describe how. The settings or a preset help a lot.
   - type: textarea
     id: files
     attributes:
       label: Screenshots, recordings or files
-      description: Drag files here (a sample, a .cspreset or .fst preset, a screenshot).
+      description: Drag files here (a preset, a short audio example, a screenshot).

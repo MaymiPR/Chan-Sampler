@@ -9,6 +9,9 @@
 #include <mutex>
 #include <vector>
 
+namespace cs
+{
+
 // A complex FFT for powers of two (radix-4 Stockham autosort on split real /
 // imaginary arrays, SIMD butterflies), a drop-in for juce::dsp::FFT::perform:
 // forward e^-i, inverse scaled by 1 / N, same results to about -130 dB.
@@ -217,3 +220,4 @@ private:
     const Tables& t;
     Scratch& scratch;
 };
+}

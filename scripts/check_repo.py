@@ -18,6 +18,15 @@ in its first 8 KB is binary and skipped. Rules:
     D  Markdown only: a heading that is a date or names a round, session, log, diary or progress; a line that starts
        with an ISO date and a colon; an em or en dash
     W  trailing whitespace; CRLF line endings in a file that is not .iss or .ps1
+    V  a vendor word (the vendor: lines of .provenance, any letter case) in a code identifier or a file name: in a code
+       file, a CamelCase or snake_case name whose parts spell the vendor word (VendorDrag, render_vendor); in every
+       tracked path, a file or folder name with the vendor word among its parts. Word-boundary aware: a plain word in
+       prose or a comment is not an identifier, and a vendor word inside a longer part (CLA in CLAP) is not a match
+    H  plugins/<Id>/nulltest/ without its harness <ab>_ref.py (<ab>: the plug-in's <Ab>Render abbreviation in lower
+       case)
+    I  a numbered iteration script: a script or native helper under nulltest/ or scripts/ whose name ends in a number
+       right after a letter (fit_release2.py, gain_fast6.c); the version whose output ships keeps a name that says
+       what it does, the others leave the tree
 
 Licence texts (LICENSE, COPYING and the THIRD-PARTY-NOTICES files) are verbatim third-party text: the P, Q, E and D
 rules skip them. --release also requires a `## Provenance` section in every plugins/*/MEASUREMENTS.md and
@@ -54,6 +63,10 @@ D_DATE_LINE = re.compile(r'^\s*(?:[-*]\s+)?\**\d{4}-\d{2}-\d{2}\**\s*:')
 DASHES = re.compile('[\u2013\u2014]')
 LICENCE = re.compile(r'(?:^|/)(?:LICEN[CS]E|COPYING)[^/]*$|(?:^|/)THIRD-PARTY-NOTICES[^/]*$', re.I)
 CRLF_OK = ('.iss', '.ps1')
+CODE_EXT = ('.h', '.hpp', '.cpp', '.c', '.mm', '.py', '.cmake', '.ps1', '.sh', '.bat', '.iss', '.yml', '.yaml', '.js')
+IDENTIFIER = re.compile(r'[A-Za-z_][A-Za-z0-9_]*')
+SCRIPT_EXT = ('.py', '.ps1', '.sh', '.bat', '.c', '.cpp', '.h')
+NUMBERED = re.compile(r'[A-Za-z][0-9]+$')
 
 
 def git_files():
@@ -87,8 +100,88 @@ def old_name_rules(files):
     return rules
 
 
-def check_file(rel, data, old_names, findings):
+def name_parts(word):
+    """The lower-case parts of a name: split at every character that is not a letter or a digit, between a lower-case
+    letter and a capital, before the last capital of a run followed by lower case, and between letters and digits."""
+    parts = []
+    for chunk in re.split(r'[^A-Za-z0-9]+', word):
+        parts += re.findall(r'[A-Z]+(?![a-z])|[A-Z]?[a-z]+|[0-9]+', chunk)
+    return [x.lower() for x in parts if x]
+
+
+def vendor_words(root=ROOT):
+    """The vendor words of .provenance (its vendor: lines), each as the run of name parts it stands for."""
+    path = os.path.join(root, '.provenance')
+    words = []
+    if os.path.isfile(path):
+        with open(path, encoding='utf-8') as h:
+            for line in h:
+                if line.strip().startswith('vendor:'):
+                    for w in line.strip()[7:].split(','):
+                        if name_parts(w):
+                            words.append((w.strip(), name_parts(w)))
+    return words
+
+
+def vendor_in(parts, vendor):
+    """The vendor word that whole parts in a row spell (Maxx + Bass, or one part maxxbass), or None."""
+    for word, run in vendor:
+        joined = ''.join(run)
+        for i in range(len(parts)):
+            spelled = ''
+            for part in parts[i:]:
+                spelled += part
+                if spelled == joined:
+                    return word
+                if len(spelled) >= len(joined):
+                    break
+    return None
+
+
+def is_identifier(token):
+    """A CamelCase or snake_case name (a single plain word is prose, not an identifier)."""
+    core = token.strip('_')
+    return '_' in core or bool(re.search(r'[a-z0-9][A-Z]|[A-Z]{2}[a-z]', core))
+
+
+def tree_rules(files, findings, vendor):
+    """The rules on the tracked tree rather than on a file's text: V for file and folder names, H, I."""
+    if vendor:
+        seen = set()
+        for rel in files:
+            if rel == '.provenance':
+                continue
+            for comp in rel.split('/'):
+                word = vendor_in(name_parts(os.path.splitext(comp)[0] if comp == rel.split('/')[-1] else comp), vendor)
+                if word and (comp, word) not in seen:
+                    seen.add((comp, word))
+                    findings.append(f'{rel}:1: V: the vendor word {word} in the name {comp}')
+    plugins = sorted({f.split('/')[1] for f in files if f.startswith('plugins/') and f.count('/') >= 3
+                      and f.split('/')[2] == 'nulltest'})
+    for plugin in plugins:
+        cmake = ''
+        for name in ('plugin.cmake', 'CMakeLists.txt'):
+            data = read_bytes(f'plugins/{plugin}/{name}') if f'plugins/{plugin}/{name}' in files else None
+            cmake += data.decode('utf-8', 'replace') if data else ''
+        m = (re.search(r'foreach\(t\s+(\w+?)Render\s', cmake)
+             or re.search(r'(?:juce_add_console_app|add_executable)\((\w+?)Render\b', cmake))
+        harness = [f for f in files if re.fullmatch(rf'plugins/{re.escape(plugin)}/nulltest/[a-z]{{2}}_ref\.py', f)]
+        want = f'{m.group(1).lower()}_ref.py' if m and len(m.group(1)) == 2 else None
+        if want and f'plugins/{plugin}/nulltest/{want}' not in files:
+            findings.append(f'plugins/{plugin}/nulltest:1: H: no harness {want} (the renderer is {m.group(1)}Render)')
+        elif not want and not harness:
+            findings.append(f'plugins/{plugin}/nulltest:1: H: no harness <ab>_ref.py')
+    for rel in files:
+        parts = rel.split('/')
+        stem, ext = os.path.splitext(parts[-1])
+        if ext.lower() in SCRIPT_EXT and ('nulltest' in parts[:-1] or 'scripts' in parts[:-1]) and NUMBERED.search(stem):
+            findings.append(f'{rel}:1: I: a numbered iteration script ({parts[-1]}): keep the one whose output ships, '
+                            f'named for what it does')
+
+
+def check_file(rel, data, old_names, findings, vendor=()):
     text = data.decode('utf-8', 'replace')
+    code = rel.lower().endswith(CODE_EXT) or os.path.basename(rel) == 'CMakeLists.txt'
     licence = bool(LICENCE.search(rel))
     markdown = rel.lower().endswith('.md')
     crlf_ok = rel.lower().endswith(CRLF_OK)
@@ -110,6 +203,11 @@ def check_file(rel, data, old_names, findings):
                     break
         if licence:
             continue
+        if vendor and code:
+            for token in set(IDENTIFIER.findall(line)):
+                word = vendor_in(name_parts(token), vendor) if is_identifier(token) else None
+                if word:
+                    add('V', f'the vendor word {word} in the identifier {token}')
         if any(r.search(line) for r in P_RULES):
             add('P', line)
         if any(r.search(line) for r in Q_RULES):
@@ -172,6 +270,7 @@ def main():
     a = ap.parse_args()
     files = git_files()
     old_names = old_name_rules(files)
+    vendor = vendor_words()
     findings, checked = [], 0
     for rel in files:
         data = read_bytes(rel)
@@ -181,13 +280,15 @@ def main():
             print(f'{rel}: fixed whitespace and line endings')
             data = read_bytes(rel)
         checked += 1
-        check_file(rel, data, old_names, findings)
+        check_file(rel, data, old_names, findings, vendor)
+    tree_rules(files, findings, vendor)
     if a.release:
         release_rules(files, findings)
     for f in findings:
         print(f)
     print(f'check_repo: {checked} text files, {len(findings)} finding(s)'
-          + (f', {len(old_names)} old-name pattern(s)' if old_names else '') + (', release rules' if a.release else ''))
+          + (f', {len(old_names)} old-name pattern(s)' if old_names else '') + (f', {len(vendor)} vendor word(s)' if vendor else '')
+          + (', release rules' if a.release else ''))
     sys.exit(1 if findings else 0)
 
 

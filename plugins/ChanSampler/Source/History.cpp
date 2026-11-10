@@ -1,6 +1,9 @@
 #include "History.h"
 #include <thread>
 
+namespace cs
+{
+
 HistoryStepParameter::HistoryStepParameter (const juce::ParameterID& id, const juce::String& title)
     : juce::AudioParameterInt (id, title, 0, numValues - 1, 0), stepName (title) {}
 
@@ -300,4 +303,5 @@ History::Transaction::~Transaction()
     history.transactions = juce::jmax (0, history.transactions - 1);
     if (history.transactions == 0 && history.gestures == 0)
         history.close();
+}
 }

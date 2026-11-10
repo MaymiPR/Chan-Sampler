@@ -8,15 +8,15 @@ through both, one is subtracted from the other, and the residual is reported
 
 Requirements: FL Studio (closed while rendering: a running FL swallows the
 command-line render, so the render queue waits while it is open; set
-`FL_STUDIO_DIR` when it is not in its default install folder),
+`FL_DIR` when it is not in its default install folder),
 Python 3.12 or newer with `numpy` (`pip install -r requirements.txt` at the repository root), and Release builds of the plugin and of
-`ChanSamplerRender` (see the main README).
+`CsRender` (see the main README).
 
 ## Layout
 
 | Folder | What it holds |
 |---|---|
-| `lib/` | Shared code: FL project files (`flp`, `build_project`, `vstchannel`), FL renders (`flrender`: FL's Sampler alone; `nullfl`: FL's Sampler and Chan Sampler in one project; `flqueue`: the render queue both go through), offline renders (`nulltest`), WAV files (`wavio`), paths (`paths`) |
+| `lib/` | Shared code: FL project files (`flp`, `build_project`, `vstchannel`), FL renders (`flrender`: FL's Sampler alone; `flqueue`: the render queue both go through), offline renders (`nulltest`), WAV files (`wavio`), paths (`paths`) |
 | `cases/` | The null-test case lists: each module defines `CASES` |
 | `probes/` | Measurement scripts: how each model in the plugin was found |
 | `stretch/` | The stretch modes against FL (they cannot null: FL's engine is proprietary), and the generator of their test signals |
@@ -60,8 +60,8 @@ project, rendered once by FL from its command line; the two halves are
 subtracted as heard in FL, with no gain correction.
 
 ```text
-python -c "from lib import nullfl; from cases import fl_cases; nullfl.run(fl_cases.CASES)"
-python -c "from lib import nullfl; from cases import fl_cases; nullfl.run(fl_cases.CASES, ['d_cut'])"   # names containing d_cut
+python -c "import cs_ref; from cases import fl_cases; cs_ref.run(fl_cases.CASES)"
+python -c "import cs_ref; from cases import fl_cases; cs_ref.run(fl_cases.CASES, ['d_cut'])"   # names containing d_cut
 python -m cases.untested_cases -f                                                                      # case files with a main; -f re-renders
 ```
 
@@ -90,7 +90,7 @@ or FL's half spills into ours.
 ## Offline tests (fast)
 
 `lib/nulltest.py` with `cases/cases.py` renders FL's half from the command line
-(FL's Sampler alone) and Chan Sampler's with `ChanSamplerRender`;
+(FL's Sampler alone) and Chan Sampler's with `CsRender`;
 `probes/offline_vs_fl.py` compares an offline render with FL's half of an
 in-FL case, for model tuning without new FL renders. The cases play at FL's
 unity velocity, 100: FL passes a note's velocity to a plugin unchanged as the

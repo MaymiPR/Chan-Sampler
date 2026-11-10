@@ -1,5 +1,8 @@
 #include "TimeStretch.h"
 
+namespace cs
+{
+
 namespace
 {
     constexpr int maxFrame = 8192;
@@ -531,4 +534,5 @@ void TimeStretcher::formantEnvelopes()
         envelope[0][(size_t) k] = a.real() + (b.real() - a.real()) * t;
         envelope[1][(size_t) k] = a.imag() + (b.imag() - a.imag()) * t;
     }
+}
 }

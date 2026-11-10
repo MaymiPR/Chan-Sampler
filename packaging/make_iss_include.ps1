@@ -7,18 +7,18 @@ $build = (Resolve-Path $BuildDir).Path
 $plugins = Get-Content "$here/plugins.txt" | Where-Object { $_.Trim() -and -not $_.StartsWith('#') } | ForEach-Object {
     $parts = $_.Split([char]0x7C); @{ Target = $parts[0].Trim(); Product = $parts[1].Trim() } }
 $c = @('[Components]',
-       'Name: "vst3"; Description: "VST3 plug-in (C:\Program Files\Common Files\VST3)"; Types: full custom',
-       'Name: "clap"; Description: "CLAP plug-in (C:\Program Files\Common Files\CLAP)"; Types: full custom',
-       'Name: "app"; Description: "Standalone app (C:\Program Files\Chan Sampler)"; Types: full')
+       'Name: "vst3"; Description: "VST3 plug-in (C:\Program Files\Common Files\VST3)"; Types: full all custom',
+       'Name: "clap"; Description: "CLAP plug-in (C:\Program Files\Common Files\CLAP)"; Types: full all custom',
+       'Name: "app"; Description: "Standalone app (C:\Program Files\Chan Sampler)"; Types: all')
 $f = @('[Files]')
 $i = @('[Icons]')
 $u = @('[UninstallDelete]')
 foreach ($pl in $plugins) {
     $id = $pl.Target.ToLower()
     $a = Join-Path $build "$($pl.Target)_artefacts\Release"
-    $c += "Name: ""vst3\$id""; Description: ""$($pl.Product)""; Types: full custom"
-    $c += "Name: ""clap\$id""; Description: ""$($pl.Product)""; Types: full custom"
-    $c += "Name: ""app\$id""; Description: ""$($pl.Product)""; Types: full"
+    $c += "Name: ""vst3\$id""; Description: ""$($pl.Product)""; Types: full all custom"
+    $c += "Name: ""clap\$id""; Description: ""$($pl.Product)""; Types: full all custom"
+    $c += "Name: ""app\$id""; Description: ""$($pl.Product)""; Types: all"
     $f += "Source: ""$a\VST3\$($pl.Product).vst3\*""; DestDir: ""{#VstDir}\$($pl.Product).vst3""; Components: vst3\$id; Flags: ignoreversion recursesubdirs createallsubdirs"
     $f += "Source: ""$a\CLAP\$($pl.Product).clap""; DestDir: ""{#ClapDir}""; Components: clap\$id; Flags: ignoreversion"
     $f += "Source: ""$a\Standalone\$($pl.Product).exe""; DestDir: ""{app}""; Components: app\$id; Flags: ignoreversion"

@@ -5,6 +5,9 @@
 #include <functional>
 #include <vector>
 
+namespace cs
+{
+
 // The parameter a host records the plugin's group edits with (see History):
 // one step of its own undo history per edit, named after the edit ("Preset:
 // Chop", "Load sample: kick.wav"), its value counting the edits.
@@ -160,3 +163,4 @@ private:
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (History)
 };
+}

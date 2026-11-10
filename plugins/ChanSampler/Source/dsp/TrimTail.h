@@ -2,6 +2,9 @@
 
 #include <cmath>
 
+namespace cs
+{
+
 // FL Sampler's trimmed-sample tail (SMP LENGTH < 100%), measured in FL with
 // clicks at every distance from the cut (nulltest/probes/tail_measure.py): a
 // linear filter over the last 200 frames. Output at distance D from the end
@@ -1143,4 +1146,5 @@ namespace trimtail
         0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 9.8137831e-01f, -7.6318400e-05f,
         0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 0.0000000e+00f, 9.9526826e-01f,
     };
+}
 }

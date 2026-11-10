@@ -2,6 +2,9 @@
 
 #include <array>
 
+namespace cs
+{
+
 // Arpeggiator chord presets: standard chord names and their stacked intervals
 // in semitones, in the order of FL's chord menu so an imported preset's chord
 // carries over.
@@ -83,3 +86,4 @@ inline constexpr ChordPreset chordPresets[] = {
 };
 
 inline constexpr int numChordPresets = (int) (sizeof (chordPresets) / sizeof (chordPresets[0]));
+}

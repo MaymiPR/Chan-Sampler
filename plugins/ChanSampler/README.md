@@ -40,8 +40,9 @@ MEASUREMENTS.md. The time-stretch modes cannot null (FL's engine is proprietary)
 ## Developer notes
 
 - Tests: `ChanSamplerTests` (the engine), `ChanSamplerUiTests` (the editor and the undo history) and
-  `ChanSamplerHostTest` (the built VST3 hosted like a DAW, `tools/HostTool.cpp`), all under ctest. Offline renders:
-  `ChanSamplerRender` (`tools/ChanSamplerRender.cpp`); editor snapshots: `ChanSamplerSnapshot` (`tools/Snapshot.cpp`).
+  `ChanSamplerHostTest` (the built VST3 hosted like a DAW, `tools/HostTest.cpp` at the repository root), all under
+  ctest. Offline renders: `CsRender` (`tools/CsRender.cpp`); editor snapshots: `ChanSamplerSnapshot`
+  (`tools/Snapshot.cpp`).
 - Null tests against FL: `nulltest/` ([nulltest/README.md](nulltest/README.md); needs FL Studio and the tools
   built).
 - `scripts/make_screenshots.py` makes the README's pictures with the snapshot tool.

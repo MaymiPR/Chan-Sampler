@@ -21,6 +21,9 @@
  #pragma comment (lib, "shell32.lib")
 #endif
 
+namespace cs
+{
+
 namespace exchange
 {
 #if JUCE_WINDOWS || JUCE_MAC   // pasting audio data (Linux pastes file paths only)
@@ -201,4 +204,5 @@ bool clipboardHasAudio() { return clipboardFile() != juce::File(); }
 
 juce::File pasteFromClipboard (const juce::File&) { return clipboardFile(); }
 #endif
+}
 }

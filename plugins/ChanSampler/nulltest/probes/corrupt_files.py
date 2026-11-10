@@ -1,7 +1,7 @@
 """Robustness against broken files: builds a corpus of corrupted samples and
 presets from valid ones (truncations, flipped header bytes, absurd chunk sizes,
 channel counts and rates, hostile marker / loop chunks, empty files and
-garbage) and loads each through ChanSamplerRender in its own process, so a
+garbage) and loads each through CsRender in its own process, so a
 crash or a hang shows per file. Loading may fail; it must not crash or hang.
 
     python -m probes.corrupt_files <valid files...>   (from nulltest/)

@@ -69,10 +69,10 @@ def probe(raw, cents=0, step=16):
 
 
 def case(key, cents, B=16):
-    from lib import nullfl
+    import cs_ref
     from cases import e3_pitch_cases as E
     cs = next(x for x in E.CASES if x['name'] == f'e3p_{key}_{cents}')
-    a, b = nullfl.render_pair(cs['name'], cs['sample'], cs['fl'], cs['ours'], beats=cs['beats'])
+    a, b = cs_ref.render_pair(cs['name'], cs['sample'], cs['fl'], cs['ours'], beats=cs['beats'])
     N, H = 2048, 256; w = np.hanning(N)
     stft = lambda x: np.array([rfft(x[i:i + N] * w) for i in range(0, len(x) - N, H)])
     A, O = stft(a[:, 0].astype(float)), stft(b[:, 0].astype(float))

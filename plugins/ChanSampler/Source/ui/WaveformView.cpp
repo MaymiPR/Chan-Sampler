@@ -1,9 +1,12 @@
 #include "WaveformView.h"
-#include "Style.h"
+#include "shared/ui/Widgets.h"
 #include "SampleExchange.h"
 #include "dsp/TempoDetect.h"
 #include "dsp/TimeStretch.h"
 #include <thread>
+
+namespace cs
+{
 
 namespace
 {
@@ -107,12 +110,12 @@ WaveformView::StretchKey WaveformView::stretchKey() const
     StretchKey k;
     k.source = fileSample.get();
     auto get = [this] (const char* id) { return getValue (id); };
-    k.cents = get (pid::pitch);
-    k.mul = get (pid::stretchMul);
-    k.time = get (pid::stretchTime);
-    k.formant = get (pid::formant);
+    k.cents = get (id::pitch);
+    k.mul = get (id::stretchMul);
+    k.time = get (id::stretchTime);
+    k.formant = get (id::formant);
     k.bpm = k.time > 0.01f ? displayBpm.load() : 0.0;
-    k.mode = (int) resolveStretchMode ((StretchMode) juce::roundToInt (get (pid::stretchMode)), k.cents, k.mul, k.time);
+    k.mode = (int) resolveStretchMode ((StretchMode) juce::roundToInt (get (id::stretchMode)), k.cents, k.mul, k.time);
     return k;
 }
 
@@ -211,9 +214,9 @@ const char* WaveformView::markerParam (Marker m) const
 {
     switch (m)
     {
-        case Marker::start:     return pid::startOffset;
-        case Marker::loopStart: return pid::loopStart;
-        case Marker::loopEnd:   return pid::loopEnd;
+        case Marker::start:     return id::startOffset;
+        case Marker::loopStart: return id::loopStart;
+        case Marker::loopEnd:   return id::loopEnd;
         default:                break;
     }
     return nullptr;
@@ -228,8 +231,8 @@ WaveformView::Marker WaveformView::markerAt (juce::Point<float> p) const
     // offset is above 0, the loop once END is above 0).
     Marker best = Marker::none;
     float bestDist = grabDistance;
-    const bool startShown = getValue (pid::startOffset) > 0.0f;
-    const bool loopShown = getValue (pid::loopEnd) > 0.0f && ! (sample != nullptr && sample->autoLoop);
+    const bool startShown = getValue (id::startOffset) > 0.0f;
+    const bool loopShown = getValue (id::loopEnd) > 0.0f && ! (sample != nullptr && sample->autoLoop);
     for (auto m : { Marker::start, Marker::loopStart, Marker::loopEnd })
     {
         if ((m == Marker::start && ! startShown) || (m != Marker::start && ! loopShown))
@@ -260,8 +263,8 @@ void WaveformView::timerCallback()
         processor.reloadIfFileChanged();
     }
 
-    const float now[4] = { getValue (pid::startOffset), getValue (pid::loopStart),
-                           getValue (pid::loopEnd), getValue (pid::useLoop) + (sample != nullptr && sample->autoLoop ? 2.0f : 0.0f) };
+    const float now[4] = { getValue (id::startOffset), getValue (id::loopStart),
+                           getValue (id::loopEnd), getValue (id::useLoop) + (sample != nullptr && sample->autoLoop ? 2.0f : 0.0f) };
     const auto ph = processor.getPlayhead();
     if (std::memcmp (now, lastMarkers, sizeof (now)) != 0 || ph != playhead)
     {
@@ -273,12 +276,12 @@ void WaveformView::timerCallback()
     }
 }
 
-// FL's sample view colours live with the other tokens in Style.h.
-namespace flview = ui::view;
+// FL's sample view colours live with the other tokens in Widgets.h.
+namespace sampleView = chansampler::ui::view;
 
 juce::Colour WaveformView::waveColour() const
 {
-    return sample != nullptr && sample->mono ? flview::waveMono : flview::waveStereo;
+    return sample != nullptr && sample->mono ? sampleView::waveMono : sampleView::waveStereo;
 }
 
 void WaveformView::drawLanes (juce::Graphics& g, juce::Rectangle<float> area, float from, float to, juce::Colour colour, bool colourful) const
@@ -441,7 +444,7 @@ void WaveformView::drawSamples (juce::Graphics& g, juce::Rectangle<float> area, 
         for (int i = first; i <= last; ++i)
         {
             const auto p = pt (i);
-            g.setColour (ui::colour::well);
+            g.setColour (chansampler::ui::colour::well);
             g.fillEllipse (p.x - 2.5f, p.y - 2.5f, 5.0f, 5.0f);
             setColourFill (g, area, from, to, waveColour(), true);
             g.drawEllipse (p.x - 2.5f, p.y - 2.5f, 5.0f, 5.0f, 1.0f);
@@ -451,13 +454,13 @@ void WaveformView::drawSamples (juce::Graphics& g, juce::Rectangle<float> area, 
 void WaveformView::paint (juce::Graphics& g)
 {
     const auto wave = waveArea();
-    g.fillAll (flview::frame);
-    g.setColour (flview::bg);
+    g.fillAll (sampleView::frame);
+    g.setColour (sampleView::bg);
     g.fillRect (wave);
-    g.setColour (flview::gridMajor);
+    g.setColour (sampleView::gridMajor);
     g.fillRect (wave.getX(), wave.getY() - 1.0f, wave.getWidth(), 1.0f);
     g.fillRect (wave.getX(), wave.getBottom(), wave.getWidth(), 1.0f);
-    g.setColour (flview::viewEdge);
+    g.setColour (sampleView::viewEdge);
     g.fillRect (wave.getRight(), wave.getY(), 1.0f, wave.getHeight());
 
     // FL's grid (measured): dark lines every 0.1 s of the sample, every second
@@ -465,7 +468,7 @@ void WaveformView::paint (juce::Graphics& g)
     // apart, see below), and two lines at +/-50% of full scale.
     auto drawGrid = [&]
     {
-        g.setColour (flview::grid);
+        g.setColour (sampleView::grid);
         g.fillRect (wave.getX(), std::floor (wave.getCentreY() - wave.getHeight() * 0.25f), wave.getWidth(), 1.0f);
         g.fillRect (wave.getX(), std::floor (wave.getCentreY() + wave.getHeight() * 0.25f), wave.getWidth(), 1.0f);
         const double seconds = sample != nullptr && sample->getTotalFrames() > 0 ? sample->getTotalFrames() / sample->sourceRate : 1.0;
@@ -494,20 +497,20 @@ void WaveformView::paint (juce::Graphics& g)
                 break;
             if (k % perMajor == 0)
             {
-                g.setColour (flview::gridMajorEdge);
+                g.setColour (sampleView::gridMajorEdge);
                 g.fillRect (juce::Rectangle<float> (x - 1.0f, wave.getY(), 3.0f, wave.getHeight()).getIntersection (wave));
-                g.setColour (flview::gridMajor);
+                g.setColour (sampleView::gridMajor);
             }
             else
-                g.setColour (flview::grid);
+                g.setColour (sampleView::grid);
             g.fillRect (x, wave.getY(), 1.0f, wave.getHeight());
         }
     };
 
     auto drawWatermark = [&g, wave]
     {
-        g.setColour (flview::watermark);
-        g.setFont (ui::font (20.0f));
+        g.setColour (sampleView::watermark);
+        g.setFont (chansampler::ui::font (20.0f));
         g.drawText ("Sampler", wave.reduced (8.0f, 4.0f), juce::Justification::topRight, false);
     };
 
@@ -515,8 +518,8 @@ void WaveformView::paint (juce::Graphics& g)
     {
         drawGrid();
         drawWatermark();
-        g.setColour (ui::colour::dim);
-        g.setFont (ui::font (10.8f));
+        g.setColour (chansampler::ui::colour::dim);
+        g.setFont (chansampler::ui::font (10.8f));
         const auto raw = processor.getRaw();
         if (raw->missing)
             g.drawFittedText ((raw->file.existsAsFile() ? "Can't read the project's sample:\n" : "The project's sample was not found:\n")
@@ -529,18 +532,18 @@ void WaveformView::paint (juce::Graphics& g)
 
     // A crossfade without loop points makes FL loop from the crossfade point to
     // the end; FL shows that loop with its markers as well.
-    const bool userLoop = getValue (pid::useLoop) > 0.5f;
+    const bool userLoop = getValue (id::useLoop) > 0.5f;
     const bool autoLoop = ! userLoop && sample->autoLoop && sample->getTotalFrames() > 0;
     // FL (measured): the Start marker shows once the start offset is above 0,
     // the loop once END is above 0 (START = END draws a single line), or the
     // crossfade loop. FL draws the loop red even with Use loop points off;
     // here an unused loop is drawn grey.
-    const bool startShown = getValue (pid::startOffset) > 0.0f;
-    const bool loopShown = autoLoop || getValue (pid::loopEnd) > 0.0f;
+    const bool startShown = getValue (id::startOffset) > 0.0f;
+    const bool loopShown = autoLoop || getValue (id::loopEnd) > 0.0f;
     const bool looping = userLoop || autoLoop;
-    const auto ls = fracToX (autoLoop ? (float) sample->autoLoopStart / (float) sample->getTotalFrames() : getValue (pid::loopStart));
-    const auto le = fracToX (autoLoop ? (float) sample->playEnd / (float) sample->getTotalFrames() : juce::jmax (getValue (pid::loopStart), getValue (pid::loopEnd)));
-    const auto sx = fracToX (getValue (pid::startOffset));
+    const auto ls = fracToX (autoLoop ? (float) sample->autoLoopStart / (float) sample->getTotalFrames() : getValue (id::loopStart));
+    const auto le = fracToX (autoLoop ? (float) sample->playEnd / (float) sample->getTotalFrames() : juce::jmax (getValue (id::loopStart), getValue (id::loopEnd)));
+    const auto sx = fracToX (getValue (id::startOffset));
     // FL's loop colours (sampled): START line / tab / label pure red, END a
     // darker red, the region a dark red tint. Grey versions when not looping.
     const auto startCol = looping ? juce::Colour (0xffa78bfa) : juce::Colour (0xff7c7c7c);
@@ -575,7 +578,7 @@ void WaveformView::paint (juce::Graphics& g)
                 drawLanes (g, ch == 0 ? top : bottom, viewStart, viewEnd, waveColour(), true);
             }
             laneChannel = -1;
-            g.setColour (flview::grid);
+            g.setColour (sampleView::grid);
             g.fillRect (wave.getX(), std::floor (wave.getCentreY()), wave.getWidth(), 1.0f);
         }
         else if (visibleFrames < wave.getWidth() / 2.0f)
@@ -614,7 +617,7 @@ void WaveformView::paint (juce::Graphics& g)
             g.fillRect (iconR.getX() - 0.5f, iconR.getY() - 1.0f, 2.0f, 2.0f);
             g.fillRect (iconR.getRight() - 1.5f, iconR.getY() - 1.0f, 2.0f, 2.0f);
         }
-        g.setFont (ui::font (10.35f));
+        g.setFont (chansampler::ui::font (10.35f));
         g.drawText (sample->fileBits <= 16 ? "16" : "32", juce::Rectangle<float> (iconR.getX() - 26.0f, iconR.getY() - 2.0f, 21.0f, 13.0f),
                     juce::Justification::centredRight, false);
     }
@@ -624,11 +627,11 @@ void WaveformView::paint (juce::Graphics& g)
         g.fillRect (juce::Rectangle<float>::leftTopRightBottom (wave.getX(), wave.getY(), juce::jmax (wave.getX(), sx), wave.getBottom()));
 
         // Start flag (gold, top)
-        g.setColour (ui::colour::startFlag.withAlpha (0.8f));
+        g.setColour (chansampler::ui::colour::startFlag.withAlpha (0.8f));
         g.drawVerticalLine ((int) sx, wave.getY(), wave.getBottom());
-        g.setColour (ui::colour::startFlag);
+        g.setColour (chansampler::ui::colour::startFlag);
         g.fillRect (sx, wave.getY(), 4.0f, flagH);
-        g.setFont (ui::font (10.35f));
+        g.setFont (chansampler::ui::font (10.35f));
         g.drawText ("Start", juce::Rectangle<float> (sx + 6.0f, wave.getY(), 40.0f, flagH), juce::Justification::centredLeft, false);
     }
 
@@ -654,7 +657,7 @@ void WaveformView::paint (juce::Graphics& g)
         startTab.addQuadrilateral (x0, bottom - tabH, x0 + tabW, bottom - tabH + cut, x0 + tabW, bottom, x0, bottom);
         g.fillPath (startTab);
 
-        const auto label = ui::font (9.9f);
+        const auto label = chansampler::ui::font (9.9f);
         const auto labelW = juce::GlyphArrangement::getStringWidth (label, "Loop");
         if (x1 - x0 >= labelW + 12.0f)
         {
@@ -689,13 +692,13 @@ void WaveformView::paint (juce::Graphics& g)
     // Zoom / scroll bar (FL's look): dark and light edges, the whole sample's
     // overview in grey, arrow buttons; the visible window between two bright edges.
     const auto sb = scrollArea();
-    g.setColour (flview::barDark);
+    g.setColour (sampleView::barDark);
     g.fillRect (sb.getX(), sb.getY(), sb.getWidth(), 1.0f);
-    g.setColour (flview::barLight);
+    g.setColour (sampleView::barLight);
     g.fillRect (sb.getX(), sb.getY() + 1.0f, sb.getWidth(), 1.0f);
     g.fillRect (sb.getX(), sb.getBottom() - 1.0f, sb.getWidth(), 1.0f);
     const auto trackArea = sb.withTrimmedTop (2.0f).withTrimmedBottom (1.0f);
-    g.setColour (flview::track);
+    g.setColour (sampleView::track);
     g.fillRect (trackArea);
     const auto inner = trackArea.reduced (buttonW, 0.0f);
     {
@@ -711,21 +714,21 @@ void WaveformView::paint (juce::Graphics& g)
         }
         juce::Graphics::ScopedSaveState s (g);
         g.reduceClipRegion (juce::Rectangle<float>::leftTopRightBottom (t0, inner.getY(), t1, inner.getBottom()).toNearestInt());
-        drawLanes (g, inner.reduced (0.0f, 1.0f), 0.0f, 1.0f, flview::overview, true);   // FL colours the overview too
+        drawLanes (g, inner.reduced (0.0f, 1.0f), 0.0f, 1.0f, sampleView::overview, true);   // FL colours the overview too
         if (viewStart > 0.0f || viewEnd < 1.0f)
         {
-            g.setColour (flview::barLight);
+            g.setColour (sampleView::barLight);
             g.fillRect (t0, inner.getY(), 1.0f, inner.getHeight());
             g.fillRect (t1 - 1.0f, inner.getY(), 1.0f, inner.getHeight());
         }
     }
     if (playhead >= 0.0f)
     {
-        g.setColour (ui::colour::playBar);
+        g.setColour (chansampler::ui::colour::playBar);
         g.fillRect (inner.getX() + playhead * inner.getWidth() - 1.0f, inner.getY(), 2.0f, inner.getHeight());
     }
     // Arrow buttons: small chevrons
-    g.setColour (flview::arrow);
+    g.setColour (sampleView::arrow);
     for (int side = 0; side < 2; ++side)
     {
         const auto cx = side == 0 ? trackArea.getX() + buttonW * 0.5f : trackArea.getRight() - buttonW * 0.5f;
@@ -819,15 +822,15 @@ void WaveformView::mouseDown (const juce::MouseEvent& e)
 
     if (dragging != Marker::none)
     {
-        dragOffset = getValue (pid::loopEnd) - getValue (pid::loopStart);
-        for (auto id : { pid::startOffset, pid::loopStart, pid::loopEnd })
+        dragOffset = getValue (id::loopEnd) - getValue (id::loopStart);
+        for (auto id : { id::startOffset, id::loopStart, id::loopEnd })
             processor.apvts.getParameter (id)->beginChangeGesture();
         return;
     }
 
     if (sample != nullptr && sample->playEnd > 0)
     {
-        previewNote = (int) getValue (pid::rootNote);
+        previewNote = (int) getValue (id::rootNote);
         processor.requestPreview (previewNote, true);
     }
 }
@@ -866,16 +869,16 @@ void WaveformView::mouseDrag (const juce::MouseEvent& e)
     const auto frac = xToFrac (e.position.x);
 
     // The processor applies FL's link: START pushes END, END stops at START.
-    if (dragging == Marker::loopStart)    { setValue (pid::loopStart, frac); processor.applyLoopLink (pid::loopStart); }
-    else if (dragging == Marker::loopEnd) { setValue (pid::loopEnd, frac);   processor.applyLoopLink (pid::loopEnd); }
-    else                                  setValue (pid::startOffset, frac);
+    if (dragging == Marker::loopStart)    { setValue (id::loopStart, frac); processor.applyLoopLink (id::loopStart); }
+    else if (dragging == Marker::loopEnd) { setValue (id::loopEnd, frac);   processor.applyLoopLink (id::loopEnd); }
+    else                                  setValue (id::startOffset, frac);
 }
 
 void WaveformView::mouseUp (const juce::MouseEvent&)
 {
     lastPressMs = juce::Time::getMillisecondCounterHiRes();   // no zoom from scroll right after a click
     if (dragging != Marker::none && dragging != Marker::scrollThumb)
-        for (auto id : { pid::startOffset, pid::loopStart, pid::loopEnd })
+        for (auto id : { id::startOffset, id::loopStart, id::loopEnd })
             processor.apvts.getParameter (id)->endChangeGesture();
     dragging = Marker::none;
 
@@ -905,7 +908,7 @@ void WaveformView::showMenu()
         juce::PopupMenu::Item item (text);
         item.isEnabled = enabled;
         item.action = std::move (action);
-        item.shortcutKeyDescription = ui::commandShortcutText (key);
+        item.shortcutKeyDescription = chansampler::ui::commandShortcutText (key);
         return item;
     };
     menu.addItem ("&Reload", hasFile, false, [this] { processor.reloadSample(); });
@@ -939,7 +942,7 @@ void WaveformView::showMenu()
             repaint();
         });
     menu.addSubMenu ("Colorful waveforms", colours);
-    ui::showContextMenu (menu, *this, true);
+    chansampler::ui::showContextMenu (menu, *this, true);
 }
 
 void WaveformView::detectTempo (std::function<void (double)> done)
@@ -967,7 +970,7 @@ void WaveformView::detectTempo (std::function<void (double)> done)
                                       "Type in (BPM)", "Type in (beats)", tempo::format (project) + " (project)", "No tempo" };
     const auto name = raw->file.getFileNameWithoutExtension().isNotEmpty() ? raw->file.getFileNameWithoutExtension() : juce::String ("Sample");
     juce::Component::SafePointer<WaveformView> safe (this);
-    ui::showChoices (*this, "Tempo detection - " + name, message, choices,
+    chansampler::ui::showChoices (*this, "Tempo detection - " + name, message, choices,
                      [safe, raw, frames, rate, estimate, project, done] (int choice)
     {
         if (safe == nullptr)
@@ -988,14 +991,14 @@ void WaveformView::detectTempo (std::function<void (double)> done)
                 apply (tempo::detect (raw->audio, rate, ranges[choice - 1][0], ranges[choice - 1][1]));
                 break;
             case 5:
-                ui::askText (*safe, "Tempo detection", "Tempo (BPM)", tempo::format (estimate), [apply] (const juce::String& t)
+                chansampler::ui::askText (*safe, "Tempo detection", "Tempo (BPM)", tempo::format (estimate), [apply] (const juce::String& t)
                 {
                     if (const auto bpm = t.getDoubleValue(); bpm >= 10.0 && bpm <= 999.0)
                         apply (bpm);
                 });
                 break;
             case 6:
-                ui::askText (*safe, "Tempo detection", "Length (beats)", tempo::format (std::round (tempo::beats (frames, rate, estimate))),
+                chansampler::ui::askText (*safe, "Tempo detection", "Length (beats)", tempo::format (std::round (tempo::beats (frames, rate, estimate))),
                              [apply, frames, rate] (const juce::String& t)
                 {
                     if (const auto n = t.getDoubleValue(); n > 0.0)
@@ -1044,9 +1047,9 @@ void WaveformView::pasteSample()
     // Pasted audio data (not a file) is kept as a WAV file, so projects can find it again.
     const auto file = exchange::pasteFromClipboard (ChanSamplerProcessor::userFolder ("Pasted audio"));
     if (file == juce::File())
-        ui::showDialog (*this, "Chan Sampler", "The clipboard holds no audio.", true);
+        chansampler::ui::showDialog (*this, "Chan Sampler", "The clipboard holds no audio.", true);
     else if (! processor.loadSample (file))
-        ui::showDialog (*this, "Chan Sampler", processor.getLoadError(), true);
+        chansampler::ui::showDialog (*this, "Chan Sampler", processor.getLoadError(), true);
 }
 
 void WaveformView::saveAs()
@@ -1077,7 +1080,7 @@ void WaveformView::saveAs()
                                       saved = out->writeFromAudioSampleBuffer (keep->audio, 0, keep->playEnd);
                               }
                               if (! saved && safe != nullptr)
-                                  ui::showDialog (*safe, "Chan Sampler", "Could not save " + file.getFullPathName() + ".", true);
+                                  chansampler::ui::showDialog (*safe, "Chan Sampler", "Could not save " + file.getFullPathName() + ".", true);
                           });
 }
 
@@ -1096,7 +1099,7 @@ void WaveformView::showProperties()
     };
     const int frames = raw->audio.getNumSamples();
     const auto seconds = raw->sampleRate > 0 ? frames / raw->sampleRate : 0.0;
-    ui::InfoRows rows;
+    chansampler::ui::InfoRows rows;
     rows.push_back ({ "Name", file.getFileName().isNotEmpty() ? file.getFileName() : juce::String ("(no file)") });
     if (file != juce::File())
         rows.push_back ({ "Location", file.getParentDirectory().getFullPathName() });
@@ -1117,7 +1120,7 @@ void WaveformView::showProperties()
         rows.push_back ({ "Loop points", number (raw->embeddedLoopStart) + " - " + number (raw->embeddedLoopEnd) });
     if (! raw->regionMarkers.empty() || ! raw->sliceMarkers.empty())
         rows.push_back ({ "Markers", juce::String ((int) raw->regionMarkers.size()) + " regions, " + juce::String ((int) raw->sliceMarkers.size()) + " slice markers" });
-    ui::showInfo (*this, (file.getFileName().isNotEmpty() ? file.getFileName() : juce::String ("Sample")) + " properties", rows);
+    chansampler::ui::showInfo (*this, (file.getFileName().isNotEmpty() ? file.getFileName() : juce::String ("Sample")) + " properties", rows);
 }
 
 //==============================================================================
@@ -1473,4 +1476,5 @@ void WaveformView::drawSpectrum (juce::Graphics& g, juce::Rectangle<float> area)
             t.join();
     }
     g.drawImage (spectrumImage, area);
+}
 }

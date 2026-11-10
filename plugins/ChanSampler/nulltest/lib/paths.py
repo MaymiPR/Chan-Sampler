@@ -6,15 +6,15 @@ REPO = os.path.normpath(os.path.join(ROOT, '..', '..', '..'))        # the repos
 SIGNALS = os.path.join(ROOT, 'signals')   # test signals (inputs)
 DATA = os.path.join(ROOT, 'data')         # saved measurements
 LOCAL = os.path.join(ROOT, 'local')       # files FL wrote (git-ignored, never committed)
-RENDER_TOOL = os.path.join(REPO, 'build', 'ChanSamplerRender_artefacts', 'Release',
-                           'ChanSamplerRender' + ('.exe' if sys.platform == 'win32' else ''))
+RENDER_TOOL = os.path.join(REPO, 'build', 'CsRender_artefacts', 'Release',
+                           'CsRender' + ('.exe' if sys.platform == 'win32' else ''))
 
 
 def _find_fl():
-    """FL Studio's folder: FL_STUDIO_DIR when set, else the newest FL Studio
+    """FL Studio's folder: FL_DIR when set, else the newest FL Studio
     folder holding FL64.exe in Program Files / Image-Line."""
-    if os.environ.get('FL_STUDIO_DIR'):
-        return os.environ['FL_STUDIO_DIR']
+    if os.environ.get('FL_DIR'):
+        return os.environ['FL_DIR']
     base = r'C:\Program Files\Image-Line'
     exes = [os.path.join(base, d, 'FL64.exe') for d in (os.listdir(base) if os.path.isdir(base) else [])
             if d.startswith('FL Studio')]
@@ -22,7 +22,7 @@ def _find_fl():
     return os.path.dirname(max(exes, key=os.path.getmtime)) if exes else os.path.join(base, 'FL Studio')
 
 
-# FL Studio: set FL_STUDIO_DIR when it is installed elsewhere.
+# FL Studio: set FL_DIR when it is installed elsewhere.
 FL_DIR = _find_fl()
 FL_EXE = os.path.join(FL_DIR, 'FL64.exe')
 FL_PATCHES = os.path.join(FL_DIR, 'Data', 'Patches')   # FL's own samples (read, never copied here)

@@ -3,7 +3,7 @@
 //
 //   ChanSamplerUiTests <sample.wav>
 //
-// Checks: every drop-down list is the shared ui::ComboBox (so all of them get
+// Checks: every drop-down list is the shared chansampler::ui::ComboBox (so all of them get
 // the same arrow, animation and menu); a choice made in any list reaches its
 // parameter and is still shown after the editor is rebuilt; the history
 // records gestures as single steps, skips edits that change nothing, drops
@@ -20,6 +20,8 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 #include "Presets.h"
+
+using namespace cs;
 
 namespace
 {
@@ -100,16 +102,16 @@ int main (int argc, char** argv)
         forEach<juce::ComboBox> (*editor, [&] (juce::ComboBox& box)
         {
             ++lists;
-            if (dynamic_cast<ui::ComboBox*> (&box) != nullptr)
+            if (dynamic_cast<chansampler::ui::ComboBox*> (&box) != nullptr)
                 ++shared;
             else
                 std::cout << "      plain juce::ComboBox: " << box.getTooltip() << " (" << box.getNumItems() << " items)\n";
         });
         check (lists == 4, "four drop-down lists in the editor", juce::String (lists));
-        check (shared == lists, "every drop-down list is ui::ComboBox", juce::String (shared) + " of " + juce::String (lists));
+        check (shared == lists, "every drop-down list is chansampler::ui::ComboBox", juce::String (shared) + " of " + juce::String (lists));
 
         // each list: choose every item, the parameter follows and the box keeps showing it
-        const char* ids[] = { pid::declick, pid::stretchMode, pid::filterType, pid::arpChord };
+        const char* ids[] = { id::declick, id::stretchMode, id::filterType, id::arpChord };
         for (auto* id : ids)
         {
             auto* param = dynamic_cast<juce::AudioParameterChoice*> (paramOf (processor, id));
@@ -167,7 +169,7 @@ int main (int argc, char** argv)
     processor.resetParameters();
     h.clear();
     {
-        auto* feed = paramOf (processor, pid::echoFeed);
+        auto* feed = paramOf (processor, id::echoFeed);
         check (! h.canUndo() && ! h.canRedo(), "history starts empty");
         gesture (*feed, { 0.1f, 0.2f, 0.3f });
         check (h.getNumUndoSteps() == 1, "a drag of several values is one step", juce::String (h.getNumUndoSteps()));
@@ -183,8 +185,8 @@ int main (int argc, char** argv)
         check (! h.canRedo() && h.getNumUndoSteps() == 1, "a new edit after undo clears the redo steps");
 
         // two parameters in one gesture window (the envelope's decay point, a loop link) make one step
-        auto* a = paramOf (processor, pid::cutoff);
-        auto* b = paramOf (processor, pid::resonance);
+        auto* a = paramOf (processor, id::cutoff);
+        auto* b = paramOf (processor, id::resonance);
         a->beginChangeGesture();
         b->beginChangeGesture();
         a->setValueNotifyingHost (0.25f);
@@ -199,8 +201,8 @@ int main (int argc, char** argv)
         // a transaction groups complete gestures
         {
             const History::Transaction edit (h, "Echo preset");
-            gesture (*paramOf (processor, pid::echoPan), { 0.2f });
-            gesture (*paramOf (processor, pid::echoTime), { 0.6f });
+            gesture (*paramOf (processor, id::echoPan), { 0.2f });
+            gesture (*paramOf (processor, id::echoTime), { 0.6f });
         }
         check (h.getNumUndoSteps() == 3 && h.getUndoName() == "Echo preset", "a transaction is one named step", h.getUndoName());
 
@@ -217,7 +219,7 @@ int main (int argc, char** argv)
     // --- The sample: load, undo (none), redo (back), with its parameters
     {
         h.clear();
-        auto* root = paramOf (processor, pid::rootNote);
+        auto* root = paramOf (processor, id::rootNote);
         gesture (*root, { root->convertTo0to1 (48.0f) });
         check (processor.loadSample (sample), "the sample loads", processor.getLoadError());
         processor.waitForPendingRebuilds();
@@ -247,7 +249,7 @@ int main (int argc, char** argv)
     {
         auto editor = makeEditor();
         pump();
-        auto* feed = paramOf (processor, pid::echoFeed);
+        auto* feed = paramOf (processor, id::echoFeed);
         const auto before = feed->getValue();
         gesture (*feed, { 0.4f });
         pump();
@@ -347,8 +349,8 @@ int main (int argc, char** argv)
     {
         auto editor = makeEditor();
         pump();
-        ui::MenuArrow* arrow = nullptr;
-        forEach<ui::MenuArrow> (*editor, [&] (ui::MenuArrow& a) { if (arrow == nullptr) arrow = &a; });
+        chansampler::ui::MenuArrow* arrow = nullptr;
+        forEach<chansampler::ui::MenuArrow> (*editor, [&] (chansampler::ui::MenuArrow& a) { if (arrow == nullptr) arrow = &a; });
         check (arrow != nullptr, "a panel menu arrow");
         if (arrow != nullptr)
         {
@@ -358,7 +360,7 @@ int main (int argc, char** argv)
             // The arrow eases round; sampled every 20 ms for up to 2 s, as a busy machine
             // (a CI runner) can deliver its frames late
             pump (400);
-            for (int t = 0; t < 1600 && ui::turnOf (*arrow) <= 0.99f
+            for (int t = 0; t < 1600 && chansampler::ui::turnOf (*arrow) <= 0.99f
                             && juce::ModalComponentManager::getInstance()->getNumModalComponents() > 0; t += 20)
                 pump (20);
             // JUCE closes a menu whose program is not in the foreground: under
@@ -366,12 +368,12 @@ int main (int argc, char** argv)
             if (juce::ModalComponentManager::getInstance()->getNumModalComponents() == 0)
                 std::cout << "SKIP  turned while its menu is open: the menu was closed by the environment (no foreground window here)" << std::endl;
             else
-                check (ui::turnOf (*arrow) > 0.99f, "turned while its menu is open (the mouse elsewhere)", juce::String (ui::turnOf (*arrow)));
+                check (chansampler::ui::turnOf (*arrow) > 0.99f, "turned while its menu is open (the mouse elsewhere)", juce::String (chansampler::ui::turnOf (*arrow)));
             juce::PopupMenu::dismissAllActiveMenus();
             pump (500);
-            for (int t = 0; t < 1500 && ui::turnOf (*arrow) >= 0.01f; t += 20)
+            for (int t = 0; t < 1500 && chansampler::ui::turnOf (*arrow) >= 0.01f; t += 20)
                 pump (20);
-            check (ui::turnOf (*arrow) < 0.01f, "turned back once the menu closes", juce::String (ui::turnOf (*arrow)));
+            check (chansampler::ui::turnOf (*arrow) < 0.01f, "turned back once the menu closes", juce::String (chansampler::ui::turnOf (*arrow)));
         }
     }
 
@@ -434,15 +436,15 @@ int main (int argc, char** argv)
                        "ATT shows FL's 31, 25, 82 and 83 %", att->menu.typedText (flEnvKnobForRaw (20000)));
                 check (att->menu.typedText (flEnvKnobForRaw (20000), true) == "0.31" && near (att->menu.typedPosition ("50"), 0.5),
                        "ATT: A shows 0.31, 50 is 0.5", att->menu.typedText (flEnvKnobForRaw (20000), true));
-                const auto relDefault = paramOf (processor, pid::env (pid::volPrefix, "RelT"))->getDefaultValue();
+                const auto relDefault = paramOf (processor, id::env (id::volPrefix, "RelT"))->getDefaultValue();
                 check (relT->menu.typedText (relDefault) == "-79%" && relT->menu.typedText (relDefault, true) == "0.105",
                        "release TENSION: -79%, A 0.105", relT->menu.typedText (relDefault, true));
             }
-            auto& slide = *paramOf (processor, pid::slide);
+            auto& slide = *paramOf (processor, id::slide);
             check (slide.getText (slide.getDefaultValue(), 64) == "0:03", "SLIDE starts at FL's 0:03", slide.getText (slide.getDefaultValue(), 64));
 
             // The box: Escape closes it unapplied, Return applies, a closed editor takes it along
-            auto& outParam = *paramOf (processor, pid::output);
+            auto& outParam = *paramOf (processor, id::output);
             auto findBox = [&]
             {
                 juce::TextEditor* box = nullptr;
@@ -515,7 +517,7 @@ int main (int argc, char** argv)
         auto& hh = plugin.history;
         HostEar ear;
         plugin.addListener (&ear);
-        auto* step = dynamic_cast<HistoryStepParameter*> (paramOf (plugin, pid::historyStep));
+        auto* step = dynamic_cast<HistoryStepParameter*> (paramOf (plugin, id::historyStep));
         check (step != nullptr && hh.followsHost(), "a plugin follows the host's history");
         const int stepIndex = step != nullptr ? step->getParameterIndex() : -1;
         auto hostSetsStep = [&] (int value)
@@ -541,14 +543,14 @@ int main (int argc, char** argv)
             }
         check (allAutomatable, "every parameter is automatable (a host's history records only those)");
 
-        auto* feed = paramOf (plugin, pid::echoFeed);
+        auto* feed = paramOf (plugin, id::echoFeed);
         gesture (*feed, { 0.4f });
         check (! hh.canUndo() && ! hh.undo() && step->get() == 0, "a knob's edit is the host's own step, not one here");
 
         // a factory preset: its values as the plugin's changes, then one step named after it
         const auto& presets = factoryPresets();
         const auto chop = std::find_if (presets.begin(), presets.end(), [] (const FactoryPreset& p) { return juce::String (p.name) == "Chop"; });
-        auto* att = paramOf (plugin, pid::env (pid::volPrefix, "Att"));
+        auto* att = paramOf (plugin, id::env (id::volPrefix, "Att"));
         auto presetName = [&] { return plugin.apvts.state.getProperty ("presetName", "").toString(); };
         ear.clear();
         {

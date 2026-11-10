@@ -1,8 +1,11 @@
 #include "PresetBar.h"
 #include "PluginProcessor.h"
 #include "PresetImport.h"
-#include "Style.h"
+#include "shared/ui/Widgets.h"
 #include "Presets.h"
+
+namespace cs
+{
 
 PresetBar::PresetBar (ChanSamplerProcessor& p) : processor (p)
 {
@@ -37,15 +40,15 @@ void PresetBar::setCurrentName (const juce::String& name)
 void PresetBar::paint (juce::Graphics& g)
 {
     const auto r = getLocalBounds().toFloat();
-    g.setColour (ui::colour::well);
+    g.setColour (chansampler::ui::colour::well);
     g.fillRoundedRectangle (r, 2.0f);
-    g.setColour (ui::colour::fieldEdge);
+    g.setColour (chansampler::ui::colour::fieldEdge);
     g.drawRoundedRectangle (r.reduced (0.5f), 2.0f, 1.0f);
 
     for (int side = 0; side < 2; ++side)
     {
         // a clicked arrow lights up white and fades back (not measured in FL)
-        g.setColour (ui::colour::dim.interpolatedWith (juce::Colours::white, flash[side]));
+        g.setColour (chansampler::ui::colour::dim.interpolatedWith (juce::Colours::white, flash[side]));
         const auto a = side == 0 ? leftArrow() : rightArrow();
         const auto d = side == 0 ? 1.0f : -1.0f;
         juce::Path chevron;
@@ -56,8 +59,8 @@ void PresetBar::paint (juce::Graphics& g)
     }
 
     const auto name = currentName();
-    g.setColour (name.isEmpty() ? ui::colour::dim : juce::Colours::white.withAlpha (0.85f));
-    g.setFont (ui::font (10.8f));
+    g.setColour (name.isEmpty() ? chansampler::ui::colour::dim : juce::Colours::white.withAlpha (0.85f));
+    g.setFont (chansampler::ui::font (10.8f));
     g.drawText (name.isEmpty() ? juce::String ("Presets") : name,
                 r.withTrimmedLeft (17.0f).withTrimmedRight (17.0f), juce::Justification::centred, true);
 }
@@ -151,7 +154,7 @@ void PresetBar::showMenu()
     menu.addSeparator();
     menu.addItem ("Open presets folder", [] { presetFolder().createDirectory(); presetFolder().startAsProcess(); });
 
-    ui::showContextMenu (menu, *this, false);
+    chansampler::ui::showContextMenu (menu, *this, false);
 }
 
 void PresetBar::load (const juce::File& file)
@@ -215,7 +218,7 @@ void PresetBar::importFst()
                               if (! file.existsAsFile())
                                   return;
                               const History::Transaction edit (processor.history, "Preset: " + file.getFileNameWithoutExtension());
-                              const auto r = flpreset::import (processor, file);
+                              const auto r = presetimport::import (processor, file);
                               if (r.ok)
                                   setCurrentName (file.getFileNameWithoutExtension());
                               if (onMessage && (! r.ok || r.message.isNotEmpty()))
@@ -229,4 +232,5 @@ void PresetBar::initialize()
     processor.resetParameters();
     processor.removeSample();
     setCurrentName ({});
+}
 }

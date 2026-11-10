@@ -1,6 +1,6 @@
-#include "Style.h"
+#include "Widgets.h"
 
-namespace ui
+namespace chansampler::ui
 {
 juce::Font font (float em, bool bold)
 {
@@ -28,7 +28,7 @@ juce::Font font (float em, bool bold)
 
 //==============================================================================
 // The shaded controls, drawn from the measured sizes and the colour tokens in
-// Style.h with our own shading: discs, rings and arcs filled with gradients
+// Theme.h with our own shading: discs, rings and arcs filled with gradients
 // between measured end colours, highlights as arcs fading out at their ends.
 namespace
 {

@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Improved
+
+- **Vendor name:** hosts list the plug-in under the vendor "Chan Sampler" (it was "ChanSampler"). FL Studio and other
+  hosts file it under the new name; if it does not show up there, rescan the plug-ins. Saved projects and presets
+  load as before: the plug-in codes, bundle IDs and parameter IDs are unchanged.
+- **Installers:** the standalone app is no longer installed unless chosen (Windows: the "all" installation type or a
+  custom one; macOS: the app choice), as for every suite; the VST3 and CLAP plug-ins install as before.
+
 ## 1.7.1 (2026-11-04)
 
 A rewording update: no changes to the sound or the controls.

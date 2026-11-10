@@ -1,5 +1,5 @@
 """Shared by the stretch measurements: the modes, FL's channel gain, and our
-stretcher run on its own (ChanSamplerRender stretchtest)."""
+stretcher run on its own (CsRender stretchtest)."""
 import os, subprocess
 from lib import paths, wavio
 

@@ -1,5 +1,5 @@
 """Robustness checks: host sample rates, mono / 16 / 24-bit / 48 kHz files and
-a very long file, through ChanSamplerRender. Reports pitch, level, duration
+a very long file, through CsRender. Reports pitch, level, duration
 and timing.
 
     python -m probes.robust_check <output folder>   (from nulltest/)"""

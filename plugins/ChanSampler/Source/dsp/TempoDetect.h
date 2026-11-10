@@ -2,6 +2,9 @@
 
 #include <juce_audio_basics/juce_audio_basics.h>
 
+namespace cs
+{
+
 // FL's "Detect tempo" (sample menu, TIME > Autodetect): a sample's tempo in a
 // range of BPM. The onset strength (spectral flux) is autocorrelated over the
 // range's beat lengths; a loop is a whole number of beats long, so a tempo
@@ -19,4 +22,5 @@ namespace tempo
 
     // "128", "63.998": up to three decimals, trailing zeros dropped.
     juce::String format (double bpm);
+}
 }

@@ -2,7 +2,7 @@
 MUL / PITCH together in each stretch mode. Resample is tape-style and must
 null; FL's Auto with anything stretched is exactly FL's "e3 generic"
 (elastique), which cannot."""
-import sys; from lib import flrender as F, nullfl
+import sys; from lib import flrender as F; import cs_ref
 
 MODES = {0: 0, 5: 7, 3: 1, -1: 1, -2: 2}   # FL raw -> our index (Auto -> 7)
 OUR = {0: 0, 5: 7, 1: 3, -1: 1, -2: 2}
@@ -22,4 +22,4 @@ CASES.append(case("st_auto_t768", 5, 768.0))
 CASES.append(case("st_auto_p600", 5, cents=600))
 
 if __name__ == '__main__':
-    nullfl.run(CASES, sys.argv[1:] or None, force='-f' in sys.argv)
+    cs_ref.run(CASES, sys.argv[1:] or None, force='-f' in sys.argv)

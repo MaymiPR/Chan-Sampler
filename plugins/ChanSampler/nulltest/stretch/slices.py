@@ -1,4 +1,4 @@
-"""The slice modes against FL, the whole plugin (ChanSamplerRender) on FL's own
+"""The slice modes against FL, the whole plugin (CsRender) on FL's own
 samples (707 Kick, a Rhodes, a sung "ah", DL Groover; read from the FL
 install) and e3_loop.
 

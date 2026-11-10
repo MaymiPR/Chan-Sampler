@@ -63,7 +63,7 @@ jobs:
       - name: Warnings (zero allowed)
         shell: bash
         run: |
-          if grep -E 'warning C[0-9]+|warning:|warning MSB|[0-9]+ warnings? generated' build.log | grep -vE '::warning|hint:' > warnings.txt; then
+          if grep -E 'warning C[0-9]+|warning ?:|warning MSB|[0-9]+ warnings? generated' build.log | grep -vE '::warning|hint:' > warnings.txt; then
             cat warnings.txt
             echo "$(wc -l < warnings.txt) warning line(s) in the build log: zero allowed (STANDARDS.md)"
             exit 1
@@ -94,7 +94,7 @@ jobs:
       - name: Warnings (zero allowed)
         shell: bash
         run: |
-          if grep -E 'warning C[0-9]+|warning:|warning MSB|[0-9]+ warnings? generated' build.log | grep -vE '::warning|hint:' > warnings.txt; then
+          if grep -E 'warning C[0-9]+|warning ?:|warning MSB|[0-9]+ warnings? generated' build.log | grep -vE '::warning|hint:' > warnings.txt; then
             cat warnings.txt
             echo "$(wc -l < warnings.txt) warning line(s) in the build log: zero allowed (STANDARDS.md)"
             exit 1
@@ -147,7 +147,7 @@ jobs:
       - name: Warnings (zero allowed)
         shell: bash
         run: |
-          if grep -E 'warning C[0-9]+|warning:|warning MSB|[0-9]+ warnings? generated' build.log | grep -vE '::warning|hint:' > warnings.txt; then
+          if grep -E 'warning C[0-9]+|warning ?:|warning MSB|[0-9]+ warnings? generated' build.log | grep -vE '::warning|hint:' > warnings.txt; then
             cat warnings.txt
             echo "$(wc -l < warnings.txt) warning line(s) in the build log: zero allowed (STANDARDS.md)"
             exit 1

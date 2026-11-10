@@ -2,10 +2,14 @@
 
 #include <juce_audio_utils/juce_audio_utils.h>
 
-#include "ui/Parts.h"
-#include "ui/Style.h"
+#include "ui/Controls.h"
+#include "shared/ui/HostFocus.h"
+#include "shared/ui/Widgets.h"
 #include "PluginProcessor.h"
 #include "ui/WaveformView.h"
+
+namespace cs
+{
 
 // Channel settings window modelled on FL Studio's. Every control sits at the
 // position and size of its counterpart in FL's window
@@ -29,7 +33,7 @@ public:
     // For tools/Snapshot.cpp: shows a sheet (0 SMP, 1 INS, 2 FUNC) and INS target page.
     void showSheetForTesting (int sheet, int insPage);
     void filesDropped (const juce::StringArray& files, int x, int y) override;
-    // The window's keys (Ctrl+Z, Ctrl+Y / Ctrl+Shift+Z, Ctrl+C / Ctrl+V); public for tests/UiTests.cpp.
+    // The window's keys (Ctrl+Z, Ctrl+Y / Ctrl+Shift+Z, Ctrl+C / Ctrl+V); public for tests/ChanSamplerUiTests.cpp.
     bool keyPressed (const juce::KeyPress&, juce::Component*) override;
     using juce::AudioProcessorEditor::keyPressed;
 
@@ -38,17 +42,17 @@ private:
 
     // Builders: positions are FL form coordinates relative to the parent.
     juce::Slider& knob (juce::Component& parent, const juce::String& paramId, int x, int y, int size,
-                        juce::Colour ring = ui::colour::arc);
+                        juce::Colour ring = chansampler::ui::colour::arc);
     juce::Slider& hslider (juce::Component& parent, const juce::String& paramId, int x, int y, int w, int h);
     juce::Label& caption (juce::Component& parent, const juce::String& text, int x, int y, int w, int h, float em = 7.0f);
     static juce::Rectangle<int> comboBounds (int x, int y, int w, int h);
     juce::ToggleButton& led (juce::Component& parent, const juce::String& paramId, const juce::String& text, int x, int y, int w, int h);
     juce::ComboBox& combo (juce::Component& parent, const juce::String& paramId, int x, int y, int w, int h);
-    ui::DigiBox& digi (juce::Component& parent, const juce::String& paramId, int x, int y, int w, int h, bool red);
+    chansampler::ui::DigiBox& digi (juce::Component& parent, const juce::String& paramId, int x, int y, int w, int h, bool red);
     void showAboutMenu (juce::Component& target);
     juce::Label& text (juce::Component& parent, const juce::String& s, int x, int y, int w, int h, float size, bool bold = false,
                        juce::Justification just = juce::Justification::centredLeft);
-    ui::Panel& panel (juce::Component& parent, const juce::String& title, int x, int y, int w, int h, int headerInset = 0);
+    chansampler::ui::Panel& panel (juce::Component& parent, const juce::String& title, int x, int y, int w, int h, int headerInset = 0);
     juce::Component& group (juce::Component& parent, int x, int y, int w, int h);
 
     template <typename T>
@@ -80,20 +84,20 @@ private:
     void chooseFile();
 
     ChanSamplerProcessor& samplerProcessor;
-    ui::LookAndFeel lnf;
+    chansampler::ui::LookAndFeel lnf;
 
     juce::Component canvas, smpSheet, insSheet, funcSheet;
     std::vector<std::unique_ptr<juce::Component>> owned;
     WaveformView waveform;
     juce::Component::SafePointer<juce::Component> keyWindow;   // where keyPressed listens
-    std::unique_ptr<juce::MouseListener> focusOnClick;        // a click gives the editor the keys
+    std::unique_ptr<chansampler::HostFocus> hostFocus;        // the host's keys after a click
     int lastShortcut = 0;           // the last key used, and when (one action per press)
     double lastShortcutTime = 0.0;
     juce::Label* fileName = nullptr;
     juce::Label* sampleInfo = nullptr;
-    ui::IconTabs* sheetTabs = nullptr;
-    ui::TextTabs* targetTabs = nullptr;
-    ui::IconTabs* fxTabs = nullptr;         // Precomputed effects: Tools / Effects
+    chansampler::ui::IconTabs* sheetTabs = nullptr;
+    chansampler::ui::TextTabs* targetTabs = nullptr;
+    chansampler::ui::IconTabs* fxTabs = nullptr;         // Precomputed effects: Tools / Effects
     juce::Slider* loopKnobs[2] = { nullptr, nullptr };   // START / END: locked without a sample
     // Undo / redo (the processor's History): the top bar's two arrows and the keys
     juce::Button* undoButton = nullptr;
@@ -111,3 +115,4 @@ private:
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChanSamplerEditor)
 };
+}

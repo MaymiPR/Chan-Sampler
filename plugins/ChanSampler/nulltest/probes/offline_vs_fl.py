@@ -1,12 +1,12 @@
-"""Compare an offline ChanSamplerRender render with FL's half of a nullfl case
+"""Compare an offline CsRender render with FL's half of a cs_ref case
 (least-squares gain), for quick model tuning without FL re-renders."""
-import os, subprocess, numpy as np; from lib import wavio, nullfl
+import os, subprocess, numpy as np; from lib import wavio; import cs_ref
 from lib import paths
 HERE = paths.ROOT
 R = paths.RENDER_TOOL
 
 def compare(case, out_dir, env=None, seconds=None):
-    a, _ = nullfl.render_pair(case['name'], None)
+    a, _ = cs_ref.render_pair(case['name'], None)
     pf = os.path.join(out_dir, 'ovf.txt')
     open(pf, 'w').write(''.join(f'{k} {v}\n' for k, v in case.get('ours', {}).items()))
     out = os.path.join(out_dir, 'ovf.wav'); beats = case.get('beats', 8)

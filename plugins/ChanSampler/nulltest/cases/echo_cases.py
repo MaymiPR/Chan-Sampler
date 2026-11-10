@@ -1,6 +1,6 @@
 """In-FL null cases for FUNC > Echo delay. Event 209 (5 x u32): feedback
 (raw / 25600), pan (centre 6400), pitch (cents), echoes, time (raw / 48 steps)."""
-import sys, struct; from lib import flrender as F, nullfl
+import sys, struct; from lib import flrender as F; import cs_ref
 
 def echo(name, feed=12800, pan=6400, pitch=0, count=4, time=144, sample='signals/decay.wav', beats=2):
     def patch(ev):
@@ -17,4 +17,4 @@ CASES = [echo('ec_base'), echo('ec_feed25', feed=6400), echo('ec_feed100', feed=
          echo('ec_panL', pan=3200), echo('ec_panR', pan=12800), echo('ec_pitch100', pitch=100), echo('ec_pitchm300', pitch=-300)]
 
 if __name__ == '__main__':
-    nullfl.run(CASES, [a for a in sys.argv[1:] if a != '-f'] or None, force='-f' in sys.argv)
+    cs_ref.run(CASES, [a for a in sys.argv[1:] if a != '-f'] or None, force='-f' in sys.argv)

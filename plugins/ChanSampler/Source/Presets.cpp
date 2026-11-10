@@ -1,13 +1,16 @@
 #include "Presets.h"
 #include "PluginProcessor.h"
 
+namespace cs
+{
+
 void applyFactoryPreset (ChanSamplerProcessor& processor, const FactoryPreset& preset)
 {
     const History::Transaction edit (processor.history, juce::String ("Preset: ") + preset.name);
     // The sample stays, and its root note with it.
-    const auto root = processor.apvts.getRawParameterValue (pid::rootNote)->load();
+    const auto root = processor.apvts.getRawParameterValue (id::rootNote)->load();
     processor.resetParameters();
-    setParameterAsGesture (*processor.apvts.getParameter (pid::rootNote), root);
+    setParameterAsGesture (*processor.apvts.getParameter (id::rootNote), root);
     for (auto& [id, value] : preset.values)
     {
         auto* rp = processor.apvts.getParameter (id);
@@ -59,4 +62,5 @@ const std::vector<FactoryPreset>& factoryPresets()
           { { "pcReverse", 1.0f } } },
     };
     return presets;
+}
 }

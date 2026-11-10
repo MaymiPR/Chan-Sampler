@@ -1,14 +1,16 @@
 // Offline checks of the sampler engine against documented FL Channel Sampler
-// behaviour (MEASUREMENTS.md). Renders MIDI through SamplerEngine, no host.
+// behaviour (MEASUREMENTS.md). Renders MIDI through Engine, no host.
 
 #include <juce_audio_basics/juce_audio_basics.h>
 #include <iostream>
 
 #include "dsp/SampleData.h"
-#include "dsp/SamplerEngine.h"
+#include "dsp/Engine.h"
 #include "Params.h"
 #include "dsp/TimeStretch.h"
 #include "dsp/FastFFT.h"
+
+using namespace cs;
 
 namespace
 {
@@ -36,7 +38,7 @@ namespace
     // Render numSamples in 512-sample blocks, returning the left channel.
     std::vector<float> render (const SampleData& s, const EngineParams& p, int numSamples, std::vector<Event> events)
     {
-        SamplerEngine engine;
+        Engine engine;
         engine.prepare (rate);
         engine.ensureStretchers();
         std::vector<float> out;
@@ -230,7 +232,7 @@ int main()
     // Overlapping notes keep both voices (FL's Max polyphony has no effect, measured).
     {
         auto p = params();
-        SamplerEngine engine;
+        Engine engine;
         engine.prepare (rate);
         juce::AudioBuffer<float> block (2, 4096);
         juce::MidiBuffer midi;
@@ -811,22 +813,22 @@ int main()
 
         struct Case { const char* id; double pos; const char* text; };
         const Case cases[] = {
-            { pid::pcCrossfade, 0.25, "25%" },
-            { pid::pitch, 0.75, "+600 cents" },
-            { pid::stretchMul, 0.75, "200.00%" },
-            { pid::stretchTime, 4.0 / 192.0, "1:00:00" },
-            { pid::stretchTime, 16.0 / 192.0, "4:00:00" },
-            { pid::volume, 10000.0 / 25600.0, "78%  -5.2dB  0.55" },
-            { pid::volume, 0.25, "50%  -12.7dB  0.23" },
-            { pid::pan, 0.75, "50% right" },
-            { pid::slide, 820.0 / 1660.0, "0:12" },
-            { pid::slide, 1.0, "8:00" },
-            { pid::arpTime, 0.575727181509137, "1:00" },
-            { pid::arpTime, 1.0, "Hold" },
-            { pid::echoTime, 0.375, "3:00" },
-            { pid::echoFeed, 0.25, "50%" },
-            { pid::pcCut, (512.0 - 16.0) / 1008.0, "50%" },
-            { pid::pcStereoDelay, 0.25, "50% left" },
+            { id::pcCrossfade, 0.25, "25%" },
+            { id::pitch, 0.75, "+600 cents" },
+            { id::stretchMul, 0.75, "200.00%" },
+            { id::stretchTime, 4.0 / 192.0, "1:00:00" },
+            { id::stretchTime, 16.0 / 192.0, "4:00:00" },
+            { id::volume, 10000.0 / 25600.0, "78%  -5.2dB  0.55" },
+            { id::volume, 0.25, "50%  -12.7dB  0.23" },
+            { id::pan, 0.75, "50% right" },
+            { id::slide, 820.0 / 1660.0, "0:12" },
+            { id::slide, 1.0, "8:00" },
+            { id::arpTime, 0.575727181509137, "1:00" },
+            { id::arpTime, 1.0, "Hold" },
+            { id::echoTime, 0.375, "3:00" },
+            { id::echoFeed, 0.25, "50%" },
+            { id::pcCut, (512.0 - 16.0) / 1008.0, "50%" },
+            { id::pcStereoDelay, 0.25, "50% left" },
         };
         for (auto& c : cases)
         {

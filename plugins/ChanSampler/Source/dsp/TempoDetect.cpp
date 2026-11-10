@@ -2,6 +2,9 @@
 
 #include <juce_dsp/juce_dsp.h>
 
+namespace cs
+{
+
 namespace tempo
 {
 namespace
@@ -151,5 +154,6 @@ juce::String format (double bpm)
     while (t.containsChar ('.') && (t.endsWithChar ('0') || t.endsWithChar ('.')))
         t = t.dropLastCharacters (1);
     return t;
+}
 }
 }
