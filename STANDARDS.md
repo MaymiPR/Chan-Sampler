@@ -12,7 +12,7 @@ this page is the reference. A deviation is listed in the last section with its r
 | `shared/` | code shared by the plug-ins, built as the static library `<SuiteId>Shared`: `shared.cmake`, `ui/` (`Theme.h`, `Widgets`, `HostFocus`), `dsp/` (`Math.h`); a suite of one plug-in has it too |
 | `tools/` | C++ only: the reference hosts RefRender, ParamDump, RefCapture, FocusCheck, and `Snapshot.cpp` and `HostTest.cpp`, built per plug-in (Python goes to `scripts/`) |
 | `measurements/<Id>/` | measurement data per plug-in, the id's exact case; published by a public suite with the approval recorded, git-ignored while the suite is private |
-| `packaging/` | `plugins.txt` (`Target|Product name|PluginCode|ManufacturerCode|AU type`), the Inno Setup script, `distribution.xml`, `install-linux.sh`, the INSTALL notes, THIRD-PARTY-NOTICES, ABOUT; the standalone apps unticked by default |
+| `packaging/` | `plugins.txt` (`Target\|Product name\|PluginCode\|ManufacturerCode\|AU type`), the Inno Setup script, `distribution.xml`, `install-linux.sh`, the INSTALL notes, THIRD-PARTY-NOTICES, ABOUT; the standalone apps unticked by default |
 | `tests/regress/` | the render regression: `<Id>/jobs.txt` and `<Id>/golden/*.f32` per plug-in target, the only place `scripts/render_regress.py`, CI and the local check read |
 | `docs/` | `BUILDING.md`, `branding/` (banners, icon, social preview, `colours.json`), `screenshots/` |
 | `scripts/` | `bump_version.py`, `release_notes.py`, `render_regress.py`, `make_site.py`, `check_repo.py`, `check.ps1`, `check.sh`; `build_native.py` when a plug-in has native null-test helpers; `nulltest/` for a host the plug-ins share and `ref_state_lib.py` |
