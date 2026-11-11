@@ -8,7 +8,7 @@
 //   <Stem>HostTest <plugin.vst3> --save-state <state-x.y.z.bin>
 //
 // --save-state writes a project state with every parameter away from its default, plus a .txt beside it with each
-// parameter's name and the text this version shows for it. plugins/<Id>/tests/data holds one per release that changed
+// parameter's name and the text this version shows for it. The plug-in's tests/data holds one per release that changed
 // a parameter or its reading; the test loads each into the current build and compares the texts. An instrument (no
 // audio input) is played a note where an effect is fed noise. --property sets a root property of the plug-in's own
 // state in every instance the checks load (a sampler's sample file: --property samplePath=<sine.wav>), so an

@@ -1,4 +1,4 @@
-"""FL's interpolation kernel as a table (local regression over the samples from measure_kernel); writes measurements/ChanSampler/interp_kernel.npy."""
+"""FL's interpolation kernel as a table (local regression over the samples from measure_kernel); writes measurements/interp_kernel.npy."""
 import numpy as np; import measure_kernel as K
 import paths_lib
 STEP = 512

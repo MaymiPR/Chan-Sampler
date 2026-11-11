@@ -1,4 +1,4 @@
-"""Fit FL's interpolation kernel as a sinc times a cosine-series window; writes measurements/ChanSampler/interp_window.npy."""
+"""Fit FL's interpolation kernel as a sinc times a cosine-series window; writes measurements/interp_window.npy."""
 import numpy as np; import measure_kernel as K
 import paths_lib
 W = 15.0

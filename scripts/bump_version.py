@@ -67,12 +67,18 @@ def main():
     suite, current = m.group(1), m.group(2)
     if key(v) <= key(current) and not (prerelease and v.split('-')[0] == current):
         sys.exit(f'{v} is not newer than the current version {current}')
-    # The display name: the suite's COMPANY_NAME in the first plugin.cmake; a repository without plugins/ (a single
-    # plug-in in a flat layout) takes PRODUCT_NAME from CMakeLists.txt instead.
+    # The display name: the suite's COMPANY_NAME in plugin/plugin.cmake (a suite of one plug-in) or the first
+    # plugins/<Id>/plugin.cmake; a repository without either takes PRODUCT_NAME from CMakeLists.txt instead.
     pdir = os.path.join(ROOT, 'plugins')
-    first = sorted(d for d in os.listdir(pdir) if os.path.isfile(os.path.join(pdir, d, 'plugin.cmake'))) if os.path.isdir(pdir) else []
+    if os.path.isfile(os.path.join(ROOT, 'plugin', 'plugin.cmake')):
+        first = [os.path.join('plugin', 'plugin.cmake')]
+    elif os.path.isdir(pdir):
+        first = [os.path.join('plugins', d, 'plugin.cmake') for d in sorted(os.listdir(pdir))
+                 if os.path.isfile(os.path.join(pdir, d, 'plugin.cmake'))]
+    else:
+        first = []
     if first:
-        name = re.search(r'^\s*COMPANY_NAME\s+"([^"]+)"', read(os.path.join('plugins', first[0], 'plugin.cmake')), re.M)
+        name = re.search(r'^\s*COMPANY_NAME\s+"([^"]+)"', read(first[0]), re.M)
     else:
         name = re.search(r'^\s*PRODUCT_NAME\s+"([^"]+)"', cmake, re.M)
     display = name.group(1) if name else suite

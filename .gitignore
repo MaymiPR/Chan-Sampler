@@ -22,7 +22,7 @@ __pycache__/
 *.pyc
 .venv/
 
-# Generated test renders (re-render with FL Studio, see plugins/ChanSampler/nulltest/README.md)
+# Generated test renders (re-render with FL Studio, see plugin/nulltest/README.md)
 **/nulltest/renders/
 **/nulltest/renders_fl/
 **/nulltest/ours/
@@ -30,7 +30,7 @@ __pycache__/
 # Files FL wrote (projects, the wrapper chunk): local only
 **/nulltest/local/
 
-# Audio is never committed. Test signals are generated (python plugins/ChanSampler/nulltest/render_signals.py;
+# Audio is never committed. Test signals are generated (python plugin/nulltest/render_signals.py;
 # python render_stretch_signals.py and probe_env_time.py in the same folder); FL's renders stay local.
 *.wav
 
@@ -38,7 +38,7 @@ __pycache__/
 reference/
 **/nulltest/results*.json
 
-# FL demo samples copied in by plugins/ChanSampler/nulltest/cases_untested.py
+# FL demo samples copied in by plugin/nulltest/cases_untested.py
 **/nulltest/fmt_test.*
 **/nulltest/fst/
 

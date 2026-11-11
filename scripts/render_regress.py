@@ -6,7 +6,7 @@ reference plug-in, which CI does not have. The null tests against the originals 
     python scripts/render_regress.py --build build --update        # (re)write the goldens after an intended DSP change
     python scripts/render_regress.py --build build --only sine     # cases whose names contain "sine"
 
-tests/regress/<PluginTarget>/jobs.txt, one case per line:
+tests/regress/jobs.txt (in a suite of several plug-ins tests/regress/<PluginTarget>/jobs.txt each), one case per line:
     <name> signal=<sine|noise|burst|mix|silence> [seconds=0.5] [fs=48000] [block=512] [threshold=-80] [param:Name=text ...]
 An instrument's case plays notes instead (instrument mode: notes in, the input is silence unless signal= says otherwise):
     <name> notes=<key:start:length:velocity;...> [sample=<saw|sine|noise|drum|voice>] [seconds=0.5] ... [param:Name=text ...]
@@ -25,12 +25,39 @@ goldens, which are short (0.5 s stereo float32 = 192 KB). The residual is 10 log
 sum(golden^2)) in dB; a case fails above its threshold (-80 dB by default: float differences between compilers sit
 around -120 dB, a DSP change far above -80). The renderer of a plug-in is found from its plugin.cmake
 (foreach(t <Ab>Render ...), or juce_add_console_app(<Ab>Render ...)) under build/<Ab>Render_artefacts/{Release/,}.
+A suite of one plug-in (plugin/plugin.cmake) keeps its cases and goldens directly in tests/regress/.
 Pure standard library: no numpy needed on the runners.
 """
 import argparse, array, glob, math, os, re, struct, subprocess, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REGRESS = os.path.join(ROOT, 'tests', 'regress')
+PLUGINS = os.path.join(ROOT, 'plugins')
+# A suite of one plug-in holds it in plugin/ and its cases directly in tests/regress/; a suite of several holds each
+# in plugins/<Id>/ and tests/regress/<Id>/. The folder name states the shape.
+PLUGIN = os.path.join(ROOT, 'plugin')
+SINGLE = os.path.isfile(os.path.join(PLUGIN, 'plugin.cmake'))
+
+
+def plugin_dir(target):
+    return PLUGIN if SINGLE else os.path.join(PLUGINS, target)
+
+
+def single_target():
+    """The one plug-in's target: juce_add_plugin(<Target> in plugin/plugin.cmake."""
+    with open(os.path.join(PLUGIN, 'plugin.cmake'), encoding='utf-8') as h:
+        m = re.search(r'juce_add_plugin\(\s*(\w+)', h.read())
+    if not m:
+        sys.exit('plugin/plugin.cmake: no juce_add_plugin(<Target> line')
+    return m.group(1)
+
+
+def case_dirs():
+    """(target, folder) of every plug-in that has regression cases: tests/regress itself, or tests/regress/<Target>."""
+    if SINGLE:
+        return [(single_target(), REGRESS)] if os.path.isfile(os.path.join(REGRESS, 'jobs.txt')) else []
+    return [(os.path.basename(os.path.dirname(jf)), os.path.dirname(jf))
+            for jf in sorted(glob.glob(os.path.join(REGRESS, '*', 'jobs.txt')))]
 
 
 class LCG:
@@ -153,7 +180,7 @@ def find_tool(name, build):
         for p in (os.path.join(d, name + '.exe'), os.path.join(d, name)):
             if os.path.isfile(p):
                 return p
-    # anywhere else under the build folder (a plug-in add_subdirectory()d from plugins/<T> builds under build/plugins/<T>)
+    # anywhere else under the build folder (a plug-in add_subdirectory()d from plugins/<Id> builds under build/plugins/<Id>)
     for ext in ('.exe', ''):
         hits = sorted(h for h in glob.glob(os.path.join(build, '**', name + ext), recursive=True)
                       if os.path.isfile(h) and 'CMakeFiles' not in h)
@@ -164,7 +191,7 @@ def find_tool(name, build):
 
 def renderer_for(target, build):
     texts = []
-    for cm in (os.path.join(ROOT, 'plugins', target, 'plugin.cmake'), os.path.join(ROOT, 'plugins', target, 'CMakeLists.txt')):
+    for cm in (os.path.join(plugin_dir(target), 'plugin.cmake'), os.path.join(plugin_dir(target), 'CMakeLists.txt')):
         if os.path.isfile(cm):
             with open(cm, encoding='utf-8') as h:
                 texts.append(h.read())
@@ -175,7 +202,7 @@ def renderer_for(target, build):
         with open(os.path.join(ROOT, 'CMakeLists.txt'), encoding='utf-8') as h:
             m = re.search(r'(?:juce_add_console_app|add_executable)\((' + re.escape(target) + r')Render\b', h.read())
     if not m:
-        sys.exit(f'plugins/{target}: no "foreach(t <Ab>Render ...", "juce_add_console_app(<Ab>Render" or '
+        sys.exit(f'{os.path.relpath(plugin_dir(target), ROOT)}: no "foreach(t <Ab>Render ...", "juce_add_console_app(<Ab>Render" or '
                  f'"add_executable(<Ab>Render" line, cannot find the renderer (or name it with an @call line in jobs.txt)')
     return find_tool(m.group(1) + 'Render', build)
 
@@ -222,19 +249,18 @@ def main():
     work = os.path.join(build, 'regress')
     rel = lambda path: os.path.relpath(path, ROOT).replace(os.sep, '/')
     os.makedirs(work, exist_ok=True)
-    jobfiles = sorted(glob.glob(os.path.join(REGRESS, '*', 'jobs.txt')))
-    if not jobfiles:
-        print('no tests/regress/<Plugin>/jobs.txt: nothing to check')
+    dirs = case_dirs()
+    if not dirs:
+        print('no tests/regress/jobs.txt or tests/regress/<Plugin>/jobs.txt: nothing to check')
         return
     failed = []; total = 0
-    for jf in jobfiles:
-        target = os.path.basename(os.path.dirname(jf))
-        cases, call = parse_jobs(jf)
+    for target, folder in dirs:
+        cases, call = parse_jobs(os.path.join(folder, 'jobs.txt'))
         cases = [c for c in cases if not a.only or a.only in c['name']]
         if not cases:
             continue
         tool = find_tool(call[0], build) if call else renderer_for(target, build)
-        golden_dir = os.path.join(REGRESS, target, 'golden')
+        golden_dir = os.path.join(folder, 'golden')
         os.makedirs(golden_dir, exist_ok=True)
         for c in cases:
             if c['sample']:               # a sampler's case: the synthesized sample, by path

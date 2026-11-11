@@ -1,4 +1,5 @@
-"""Builds the null tests' native helpers: every plugins/<Id>/nulltest/native/*.c and *.cpp into a shared library at
+"""Builds the null tests' native helpers: every nulltest/native/*.c and *.cpp of a plug-in folder (plugin/ in a suite
+of one plug-in, plugins/<Id>/ in a suite of several) into a shared library at
 build/native/<Id>/<Stem>.dll (Windows, MSVC through vcvars64) or build/native/<Id>/<Stem>.so (Linux and macOS, cc or
 c++; MSVC's __declspec(dllexport) is defined away there). The Python scripts load them from build/native/. A C++
 helper compiles as C++17 with its plug-in's Source/ on the include path, so it can wrap a block of the plug-in's own
@@ -9,24 +10,44 @@ DSP (an include of dsp/<Block>.h). Standard library only.
     python scripts/build_native.py --list          # what would be built, and where
 
 A helper that a fit compares with a fitted constant keeps the floating-point mode it was fitted with: FAST_MATH lists
-the ones built with fast floating point (MSVC /fp:fast, cc -ffast-math), as (plug-in id, helper stem) pairs.
+the ones built with fast floating point (MSVC /fp:fast, cc -ffast-math), as (plug-in id, helper stem) pairs. It is
+the suite's own block: the starter's form of this file replaces everything outside the two "Suite block" lines.
 """
-import argparse, glob, os, shutil, subprocess, sys, tempfile
+import argparse, glob, os, re, shutil, subprocess, sys, tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# Suite block: this suite's own values, kept as they are when the starter's form of the file is brought in.
 FAST_MATH = set()
+# Suite block end
+
+
+def plugin_folders():
+    """(id, folder) of every plug-in: plugin/ in a suite of one plug-in (the id from the juce_add_plugin line of
+    plugin/plugin.cmake), else each plugins/<Id>."""
+    single = os.path.join(ROOT, 'plugin')
+    cm = os.path.join(single, 'plugin.cmake')
+    if os.path.isfile(cm):
+        with open(cm, encoding='utf-8') as h:
+            m = re.search(r'juce_add_plugin\(\s*(\w+)', h.read())
+        return [(m.group(1) if m else 'plugin', single)]
+    pdir = os.path.join(ROOT, 'plugins')
+    return [(d, os.path.join(pdir, d)) for d in sorted(os.listdir(pdir)) if os.path.isdir(os.path.join(pdir, d))] \
+        if os.path.isdir(pdir) else []
+
+
+FOLDERS = dict(plugin_folders())
 
 
 def sources(only=None):
     out = []
-    for src in sorted(glob.glob(os.path.join(ROOT, 'plugins', '*', 'nulltest', 'native', '*.c')) +
-                      glob.glob(os.path.join(ROOT, 'plugins', '*', 'nulltest', 'native', '*.cpp'))):
-        plugin = os.path.basename(os.path.dirname(os.path.dirname(os.path.dirname(src))))
+    for plugin, folder in FOLDERS.items():
         if only and plugin not in only:
             continue
-        stem = os.path.splitext(os.path.basename(src))[0]
-        ext = '.dll' if os.name == 'nt' else '.so'
-        out.append((plugin, stem, src, os.path.join(ROOT, 'build', 'native', plugin, stem + ext)))
+        for src in sorted(glob.glob(os.path.join(folder, 'nulltest', 'native', '*.c')) +
+                          glob.glob(os.path.join(folder, 'nulltest', 'native', '*.cpp'))):
+            stem = os.path.splitext(os.path.basename(src))[0]
+            ext = '.dll' if os.name == 'nt' else '.so'
+            out.append((plugin, stem, src, os.path.join(ROOT, 'build', 'native', plugin, stem + ext)))
     return out
 
 
@@ -59,7 +80,7 @@ def build(items):
         os.makedirs(os.path.dirname(out), exist_ok=True)
         fast = (plugin, stem) in FAST_MATH
         cpp = src.endswith('.cpp')
-        include = os.path.join(ROOT, 'plugins', plugin, 'Source')
+        include = os.path.join(FOLDERS[plugin], 'Source')
         if os.name == 'nt':
             work = tempfile.mkdtemp(prefix='native_')
             cmd = [cl, '/nologo', '/O2', '/D_USE_MATH_DEFINES'] + (['/fp:fast'] if fast else []) + \

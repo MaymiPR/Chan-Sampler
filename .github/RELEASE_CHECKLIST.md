@@ -13,7 +13,7 @@ as it happens and close this issue when the release is live. The flow in short i
 - [ ] Screenshots regenerated with the Snapshot tool where the editor changed; `docs/screenshots/hero.png` rebuilt.
 - [ ] `packaging/plugins.txt` lists every plug-in that ships with its AU type; `packaging/THIRD-PARTY-NOTICES.txt` names every dependency and font.
 - [ ] A saved-state fixture exists for this version if a parameter or its reading changed
-  (`<Stem>HostTest <vst3> --save-state plugins/<Id>/tests/data/state-{{VERSION}}.bin`); the frozen identity in
+  (`<Stem>HostTest <vst3> --save-state plugin/tests/data/state-{{VERSION}}.bin`); the frozen identity in
   CONTRIBUTING.md is unchanged.
 - [ ] `CHANGELOG.md` has everything user-facing under `## Unreleased`, with before and after numbers in dB for sound changes; `### Highlights` for a new plug-in.
 - [ ] The provenance and public gates pass: `python scripts/check_repo.py --release` (the Provenance section in every

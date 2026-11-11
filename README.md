@@ -26,7 +26,7 @@ with their sample.
 
 | Plug-in | Recreates | What it does |
 |---|---|---|
-| **[Chan Sampler](plugins/ChanSampler)** | FL Studio's Channel Sampler | plays one sample per note with FL's precomputed effects, time stretching, envelopes, LFOs, filters, arpeggiator and echo |
+| **[Chan Sampler](plugin)** | FL Studio's Channel Sampler | plays one sample per note with FL's precomputed effects, time stretching, envelopes, LFOs, filters, arpeggiator and echo |
 
 > Chan Sampler is an independent project, not affiliated with or endorsed by
 > Image-Line. It contains none of Image-Line's code, artwork, samples, presets or
@@ -36,7 +36,7 @@ with their sample.
 
 Chan Sampler was created entirely with Claude (Anthropic's AI): the code, the measurements behind it and
 this documentation. FL Studio was the reference throughout, as described in
-[plugins/ChanSampler/MEASUREMENTS.md](plugins/ChanSampler/MEASUREMENTS.md).
+[plugin/MEASUREMENTS.md](plugin/MEASUREMENTS.md).
 
 ## Features
 
@@ -161,9 +161,9 @@ Known gaps:
   (gate, shift, swing) and the knob menus' automation and remote-control
   entries. Your DAW provides those.
 
-[MEASUREMENTS.md](plugins/ChanSampler/MEASUREMENTS.md) lists every measurement,
-[NULLTESTS.md](plugins/ChanSampler/NULLTESTS.md) the null-test results and
-[RESEARCH.md](plugins/ChanSampler/RESEARCH.md) every known gap.
+[MEASUREMENTS.md](plugin/MEASUREMENTS.md) lists every measurement,
+[NULLTESTS.md](plugin/NULLTESTS.md) the null-test results and
+[RESEARCH.md](plugin/RESEARCH.md) every known gap.
 
 ## Build from source
 

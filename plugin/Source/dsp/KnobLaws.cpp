@@ -21,7 +21,7 @@ float flEnvKnobForSeconds (float seconds)
 // Hold. FL plays a whole number of ticks (24 per step): an exponential of
 // the integer raw value rounded to half ticks, then halved downwards (the
 // two values fitted to
-// the 55 measured raw values, measurements/ChanSampler/arp_ticks_dense.txt and the 13
+// the 55 measured raw values, measurements/arp_ticks_dense.txt and the 13
 // where the earlier fit was a tick out, measure_arp_period.py).
 double flArpTicksForRaw (double raw)
 {

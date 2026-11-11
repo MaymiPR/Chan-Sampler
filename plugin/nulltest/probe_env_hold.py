@@ -34,7 +34,7 @@ def env_seconds(raw):
     return 0.001 * (np.exp(np.log(MS[i] - c) + (np.log(MS[i + 1] - c) - np.log(MS[i] - c)) * t) + c)
 
 def sweep():
-    """Hold alone over dense raw values at two tempos (measurements/ChanSampler/env_hold_sweep.txt):
+    """Hold alone over dense raw values at two tempos (measurements/env_hold_sweep.txt):
     E against the hold in ticks from the time table."""
     for bpm in (130, 77):
         for raw in range(15000, 25001, 250):
