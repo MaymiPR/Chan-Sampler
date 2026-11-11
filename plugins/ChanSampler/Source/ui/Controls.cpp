@@ -1,5 +1,6 @@
 #include "ui/Controls.h"
-#include "dsp/Dsp.h"
+#include "dsp/Envelope.h"
+#include "dsp/KnobLaws.h"
 #include "Params.h"
 
 #include <iomanip>

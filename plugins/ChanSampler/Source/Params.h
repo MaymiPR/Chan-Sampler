@@ -3,7 +3,8 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "History.h"
 #include "dsp/Chords.h"
-#include "dsp/Dsp.h"
+#include "dsp/KnobLaws.h"
+#include "dsp/Modes.h"
 #include "dsp/Tuning.h"
 
 // Host parameters as FL Studio's Sampler shows them (MEASUREMENTS.md): ids, names, ranges, defaults, display text and

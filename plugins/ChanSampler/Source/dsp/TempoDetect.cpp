@@ -1,6 +1,6 @@
 #include "TempoDetect.h"
 
-#include "Dsp.h"
+#include "Numeric.h"
 #include "Fft.h"
 #include "Tuning.h"
 

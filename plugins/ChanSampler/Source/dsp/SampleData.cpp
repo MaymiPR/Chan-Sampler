@@ -1,6 +1,7 @@
 #include "SampleData.h"
 #include "TrimTail.h"
-#include "Dsp.h"
+#include "Filter.h"
+#include "Numeric.h"
 #include "Tuning.h"
 
 #include <algorithm>

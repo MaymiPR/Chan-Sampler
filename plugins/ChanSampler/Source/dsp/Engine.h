@@ -8,7 +8,11 @@
 #include <vector>
 
 #include "DeclickCurves.h"
-#include "Dsp.h"
+#include "Envelope.h"
+#include "Filter.h"
+#include "KnobLaws.h"
+#include "Lfo.h"
+#include "Modes.h"
 #include "SampleData.h"
 #include "TimeStretch.h"
 

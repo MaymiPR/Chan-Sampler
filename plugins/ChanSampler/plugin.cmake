@@ -6,7 +6,8 @@ set(CS_DIR ${CMAKE_CURRENT_LIST_DIR})
 set(CS_ENGINE_SOURCES
     ${CS_DIR}/Source/History.cpp
     ${CS_DIR}/Source/dsp/SampleData.cpp
-    ${CS_DIR}/Source/dsp/Dsp.cpp
+    ${CS_DIR}/Source/dsp/Filter.cpp
+    ${CS_DIR}/Source/dsp/KnobLaws.cpp
     ${CS_DIR}/Source/dsp/Engine.cpp
     ${CS_DIR}/Source/dsp/Fft.cpp
     ${CS_DIR}/Source/dsp/TempoDetect.cpp

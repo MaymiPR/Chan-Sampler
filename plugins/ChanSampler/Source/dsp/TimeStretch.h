@@ -3,7 +3,8 @@
 #include <complex>
 #include <vector>
 
-#include "Dsp.h"
+#include "Modes.h"
+#include "Numeric.h"
 #include "FastFFT.h"
 #include "Tuning.h"
 
