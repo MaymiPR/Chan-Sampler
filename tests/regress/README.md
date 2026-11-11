@@ -1,9 +1,9 @@
 # Render regression
 
-`scripts/render_regress.py` renders the cases in `<PluginTarget>/jobs.txt` through that plug-in's own offline
-renderer and compares each output with the golden render in `<PluginTarget>/golden/<name>.f32`. CI runs it on
-every push (ci.yml, all three systems) and the local check runs it when goldens exist; a case whose residual rises
-above its threshold fails the build.
+`scripts/render_regress.py` renders the cases in `jobs.txt` through the plug-in's own offline renderer and compares
+each output with the golden render in `golden/<name>.f32`; in a suite of several plug-ins each has these in
+`<PluginTarget>/`. CI runs it on every push (ci.yml, all three systems) and the local check runs it when goldens
+exist; a case whose residual rises above its threshold fails the build.
 
 - The inputs are synthesized by the script with a fixed seed, so only the goldens are committed (0.5 s of stereo
   float32 is 192 KB; keep cases short).

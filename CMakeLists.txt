@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-# Chan Sampler: one CMake project for every plug-in (plugins/<Name>/plugin.cmake) and the measurement tools.
+# Chan Sampler: one CMake project for the plug-in (plugin/plugin.cmake) and the measurement tools.
 # The suite's version, shared by every plug-in: the first release is 1.0.0, a new plug-in raises the middle number
 # (1.1.0, 1.2.0 ...), fixes and small updates the last (1.1.1, 1.1.2 ...). CHANGELOG.md has a section per version.
 project(ChanSampler VERSION 1.7.1)
@@ -61,7 +61,7 @@ option(CHANSAMPLER_TOOLS "Build the measurement tools" ON)
 # at in every suite.
 option(CHANSAMPLER_DEV_COPY "Copy each VST3 to build/plugins after a build" ON)
 
-# The Python that writes the test signal fixture (plugins/ChanSampler/nulltest/render_signals.py, standard library
+# The Python that writes the test signal fixture (plugin/nulltest/render_signals.py, standard library
 # only); set CHANSAMPLER_PYTHON to use another interpreter than the one find_package finds.
 if(NOT CHANSAMPLER_PYTHON)
     find_package(Python3 COMPONENTS Interpreter)
@@ -106,7 +106,7 @@ endif()
 # suite's code in shared/ is the static library ChanSamplerShared that each of them links.
 add_custom_target(ci_targets)
 include(shared/shared.cmake)
-include(plugins/ChanSampler/plugin.cmake)
+include(plugin/plugin.cmake)
 
 if(CHANSAMPLER_TOOLS)
     # Everything a host sees without audio: buses, latency, programs, every parameter's text across its range.

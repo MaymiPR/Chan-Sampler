@@ -1,10 +1,10 @@
 """Where the null-test files live (everything relative to nulltest/)."""
 import os, sys
 
-ROOT = os.path.dirname(os.path.abspath(__file__))                    # plugins/ChanSampler/nulltest/
-REPO = os.path.normpath(os.path.join(ROOT, '..', '..', '..'))        # the repository root (build/ is there)
+ROOT = os.path.dirname(os.path.abspath(__file__))                    # plugin/nulltest/
+REPO = os.path.normpath(os.path.join(ROOT, '..', '..'))              # the repository root (build/ is there)
 SIGNALS = os.path.join(ROOT, 'signals')   # test signals (inputs)
-DATA = os.path.join(REPO, 'measurements', 'ChanSampler')   # the measured data (published)
+DATA = os.path.join(REPO, 'measurements')   # the measured data (published)
 LOCAL = os.path.join(ROOT, 'local')       # files FL wrote (git-ignored, never committed)
 RENDER_TOOL = os.path.join(REPO, 'build', 'CsRender_artefacts', 'Release',
                            'CsRender' + ('.exe' if sys.platform == 'win32' else ''))
@@ -52,5 +52,5 @@ def signal(name):
 
 
 def data(name):
-    """A measured data file by name, in measurements/ChanSampler/."""
+    """A measured data file by name, in measurements/."""
     return os.path.join(DATA, name)

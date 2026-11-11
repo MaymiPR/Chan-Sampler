@@ -22,14 +22,14 @@ in its first 8 KB is binary and skipped. Rules:
        file, a CamelCase or snake_case name whose parts spell the vendor word (VendorDrag, render_vendor); in every
        tracked path, a file or folder name with the vendor word among its parts. Word-boundary aware: a plain word in
        prose or a comment is not an identifier, and a vendor word inside a longer part (CLA in CLAP) is not a match
-    H  plugins/<Id>/nulltest/ without its harness <ab>_ref.py (<ab>: the plug-in's <Ab>Render abbreviation in lower
-       case)
+    H  a plug-in's nulltest/ without its harness <ab>_ref.py (<ab>: the plug-in's <Ab>Render abbreviation in lower
+       case); the plug-in folder is plugin/ in a suite of one plug-in, plugins/<Id>/ in a suite of several
     I  a numbered iteration script: a script or native helper under nulltest/ or scripts/ whose name ends in a number
        right after a letter (fit_release2.py, gain_fast6.c); the version whose output ships keeps a name that says
        what it does, the others leave the tree
 
 Licence texts (LICENSE, COPYING and the THIRD-PARTY-NOTICES files) are verbatim third-party text: the P, Q, E and D
-rules skip them. --release also requires a `## Provenance` section in every plugins/*/MEASUREMENTS.md and
+rules skip them. --release also requires a `## Provenance` section in every plug-in's MEASUREMENTS.md and
 `## Unreleased` as the first section of CHANGELOG.md. Standard library only.
 """
 import argparse, os, re, subprocess, sys
@@ -144,6 +144,13 @@ def is_identifier(token):
     return '_' in core or bool(re.search(r'[a-z0-9][A-Z]|[A-Z]{2}[a-z]', core))
 
 
+def plugin_dirs(files):
+    """Every plug-in folder: plugin in a suite of one plug-in (plugin/plugin.cmake), else each plugins/<Id>."""
+    if 'plugin/plugin.cmake' in files:
+        return ['plugin']
+    return sorted({'plugins/' + f.split('/')[1] for f in files if f.startswith('plugins/') and f.count('/') >= 2})
+
+
 def tree_rules(files, findings, vendor):
     """The rules on the tracked tree rather than on a file's text: V for file and folder names, H, I."""
     if vendor:
@@ -156,21 +163,21 @@ def tree_rules(files, findings, vendor):
                 if word and (comp, word) not in seen:
                     seen.add((comp, word))
                     findings.append(f'{rel}:1: V: the vendor word {word} in the name {comp}')
-    plugins = sorted({f.split('/')[1] for f in files if f.startswith('plugins/') and f.count('/') >= 3
-                      and f.split('/')[2] == 'nulltest'})
-    for plugin in plugins:
+    for pdir in plugin_dirs(files):
+        if not any(f.startswith(f'{pdir}/nulltest/') for f in files):
+            continue
         cmake = ''
         for name in ('plugin.cmake', 'CMakeLists.txt'):
-            data = read_bytes(f'plugins/{plugin}/{name}') if f'plugins/{plugin}/{name}' in files else None
+            data = read_bytes(f'{pdir}/{name}') if f'{pdir}/{name}' in files else None
             cmake += data.decode('utf-8', 'replace') if data else ''
         m = (re.search(r'foreach\(t\s+(\w+?)Render\s', cmake)
              or re.search(r'(?:juce_add_console_app|add_executable)\((\w+?)Render\b', cmake))
-        harness = [f for f in files if re.fullmatch(rf'plugins/{re.escape(plugin)}/nulltest/[a-z]{{2}}_ref\.py', f)]
+        harness = [f for f in files if re.fullmatch(rf'{re.escape(pdir)}/nulltest/[a-z]{{2}}_ref\.py', f)]
         want = f'{m.group(1).lower()}_ref.py' if m and len(m.group(1)) == 2 else None
-        if want and f'plugins/{plugin}/nulltest/{want}' not in files:
-            findings.append(f'plugins/{plugin}/nulltest:1: H: no harness {want} (the renderer is {m.group(1)}Render)')
+        if want and f'{pdir}/nulltest/{want}' not in files:
+            findings.append(f'{pdir}/nulltest:1: H: no harness {want} (the renderer is {m.group(1)}Render)')
         elif not want and not harness:
-            findings.append(f'plugins/{plugin}/nulltest:1: H: no harness <ab>_ref.py')
+            findings.append(f'{pdir}/nulltest:1: H: no harness <ab>_ref.py')
     for rel in files:
         parts = rel.split('/')
         stem, ext = os.path.splitext(parts[-1])
@@ -246,8 +253,8 @@ def fix_file(rel, data):
 
 
 def release_rules(files, findings):
-    for rel in files:
-        if re.fullmatch(r'plugins/[^/]+/MEASUREMENTS\.md', rel):
+    for rel in (f'{d}/MEASUREMENTS.md' for d in plugin_dirs(files)):
+        if rel in files:
             data = read_bytes(rel)
             if data is not None and not re.search(r'^## Provenance\s*$', data.decode('utf-8', 'replace'), re.M):
                 findings.append(f'{rel}:1: release: no "## Provenance" section')

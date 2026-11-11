@@ -145,7 +145,9 @@ if (-not $SkipBuild) {
             if (-not (Test-Path $bundle)) { Write-Host "no VST3 at $bundle"; $stale++; continue }
             $built = (Get-ChildItem $bundle -Recurse -File | Sort-Object LastWriteTime -Descending | Select-Object -First 1).LastWriteTime
             if ($built -gt $buildStart) { continue }
-            $src = @("plugins/$t", "shared", "CMakeLists.txt") | Where-Object { Test-Path $_ } |
+            # the plug-in folder: plugin in a suite of one plug-in, plugins/<Id> in a suite of several
+            $pdir = if (Test-Path "plugin/plugin.cmake") { "plugin" } else { "plugins/$t" }
+            $src = @($pdir, "shared", "CMakeLists.txt") | Where-Object { Test-Path $_ } |
                 ForEach-Object { Get-ChildItem $_ -Recurse -File -Include *.h, *.cpp, *.cmake, CMakeLists.txt -ErrorAction SilentlyContinue }
             $newest = ($src | Sort-Object LastWriteTime -Descending | Select-Object -First 1).LastWriteTime
             if ($newest -and $newest -gt $built) { Write-Host "stale: $p.vst3 ($built) is older than its sources ($newest)"; $stale++ }
@@ -162,7 +164,7 @@ if ($SkipTests) {
 } else {
     & ctest --test-dir $build -C $Config --output-on-failure 2>&1 | ForEach-Object { Write-Host "$_" }
     if ($LASTEXITCODE -ne 0) { Fail "ctest" "ctest" } else { $state["ctest"] = "ok"; Pass "ctest" }
-    if (Get-ChildItem "tests/regress/*/golden/*.f32" -ErrorAction SilentlyContinue) {
+    if ((Get-ChildItem "tests/regress/golden/*.f32", "tests/regress/*/golden/*.f32" -ErrorAction SilentlyContinue)) {
         & $py scripts/render_regress.py --build $build 2>&1 | ForEach-Object { Write-Host "$_" }
         if ($LASTEXITCODE -ne 0) { Fail "regress" "render regression" } else { $state["regress"] = "ok"; Pass "render regression" }
     } else { Skip "regress" "no goldens in tests/regress yet: the render regression is skipped" }

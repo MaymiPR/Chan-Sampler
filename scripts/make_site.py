@@ -61,10 +61,14 @@ def md_to_html(text):
 
 
 def rewrite_links(html, depth):
-    """Relative .md links become .html; links into plugins/<Id> become that page; others point at GitHub."""
+    """Relative .md links become .html; a link to a plug-in folder (plugins/<Id>, or plugin in a suite of one
+    plug-in) becomes that plug-in's page; others point at GitHub."""
     up = '../' * depth
-    html = re.sub(r'href="(plugins/([^/"#]+))(#[^"]*)?"', lambda m: f'href="{up}plugins/{m.group(2)}/index.html{m.group(3) or ""}"', html)
-    html = re.sub(r'href="([^":#]+)\.md(#[^"]*)?"', lambda m: f'href="{up}{m.group(1)}.html{m.group(2) or ""}"', html)
+    html = re.sub(r'href="(plugins/([^/".#]+))(#[^"]*)?"', lambda m: f'href="{up}plugins/{m.group(2)}/index.html{m.group(3) or ""}"', html)
+    html = re.sub(r'href="plugin/?(#[^"]*)?"', lambda m: f'href="{up}plugin/index.html{m.group(1) or ""}"', html)
+    # the site keeps the source tree's relative layout: a README page is that folder's index.html
+    html = re.sub(r'href="([^":#]*/)?README\.md(#[^"]*)?"', lambda m: f'href="{m.group(1) or ""}index.html{m.group(2) or ""}"', html)
+    html = re.sub(r'href="([^":#]+)\.md(#[^"]*)?"', lambda m: f'href="{m.group(1)}.html{m.group(2) or ""}"', html)
     return html
 
 
@@ -93,13 +97,20 @@ def main():
 
     docs = [('README.md', 'index.html', 0)]
     plugins = os.path.join(ROOT, 'plugins')
-    if os.path.isdir(plugins):
-        for p in sorted(os.listdir(plugins)):
-            if os.path.isfile(os.path.join(plugins, p, 'README.md')):
-                docs.append((f'plugins/{p}/README.md', f'plugins/{p}/index.html', 2))
-                for d in ('NULLTESTS.md', 'MEASUREMENTS.md', 'RESEARCH.md'):
-                    if os.path.isfile(os.path.join(plugins, p, d)):
-                        docs.append((f'plugins/{p}/{d}', f'plugins/{p}/{d[:-3]}.html', 2))
+    # the plug-in folders: plugin in a suite of one plug-in (plugin/plugin.cmake), else each plugins/<Id>
+    if os.path.isfile(os.path.join(ROOT, 'plugin', 'plugin.cmake')):
+        folders = ['plugin']
+    elif os.path.isdir(plugins):
+        folders = [f'plugins/{p}' for p in sorted(os.listdir(plugins)) if os.path.isdir(os.path.join(plugins, p))]
+    else:
+        folders = []
+    for f in folders:
+        depth = f.count('/') + 1
+        if os.path.isfile(os.path.join(ROOT, f, 'README.md')):
+            docs.append((f'{f}/README.md', f'{f}/index.html', depth))
+            for d in ('NULLTESTS.md', 'MEASUREMENTS.md', 'RESEARCH.md'):
+                if os.path.isfile(os.path.join(ROOT, f, d)):
+                    docs.append((f'{f}/{d}', f'{f}/{d[:-3]}.html', depth))
     for src, dst, depth in docs:
         with open(os.path.join(ROOT, src), encoding='utf-8') as h:
             text = h.read()
@@ -113,7 +124,7 @@ def main():
                 break
         body = rewrite_links(md_to_html(text), depth)
         if depth:
-            body = body.replace('src="docs/', 'src="../../docs/')
+            body = body.replace('src="docs/', 'src="' + '../' * depth + 'docs/')
         page = PAGE.format(title=title, description=desc.replace('"', '&quot;'), social=social, accent=colours['accent'],
                            accent_dark=colours.get('accentDark', colours['accent']), repo=a.repo, body=body,
                            home='../' * depth + 'index.html' if depth else 'index.html')

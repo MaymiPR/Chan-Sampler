@@ -48,7 +48,7 @@ def drum_loop(path, sr=44100, bpm=120):
     open(path, 'wb').write(b'RIFF' + struct.pack('<I', len(body)) + body)
 
 
-# Chan Sampler's snapshot tool also takes a sample, a parameter file and a sheet (plugins/ChanSampler/tools/Snapshot.cpp):
+# Chan Sampler's snapshot tool also takes a sample, a parameter file and a sheet (plugin/tools/Snapshot.cpp):
 # (file, parameter lines, arguments after the parameter file, environment). Its main image is the looped drum loop on
 # the Sample sheet; the sample view's three colour modes are cropped from the Sample sheet and stacked.
 LOOPED = 'useLoop 1\nloopStart 0.5\nloopEnd 1\nstartOffset 0.02\n'

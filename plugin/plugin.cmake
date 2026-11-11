@@ -111,7 +111,7 @@ add_dependencies(ci_targets ChanSamplerUiTests)
 
 # The built VST3 hosted as a DAW hosts it (tools/HostTest.cpp, the suite's): save and reload, rate changes, offline
 # rendering and every saved state of an earlier release in tests/data (state-<x.y.z>.bin with its .txt:
-# ChanSamplerHostTest <vst3> --save-state plugins/ChanSampler/tests/data/state-<x.y.z>.bin). A sampler is silent
+# ChanSamplerHostTest <vst3> --save-state plugin/tests/data/state-<x.y.z>.bin). A sampler is silent
 # without a sample: every instance gets the test sine as its sample (--property samplePath=).
 juce_add_console_app(ChanSamplerHostTest PRODUCT_NAME "ChanSamplerHostTest")
 target_sources(ChanSamplerHostTest PRIVATE ${CMAKE_SOURCE_DIR}/tools/HostTest.cpp)

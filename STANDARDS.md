@@ -8,12 +8,12 @@ this page is the reference. A deviation is listed in the last section with its r
 
 | Path | Holds |
 |---|---|
-| `plugins/<Id>/` | one plug-in: `plugin.cmake`, `Source/` (`Params.h`, `PluginProcessor`, `PluginEditor`, `Presets`, a generated `PresetTable.h`; code that is neither DSP nor editor (a document model, a custom Standalone app) beside them, named by its job; `dsp/` with `Engine` and `Tuning.h`; `ui/` with the plug-in's own `Theme.h` and `Controls`), `tests/` (`<Stem>Tests.cpp`, `<Stem><Area>Tests.cpp`, `data/state-<x.y.z>.bin`), `tools/` (`<Ab>Render.cpp`, `<Ab><Part>Render.cpp`), a flat `nulltest/` (with its README), README, RESEARCH, MEASUREMENTS, NULLTESTS; optional `scripts/` (every script that writes under `Source/` or `resources/`, the editor-measuring scripts) and `resources/` (its binary resources) |
+| `plugin/` or `plugins/<Id>/` | the plug-in folder: `plugin/` in a suite of one plug-in, `plugins/<Id>/` per plug-in in a suite of several (below); it holds `plugin.cmake`, `Source/` (`Params.h`, `PluginProcessor`, `PluginEditor`, `Presets`, a generated `PresetTable.h`; code that is neither DSP nor editor (a document model, a custom Standalone app) beside them, named by its job; `dsp/` with `Engine` and `Tuning.h`; `ui/` with the plug-in's own `Theme.h` and `Controls`), `tests/` (`<Stem>Tests.cpp`, `<Stem><Area>Tests.cpp`, `data/state-<x.y.z>.bin`), `tools/` (`<Ab>Render.cpp`, `<Ab><Part>Render.cpp`), a flat `nulltest/` (with its README), README, RESEARCH, MEASUREMENTS, NULLTESTS; optional `scripts/` (every script that writes under `Source/` or `resources/`, the editor-measuring scripts) and `resources/` (its binary resources) |
 | `shared/` | code shared by the plug-ins, built as the static library `<SuiteId>Shared`: `shared.cmake`, `ui/` (`Theme.h`, `Widgets`, `HostFocus`), `dsp/` (`Math.h`; editor-side analysis such as a level meter may use JUCE, as the plain-C++ rule covers a plug-in's `Source/dsp/` only), optional `Presets` (the factory-preset helpers the plug-ins share); a suite of one plug-in has it too |
 | `tools/` | C++ only: the reference hosts RefRender, ParamDump, RefCapture, FocusCheck, and `Snapshot.cpp` and `HostTest.cpp`, built per plug-in (Python goes to `scripts/`) |
-| `measurements/<Id>/` | measurement data per plug-in, the id's exact case; published by a public suite with the approval recorded, git-ignored while the suite is private |
+| `measurements/` | measurement data: directly in `measurements/` in a suite of one plug-in, in `measurements/<Id>/` (the id's exact case) per plug-in in a suite of several; published by a public suite with the approval recorded, git-ignored while the suite is private |
 | `packaging/` | `plugins.txt` (`Target\|Product name\|PluginCode\|ManufacturerCode\|AU type`), the Inno Setup script, `distribution.xml`, `install-linux.sh`, the INSTALL notes, THIRD-PARTY-NOTICES, ABOUT; the standalone apps unticked by default |
-| `tests/regress/` | the render regression: `<Id>/jobs.txt` and `<Id>/golden/*.f32` per plug-in target, the only place `scripts/render_regress.py`, CI and the local check read |
+| `tests/regress/` | the render regression: `jobs.txt` and `golden/*.f32` (in a suite of several, in `<Id>/` per plug-in target), the only place `scripts/render_regress.py`, CI and the local check read |
 | `docs/` | `BUILDING.md`, `branding/` (banners, icon, social preview, `colours.json`), `screenshots/` |
 | `scripts/` | `bump_version.py`, `release_notes.py`, `render_regress.py`, `make_site.py`, `check_repo.py`, `check.ps1`, `check.sh`; `make_screenshots.py` (`docs/screenshots/` from each plug-in's snapshot tool, the views in its `VIEWS`); `build_native.py` (the native null-test helpers into `build/native/`); `nulltest/` for a host the plug-ins share and `ref_state_lib.py` |
 | `.github/` | the five workflows, `dependabot.yml`, the issue forms, the pull request template, `RELEASE_CHECKLIST.md`, CODEOWNERS |
@@ -24,12 +24,20 @@ Root files: `README.md` (purpose, contents, quick start, links), `LICENSE` (AGPL
 in its closing "Suite keys" block), `.editorconfig`,
 `.gitattributes`, `.gitignore`, `.markdownlint-cli2.yaml`, `.yamllint.yaml`, `requirements.txt`.
 
+The plug-in folder is `plugin/` in a suite of one plug-in and `plugins/<Id>/` per plug-in in a suite of several;
+`measurements/` and `tests/regress/` (but its README) hold the one plug-in's content directly, or an `<Id>/` folder
+per plug-in. The folder name states the shape, and the scripts tell the shapes apart by it (`plugin/plugin.cmake`).
+The shape is chosen at kickoff: a suite that will hold one plug-in takes `plugin/`; a suite that will or may hold
+more takes `plugins/<Id>/` from its first plug-in. When a second plug-in joins a suite in `plugin/`, the generator
+renames `plugin/` to `plugins/`, moves the first one's content into its `<Id>/` folders and fixes the paths that name
+them, then adds the new plug-in beside it.
+
 ## Naming
 
 | Item | Rule | Example |
 |---|---|---|
 | Suite | the repository's name; the id without spaces; the company name hosts show | Example, Example |
-| Plug-in id | PascalCase, no spaces; the folder, the CMake target, the state tag | ThePlugin |
+| Plug-in id | PascalCase, no spaces; the folder in a suite of several, the CMake target, the state tag | ThePlugin |
 | Class stem | the id without a leading The | PluginProcessor, PluginEditor, PluginTests |
 | Tool abbreviation | two letters, the initials without The, or the first two letters of one word; a renderer of one part is `<Ab><Part>Render` | Tp: TpRender, TpMeterRender |
 | Namespace | the abbreviation in lower case; one suite namespace for `shared/` (the suite name's first word in lower case) | `tp`, `example` |
@@ -41,8 +49,8 @@ in its closing "Suite keys" block), `.editorconfig`,
 | Test programs | `tests/<Stem>Tests.cpp`, a further one `tests/<Stem><Area>Tests.cpp`; `<Stem>HostTest` from `tools/HostTest.cpp` | `PluginUiTests.cpp` |
 | Harness module | `<ab>_ref.py`, the tool abbreviation in lower case (never the reference's initials or name) | `tp_ref.py` |
 | Null-test scripts | lower_snake in a flat `nulltest/`; `nulltest.py` and `first_null.py`; others start with their purpose (`measure_`, `probe_`, `fit_`, `train_`, `null_`, `render_`, `compare_`, `check_`, `read_`, `cases_`), helpers are `<topic>_lib.py`, a plug-in is named by its id; no numbered iterations (the script whose output ships keeps the name); native helpers in `nulltest/native/`, built into `build/native/` | `probe_release.py` |
-| Plug-in scripts | `plugins/<Id>/scripts/`: `make_`, `export_`, `pack_` for a script that writes under `Source/` or `resources/`; `measure_ui.py`, `compare_ui.py`, `fit_<part>.py` for the editor; `ui/drive_<action>.ps1`, `ui/capture_<target>.ps1`, `ui/<topic>_lib.ps1` for drivers of a Standalone's window | `make_presets.py` |
-| Null-test report | one generated `NULLTESTS.md` per plug-in, a section per kind of case (Settings, Stages, Presets, Grid); the data as JSON in `measurements/<Id>/` | NULLTESTS.md |
+| Plug-in scripts | `scripts/` in the plug-in folder: `make_`, `export_`, `pack_` for a script that writes under `Source/` or `resources/`; `measure_ui.py`, `compare_ui.py`, `fit_<part>.py` for the editor; `ui/drive_<action>.ps1`, `ui/capture_<target>.ps1`, `ui/<topic>_lib.ps1` for drivers of a Standalone's window | `make_presets.py` |
+| Null-test report | one generated `NULLTESTS.md` per plug-in, a section per kind of case (Settings, Stages, Presets, Grid); the data as JSON in the plug-in's measurements folder | NULLTESTS.md |
 | Documents | lower-kebab under `docs/` (`BUILDING.md` excepted); root and plug-in documents in upper case | `docs/null-testing.md` |
 | Branding | `docs/branding/<suiteid>-` banner dark and light (SVG), icon (SVG and 512 px PNG), social (SVG and PNG) | `example-banner-light.svg` |
 | Screenshots | `docs/screenshots/hero.png`; `<pluginid>.png` and `<pluginid>-<view>.png`, ids in lower case; `<suiteid>-<view>.png` for a view the plug-ins share | `theplugin.png`, `example-toolbar.png` |
@@ -177,7 +185,9 @@ A new plug-in in the suite:
 
 1. The reference's parameter dump and one rendered block; the names chosen by the naming table; the plan approved.
 2. The generator adds `plugins/<Id>/` with `plugin.cmake`, the include line in `CMakeLists.txt`, the line in
-   `packaging/plugins.txt`, the regression jobs and the local keys for its reference.
+   `packaging/plugins.txt`, the regression jobs and the local keys for its reference. In a suite that keeps
+   one plug-in in `plugin/` it first moves that plug-in into `plugins/<Id>/`, `measurements/<Id>/` and
+   `tests/regress/<Id>/` and fixes the paths.
 3. `first_null.py` on day one; the local check before every build that is handed over; the null regression after
    every DSP change.
 4. Before its first release: the name review, the provenance and public gates, the plug-in's four documents, the

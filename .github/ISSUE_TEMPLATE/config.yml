@@ -1,5 +1,5 @@
 blank_issues_enabled: false
 contact_links:
   - name: How close is it to the original?
-    url: https://github.com/MaymiPR/Chan-Sampler/blob/main/plugins/ChanSampler/NULLTESTS.md
+    url: https://github.com/MaymiPR/Chan-Sampler/blob/main/plugin/NULLTESTS.md
     about: What has been measured against the original and the known differences, before reporting one.

@@ -2,7 +2,7 @@
 cases_trim_short.py does: one click per input frame q = 0 .. span + 4
 over a faint noise floor, the floor's own render subtracted. R[q, n] = FL's
 output frame n per unit input at frame q (channel volume removed), saved to
-measurements/ChanSampler/trim_matrix_span<span>.npy. The end filter's sweep on segments under 200
+measurements/trim_matrix_span<span>.npy. The end filter's sweep on segments under 200
 frames (Source/dsp/TrimTail.h) is fitted to these.
 
     python -m measure_trim_matrix 41 50 60 80 100 150 190"""

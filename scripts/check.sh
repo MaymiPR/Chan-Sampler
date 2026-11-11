@@ -111,7 +111,9 @@ if [ "$SKIP_BUILD" = 0 ]; then
             if [ ! -e "$B" ]; then echo "no VST3 at $B"; STALE=$((STALE + 1)); continue; fi
             [ -n "$(find "$B" -type f -newer "$STAMP" | head -n 1)" ] && continue
             BIN=$(find "$B" -type f -path '*/Contents/*' ! -name '*.plist' | head -n 1)
-            NEWER=$(find "plugins/$t" shared CMakeLists.txt \( -name '*.h' -o -name '*.cpp' -o -name '*.cmake' -o -name CMakeLists.txt \) \
+            # the plug-in folder: plugin in a suite of one plug-in, plugins/<Id> in a suite of several
+            PDIR="plugins/$t"; [ -f plugin/plugin.cmake ] && PDIR=plugin
+            NEWER=$(find "$PDIR" shared CMakeLists.txt \( -name '*.h' -o -name '*.cpp' -o -name '*.cmake' -o -name CMakeLists.txt \) \
                 -newer "${BIN:-$B}" 2> /dev/null | head -n 1)
             if [ -n "$NEWER" ]; then echo "stale: $p.vst3 is older than $NEWER"; STALE=$((STALE + 1)); fi
         done < packaging/plugins.txt
@@ -128,7 +130,7 @@ if [ "$SKIP_TESTS" = 1 ]; then
     skip regress "render regression: skipped (--skip-tests)"
 else
     if ctest --test-dir "$BUILD" -C "$CONFIG" --output-on-failure; then set_state ctest ok; pass ctest; else fail ctest ctest; fi
-    if compgen -G "tests/regress/*/golden/*.f32" > /dev/null; then
+    if compgen -G "tests/regress/golden/*.f32" > /dev/null || compgen -G "tests/regress/*/golden/*.f32" > /dev/null; then
         if "$PY" scripts/render_regress.py --build "$BUILD"; then set_state regress ok; pass "render regression"
         else fail regress "render regression"; fi
     else

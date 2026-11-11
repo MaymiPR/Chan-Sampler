@@ -36,7 +36,7 @@ double flOnePoleF (double u)
 double flResonance (double res)
 {
     // r measured in FL at raw resonance 0, 32, ..., 640 (cutoff open: y = x + r (y1 - y2),
-    // measurements/ChanSampler/res_r.npy), interpolated cubically in log (1 - r). Mod Y maps 0..256 onto it.
+    // measurements/res_r.npy), interpolated cubically in log (1 - r). Mod Y maps 0..256 onto it.
     const auto& rv = tuning().resonanceTable;
     const auto x = jlimit (0.0, 20.0, res * 20.0);   // in units of 32 raw
     if (x <= 0.0)

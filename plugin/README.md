@@ -1,10 +1,10 @@
 # Chan Sampler
 
-Part of [Chan Sampler](../../README.md). A recreation of FL Studio's Sampler channel (FL Studio 26.1.7): its
+Part of [Chan Sampler](../README.md). A recreation of FL Studio's Sampler channel (FL Studio 26.1.7): its
 controls, look and sound, null-tested against FL itself.
 
 <p align="center">
-  <img src="../../docs/screenshots/chansampler.png" alt="Chan Sampler's Sample page" width="70%">
+  <img src="../docs/screenshots/chansampler.png" alt="Chan Sampler's Sample page" width="70%">
 </p>
 
 - [RESEARCH.md](RESEARCH.md): what the original is, the sources, the editor's layout and the known gaps.
@@ -28,7 +28,7 @@ filter and the envelopes and LFOs.
 
 ## Using it
 
-The root [README](../../README.md#usage) has the controls. Presets are `.cspreset` files in
+The root [README](../README.md#usage) has the controls. Presets are `.cspreset` files in
 `Documents/Chan Sampler/Presets`; FL Sampler presets (`.fst`) load with their sample.
 
 ## How close

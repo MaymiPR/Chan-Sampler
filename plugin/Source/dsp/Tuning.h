@@ -53,7 +53,7 @@ struct Tuning
     // Portamento (MEASUREMENTS.md "Tracking, root note, polyphony"; nulltest/cases_untested.py): the glide in ticks,
     // round (a base^(raw / 1660) - c).
     double slideTicksA = 0.92049, slideTicksBase = 209.414, slideTicksC = 0.15;
-    // Arpeggio time (MEASUREMENTS.md "Measured laws", Arpeggiator; measurements/ChanSampler/arp_ticks_dense.txt,
+    // Arpeggio time (MEASUREMENTS.md "Measured laws", Arpeggiator; measurements/arp_ticks_dense.txt,
     // measure_arp_period.py): half ticks round (a (base^(raw / 1000) - 1)).
     double arpTicksA = 1.84558, arpTicksBase = 24.99798;
 
