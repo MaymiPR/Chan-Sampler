@@ -10,6 +10,9 @@ build/<Stem>Snapshot_artefacts/Release/<Stem>Snapshot docs/screenshots/<pluginid
 build/<Stem>Snapshot_artefacts/Release/<Stem>Snapshot docs/screenshots/<pluginid>-<view>.png paramId=value
 ```
 
+`scripts/make_screenshots.py` writes the whole set: each plug-in's main image, the views it lists in the script's
+`VIEWS`, and `hero.png`.
+
 | File | What |
 |---|---|
 | `hero.png` | the suite's plug-ins side by side, 24 px apart, at most 1800 px wide (the README's first image) |

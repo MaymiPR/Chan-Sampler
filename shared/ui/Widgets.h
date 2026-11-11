@@ -17,12 +17,15 @@ inline void noFocus (juce::Component& c)
     for (auto* child : c.getChildren()) noFocus (*child);
 }
 
-// What the suite's snapshot tool (tools/Snapshot.cpp) may ask of an editor beyond its parameters: meters frozen
-// at given levels. An editor with meters derives from it; the tool finds it by dynamic_cast.
+// What the snapshot tool (tools/Snapshot.cpp, one for every plug-in of the suite) may ask of an editor beyond its
+// parameters: meters frozen at given levels, and the plug-in's own options (a view, a style), each a "--name" argument
+// the tool hands over after the editor is open. An editor with meters or options derives from it; the tool finds it
+// by dynamic_cast.
 struct SnapshotHooks
 {
     virtual ~SnapshotHooks() = default;
     virtual void setTestLevels (float inDb, float outDb) = 0;
+    virtual bool snapshotOption (const juce::String&) { return false; }     // true when the editor took the option
 };
 }
 

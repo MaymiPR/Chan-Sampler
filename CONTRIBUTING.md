@@ -131,7 +131,7 @@ pull requests wait for approval before CI runs.
 | `measurements/ChanSampler/` | the measured data (kernels, matrices, curves, tables), published (approval recorded 2026-11-09); the null-test scripts read and write it |
 | `tests/regress/` | the render regression's cases and golden renders |
 | `cmake/` | `PatchJuceVst3Keys.cmake` |
-| `scripts/` | `bump_version.py`, `release_notes.py`, `render_regress.py`, `make_site.py`, `check_repo.py`, `check.ps1`, `check.sh`; `make_screenshots.py` (the screenshots from each plug-in's snapshot tool) |
+| `scripts/` | `bump_version.py`, `release_notes.py`, `render_regress.py`, `make_site.py`, `check_repo.py`, `check.ps1`, `check.sh`, `build_native.py` (the null tests' native helpers into `build/native/`); `make_screenshots.py` (the screenshots from each plug-in's snapshot tool) |
 | `packaging/` | the installers; `plugins.txt` lists the plug-in they hold |
 | `docs/` | the build guide, `branding/` (the banners, the icon and the social preview as SVG with their PNG exports, `colours.json`), `screenshots/` (`hero.png`, `chansampler.png`, `chansampler-<view>.png`) |
 | `.github/` | `workflows/` (Lint, CI, Build and release, Release checklist, Landing page), the issue forms, the pull request template, `RELEASE_CHECKLIST.md`, `dependabot.yml`, CODEOWNERS |
@@ -181,6 +181,10 @@ minor release): FL Studio and other hosts list the plug-in under the new vendor,
   (macOS `/Library/Audio/Plug-Ins/Components`, `VST3` and `CLAP` with the app in `/Applications`, `SUBFOLDER: ''` in
   release.yml; Windows the root VST3 and CLAP folders under the earlier releases' AppId; Linux `~/.vst3` and
   `~/.clap`), not to a suite subfolder, because a moved location would leave installed users with two copies.
+- State names (decided 2026-11-11): the state's root tag stays `STATE` and the editor's size property stays `uiWidth`
+  instead of the plug-in id and `uiScale`, because projects saved by every release read them.
+- Bypass (decided 2026-11-11): the plug-in has no bypass parameter of its own; the JUCE VST3 wrapper's bypass serves
+  hosts and the host test.
 
 ## License
 
