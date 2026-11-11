@@ -14,7 +14,7 @@ class Buffer
 {
 public:
     Buffer() = default;
-    Buffer (int channels, int frames) { setSize (channels, frames); }
+    Buffer (int channelCount, int frameCount) { setSize (channelCount, frameCount); }
 
     Buffer (const Buffer& other) { *this = other; }
     Buffer& operator= (const Buffer& other)
