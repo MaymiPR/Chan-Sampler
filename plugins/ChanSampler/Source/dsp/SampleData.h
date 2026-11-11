@@ -1,9 +1,12 @@
 #pragma once
 
-#include <juce_audio_basics/juce_audio_basics.h>
+#include <memory>
 #include <tuple>
+#include <vector>
 
-namespace cs
+#include "Buffer.h"
+
+namespace cs::dsp
 {
 
 // The "precomputed" sample: the loaded file with every Tools / Effects process
@@ -11,14 +14,14 @@ namespace cs
 // data rather than realtime effects, so they run once, off the audio thread
 // (when loading, or on the processor's rebuild thread when a setting
 // changes), and the audio thread only ever reads a finished SampleData.
-struct RawSample;
+struct SampleSource;
 
-struct SampleData : juce::ReferenceCountedObject
+struct SampleData
 {
-    using Ptr = juce::ReferenceCountedObjectPtr<SampleData>;
+    using Ptr = std::shared_ptr<SampleData>;
 
-    juce::AudioBuffer<float> audio;   // always 2 channels: [0, playEnd) + bleed tail
-    std::shared_ptr<const RawSample> sharedRaw;   // set when audio refers to the file's own data (read only)
+    Buffer audio;   // always 2 channels: [0, playEnd) + bleed tail
+    std::shared_ptr<const SampleSource> sharedRaw;   // set when audio refers to the file's own data (read only)
     int playEnd = 0;                  // end of the playable region in frames
     bool lengthTrimmed = false;       // true when Length cut the sample short
 
@@ -71,32 +74,22 @@ struct PrecomputeSettings
     bool operator== (const PrecomputeSettings& o) const { return key() == o.key(); }
 };
 
-// The raw file as loaded, before any precomputed process.
-struct RawSample
+// The file's audio as loaded, before any precomputed process, with what the processes read of the file (the JUCE
+// side, SampleFile.h, adds the file's own facts).
+struct SampleSource
 {
-    juce::AudioBuffer<float> audio;   // 1 or 2 channels
+    Buffer audio;                     // 1 or 2 channels
     double sampleRate = 44100.0;
-    int bitsPerSample = 16;
     int heldBits = 32;                // what FL holds it at: 16 for 16-bit PCM, else 32 (float)
-    juce::File file;
-    // A project's sample that could not be loaded (not found, or unreadable):
-    // no audio, but the path stays, so the project keeps it and the sample
-    // reloads once the file is back.
-    bool missing = false;
-    juce::int64 fileTime = 0, fileSize = 0;   // the file's modification time (ms) and size when loaded
-    double fileTempo = 0;                     // a WAV's ACID tempo (BPM), 0 when it has none
-    juce::String format;              // e.g. "WAV, 16-bit PCM", "WAV, compressed (Ogg Vorbis)", "FLAC"
-    // Loop points embedded in the file (WAV "smpl" chunk), in frames.
-    int embeddedLoopStart = -1, embeddedLoopEnd = -1;
     // Markers in the file, in frames: cue points (FL's regions) and ACID
     // slice markers ("strc" chunk).
     std::vector<int> regionMarkers, sliceMarkers;
 };
 
-// With owner (the shared RawSample raw belongs to), a sample that needs no
+// With owner (the shared source raw belongs to), a sample that needs no
 // processing at all refers to the file's audio instead of copying it.
-SampleData::Ptr buildProcessedSample (const RawSample& raw, const PrecomputeSettings& settings,
-                                      std::shared_ptr<const RawSample> owner = {});
+SampleData::Ptr buildProcessedSample (const SampleSource& raw, const PrecomputeSettings& settings,
+                                      std::shared_ptr<const SampleSource> owner = {});
 
 // Sample Start / Length knob position (0..1) to a fraction of the sample.
 double trimKnobToFraction (float knob);

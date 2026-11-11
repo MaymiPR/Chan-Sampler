@@ -1,8 +1,10 @@
 #include "WaveformView.h"
 #include "shared/ui/Widgets.h"
 #include "SampleExchange.h"
+#include "SampleFile.h"
 #include "dsp/TempoDetect.h"
 #include "dsp/TimeStretch.h"
+#include <juce_dsp/juce_dsp.h>
 #include <thread>
 
 namespace cs
@@ -25,7 +27,7 @@ WaveformView::~WaveformView()
     renderPool.removeAllJobs (true, 10000);
 }
 
-void WaveformView::setSample (SampleData::Ptr newSample)
+void WaveformView::setSample (dsp::SampleData::Ptr newSample)
 {
     fileSample = std::move (newSample);
     sample = fileSample;
@@ -42,16 +44,16 @@ namespace
     // The sample as a note at the root key plays it with these stretch
     // settings, at the sample's own rate (the engine's own maths: pitch ratio
     // from PITCH, speed from TIME / MUL; Slice map resamples, changing both).
-    SampleData::Ptr renderStretched (const SampleData& s, StretchMode mode, double cents, double speed, float formant,
+    dsp::SampleData::Ptr renderStretched (const dsp::SampleData& s, dsp::StretchMode mode, double cents, double speed, float formant,
                                      const std::atomic<int>& generation, int myGeneration)
     {
         const int inFrames = juce::jmax (1, s.playEnd);
         const double ratio = std::pow (2.0, cents / 1200.0);
-        const bool resample = mode == StretchMode::sliceMap;
+        const bool resample = mode == dsp::StretchMode::sliceMap;
         const double sourceStep = resample ? speed * ratio : speed;   // source frames per output frame
         const auto outFrames = (int) juce::jlimit (1.0, 30.0 * 60.0 * s.sourceRate, std::round ((double) inFrames / sourceStep));
 
-        SampleData::Ptr out = new SampleData();
+        auto out = std::make_shared<dsp::SampleData>();
         out->sourceRate = s.sourceRate;
         out->mono = s.mono;
         out->fileBits = 32;   // FL's badge shows its stretched copy as 32-bit (float), the plain file as it is
@@ -84,7 +86,7 @@ namespace
         }
         else
         {
-            TimeStretcher stretcher;
+            dsp::TimeStretcher stretcher;
             stretcher.configure (mode, s.sourceRate);
             stretcher.reset (0.0);
             auto read = [&] (int k, float& sl, float& sr)
@@ -115,7 +117,7 @@ WaveformView::StretchKey WaveformView::stretchKey() const
     k.time = get (id::stretchTime);
     k.formant = get (id::formant);
     k.bpm = k.time > 0.01f ? displayBpm.load() : 0.0;
-    k.mode = (int) resolveStretchMode ((StretchMode) juce::roundToInt (get (id::stretchMode)), k.cents, k.mul, k.time);
+    k.mode = (int) dsp::resolveStretchMode ((dsp::StretchMode) juce::roundToInt (get (id::stretchMode)), k.cents, k.mul, k.time);
     return k;
 }
 
@@ -126,8 +128,8 @@ void WaveformView::updateStretchPreview()
         return;
     // FL draws the precomputed modes (e3, e2, slice, Auto) as they play;
     // Resample, Stretch and Stretch Pro play in real time and FL draws the file.
-    const auto keyMode = (StretchMode) key.mode;
-    const bool realtime = keyMode == StretchMode::resample || keyMode == StretchMode::stretch || keyMode == StretchMode::stretchPro;
+    const auto keyMode = (dsp::StretchMode) key.mode;
+    const bool realtime = keyMode == dsp::StretchMode::resample || keyMode == dsp::StretchMode::stretch || keyMode == dsp::StretchMode::stretchPro;
     const bool plain = realtime || (std::abs (key.cents) < 0.5f && std::abs (key.mul - 1.0f) < 1.0e-4f && key.time <= 0.01f);
     if (plain)
     {
@@ -161,9 +163,9 @@ void WaveformView::updateStretchPreview()
 
     const auto generation = ++renderGeneration;
     requestedKey = key;
-    SampleData::Ptr source = fileSample;
-    const auto mode = (StretchMode) key.mode;
-    const auto speed = stretchSpeed ((double) source->playEnd / source->sourceRate, key.mul, key.time, key.bpm);
+    dsp::SampleData::Ptr source = fileSample;
+    const auto mode = (dsp::StretchMode) key.mode;
+    const auto speed = dsp::stretchSpeed ((double) source->playEnd / source->sourceRate, key.mul, key.time, key.bpm);
     juce::Component::SafePointer<WaveformView> safe (this);
     renderPool.addJob ([this, safe, source, mode, key, speed, generation]
     {
@@ -277,7 +279,7 @@ void WaveformView::timerCallback()
 }
 
 // FL's sample view colours live with the other tokens in Widgets.h.
-namespace sampleView = chansampler::ui::view;
+namespace sampleView = chan::ui::view;
 
 juce::Colour WaveformView::waveColour() const
 {
@@ -358,7 +360,7 @@ void WaveformView::drawLanes (juce::Graphics& g, juce::Rectangle<float> area, fl
         g.strokePath (line, juce::PathStrokeType (1.5f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
         return;
     }
-    const int buckets = SampleData::numPeakBuckets;
+    const int buckets = dsp::SampleData::numPeakBuckets;
     const auto* l = l0;
     const auto* r = r0;
     auto y = [&] (float v) { return mid - juce::jlimit (-1.0f, 1.0f, v) * halfH; };
@@ -444,7 +446,7 @@ void WaveformView::drawSamples (juce::Graphics& g, juce::Rectangle<float> area, 
         for (int i = first; i <= last; ++i)
         {
             const auto p = pt (i);
-            g.setColour (chansampler::ui::colour::well);
+            g.setColour (chan::ui::colour::well);
             g.fillEllipse (p.x - 2.5f, p.y - 2.5f, 5.0f, 5.0f);
             setColourFill (g, area, from, to, waveColour(), true);
             g.drawEllipse (p.x - 2.5f, p.y - 2.5f, 5.0f, 5.0f, 1.0f);
@@ -510,7 +512,7 @@ void WaveformView::paint (juce::Graphics& g)
     auto drawWatermark = [&g, wave]
     {
         g.setColour (sampleView::watermark);
-        g.setFont (chansampler::ui::font (20.0f));
+        g.setFont (chan::ui::font (20.0f));
         g.drawText ("Sampler", wave.reduced (8.0f, 4.0f), juce::Justification::topRight, false);
     };
 
@@ -518,8 +520,8 @@ void WaveformView::paint (juce::Graphics& g)
     {
         drawGrid();
         drawWatermark();
-        g.setColour (chansampler::ui::colour::dim);
-        g.setFont (chansampler::ui::font (10.8f));
+        g.setColour (chan::ui::colour::dim);
+        g.setFont (chan::ui::font (10.8f));
         const auto raw = processor.getRaw();
         if (raw->missing)
             g.drawFittedText ((raw->file.existsAsFile() ? "Can't read the project's sample:\n" : "The project's sample was not found:\n")
@@ -617,7 +619,7 @@ void WaveformView::paint (juce::Graphics& g)
             g.fillRect (iconR.getX() - 0.5f, iconR.getY() - 1.0f, 2.0f, 2.0f);
             g.fillRect (iconR.getRight() - 1.5f, iconR.getY() - 1.0f, 2.0f, 2.0f);
         }
-        g.setFont (chansampler::ui::font (10.35f));
+        g.setFont (chan::ui::font (10.35f));
         g.drawText (sample->fileBits <= 16 ? "16" : "32", juce::Rectangle<float> (iconR.getX() - 26.0f, iconR.getY() - 2.0f, 21.0f, 13.0f),
                     juce::Justification::centredRight, false);
     }
@@ -627,11 +629,11 @@ void WaveformView::paint (juce::Graphics& g)
         g.fillRect (juce::Rectangle<float>::leftTopRightBottom (wave.getX(), wave.getY(), juce::jmax (wave.getX(), sx), wave.getBottom()));
 
         // Start flag (gold, top)
-        g.setColour (chansampler::ui::colour::startFlag.withAlpha (0.8f));
+        g.setColour (chan::ui::colour::startFlag.withAlpha (0.8f));
         g.drawVerticalLine ((int) sx, wave.getY(), wave.getBottom());
-        g.setColour (chansampler::ui::colour::startFlag);
+        g.setColour (chan::ui::colour::startFlag);
         g.fillRect (sx, wave.getY(), 4.0f, flagH);
-        g.setFont (chansampler::ui::font (10.35f));
+        g.setFont (chan::ui::font (10.35f));
         g.drawText ("Start", juce::Rectangle<float> (sx + 6.0f, wave.getY(), 40.0f, flagH), juce::Justification::centredLeft, false);
     }
 
@@ -657,7 +659,7 @@ void WaveformView::paint (juce::Graphics& g)
         startTab.addQuadrilateral (x0, bottom - tabH, x0 + tabW, bottom - tabH + cut, x0 + tabW, bottom, x0, bottom);
         g.fillPath (startTab);
 
-        const auto label = chansampler::ui::font (9.9f);
+        const auto label = chan::ui::font (9.9f);
         const auto labelW = juce::GlyphArrangement::getStringWidth (label, "Loop");
         if (x1 - x0 >= labelW + 12.0f)
         {
@@ -724,7 +726,7 @@ void WaveformView::paint (juce::Graphics& g)
     }
     if (playhead >= 0.0f)
     {
-        g.setColour (chansampler::ui::colour::playBar);
+        g.setColour (chan::ui::colour::playBar);
         g.fillRect (inner.getX() + playhead * inner.getWidth() - 1.0f, inner.getY(), 2.0f, inner.getHeight());
     }
     // Arrow buttons: small chevrons
@@ -908,7 +910,7 @@ void WaveformView::showMenu()
         juce::PopupMenu::Item item (text);
         item.isEnabled = enabled;
         item.action = std::move (action);
-        item.shortcutKeyDescription = chansampler::ui::commandShortcutText (key);
+        item.shortcutKeyDescription = chan::ui::commandShortcutText (key);
         return item;
     };
     menu.addItem ("&Reload", hasFile, false, [this] { processor.reloadSample(); });
@@ -942,7 +944,7 @@ void WaveformView::showMenu()
             repaint();
         });
     menu.addSubMenu ("Colorful waveforms", colours);
-    chansampler::ui::showContextMenu (menu, *this, true);
+    chan::ui::showContextMenu (menu, *this, true);
 }
 
 void WaveformView::detectTempo (std::function<void (double)> done)
@@ -953,11 +955,11 @@ void WaveformView::detectTempo (std::function<void (double)> done)
         return;
     const auto rate = raw->sampleRate;
     const auto current = processor.getSampleTempo();
-    const auto estimate = current > 0 ? current : tempo::detect (raw->audio, rate, 75.0, 150.0);
+    const auto estimate = current > 0 ? current : dsp::tempo::detect (raw->audio, rate, 75.0, 150.0);
     const auto project = displayBpm.load();
     auto describe = [frames, rate] (double bpm)
     {
-        return tempo::format (bpm) + " BPM, " + tempo::format (std::round (tempo::beats (frames, rate, bpm) * 1000.0) / 1000.0) + " beats";
+        return tempoText (bpm) + " BPM, " + tempoText (std::round (dsp::tempo::beats (frames, rate, bpm) * 1000.0) / 1000.0) + " beats";
     };
 
     juce::String message = "Choose the tempo range (BPM) this sample most likely falls in, or keep the tempo it has now.\n\n";
@@ -965,12 +967,12 @@ void WaveformView::detectTempo (std::function<void (double)> done)
                             : "This sample has no tempo information. If the estimate (" + describe (estimate) + ") looks wrong, choose a range.")
             << "\n\nTo play it in step with the project, choose the project's tempo. If it should not follow any tempo, choose No tempo.";
 
-    const juce::StringArray choices { tempo::format (estimate) + (current > 0 ? " (current)" : " (estimated)"),
+    const juce::StringArray choices { tempoText (estimate) + (current > 0 ? " (current)" : " (estimated)"),
                                       "50 to 100", "75 to 150", "100 to 200", "150 to 300",
-                                      "Type in (BPM)", "Type in (beats)", tempo::format (project) + " (project)", "No tempo" };
+                                      "Type in (BPM)", "Type in (beats)", tempoText (project) + " (project)", "No tempo" };
     const auto name = raw->file.getFileNameWithoutExtension().isNotEmpty() ? raw->file.getFileNameWithoutExtension() : juce::String ("Sample");
     juce::Component::SafePointer<WaveformView> safe (this);
-    chansampler::ui::showChoices (*this, "Tempo detection - " + name, message, choices,
+    chan::ui::showChoices (*this, "Tempo detection - " + name, message, choices,
                      [safe, raw, frames, rate, estimate, project, done] (int choice)
     {
         if (safe == nullptr)
@@ -988,17 +990,17 @@ void WaveformView::detectTempo (std::function<void (double)> done)
         {
             case 0: apply (estimate); break;
             case 1: case 2: case 3: case 4:
-                apply (tempo::detect (raw->audio, rate, ranges[choice - 1][0], ranges[choice - 1][1]));
+                apply (dsp::tempo::detect (raw->audio, rate, ranges[choice - 1][0], ranges[choice - 1][1]));
                 break;
             case 5:
-                chansampler::ui::askText (*safe, "Tempo detection", "Tempo (BPM)", tempo::format (estimate), [apply] (const juce::String& t)
+                chan::ui::askText (*safe, "Tempo detection", "Tempo (BPM)", tempoText (estimate), [apply] (const juce::String& t)
                 {
                     if (const auto bpm = t.getDoubleValue(); bpm >= 10.0 && bpm <= 999.0)
                         apply (bpm);
                 });
                 break;
             case 6:
-                chansampler::ui::askText (*safe, "Tempo detection", "Length (beats)", tempo::format (std::round (tempo::beats (frames, rate, estimate))),
+                chan::ui::askText (*safe, "Tempo detection", "Length (beats)", tempoText (std::round (dsp::tempo::beats (frames, rate, estimate))),
                              [apply, frames, rate] (const juce::String& t)
                 {
                     if (const auto n = t.getDoubleValue(); n > 0.0)
@@ -1047,9 +1049,9 @@ void WaveformView::pasteSample()
     // Pasted audio data (not a file) is kept as a WAV file, so projects can find it again.
     const auto file = exchange::pasteFromClipboard (ChanSamplerProcessor::userFolder ("Pasted audio"));
     if (file == juce::File())
-        chansampler::ui::showDialog (*this, "Chan Sampler", "The clipboard holds no audio.", true);
+        chan::ui::showDialog (*this, "Chan Sampler", "The clipboard holds no audio.", true);
     else if (! processor.loadSample (file))
-        chansampler::ui::showDialog (*this, "Chan Sampler", processor.getLoadError(), true);
+        chan::ui::showDialog (*this, "Chan Sampler", processor.getLoadError(), true);
 }
 
 void WaveformView::saveAs()
@@ -1077,10 +1079,10 @@ void WaveformView::saveAs()
                               {
                                   std::unique_ptr<juce::OutputStream> stream = std::move (fileStream);
                                   if (auto out = wav.createWriterFor (stream, juce::AudioFormatWriterOptions{}.withSampleRate (keep->sourceRate).withNumChannels (channels).withBitsPerSample (24)))
-                                      saved = out->writeFromAudioSampleBuffer (keep->audio, 0, keep->playEnd);
+                                      saved = out->writeFromAudioSampleBuffer (juceView (keep->audio), 0, keep->playEnd);
                               }
                               if (! saved && safe != nullptr)
-                                  chansampler::ui::showDialog (*safe, "Chan Sampler", "Could not save " + file.getFullPathName() + ".", true);
+                                  chan::ui::showDialog (*safe, "Chan Sampler", "Could not save " + file.getFullPathName() + ".", true);
                           });
 }
 
@@ -1099,7 +1101,7 @@ void WaveformView::showProperties()
     };
     const int frames = raw->audio.getNumSamples();
     const auto seconds = raw->sampleRate > 0 ? frames / raw->sampleRate : 0.0;
-    chansampler::ui::InfoRows rows;
+    chan::ui::InfoRows rows;
     rows.push_back ({ "Name", file.getFileName().isNotEmpty() ? file.getFileName() : juce::String ("(no file)") });
     if (file != juce::File())
         rows.push_back ({ "Location", file.getParentDirectory().getFullPathName() });
@@ -1115,12 +1117,12 @@ void WaveformView::showProperties()
     rows.push_back ({ "Length", juce::String (seconds, 3) + " s (" + number (frames) + " samples)" });
     rows.push_back ({ "Held as", raw->heldBits <= 16 ? "16-bit" : "32-bit float" });
     if (const auto bpm = processor.getSampleTempo(); bpm > 0)
-        rows.push_back ({ "Tempo", tempo::format (bpm) + " BPM (" + tempo::format (tempo::beats (frames, raw->sampleRate, bpm)) + " beats)" });
+        rows.push_back ({ "Tempo", tempoText (bpm) + " BPM (" + tempoText (dsp::tempo::beats (frames, raw->sampleRate, bpm)) + " beats)" });
     if (raw->embeddedLoopStart >= 0 && raw->embeddedLoopEnd > raw->embeddedLoopStart)
         rows.push_back ({ "Loop points", number (raw->embeddedLoopStart) + " - " + number (raw->embeddedLoopEnd) });
     if (! raw->regionMarkers.empty() || ! raw->sliceMarkers.empty())
         rows.push_back ({ "Markers", juce::String ((int) raw->regionMarkers.size()) + " regions, " + juce::String ((int) raw->sliceMarkers.size()) + " slice markers" });
-    chansampler::ui::showInfo (*this, (file.getFileName().isNotEmpty() ? file.getFileName() : juce::String ("Sample")) + " properties", rows);
+    chan::ui::showInfo (*this, (file.getFileName().isNotEmpty() ? file.getFileName() : juce::String ("Sample")) + " properties", rows);
 }
 
 //==============================================================================

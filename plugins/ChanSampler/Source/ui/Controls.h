@@ -222,7 +222,7 @@ private:
     Walker walker { *this };
     bool walking = false;
 
-    chansampler::ui::HoverFade hover { *this };
+    chan::ui::HoverFade hover { *this };
     bool locked = false;
     // FL's drag detents (measured in FL): a two-sided control holds at its
     // centre, and PITCH at every semitone, for 20 px of drag when a drag
@@ -240,7 +240,7 @@ private:
 };
 
 // FL's digital value box (pitch range, echoes, polyphony...) with the menu.
-class ParamDigiBox : public chansampler::ui::DigiBox
+class ParamDigiBox : public chan::ui::DigiBox
 {
 public:
     ParamDigiBox (juce::RangedAudioParameter&, bool redStyle);
@@ -291,7 +291,7 @@ private:
 };
 
 // "Root note" panel shared by the INS and FUNC sheets.
-class RootNotePanel : public chansampler::ui::Panel, private juce::Timer
+class RootNotePanel : public chan::ui::Panel, private juce::Timer
 {
 public:
     RootNotePanel (juce::AudioProcessorValueTreeState&, juce::MidiKeyboardState&, History&);

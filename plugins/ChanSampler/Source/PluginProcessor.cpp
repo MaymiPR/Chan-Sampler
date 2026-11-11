@@ -7,7 +7,7 @@ namespace cs
 
 ChanSamplerProcessor::ChanSamplerProcessor()
     : AudioProcessor (BusesProperties().withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
-      apvts (*this, nullptr, "STATE", createParameterLayout (loopTextLength)),
+      apvts (*this, nullptr, "STATE", createLayout (loopTextLength)),
       history (*this, [this] { return getRaw()->file; },
                [this] (const juce::File& f) { if (f == juce::File()) removeSample(); else if (! loadSample (f)) setMissingSample (f); },
                [this] { return apvts.state.getProperty ("presetName", "").toString(); },
@@ -25,7 +25,7 @@ ChanSamplerProcessor::ChanSamplerProcessor()
     for (auto* id : stretchParamIDs)
         apvts.addParameterListener (id, this);
 
-    publish (buildProcessedSample (*raw, readPrecomputeSettings()));
+    publish (dsp::buildProcessedSample (*raw, readPrecomputeSettings()));
     rebuildThread.startThread();
     startTimer (50);
 }
@@ -58,8 +58,9 @@ void ChanSamplerProcessor::prepareToPlay (double sampleRate, int)
     if (needsStretchers())
         engine.ensureStretchers();
     cutOffsets.reserve (256);
+    midiEvents.reserve (2048);
     outputGain.reset (sampleRate, 0.02);
-    outputGain.setCurrentAndTargetValue (outputLevel (param (id::output)));
+    outputGain.setCurrentAndTargetValue (dsp::outputLevel (param (id::output)));
 }
 
 void ChanSamplerProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
@@ -137,7 +138,7 @@ void ChanSamplerProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     displayBpm.store (params.bpm);
     applyTempo (params);
     // An export can't wait for the timer: make the stretchers here when not in real time.
-    if (isNonRealtime() && Engine::usesStretcher (params.stretchMode) && ! engine.hasStretchers())
+    if (isNonRealtime() && dsp::Engine::usesStretcher (params.stretchMode) && ! engine.hasStretchers())
         engine.ensureStretchers();
     if (const int n = previewOff.exchange (-1); n >= 0)
         engine.previewNote (n, false, params);
@@ -146,21 +147,50 @@ void ChanSamplerProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     // Group: cut by other instances' notes, and post this block's note starts.
     const int cutBy = (int) param (id::cutBy), cutGroup = (int) param (id::cutGroup);
     cutReader.collect (cutBy, hostTime, buffer.getNumSamples(), cutOffsets);
-    engine.render (buffer, midi, audioThreadSample.get(), params, cutOffsets.empty() ? nullptr : &cutOffsets);
+    midiEvents.clear();
+    for (const auto m : midi)
+    {
+        const auto msg = m.getMessage();
+        dsp::MidiEvent e;
+        e.position = m.samplePosition;
+        if (msg.isNoteOn())
+        {
+            e.kind = dsp::MidiEvent::Kind::noteOn;
+            e.note = msg.getNoteNumber();
+            e.velocity = msg.getFloatVelocity();
+        }
+        else if (msg.isNoteOff())
+        {
+            e.kind = dsp::MidiEvent::Kind::noteOff;
+            e.note = msg.getNoteNumber();
+        }
+        else if (msg.isPitchWheel())
+        {
+            e.kind = dsp::MidiEvent::Kind::pitchWheel;
+            e.pitchWheel = msg.getPitchWheelValue();
+        }
+        else if (msg.isAllNotesOff() || msg.isAllSoundOff())
+        {
+            e.kind = dsp::MidiEvent::Kind::allNotesOff;
+        }
+        midiEvents.push_back (e);
+    }
+    engine.render (buffer.getArrayOfWritePointers(), buffer.getNumChannels(), buffer.getNumSamples(), midiEvents.data(),
+                   (int) midiEvents.size(), audioThreadSample.get(), params, cutOffsets.empty() ? nullptr : &cutOffsets);
     if (cutGroup > 0)
         for (const auto start : engine.getNoteStarts())
             cutgroups::post (instanceId, cutGroup, hostTime < 0 ? -1 : hostTime + start);
     engine.updatePlayhead (audioThreadSample.get());
 
     // OUT: FL's channel volume knob, 0.5 in total at its default (see defaultOutputPosition).
-    outputGain.setTargetValue (outputLevel (param (id::output)));
+    outputGain.setTargetValue (dsp::outputLevel (param (id::output)));
     outputGain.applyGain (buffer, buffer.getNumSamples());
 }
 
 //==============================================================================
-PrecomputeSettings ChanSamplerProcessor::readPrecomputeSettings() const
+dsp::PrecomputeSettings ChanSamplerProcessor::readPrecomputeSettings() const
 {
-    PrecomputeSettings s;
+    dsp::PrecomputeSettings s;
     s.removeDC        = param (id::pcRemoveDC) > 0.5f;
     s.reversePolarity = param (id::pcReversePolarity) > 0.5f;
     s.normalize       = param (id::pcNormalize) > 0.5f;
@@ -195,13 +225,13 @@ PrecomputeSettings ChanSamplerProcessor::readPrecomputeSettings() const
 
 // Tempo-dependent envelope timing (measured in FL): envelopes run on the song's
 // ticks; with an envelope's Tempo switch on, its times are for 120 BPM.
-void ChanSamplerProcessor::applyTempo (EngineParams& p)
+void ChanSamplerProcessor::applyTempo (dsp::EngineParams& p)
 {
     const auto bpm = juce::jmax (1.0, p.bpm);
     for (auto* t : { &p.panT, &p.volT, &p.xT, &p.yT, &p.pitchT })
     {
         auto& e = t->env;
-        e.tick = tickSeconds (bpm);
+        e.tick = dsp::tickSeconds (bpm);
         if (t->envTempo)
         {
             const auto k = (float) (120.0 / bpm);
@@ -210,7 +240,7 @@ void ChanSamplerProcessor::applyTempo (EngineParams& p)
     }
 }
 
-EngineParams ChanSamplerProcessor::readEngineParams() const
+dsp::EngineParams ChanSamplerProcessor::readEngineParams() const
 {
     auto target = [this] (const char* prefix)
     {
@@ -225,7 +255,7 @@ EngineParams ChanSamplerProcessor::readEngineParams() const
             return buf;
         };
         auto get = [this, &id] (const char* s) { return rawParam (id (s).data())->load(); };
-        EngineParams::Target t;
+        dsp::EngineParams::Target t;
         if (rawParam (id ("EnvOn").data()) == nullptr)
         {
             t.envOn = false;   // no envelope on this target (Panning)
@@ -236,29 +266,29 @@ EngineParams ChanSamplerProcessor::readEngineParams() const
             t.envTempo = get ("EnvTempo") > 0.5f;
             if (auto* amt = rawParam (id ("EnvAmt").data()))
                 t.envAmt = amt->load();
-            t.env.delay    = flEnvSeconds (get ("Del"));
+            t.env.delay    = dsp::flEnvSeconds (get ("Del"));
             // Measured: the minimum raw attack (100, position 0) is instant.
             const auto att = get ("Att");
-            t.env.attack   = att <= 0.5f / 65436.0f ? 0.0f : flEnvSeconds (att);
-            t.env.hold     = flEnvSeconds (get ("Hold"));
-            t.env.decay    = flEnvSeconds (get ("Dec"));
+            t.env.attack   = att <= 0.5f / 65436.0f ? 0.0f : dsp::flEnvSeconds (att);
+            t.env.hold     = dsp::flEnvSeconds (get ("Hold"));
+            t.env.decay    = dsp::flEnvSeconds (get ("Dec"));
             t.env.sustain  = get ("Sus");
-            t.env.release  = flEnvSeconds (get ("Rel"));
-            t.env.attackK  = flTensionToK (get ("AttT"));
-            t.env.decayK   = flTensionToK (get ("DecT"));
-            t.env.releaseK = flTensionToK (get ("RelT"));
+            t.env.release  = dsp::flEnvSeconds (get ("Rel"));
+            t.env.attackK  = dsp::flTensionToK (get ("AttT"));
+            t.env.decayK   = dsp::flTensionToK (get ("DecT"));
+            t.env.releaseK = dsp::flTensionToK (get ("RelT"));
         }
-        t.lfo.shape   = (LfoShape) (int) get ("LfoShape");
-        t.lfo.periodT130 = flLfoPeriodT130 (get ("LfoSpeed"));
+        t.lfo.shape   = (dsp::LfoShape) (int) get ("LfoShape");
+        t.lfo.periodT130 = dsp::flLfoPeriodT130 (get ("LfoSpeed"));
         t.lfo.amount  = get ("LfoAmt");
-        t.lfo.delayT130 = flLfoDelayT130 (get ("LfoDel"));
+        t.lfo.delayT130 = dsp::flLfoDelayT130 (get ("LfoDel"));
         t.lfo.tempo   = get ("LfoTempo") > 0.5f;
         t.lfo.global  = get ("LfoGlobal") > 0.5f;
-        t.lfo.attack  = get ("LfoAtt") > 0.0f ? flEnvSeconds (get ("LfoAtt")) : 0.0f;
+        t.lfo.attack  = get ("LfoAtt") > 0.0f ? dsp::flEnvSeconds (get ("LfoAtt")) : 0.0f;
         return t;
     };
 
-    EngineParams p;
+    dsp::EngineParams p;
     p.pitchRange = (int) param (id::pitchRange);
 
     p.startOffset = param (id::startOffset);
@@ -266,16 +296,16 @@ EngineParams ChanSamplerProcessor::readEngineParams() const
     p.loopStart   = param (id::loopStart);
     p.loopEnd     = param (id::loopEnd);
     p.pingPong    = param (id::pingPong) > 0.5f;
-    p.declick     = (DeclickMode) (int) param (id::declick);
+    p.declick     = (dsp::DeclickMode) (int) param (id::declick);
 
     p.rootNote = (int) param (id::rootNote);
     p.fineTune = param (id::fineTune);
     p.pitch    = param (id::pitch) * 0.01f;            // cents
-    p.stretchMode = (StretchMode) (int) param (id::stretchMode);
+    p.stretchMode = (dsp::StretchMode) (int) param (id::stretchMode);
     p.stretchMul  = param (id::stretchMul);
     p.stretchTime = param (id::stretchTime);
     p.formant     = param (id::formant);
-    p.stretchMode = resolveStretchMode (p.stretchMode, param (id::pitch), p.stretchMul, p.stretchTime);
+    p.stretchMode = dsp::resolveStretchMode (p.stretchMode, param (id::pitch), p.stretchMul, p.stretchTime);
 
     p.panT   = target (id::panPrefix);
     p.volT   = target (id::volPrefix);
@@ -283,11 +313,11 @@ EngineParams ChanSamplerProcessor::readEngineParams() const
     p.yT     = target (id::modYPrefix);
     p.pitchT = target (id::pitchPrefix);
 
-    p.filterType = (FilterType) (int) param (id::filterType);
+    p.filterType = (dsp::FilterType) (int) param (id::filterType);
     p.cutoff     = param (id::cutoff);
     p.resonance  = param (id::resonance);
 
-    p.volume = flVolumeGain (param (id::volume));
+    p.volume = dsp::flVolumeGain (param (id::volume));
     p.pan    = param (id::pan);
     p.xOfs   = param (id::xOfs);
     p.yOfs   = param (id::yOfs);
@@ -301,7 +331,7 @@ EngineParams ChanSamplerProcessor::readEngineParams() const
     p.keyY   = param (id::keyY);
     p.keyMid = (int) param (id::keyMid);
 
-    p.slideTicks = flSlideTicks (param (id::slide));
+    p.slideTicks = dsp::flSlideTicks (param (id::slide));
     p.mono      = param (id::mono) > 0.5f;
     p.porta     = param (id::porta) > 0.5f;
     p.cutItself = param (id::cutItself) > 0.5f;
@@ -309,7 +339,7 @@ EngineParams ChanSamplerProcessor::readEngineParams() const
     p.arpDir    = (int) param (id::arpDir);
     p.arpRange  = (int) param (id::arpRange);
     p.arpRepeat = (int) param (id::arpRepeat);
-    p.arpTime   = (float) flArpSteps (param (id::arpTime));   // steps, 0 = hold
+    p.arpTime   = (float) dsp::flArpSteps (param (id::arpTime));   // steps, 0 = hold
     p.arpGate   = param (id::arpGate);
     p.arpSlide  = param (id::arpSlide) > 0.5f;
     p.arpChord  = (int) param (id::arpChord);
@@ -362,8 +392,8 @@ void ChanSamplerProcessor::applyLoopLink (const juce::String& changedId)
 
 bool ChanSamplerProcessor::needsStretchers() const
 {
-    const auto mode = resolveStretchMode ((StretchMode) (int) param (id::stretchMode), param (id::pitch), param (id::stretchMul), param (id::stretchTime));
-    return Engine::usesStretcher (mode);
+    const auto mode = dsp::resolveStretchMode ((dsp::StretchMode) (int) param (id::stretchMode), param (id::pitch), param (id::stretchMul), param (id::stretchTime));
+    return dsp::Engine::usesStretcher (mode);
 }
 
 void ChanSamplerProcessor::parameterChanged (const juce::String& parameterID, float)
@@ -412,9 +442,8 @@ void ChanSamplerProcessor::timerCallback()
         engine.ensureStretchers();
 
     const juce::ScopedLock sl (poolLock);
-    for (int i = releasePool.size(); --i >= 0;)
-        if (releasePool.getObjectPointerUnchecked (i)->getReferenceCount() == 1)
-            releasePool.remove (i);
+    releasePool.erase (std::remove_if (releasePool.begin(), releasePool.end(), [] (const auto& p) { return p.use_count() == 1; }),
+                       releasePool.end());
 }
 
 void ChanSamplerProcessor::rebuildSample()
@@ -427,23 +456,23 @@ void ChanSamplerProcessor::rebuildSample()
         settings.targetRate = 0.0;   // the file is already at the playback rate: nothing to convert
     if (source == builtFrom && settings == builtWith)
         return;
-    publish (buildProcessedSample (*source, settings, source));
+    publish (dsp::buildProcessedSample (*source, settings, source));
     builtFrom = source;
     builtWith = settings;
     sendChangeMessage();
 }
 
-void ChanSamplerProcessor::publish (SampleData::Ptr newSample)
+void ChanSamplerProcessor::publish (dsp::SampleData::Ptr newSample)
 {
     {
         const juce::ScopedLock sl (poolLock);
-        releasePool.add (newSample);
+        releasePool.push_back (newSample);
     }
     const juce::SpinLock::ScopedLockType lock (sampleLock);
     currentSample = newSample;
 }
 
-SampleData::Ptr ChanSamplerProcessor::getSampleForDisplay() const
+dsp::SampleData::Ptr ChanSamplerProcessor::getSampleForDisplay() const
 {
     const juce::SpinLock::ScopedLockType lock (sampleLock);
     return currentSample;
@@ -590,7 +619,7 @@ juce::MemoryBlock ChanSamplerProcessor::getSampleAsWav() const
     auto writer = wav.createWriterFor (stream, juce::AudioFormatWriterOptions{}.withSampleRate (r->sampleRate).withNumChannels (r->audio.getNumChannels()).withBitsPerSample (bits));
     if (writer == nullptr)
         return {};
-    writer->writeFromAudioSampleBuffer (r->audio, 0, r->audio.getNumSamples());
+    writer->writeFromAudioSampleBuffer (juceView (r->audio), 0, r->audio.getNumSamples());
     writer.reset();   // writes the header's final sizes
     return block;
 }
@@ -637,7 +666,8 @@ bool ChanSamplerProcessor::loadSample (const juce::File& file)
     const int numChannels = juce::jlimit (1, 2, (int) reader->numChannels);
     const int length = (int) frames;
     r.audio.setSize (numChannels, length);
-    reader->read (&r.audio, 0, length, 0, true, numChannels > 1);
+    auto into = juceView (r.audio);
+    reader->read (&into, 0, length, 0, true, numChannels > 1);
 
     auto wav = readWavChunks (file);
     if (file.hasFileExtension (".wav;.wave"))

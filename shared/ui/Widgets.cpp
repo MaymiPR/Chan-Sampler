@@ -1,6 +1,6 @@
 #include "Widgets.h"
 
-namespace chansampler::ui
+namespace chan::ui
 {
 juce::Font font (float em, bool bold)
 {

@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <cmath>
 
-namespace cs
+namespace cs::dsp
 {
 
 // Declick fade curves measured in FL (constant, noise and sine samples):

@@ -20,7 +20,7 @@ def case(att, hold, bpm, flags):
     end = top + int(np.argmax(v[top:] < 0.99)) - 1
     return top, end
 
-# Params.cpp flEnvSeconds (the six-tempo table, log (t - c) interpolation)
+# dsp/Dsp.cpp flEnvSeconds (the six-tempo table, log (t - c) interpolation)
 RAWS = [1000, 1500, 2500, 5000, 7500, 10000, 12500, 15000, 17500, 20000, 22500, 25000, 27500, 30000, 32500, 35000,
         37500, 40000, 42500, 45000, 47500, 50000, 52500, 55000, 57500, 60000, 62500, 65536]
 MS = [7.812, 11.088, 19.085, 44.334, 76.798, 119.861, 175.285, 247.253, 341.0, 463.086, 622.265, 828.828, 1098.203,

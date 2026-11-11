@@ -6,7 +6,7 @@
 
 // The controls every Chan Sampler editor draws (knobs, switches, menus, dialogs, panels), in the tokens of
 // Theme.h. All drawing is our own, in code.
-namespace chansampler
+namespace chan
 {
 // Never take keyboard focus: the host keeps its shortcuts (the space bar in FL Studio). Call it on every
 // component and on the editor itself; FocusCheck (tools/) verifies the result on the built VST3.
@@ -26,7 +26,7 @@ struct SnapshotHooks
 };
 }
 
-namespace chansampler::ui
+namespace chan::ui
 {
     // The shared controls, drawn as FL draws them. Knobs and switches are
     // rendered per pixel (FL's bevels and glows are not path shapes).

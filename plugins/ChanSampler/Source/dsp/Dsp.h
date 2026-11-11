@@ -3,23 +3,124 @@
 // The engine's building blocks, each measured against FL's Sampler (see
 // MEASUREMENTS.md): envelope curves and FL's envelope on its tick grid,
 // the channel LFO, the filters (Fast LP, RBJ biquads, state-variable,
-// the x2 cascades) and their parameter mappings.
+// the x2 cascades), their parameter mappings and FL's knob laws.
 
-#include <juce_core/juce_core.h>
 #include <cmath>
+#include <cstdint>
+#include <cstring>
 
-#include "Params.h"
-
-namespace cs
+namespace cs::dsp
 {
 
-namespace dsp
-{
+    // The comparisons, rounding and constants the DSP was measured and fitted with, defined with JUCE's operation
+    // order so the output stays bit-identical (std::clamp tests the upper limit first; std::lround rounds halves
+    // away from zero where roundToInt rounds them to even).
+    template <typename T> constexpr T jlimit (T lo, T hi, T v) noexcept { return v < lo ? lo : (hi < v ? hi : v); }
+    template <typename T> constexpr T jmin (T a, T b) noexcept { return b < a ? b : a; }
+    template <typename T> constexpr T jmin (T a, T b, T c) noexcept { return b < a ? (c < b ? c : b) : (c < a ? c : a); }
+    template <typename T> constexpr T jmax (T a, T b) noexcept { return a < b ? b : a; }
+    template <typename T> constexpr T jmax (T a, T b, T c) noexcept { return a < b ? (b < c ? c : b) : (a < c ? c : a); }
+    template <typename T> constexpr T jmax (T a, T b, T c, T d) noexcept { return jmax (a, jmax (b, c, d)); }
+
+    // Nearest integer, halves to even: the value plus 2^52 + 2^51 holds it in its low 32 bits.
+    template <typename T> inline int roundToInt (T value) noexcept
+    {
+        const double shifted = (double) value + 6755399441055744.0;
+        std::uint64_t bits;
+        std::memcpy (&bits, &shifted, sizeof (bits));
+        return (int) (std::int32_t) (std::uint32_t) (bits & 0xffffffffu);
+    }
+
+    template <typename T> struct MathConstants
+    {
+        static constexpr T pi = static_cast<T> (3.141592653589793238L);
+        static constexpr T twoPi = static_cast<T> (2 * 3.141592653589793238L);
+        static constexpr T halfPi = static_cast<T> (3.141592653589793238L / 2);
+        static constexpr T sqrt2 = static_cast<T> (1.4142135623730950488L);
+    };
+
+    enum class DeclickMode { outOnly, transient, transientBleed, generic, smooth, crossfade };
+    enum class FilterType  { fastLP, lp, bp, hp, bs, lpx2, svfLP, svfLPx2 };
+    enum class LfoShape    { sine, triangle, square };
+
+    // FL's stretch methods in its own menu order (StretchModeSelect).
+    enum class StretchMode { resample, stretch, stretchPro, e3Generic, e3Mono, sliceStretch, sliceMap,
+                             autoMode, e2Generic, e2Transient, e2Mono, e2Speech };
+
+    // FL's song tick (96 per beat), which its envelopes, LFOs, glides and filter
+    // modulation run on.
+    inline double tickSeconds (double bpm) { return 60.0 / (jmax (1.0, bpm) * 96.0); }
+
+    // How fast a stretched note reads its sample: TIME (beats at the tempo, 0 =
+    // off) sets the length, MUL multiplies it (1 = the sample's own length).
+    inline double stretchSpeed (double sampleSeconds, float mul, float timeBeats, double bpm)
+    {
+        const auto m = std::abs (mul - 1.0f) < 1.0e-4f ? 1.0 : (double) mul;
+        return (timeBeats > 0.01f ? sampleSeconds / ((double) timeBeats * 60.0 / jmax (1.0, bpm)) : 1.0) / m;
+    }
+
+    // FL's Auto stretch mode: plain resampling while nothing needs stretching,
+    // "e3 generic" once PITCH, MUL or TIME is set (as FL shows under the menu).
+    inline StretchMode resolveStretchMode (StretchMode mode, float pitchCents, float mul, float timeBeats)
+    {
+        if (mode != StretchMode::autoMode)
+            return mode;
+        const bool stretching = std::abs (pitchCents) > 0.5f || std::abs (mul - 1.0f) > 1.0e-4f || timeBeats > 0.01f;
+        return stretching ? StretchMode::e3Generic : StretchMode::resample;
+    }
+
+    // OUT is FL's channel volume knob (measured in FL: gain (11^x - 1) / 10 of
+    // its position, 78% = raw 10000 of 12800 by default, 100% = 0 dB at its top).
+    // Measured in FL too: its plugin wrapper outputs exactly twice what a default
+    // FL Sampler channel does (0.7792 vs 0.3896 at every velocity), so a default
+    // Chan Sampler outputs 0.5 in total. FL applies its own channel volume to
+    // plugin channels as well, so OUT's gain is scaled to give 0.5 at its default;
+    // the FUNC Levels VOL is FL's "Volume multiplier" (100% = unity).
+    inline constexpr float defaultOutputPosition = 10000.0f / 12800.0f;
+    // The plug-in's output gain at an OUT position.
+    float outputLevel (float position);
+
+    // FL's channel volume law: (11^x - 1) / 10 for x = 0..2 (1 = unity).
+    float flVolumeGain (float x);
+
+    // Envelope / LFO time knobs: FL's raw 100 .. 65536 as a knob position.
+    inline float flEnvKnobForRaw (int raw) { return (float) (raw - 100) / 65436.0f; }
+
+    // Envelope time knob (FL position, raw = 100 + pos * 65436) to seconds, from
+    // times measured in FL (about 64 s at the maximum).
+    float flEnvSeconds (float knob);
+
+    // Inverse of flEnvSeconds: the knob position for a time in seconds.
+    float flEnvKnobForSeconds (float seconds);
+
+    // FL's LFO runs on the song's ticks (96 per beat). The speed knob (raw = 200
+    // + pos * 65336) gives the period in ticks at 130 BPM: 13.5755 * 982.5^pos -
+    // 13.2745, fitted to 42 speeds measured from FL renders (default raw 32950 =
+    // 416 ticks = 2 s). The predelay knob (raw = 100 + pos * 65436) follows the
+    // same law on its raw value (measured at 11 values). Unrounded: the LFO
+    // rounds them at the reference tempo, the period to at least 3 ticks (see
+    // Lfo).
+    double flLfoPeriodT130 (float speedKnob);
+    double flLfoDelayT130 (float delayKnob);
+
+    // Portamento slide knob (raw = pos * 1660) to steps (16ths).
+    double flSlideSteps (float knob);
+    int flSlideTicks (float knob);
+
+    // Arpeggio time knob to steps; 0 means Hold.
+    double flArpSteps (float knob);
+    // The ticks one arpeggio step plays at an integer raw value of its time knob.
+    double flArpTicksForRaw (double raw);
+
+    // Envelope tension (FL raw / 128, -1..1) to the curve exponent k of
+    // (e^(kx) - 1) / (e^k - 1), interpolated from measurements.
+    float flTensionToK (float tension);
+
     // Curved 0..1 ramp (e^(kx) - 1) / (e^k - 1): k = 0 is linear, k > 0
     // starts slow. FL's envelope tension maps to k via flTensionToK().
     inline float tensionCurve (float x, float k)
     {
-        x = juce::jlimit (0.0f, 1.0f, x);
+        x = jlimit (0.0f, 1.0f, x);
         if (std::abs (k) < 1.0e-4f)
             return x;
         return (std::exp (k * x) - 1.0f) / (std::exp (k) - 1.0f);
@@ -28,7 +129,7 @@ namespace dsp
     // Inverse of tensionCurve: the x where the curve reaches y.
     inline float tensionCurveInverse (float y, float k)
     {
-        y = juce::jlimit (0.0f, 1.0f, y);
+        y = jlimit (0.0f, 1.0f, y);
         if (std::abs (k) < 1.0e-4f)
             return y;
         return std::log1p (y * (std::exp (k) - 1.0f)) / k;
@@ -36,7 +137,7 @@ namespace dsp
 
     inline float sCurve (float x)
     {
-        return 0.5f - 0.5f * std::cos (juce::MathConstants<float>::pi * juce::jlimit (0.0f, 1.0f, x));
+        return 0.5f - 0.5f * std::cos (MathConstants<float>::pi * jlimit (0.0f, 1.0f, x));
     }
 
     // DAHDSR envelope from the INS tab, as FL works it out (measured:
@@ -134,7 +235,7 @@ namespace dsp
         static float limit (const Params& p, float now, float target)
         {
             const auto step = (float) (p.tick / fullRangeSeconds);
-            return now + juce::jlimit (-step, step, target - now);
+            return now + jlimit (-step, step, target - now);
         }
 
         // The first two ticks. With neither delay nor attack the level starts
@@ -260,11 +361,11 @@ namespace dsp
             if (p.amount == 0.0f)
                 return 0.0f;
             const auto tick = tickSeconds (bpm);
-            const auto ref = p.tempo ? 120.0 : juce::jmax (1.0, bpm);
+            const auto ref = p.tempo ? 120.0 : jmax (1.0, bpm);
             Timing t;
-            t.period = juce::jmax (3.0, std::round (p.periodT130 * ref / 130.0));
-            t.delay = juce::jmax (0.0, std::round (p.delayT130 * ref / 130.0));
-            t.attackTicks = (p.tempo ? p.attack * 120.0 / juce::jmax (1.0, bpm) : (double) p.attack) / tick;
+            t.period = jmax (3.0, std::round (p.periodT130 * ref / 130.0));
+            t.delay = jmax (0.0, std::round (p.delayT130 * ref / 130.0));
+            t.attackTicks = (p.tempo ? p.attack * 120.0 / jmax (1.0, bpm) : (double) p.attack) / tick;
             // Global: knots on the song's ticks, the phase from the song start;
             // the predelay / fade still count from the note start.
             const auto noteTicks = seconds / tick;
@@ -272,7 +373,7 @@ namespace dsp
             t.noteOffset = p.global ? ticks - noteTicks : 0.0;   // song tick of the note start
             const auto k = std::floor (ticks);
             // FL holds the first tick's value from the note start until tick 1.
-            const auto first = p.global ? k : juce::jmax (1.0, k);
+            const auto first = p.global ? k : jmax (1.0, k);
             const auto a = valueAt (p, t, first), b = valueAt (p, t, k + 1.0);
             const auto f = (float) (ticks - k);
             return a + (b - a) * f;
@@ -291,14 +392,14 @@ namespace dsp
             // phase: from the end of the predelay, or from the song start (Global)
             auto t = p.global ? tick : sinceDelay;
             if (t < 0.0) t = 0.0;
-            const auto period = juce::jmax (1.0, tm.period);
+            const auto period = jmax (1.0, tm.period);
             const auto phase = (float) std::fmod (t / period, 1.0);
-            const auto fade = tm.attackTicks > 0.0 ? (float) juce::jlimit (0.0, 1.0, sinceDelay / tm.attackTicks) : 1.0f;
+            const auto fade = tm.attackTicks > 0.0 ? (float) jlimit (0.0, 1.0, sinceDelay / tm.attackTicks) : 1.0f;
             float wave = 0;
             switch (p.shape)
             {
                 case LfoShape::sine:
-                    wave = std::sin (phase * juce::MathConstants<float>::twoPi);
+                    wave = std::sin (phase * MathConstants<float>::twoPi);
                     break;
                 case LfoShape::triangle:
                     wave = phase < 0.25f ? 4.0f * phase : (phase < 0.75f ? 2.0f - 4.0f * phase : 4.0f * phase - 4.0f);
@@ -346,7 +447,7 @@ namespace dsp
         void startCompensation (int tickSamples, double maxStepPerTick)
         {
             compNow = 1.0;
-            compTick = juce::jmax (1, tickSamples);
+            compTick = jmax (1, tickSamples);
             compStep = maxStepPerTick;
             compLeft = 0;
             gliding = true;
@@ -363,8 +464,8 @@ namespace dsp
             type = t;
             // Modulation can push the biquads' cutoff past the knob's end (measured).
             const bool biquad = t != FilterType::fastLP && t != FilterType::svfLP && t != FilterType::svfLPx2;
-            u = juce::jlimit (0.0, biquad ? 2.0 : 1.0, u);
-            res = juce::jlimit (0.0, 1.0, res);
+            u = jlimit (0.0, biquad ? 2.0 : 1.0, u);
+            res = jlimit (0.0, 1.0, res);
             switch (type)
             {
                 case FilterType::fastLP:
@@ -379,7 +480,7 @@ namespace dsp
                     break;
                 default:
                 {
-                    const auto w = juce::jmin (3.0, juce::MathConstants<double>::twoPi * flBiquadF0 (u) / sampleRate);   // FL caps at 3.0 rad (measured)
+                    const auto w = jmin (3.0, MathConstants<double>::twoPi * flBiquadF0 (u) / sampleRate);   // FL caps at 3.0 rad (measured)
                     const auto Q = flBiquadQ (res);
                     comp = type == FilterType::lpx2 ? flLpx2Gain (u, res) : 1.0;
                     const auto alpha = std::sin (w) / (2.0 * Q), c = std::cos (w), a0 = 1.0 + alpha;
@@ -476,5 +577,4 @@ namespace dsp
         double f = 1, r = 0, q = 1, q2 = 1, b0 = 1, b1 = 0, b2 = 0, a1 = 0, a2 = 0;
         State st[4];   // [0..1] first stage L/R, [2..3] second stage L/R
     };
-}
 }

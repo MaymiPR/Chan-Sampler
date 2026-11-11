@@ -28,7 +28,7 @@ folder). Each command returns non-zero on a failure.
 | Test or tool | What it does |
 |---|---|
 | `ChanSamplerTests` | The engine tests (no arguments). |
-| `ChanSamplerUiTests <sine.wav>` | Builds the editor off screen and checks its shared controls and the undo history: every drop-down list is the shared `chansampler::ui::ComboBox`, every choice reaches its parameter and is still shown after a sheet change and a rebuilt editor; gestures record single steps, unchanged values none, undo / redo restore values and the sample, the keys and the field work (one action per press, unused keys left to the host), a wheel notch eases the knob, a panel's menu arrow stays turned while its menu is open; as a plugin, every parameter is automatable, a preset, a sample load and a saved preset are each one edit for the host (the History step parameter, named after it, with their values off the message thread), the host's undo, redo and jumps over several steps put them back, and the editor has no undo arrows and leaves the keys to the host. Needs a display (`xvfb-run` on Linux). |
+| `ChanSamplerUiTests <sine.wav>` | Builds the editor off screen and checks its shared controls and the undo history: every drop-down list is the shared `chan::ui::ComboBox`, every choice reaches its parameter and is still shown after a sheet change and a rebuilt editor; gestures record single steps, unchanged values none, undo / redo restore values and the sample, the keys and the field work (one action per press, unused keys left to the host), a wheel notch eases the knob, a panel's menu arrow stays turned while its menu is open; as a plugin, every parameter is automatable, a preset, a sample load and a saved preset are each one edit for the host (the History step parameter, named after it, with their values off the message thread), the host's undo, redo and jumps over several steps put them back, and the editor has no undo arrows and leaves the keys to the host. Needs a display (`xvfb-run` on Linux). |
 | `ChanSamplerHostTest <Chan Sampler.vst3> <sine.wav> <state-*.bin>` | Built from `tools/HostTest.cpp`; loads the built VST3 the way a DAW does: automation, MIDI, save / reload, the editor size, host rate changes, offline rendering, and projects saved by each earlier release (`plugins/ChanSampler/tests/data`). |
 | Render regression | `python scripts/render_regress.py --build build`: `tests/regress/ChanSampler/jobs.txt` through `CsRender` against the committed goldens; our output does not change unless intended (`--update` after an intended change in the sound, committed with it and the reason in the message). |
 | `CsRender` | Renders notes offline for the null tests and the render regression (a job file, or one render on the command line; `tune:` keys set the fitted constants of `dsp/Tuning.h`); `CsRenderDev` is a second copy for trying a change while a fit runs; also `bench <sample>` (CPU per stretch mode, 32 / 64 voices), `stretchtest` (the stretcher alone on a file), `fftbench` (the stretcher's FFT against JUCE's); the full list is at the top of `plugins/ChanSampler/tools/CsRender.cpp`. |
@@ -58,13 +58,15 @@ prints one `CHECK` line with the counts. Switches: `-SkipBuild`, `-SkipTests`, `
 
 Code rules:
 
-- C++17 and JUCE; the plug-in's sources are in `plugins/ChanSampler/Source/` (`dsp/` the engine, `Engine.h/.cpp` its
-  top class and `Tuning.h` its fitted constants; `ui/` the plug-in's own controls in `Controls.h/.cpp`; the processor,
-  editor, parameters (`Params.h`, the IDs in `cs::id`), presets and host glue at the top), listed once in
+- C++17 and JUCE; the plug-in's sources are in `plugins/ChanSampler/Source/` (`dsp/` the engine in plain C++ without
+  JUCE, namespace `cs::dsp`: `Engine.h/.cpp` its top class, `Tuning.h` its constants, one file per further block; `ui/`
+  the plug-in's own controls in `Controls.h/.cpp`; at the top the processor, the editor, the parameters (`Params.h`,
+  the IDs in `cs::id`), the presets, and the JUCE side of the engine named by its job: `SampleFile.h` (the loaded file
+  and JUCE views of the engine's buffers), `SampleExchange`, `PresetImport`, `CutGroups`, `History`), listed once in
   `plugins/ChanSampler/plugin.cmake`. What every editor of the suite uses is in `shared/` (the static library
   `ChanSamplerShared`): `ui/Theme.h` (the colours and the font), `ui/Widgets.h/.cpp` (knobs, switches, menus, dialogs,
   panels), `ui/HostFocus.h/.cpp` (the host's keys after a click), `dsp/Math.h` (deterministic math).
-- Every C++ name of the plug-in is in the namespace `cs` (the tool abbreviation), the shared code in `chansampler`.
+- Every C++ name of the plug-in is in the namespace `cs` (the tool abbreviation), the shared code in `chan`.
 - Match the code around you: its naming, its comment density, and comments that say what was measured in FL rather
   than restating the code.
 - Line endings are LF everywhere (`.gitattributes`); the installer script and the PowerShell scripts keep CRLF.

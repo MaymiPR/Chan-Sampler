@@ -40,15 +40,15 @@ void PresetBar::setCurrentName (const juce::String& name)
 void PresetBar::paint (juce::Graphics& g)
 {
     const auto r = getLocalBounds().toFloat();
-    g.setColour (chansampler::ui::colour::well);
+    g.setColour (chan::ui::colour::well);
     g.fillRoundedRectangle (r, 2.0f);
-    g.setColour (chansampler::ui::colour::fieldEdge);
+    g.setColour (chan::ui::colour::fieldEdge);
     g.drawRoundedRectangle (r.reduced (0.5f), 2.0f, 1.0f);
 
     for (int side = 0; side < 2; ++side)
     {
         // a clicked arrow lights up white and fades back (not measured in FL)
-        g.setColour (chansampler::ui::colour::dim.interpolatedWith (juce::Colours::white, flash[side]));
+        g.setColour (chan::ui::colour::dim.interpolatedWith (juce::Colours::white, flash[side]));
         const auto a = side == 0 ? leftArrow() : rightArrow();
         const auto d = side == 0 ? 1.0f : -1.0f;
         juce::Path chevron;
@@ -59,8 +59,8 @@ void PresetBar::paint (juce::Graphics& g)
     }
 
     const auto name = currentName();
-    g.setColour (name.isEmpty() ? chansampler::ui::colour::dim : juce::Colours::white.withAlpha (0.85f));
-    g.setFont (chansampler::ui::font (10.8f));
+    g.setColour (name.isEmpty() ? chan::ui::colour::dim : juce::Colours::white.withAlpha (0.85f));
+    g.setFont (chan::ui::font (10.8f));
     g.drawText (name.isEmpty() ? juce::String ("Presets") : name,
                 r.withTrimmedLeft (17.0f).withTrimmedRight (17.0f), juce::Justification::centred, true);
 }
@@ -154,7 +154,7 @@ void PresetBar::showMenu()
     menu.addSeparator();
     menu.addItem ("Open presets folder", [] { presetFolder().createDirectory(); presetFolder().startAsProcess(); });
 
-    chansampler::ui::showContextMenu (menu, *this, false);
+    chan::ui::showContextMenu (menu, *this, false);
 }
 
 void PresetBar::load (const juce::File& file)

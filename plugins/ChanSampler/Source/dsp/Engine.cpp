@@ -2,7 +2,7 @@
 #include "Chords.h"
 #include "Tuning.h"
 
-namespace cs
+namespace cs::dsp
 {
 
 namespace
@@ -11,8 +11,8 @@ namespace
 
     // FL's song tick in samples, and a song time in ticks (96 per beat:
     // bpm / 60 * 96 = bpm * 1.6 per second).
-    double tickSamples (double sampleRate, const EngineParams& p) { return sampleRate * 60.0 / (juce::jmax (1.0, p.bpm) * 96.0); }
-    double songTicks (double seconds, const EngineParams& p) { return seconds * juce::jmax (1.0, p.bpm) * 1.6; }
+    double tickSamples (double sampleRate, const EngineParams& p) { return sampleRate * 60.0 / (jmax (1.0, p.bpm) * 96.0); }
+    double songTicks (double seconds, const EngineParams& p) { return seconds * jmax (1.0, p.bpm) * 1.6; }
 
     bool pitchLfoPerSample (const EngineParams& p)
     {
@@ -31,7 +31,7 @@ namespace
 
         Interpolator()
         {
-            const auto& a = dsp::tuning().interpWindow;   // the fitted window (dsp/Tuning.h)
+            const auto& a = tuning().interpWindow;   // the fitted window (dsp/Tuning.h)
             const int n = halfTaps * steps + 2;
             window.resize ((size_t) n);
             kernel.resize ((size_t) n);
@@ -41,9 +41,9 @@ namespace
                 double w = 0.0;
                 if (d < halfTaps)
                     for (int m = 0; m < 7; ++m)
-                        w += a[m] * std::cos (juce::MathConstants<double>::pi * m * d / halfTaps);
+                        w += a[m] * std::cos (MathConstants<double>::pi * m * d / halfTaps);
                 window[(size_t) i] = (float) w;
-                const double sinc = d == 0.0 ? 1.0 : std::sin (juce::MathConstants<double>::pi * d) / (juce::MathConstants<double>::pi * d);
+                const double sinc = d == 0.0 ? 1.0 : std::sin (MathConstants<double>::pi * d) / (MathConstants<double>::pi * d);
                 kernel[(size_t) i] = (float) (sinc * w);
             }
         }
@@ -79,7 +79,7 @@ namespace
             if (base - halfTaps + 1 >= 0 && base + halfTaps < wrapFrom)
             {
                 // sin (pi c d) for d = frac + 14 ... frac - 15: a phasor turned by -pi c per tap
-                const double pc = juce::MathConstants<double>::pi * c;
+                const double pc = MathConstants<double>::pi * c;
                 double stepC = 1.0, stepS = 0.0, zc = 0.0, zs = 0.0;
                 if (c != 1.0)
                 {
@@ -101,7 +101,7 @@ namespace
                         // The two taps next to pos divide by a d that can be tiny:
                         // their sines exactly (the phasor's 1e-15 would be amplified).
                         const double sn = std::abs (d) < 1.0 ? std::sin (pc * d) : zs;
-                        k = (d == 0.0 ? c : sn / (juce::MathConstants<double>::pi * d)) * lookup (window, d);
+                        k = (d == 0.0 ? c : sn / (MathConstants<double>::pi * d)) * lookup (window, d);
                         const double t = zc * stepC - zs * stepS;
                         zs = zs * stepC + zc * stepS;
                         zc = t;
@@ -126,8 +126,8 @@ namespace
                     k = lookup (kernel, d);
                 else
                 {
-                    const double x = juce::MathConstants<double>::pi * c * d;
-                    k = (x == 0.0 ? c : std::sin (x) / (juce::MathConstants<double>::pi * d)) * lookup (window, d);
+                    const double x = MathConstants<double>::pi * c * d;
+                    k = (x == 0.0 ? c : std::sin (x) / (MathConstants<double>::pi * d)) * lookup (window, d);
                 }
                 if (k == 0.0)
                     continue;
@@ -160,7 +160,7 @@ namespace
     float echoShift (float value, float m, int echo)
     {
         if (echo > 0 && m != 0.0f)
-            return juce::jlimit (0.0f, 1.0f, value + std::copysign (1.0f - std::pow (1.0f - std::abs (m), (float) echo), m));
+            return jlimit (0.0f, 1.0f, value + std::copysign (1.0f - std::pow (1.0f - std::abs (m), (float) echo), m));
         return value;   // the filter clamps (the biquads allow modulation past the knob's end)
     }
 
@@ -194,12 +194,12 @@ namespace
         // The END frame is inclusive in FL: a forward loop plays it and then
         // jumps to START (measured: one frame per pass otherwise); ping pong
         // turns at END itself.
-        const int ls = (int) std::lround (juce::jlimit (0.0f, 1.0f, p.loopStart) * (float) s.playEnd);
-        int le = (int) std::lround (juce::jlimit (0.0f, 1.0f, juce::jmax (p.loopStart, p.loopEnd)) * (float) s.playEnd);
+        const int ls = (int) std::lround (jlimit (0.0f, 1.0f, p.loopStart) * (float) s.playEnd);
+        int le = (int) std::lround (jlimit (0.0f, 1.0f, jmax (p.loopStart, p.loopEnd)) * (float) s.playEnd);
         if (! p.pingPong)
-            le = juce::jmin (s.playEnd, le + 1);
+            le = jmin (s.playEnd, le + 1);
         const int shift = p.pingPong ? 0 : s.loopStartShift;   // the crossfade's loop restart
-        return { juce::jmin (le - 1, ls + shift), le, p.useLoop && le - ls >= 2 };
+        return { jmin (le - 1, ls + shift), le, p.useLoop && le - ls >= 2 };
     }
 }
 
@@ -246,7 +246,7 @@ void Engine::updatePlayhead (const SampleData* sample) noexcept
         if (v.active && ! v.holding && v.mods.preview && (newest == nullptr || v.age > newest->age))
             newest = &v;
     const int total = sample != nullptr ? sample->getTotalFrames() : 0;
-    playhead.store (newest != nullptr && total > 0 ? (float) juce::jlimit (0.0, 1.0, newest->pos / total) : -1.0f);
+    playhead.store (newest != nullptr && total > 0 ? (float) jlimit (0.0, 1.0, newest->pos / total) : -1.0f);
 }
 
 void Engine::ensureStretchers()
@@ -273,8 +273,8 @@ int Engine::getNumActiveVoices() const noexcept
     return n;
 }
 
-void Engine::render (juce::AudioBuffer<float>& out, const juce::MidiBuffer& midi,
-                            const SampleData* sample, const EngineParams& p, const std::vector<int>* cuts)
+void Engine::render (float* const* out, int numChannels, int numSamples, const MidiEvent* events, int numEvents,
+                     const SampleData* sample, const EngineParams& p, const std::vector<int>* cuts)
 {
     noteStarts.clear();
     size_t nextCut = 0;
@@ -288,8 +288,9 @@ void Engine::render (juce::AudioBuffer<float>& out, const juce::MidiBuffer& midi
     }
 
     const bool playable = sample != nullptr && sample->playEnd > 1;
-    const int n = out.getNumSamples();
-    auto it = midi.begin();
+    const int n = numSamples;
+    const MidiEvent* it = events;
+    const MidiEvent* const end = events + numEvents;
     int pos = 0;
 
     for (;;)
@@ -305,16 +306,16 @@ void Engine::render (juce::AudioBuffer<float>& out, const juce::MidiBuffer& midi
         }
 
         // Host events at this position
-        while (it != midi.end() && (*it).samplePosition <= pos)
+        while (it != end && it->position <= pos)
         {
-            const auto msg = (*it).getMessage();
-            if (msg.isNoteOn())
-                handleNoteOn (now + pos, msg.getNoteNumber(), msg.getFloatVelocity(), p);
-            else if (msg.isNoteOff())
-                handleNoteOff (now + pos, msg.getNoteNumber(), p);
-            else if (msg.isPitchWheel())
-                bend = (float) (msg.getPitchWheelValue() - 8192) / 8192.0f;
-            else if (msg.isAllNotesOff() || msg.isAllSoundOff())
+            const auto& msg = *it;
+            if (msg.kind == MidiEvent::Kind::noteOn)
+                handleNoteOn (now + pos, msg.note, msg.velocity, p);
+            else if (msg.kind == MidiEvent::Kind::noteOff)
+                handleNoteOff (now + pos, msg.note, p);
+            else if (msg.kind == MidiEvent::Kind::pitchWheel)
+                bend = (float) (msg.pitchWheel - 8192) / 8192.0f;
+            else if (msg.kind == MidiEvent::Kind::allNotesOff)
             {
                 // FL sends this just before a note-off (measured): arpeggio
                 // notes end as at key release, other notes release.
@@ -388,17 +389,17 @@ void Engine::render (juce::AudioBuffer<float>& out, const juce::MidiBuffer& midi
 
         // Render up to the next event
         int64_t next = n;
-        if (it != midi.end())
-            next = juce::jmin (next, (int64_t) juce::jmax (pos + 1, (*it).samplePosition));
+        if (it != end)
+            next = jmin (next, (int64_t) jmax (pos + 1, it->position));
         for (auto& e : pending)
-            next = juce::jmin (next, juce::jmax ((int64_t) pos + 1, e.time - now));
+            next = jmin (next, jmax ((int64_t) pos + 1, e.time - now));
         if (p.arpDir != 0 && arpNextStep >= 0 && ! held.empty())
-            next = juce::jmin (next, juce::jmax ((int64_t) pos + 1, arpNextStep - now));
+            next = jmin (next, jmax ((int64_t) pos + 1, arpNextStep - now));
         if (cuts != nullptr && nextCut < cuts->size())
-            next = juce::jmin (next, (int64_t) juce::jmax (pos + 1, (*cuts)[nextCut]));
+            next = jmin (next, (int64_t) jmax (pos + 1, (*cuts)[nextCut]));
 
         if (playable)
-            renderRange (out, pos, (int) next - pos, *sample, p);
+            renderRange (out, numChannels, pos, (int) next - pos, *sample, p);
         pos = (int) next;
     }
 
@@ -504,10 +505,10 @@ void Engine::advanceArp (int64_t until, const EngineParams& p)
     {
         ++arpSteps;
         arpNextStep = hold ? std::numeric_limits<int64_t>::max()
-                           : juce::jmax (arpNextStep + 1, arpStart + (int64_t) std::llround ((double) arpSteps * step));
+                           : jmax (arpNextStep + 1, arpStart + (int64_t) std::llround ((double) arpSteps * step));
     };
     if (! hold && arpNextStep == std::numeric_limits<int64_t>::max())   // TIME turned off Hold
-        arpNextStep = juce::jmax (until, arpStart + (int64_t) std::llround ((double) arpSteps * step));
+        arpNextStep = jmax (until, arpStart + (int64_t) std::llround ((double) arpSteps * step));
     while (arpNextStep <= until)
     {
         // Sequence: chord notes ascending, repeated per octave over the range.
@@ -521,7 +522,7 @@ void Engine::advanceArp (int64_t until, const EngineParams& p)
         {
             // Chord preset built on the lowest held key.
             int root = 127;
-            for (auto k : held) root = juce::jmin (root, k);
+            for (auto k : held) root = jmin (root, k);
             const auto& preset = chordPresets[p.arpChord - 3];
             chord[(size_t) nChord++] = root;
             int note = root;
@@ -565,9 +566,9 @@ void Engine::advanceArp (int64_t until, const EngineParams& p)
         std::array<int, 512> up {};
         int nUp = 0;
         for (int o = 0; o < p.arpRange; ++o)
-            for (int r = 0; r < juce::jmax (1, p.arpRepeat); ++r)
+            for (int r = 0; r < jmax (1, p.arpRepeat); ++r)
                 for (int c = 0; c < nChord && nUp < 512; ++c)
-                    up[(size_t) nUp++] = juce::jlimit (0, 127, chord[(size_t) c] + 12 * o);
+                    up[(size_t) nUp++] = jlimit (0, 127, chord[(size_t) c] + 12 * o);
 
         int note = up[0];
         if (nUp > 0)
@@ -578,7 +579,7 @@ void Engine::advanceArp (int64_t until, const EngineParams& p)
                 case 2: note = up[(size_t) (nUp - 1 - arpIndex % nUp)]; break;
                 case 3:   // up / down, ends played once
                 {
-                    const int period = juce::jmax (1, 2 * nUp - 2);
+                    const int period = jmax (1, 2 * nUp - 2);
                     const int i = arpIndex % period;
                     note = up[(size_t) (i < nUp ? i : period - i)];
                     break;
@@ -607,10 +608,10 @@ void Engine::advanceArp (int64_t until, const EngineParams& p)
             // gate ends exactly where the next step starts, and on a whole
             // tick: GATE of the step's ticks rounded down, at least one
             // (nulltest/cases_arp.py a_t*).
-            const auto stepTicks = juce::jmax (1.0, std::round ((double) p.arpTime * 24.0));
-            const auto gateTicks = juce::jmax (1.0, std::floor (stepTicks * juce::jlimit (0.0, 1.0, (double) p.arpGate) + 1.0e-6));
+            const auto stepTicks = jmax (1.0, std::round ((double) p.arpTime * 24.0));
+            const auto gateTicks = jmax (1.0, std::floor (stepTicks * jlimit (0.0, 1.0, (double) p.arpGate) + 1.0e-6));
             const auto offTime = arpStart + (int64_t) std::llround (((double) arpSteps + gateTicks / stepTicks) * step);
-            schedule ({ juce::jmax (arpNextStep + 1, offTime), false, note, 0.0f, offMods });
+            schedule ({ jmax (arpNextStep + 1, offTime), false, note, 0.0f, offMods });
         }
 
         ++arpIndex;
@@ -647,7 +648,7 @@ void Engine::playNoteOn (int64_t time, int note, float velocity, NoteMods mods, 
         auto pan = p.echoPan * (float) k;
         if (p.echoFat)
         {
-            e.gain = fatGain * std::cos (juce::MathConstants<float>::pi * 0.25f * juce::jmin (1.0f, std::abs (pan)));
+            e.gain = fatGain * std::cos (MathConstants<float>::pi * 0.25f * jmin (1.0f, std::abs (pan)));
             pan = 0.0f;
         }
         else
@@ -664,7 +665,7 @@ void Engine::playNoteOn (int64_t time, int note, float velocity, NoteMods mods, 
             }
         }
 
-        e.pan = juce::jlimit (-1.0f, 1.0f, pan);
+        e.pan = jlimit (-1.0f, 1.0f, pan);
         e.cut = p.echoX;   // applied k times in refreshControls (echoMod)
         e.res = p.echoY;
         e.pitch = p.echoPitch * (float) k;
@@ -796,13 +797,13 @@ void Engine::noteOn (int note, float velocity, NoteMods mods, const SampleData& 
 
     v = Voice();
     v.filter.startCompensation ((int) std::lround (tickSamples (sampleRate, p)),   // LPx2 (measured)
-                                tickSeconds (p.bpm) / dsp::Envelope::fullRangeSeconds);
+                                tickSeconds (p.bpm) / Envelope::fullRangeSeconds);
     v.active = true;
     v.note = note;
     v.velocity = velocity;
     v.mods = mods;
     v.age = ++ageCounter;
-    v.pos = juce::jlimit (0.0, (double) s.playEnd - 1.0, (double) p.startOffset * s.playEnd);
+    v.pos = jlimit (0.0, (double) s.playEnd - 1.0, (double) p.startOffset * s.playEnd);
     v.inLoop = loop.valid && v.pos < loop.end;
     v.stretched = usesStretcher (p.stretchMode) && hasStretchers();
     if (v.stretched)
@@ -838,7 +839,7 @@ void Engine::noteOn (int note, float velocity, NoteMods mods, const SampleData& 
     // the LFO and the envelope); the envelope starts that much early (less
     // 13 samples, as it is applied per control block).
     if (p.pitchT.envOn)
-        v.env[4].advance (p.pitchT.env, (float) juce::jmax (0.0, 0.5 * tickSeconds (p.bpm) - 13.0 / sampleRate));
+        v.env[4].advance (p.pitchT.env, (float) jmax (0.0, 0.5 * tickSeconds (p.bpm) - 13.0 / sampleRate));
 
     // FL only fades in when playback starts after the first frame. The
     // Transient modes keep the attack and only remove the step: they subtract
@@ -874,7 +875,7 @@ void Engine::beginGlide (Voice& v, float fromCents, int note, const EngineParams
 {
     v.targetNote = (float) note;
     v.glideCents = fromCents;
-    v.glideTicks = juce::jmax (1, p.slideTicks);
+    v.glideTicks = jmax (1, p.slideTicks);
     v.glideStep = (float) (((double) note * 100.0 - (double) fromCents) / v.glideTicks);
     v.glideDone = 0;
 
@@ -895,7 +896,7 @@ double Engine::soundingNote (Voice& v, const EngineParams& p, double songSeconds
         // A step lands on the sample nearest its tick (measured: FL steps half
         // a sample early against the exact tick time).
         const auto ticks = songTicks (songSeconds, p) + 0.5 / tickSamples (sampleRate, p);
-        const auto due = juce::jmin (v.glideTicks, (int) std::floor (ticks - v.glideTick0) + 1);
+        const auto due = jmin (v.glideTicks, (int) std::floor (ticks - v.glideTick0) + 1);
         while (v.glideDone < due)
         {
             v.glideCents += v.glideStep;
@@ -1007,7 +1008,7 @@ float Engine::modEnvelopeAt (Voice& v, int xy, double t, const EngineParams& p)
         auto ahead = k.env;
         k.next = ahead.advance (ep, (float) (k.nextKnot - k.envTime));
     }
-    const auto frac = juce::jlimit (0.0, 1.0, (t - (k.nextKnot - tick)) / tick);
+    const auto frac = jlimit (0.0, 1.0, (t - (k.nextKnot - tick)) / tick);
     return k.prev + (k.next - k.prev) * (float) frac;
 }
 
@@ -1050,22 +1051,22 @@ void Engine::setupFilterAt (Voice& v, double t, double songT, const EngineParams
                 envPrev[xy] = v.knots[xy].prev;
                 envNext[xy] = v.knots[xy].next;
             }
-        auto setAt = [&] (dsp::VoiceFilter& c, double at, const float* env)
+        auto setAt = [&] (VoiceFilter& c, double at, const float* env)
         {
-            at = juce::jmax (at, tick);   // the first tick holds the second knot
+            at = jmax (at, tick);   // the first tick holds the second knot
             const auto songAt = songT + (at - t);
             float x = v.cutBase + p.xT.envAmt * env[0], y = v.resBase + p.yT.envAmt * env[1];
             if (p.xT.lfo.amount != 0.0f)
-                x += dsp::Lfo::at (p.xT.lfo, at, p.bpm, songAt);
+                x += Lfo::at (p.xT.lfo, at, p.bpm, songAt);
             if (p.yT.lfo.amount != 0.0f)
-                y += dsp::Lfo::at (p.yT.lfo, at, p.bpm, songAt);
+                y += Lfo::at (p.yT.lfo, at, p.bpm, songAt);
             c.setup (p.filterType, echoShift (x, v.mods.cut, v.mods.echo), echoShift (y, v.mods.res, v.mods.echo), sampleRate);
         };
         setAt (v.coefPrev, knot - tick, envPrev);
         setAt (v.coefNext, knot, envNext);
         v.filterKnot = knot;
     }
-    v.filter.setBetween (v.coefPrev, v.coefNext, juce::jlimit (0.0, 1.0, (t - (v.filterKnot - tick)) / tick));
+    v.filter.setBetween (v.coefPrev, v.coefNext, jlimit (0.0, 1.0, (t - (v.filterKnot - tick)) / tick));
 }
 
 void Engine::refreshControls (Voice& v, const SampleData& s, const EngineParams& p)
@@ -1075,10 +1076,10 @@ void Engine::refreshControls (Voice& v, const SampleData& s, const EngineParams&
     updateControls (v, 0, s, p);
     if (! v.active)
         return;
-    v.gainStep = (v.gainTarget - v.gain) / (float) juce::jmax (1, v.ctlLeft);
-    const auto angle = (v.panValue + 1.0f) * juce::MathConstants<float>::pi * 0.25f;
-    v.panL = juce::MathConstants<float>::sqrt2 * std::cos (angle);
-    v.panR = juce::MathConstants<float>::sqrt2 * std::sin (angle);
+    v.gainStep = (v.gainTarget - v.gain) / (float) jmax (1, v.ctlLeft);
+    const auto angle = (v.panValue + 1.0f) * MathConstants<float>::pi * 0.25f;
+    v.panL = MathConstants<float>::sqrt2 * std::cos (angle);
+    v.panR = MathConstants<float>::sqrt2 * std::sin (angle);
 }
 
 void Engine::updateControls (Voice& v, int numSamples, const SampleData& s, const EngineParams& p)
@@ -1122,7 +1123,7 @@ void Engine::updateControls (Voice& v, int numSamples, const SampleData& s, cons
                      // FL: the pitch envelope and LFO amounts are in cents, raw
                      // -128..128 (measured: full amount = +/-128 cents).
                      + (p.pitchT.envAmt * env[4]
-                        + (pitchLfoPerSample (p) ? 0.0f : dsp::Lfo::at (p.pitchT.lfo, v.lfo[4].getTime() + 0.5 * tickSeconds (p.bpm), p.bpm,
+                        + (pitchLfoPerSample (p) ? 0.0f : Lfo::at (p.pitchT.lfo, v.lfo[4].getTime() + 0.5 * tickSeconds (p.bpm), p.bpm,
                                                                       v.songLfoStart + (double) numSamples / sampleRate + 0.5 * tickSeconds (p.bpm)))) * 1.28f;
     v.increment = (s.sourceRate / sampleRate) * std::pow (2.0, semis / 12.0);
 
@@ -1176,10 +1177,10 @@ void Engine::updateControls (Voice& v, int numSamples, const SampleData& s, cons
     // Pan LFO: FL swings twice the amount (amount 75% reaches hard left /
     // right and clips there); added per sample in renderRange.
     v.panBase = p.pan + v.mods.pan + p.velPan * dv + p.keyPan * dk;   // FL has no panning envelope
-    v.panValue = juce::jlimit (-1.0f, 1.0f, v.panBase + 2.0f * lfo[0]);
+    v.panValue = jlimit (-1.0f, 1.0f, v.panBase + 2.0f * lfo[0]);
 }
 
-void Engine::renderRange (juce::AudioBuffer<float>& out, int start, int num,
+void Engine::renderRange (float* const* out, int numChannels, int start, int num,
                                  const SampleData& s, const EngineParams& p)
 {
     const auto loop = loopFrames (s, p);
@@ -1191,8 +1192,8 @@ void Engine::renderRange (juce::AudioBuffer<float>& out, int start, int num,
     const bool sliceMap = p.stretchMode == StretchMode::sliceMap;
     const bool slicesReset = resetsAtOnsets (p.stretchMode);
 
-    auto* outL = out.getWritePointer (0);
-    auto* outR = out.getNumChannels() > 1 ? out.getWritePointer (1) : nullptr;
+    auto* outL = out[0];
+    auto* outR = numChannels > 1 ? out[1] : nullptr;
     const auto& interp = interpolator();
 
     for (auto& v : voices)
@@ -1215,11 +1216,11 @@ void Engine::renderRange (juce::AudioBuffer<float>& out, int start, int num,
                 v.gainStep = (v.gainTarget - v.gain) / (float) controlBlock;
                 // FL's constant-power pan, unity at the centre (measured: 50% left
                 // gives L x1.307, R x0.541 = sqrt2 * cos / sin of 22.5 degrees).
-                const auto angle = (v.panValue + 1.0f) * juce::MathConstants<float>::pi * 0.25f;
-                v.panL = juce::MathConstants<float>::sqrt2 * std::cos (angle);
-                v.panR = juce::MathConstants<float>::sqrt2 * std::sin (angle);
+                const auto angle = (v.panValue + 1.0f) * MathConstants<float>::pi * 0.25f;
+                v.panL = MathConstants<float>::sqrt2 * std::cos (angle);
+                v.panR = MathConstants<float>::sqrt2 * std::sin (angle);
             }
-            const int chunk = juce::jmin (v.ctlLeft, num - done);
+            const int chunk = jmin (v.ctlLeft, num - done);
             const int base = controlBlock - v.ctlLeft;   // samples into the control block
             const auto panL = v.panL, panR = v.panR, gainStep = v.gainStep;
 
@@ -1233,9 +1234,9 @@ void Engine::renderRange (juce::AudioBuffer<float>& out, int start, int num,
                 {
                     if (looping && ! p.pingPong && k >= loop.end)
                         k -= loop.end - loop.start;
-                    return juce::jlimit (0, total - 1, k);
+                    return jlimit (0, total - 1, k);
                 };
-                const int atIsIndexBelow = looping && ! p.pingPong ? juce::jmin (loop.end, total) : total;   // `at` is the identity there
+                const int atIsIndexBelow = looping && ! p.pingPong ? jmin (loop.end, total) : total;   // `at` is the identity there
                 // Pitch LFO in Resample, per sample: FL's pitch follows the
                 // tick-interpolated LFO half a tick early, less 2.5 samples
                 // (fitted to FL renders: -68 dB against -34 dB for a per-tick step).
@@ -1243,7 +1244,7 @@ void Engine::renderRange (juce::AudioBuffer<float>& out, int start, int num,
                 if (pitchLfoPerSample (p))
                 {
                     const auto lead = 0.5 * tickSeconds (p.bpm) - 2.5 / sampleRate;
-                    v.pitchMul = std::exp2 ((double) dsp::Lfo::at (p.pitchT.lfo, v.volLfoStart + (double) (base + i) / sampleRate + lead, p.bpm,
+                    v.pitchMul = std::exp2 ((double) Lfo::at (p.pitchT.lfo, v.volLfoStart + (double) (base + i) / sampleRate + lead, p.bpm,
                                                                           v.songLfoStart + (double) (base + i) / sampleRate + lead) * 1.28 / 12.0);
                     incNow *= v.pitchMul;
                     rateNow *= v.pitchMul;
@@ -1303,12 +1304,12 @@ void Engine::renderRange (juce::AudioBuffer<float>& out, int start, int num,
                             // fold it into the loop however many passes it has made.
                             if (fold && k >= loop.end)
                             {
-                                const int len = juce::jmax (1, loop.end - loop.start);
+                                const int len = jmax (1, loop.end - loop.start);
                                 const int passes = (k - loop.start) / len;
                                 const int offset = (k - loop.start) % len;
                                 k = (p.pingPong && (passes % 2 == 1)) ? loop.end - 1 - offset : loop.start + offset;
                             }
-                            const int m = juce::jlimit (0, total - 1, k);
+                            const int m = jlimit (0, total - 1, k);
                             sl = srcL[m];
                             sr = srcR[m];
                         };
@@ -1360,10 +1361,10 @@ void Engine::renderRange (juce::AudioBuffer<float>& out, int start, int num,
                             // under the next one (FL: a drum loop at x0.667).
                             auto left = (nextOnset - v.slicePos) / v.increment;
                             if (! looping && ! v.holding && rateNow > 0.0)
-                                left = juce::jmin (left, (endLimit - v.pos) / rateNow);
+                                left = jmin (left, (endLimit - v.pos) / rateNow);
                             auto x = (declick::sliceOutLead - left * toRate) * declick::sliceOutSpeed;
                             if (rateNow > 0.0 && v.onsetIdx < (int) s.onsets.size())
-                                x = juce::jmax (x, (declick::sliceCutLead - (nextOnset - v.pos) / rateNow * toRate) * declick::sliceOutSpeed);
+                                x = jmax (x, (declick::sliceCutLead - (nextOnset - v.pos) / rateNow * toRate) * declick::sliceOutSpeed);
                             fade (x, v.sliceLowL, l);
                             fade (x, v.sliceLowR, r);
                             v.sliceFade = x;
@@ -1404,7 +1405,7 @@ void Engine::renderRange (juce::AudioBuffer<float>& out, int start, int num,
                     v.envStarted = true;
                 }
                 if (p.volT.lfo.amount != 0.0f)
-                    g *= 1.0f + dsp::Lfo::at (p.volT.lfo, v.volLfoStart + (double) (base + i) / sampleRate, p.bpm, v.songLfoStart + (double) (base + i) / sampleRate);
+                    g *= 1.0f + Lfo::at (p.volT.lfo, v.volLfoStart + (double) (base + i) / sampleRate, p.bpm, v.songLfoStart + (double) (base + i) / sampleRate);
 
                 if (v.fadeInPos < v.fadeInLen)
                 {
@@ -1415,7 +1416,7 @@ void Engine::renderRange (juce::AudioBuffer<float>& out, int start, int num,
                             v.stepL = l;
                             v.stepR = r;
                         }
-                        const auto w = 1.0f - dsp::sCurve ((float) v.fadeInPos++ / (float) v.fadeInLen);
+                        const auto w = 1.0f - sCurve ((float) v.fadeInPos++ / (float) v.fadeInLen);
                         l -= v.stepL * w;
                         r -= v.stepR * w;
                     }
@@ -1425,7 +1426,7 @@ void Engine::renderRange (juce::AudioBuffer<float>& out, int start, int num,
                     }
                     else
                     {
-                        g *= dsp::sCurve ((float) v.fadeInPos++ / (float) v.fadeInLen);
+                        g *= sCurve ((float) v.fadeInPos++ / (float) v.fadeInLen);
                     }
                 }
 
@@ -1442,7 +1443,7 @@ void Engine::renderRange (juce::AudioBuffer<float>& out, int start, int num,
                             break;
                         }
                         case KillShape::crossfade: g *= declick::crossfadeOut ((double) v.killPos / (double) v.killLen); break;
-                        case KillShape::cosine:    g *= dsp::sCurve (1.0f - (float) v.killPos / (float) v.killLen); break;
+                        case KillShape::cosine:    g *= sCurve (1.0f - (float) v.killPos / (float) v.killLen); break;
                     }
                     if (++v.killPos >= v.killLen)
                         v.active = false;
@@ -1470,10 +1471,10 @@ void Engine::renderRange (juce::AudioBuffer<float>& out, int start, int num,
                 {
                     if (p.panT.lfo.amount != 0.0f)
                     {
-                        const auto pan = juce::jlimit (-1.0f, 1.0f, v.panBase + 2.0f * dsp::Lfo::at (p.panT.lfo, v.volLfoStart + (double) (base + i) / sampleRate, p.bpm, v.songLfoStart + (double) (base + i) / sampleRate));
-                        const auto a = (pan + 1.0f) * juce::MathConstants<float>::pi * 0.25f;
-                        outL[o] += l * g * juce::MathConstants<float>::sqrt2 * std::cos (a);
-                        outR[o] += r * g * juce::MathConstants<float>::sqrt2 * std::sin (a);
+                        const auto pan = jlimit (-1.0f, 1.0f, v.panBase + 2.0f * Lfo::at (p.panT.lfo, v.volLfoStart + (double) (base + i) / sampleRate, p.bpm, v.songLfoStart + (double) (base + i) / sampleRate));
+                        const auto a = (pan + 1.0f) * MathConstants<float>::pi * 0.25f;
+                        outL[o] += l * g * MathConstants<float>::sqrt2 * std::cos (a);
+                        outR[o] += r * g * MathConstants<float>::sqrt2 * std::sin (a);
                     }
                     else
                     {
@@ -1536,12 +1537,12 @@ void Engine::renderRange (juce::AudioBuffer<float>& out, int start, int num,
                     }
                     else if (v.dir > 0 && v.pos >= loop.end)
                     {
-                        v.pos = juce::jmax ((double) loop.start, 2.0 * loop.end - v.pos);
+                        v.pos = jmax ((double) loop.start, 2.0 * loop.end - v.pos);
                         v.dir = -1;
                     }
                     else if (v.dir < 0 && v.pos <= loop.start)
                     {
-                        v.pos = juce::jmin ((double) loop.end, 2.0 * loop.start - v.pos);
+                        v.pos = jmin ((double) loop.end, 2.0 * loop.start - v.pos);
                         v.dir = 1;
                     }
                 }

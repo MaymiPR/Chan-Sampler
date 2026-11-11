@@ -8,7 +8,7 @@
 // own, in code.
 //
 // The suite's colours and type: every colour of the editors is a token here, named for what it paints.
-namespace chansampler::ui
+namespace chan::ui
 {
     // The design tokens: Chan Sampler's palette, true black, neutral greys and
     // white, violet for the value arcs, the lit switches and the selected tabs.

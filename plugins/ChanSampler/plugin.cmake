@@ -4,11 +4,12 @@ set(CS_DIR ${CMAKE_CURRENT_LIST_DIR})
 
 # The sources: the engine alone (what the engine tests need) and everything.
 set(CS_ENGINE_SOURCES
-    ${CS_DIR}/Source/Params.cpp
     ${CS_DIR}/Source/History.cpp
     ${CS_DIR}/Source/dsp/SampleData.cpp
     ${CS_DIR}/Source/dsp/Dsp.cpp
     ${CS_DIR}/Source/dsp/Engine.cpp
+    ${CS_DIR}/Source/dsp/Fft.cpp
+    ${CS_DIR}/Source/dsp/TempoDetect.cpp
     ${CS_DIR}/Source/dsp/TimeStretch.cpp)
 set(CS_SOURCES
     ${CS_ENGINE_SOURCES}
@@ -20,7 +21,6 @@ set(CS_SOURCES
     ${CS_DIR}/Source/PluginEditor.cpp
     ${CS_DIR}/Source/ui/Controls.cpp
     ${CS_DIR}/Source/SampleExchange.cpp
-    ${CS_DIR}/Source/dsp/TempoDetect.cpp
     ${CS_DIR}/Source/ui/WaveformView.cpp)
 if(APPLE)
     list(APPEND CS_SOURCES ${CS_DIR}/Source/SampleExchangeMac.mm)   # the macOS clipboard is Objective-C++

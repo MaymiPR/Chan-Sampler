@@ -2,7 +2,7 @@
 
 #include <cmath>
 
-namespace cs
+namespace cs::dsp
 {
 
 // FL Sampler's trimmed-sample tail (SMP LENGTH < 100%), measured in FL with

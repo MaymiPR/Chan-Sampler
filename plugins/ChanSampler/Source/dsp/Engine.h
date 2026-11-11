@@ -1,17 +1,18 @@
 #pragma once
 
-#include <juce_audio_basics/juce_audio_basics.h>
 #include <array>
 #include <atomic>
+#include <cstdint>
 #include <memory>
 #include <mutex>
+#include <vector>
 
 #include "DeclickCurves.h"
 #include "Dsp.h"
 #include "SampleData.h"
 #include "TimeStretch.h"
 
-namespace cs
+namespace cs::dsp
 {
 
 // Per-block snapshot of every realtime parameter.
@@ -39,8 +40,8 @@ struct EngineParams
     {
         bool envOn = false;
         float envAmt = 0;
-        dsp::Envelope::Params env;
-        dsp::Lfo::Params lfo;
+        Envelope::Params env;
+        Lfo::Params lfo;
         bool envTempo = false;    // envelope times x 120 / tempo
     };
     Target panT, volT, xT, yT, pitchT;
@@ -74,6 +75,18 @@ struct EngineParams
     double bpm = 120.0;   // host tempo for arpeggio / echo timing
 };
 
+// A host event at a sample offset in the block (the processor turns its MIDI into these). Every MIDI event comes in,
+// those the engine does not play as other: each one still starts a new render span, as the MIDI buffer did.
+struct MidiEvent
+{
+    enum class Kind { noteOn, noteOff, pitchWheel, allNotesOff, other };
+    int position = 0;
+    Kind kind = Kind::other;
+    int note = 0;
+    float velocity = 0;       // note-on: 0..1 (the MIDI velocity / 127)
+    int pitchWheel = 8192;    // 0..16383
+};
+
 // Offsets an echo voice carries relative to the note that spawned it.
 struct NoteMods
 {
@@ -91,9 +104,10 @@ public:
     static constexpr int maxVoices = 64;
 
     void prepare (double sampleRate);
-    // cuts: sample offsets in this block where the channel is cut by its
-    // group (FL's "By"), ascending; may be null.
-    void render (juce::AudioBuffer<float>& out, const juce::MidiBuffer& midi,
+    // Adds the block to out (numChannels channels of numSamples; the left and, with two or more, the right one).
+    // events: the block's host events in time order. cuts: sample offsets in this block where the channel is cut by
+    // its group (FL's "By"), ascending; may be null.
+    void render (float* const* out, int numChannels, int numSamples, const MidiEvent* events, int numEvents,
                  const SampleData* sample, const EngineParams& p, const std::vector<int>* cuts = nullptr);
 
     // Sample offsets in the last rendered block where notes started (for the
@@ -139,9 +153,9 @@ private:
         uint64_t age = 0;
 
         // Index order: pan, vol, x, y, pitch
-        dsp::Envelope env[5];
-        dsp::Lfo lfo[5];
-        dsp::VoiceFilter filter;
+        Envelope env[5];
+        Lfo lfo[5];
+        VoiceFilter filter;
         bool filterOn = false;
 
         // At the end of the sample FL holds the last value and fades it out.
@@ -173,13 +187,13 @@ private:
         // the knots.
         struct ModKnots
         {
-            dsp::Envelope env;
+            Envelope env;
             double envTime = 0, nextKnot = 0;   // note seconds
             float prev = 0, next = 0;
         };
         ModKnots knots[2];                // Mod X, Mod Y
         bool filterPerSample = false;     // filter modulated: coefficients per sample
-        dsp::VoiceFilter coefPrev, coefNext;   // coefficients at the tick knots around now
+        VoiceFilter coefPrev, coefNext;   // coefficients at the tick knots around now
         double filterKnot = -1;           // note seconds of coefNext (-1: recompute)
         float cutBase = 1, resBase = 0;   // unmodulated cutoff / resonance
 
@@ -224,7 +238,7 @@ private:
     void schedule (const Scheduled& e);
     void advanceArp (int64_t until, const EngineParams& p);
     void cutByGroup (const EngineParams& p);
-    double samplesPerStep (const EngineParams& p) const { return sampleRate * 60.0 / juce::jmax (1.0, p.bpm) / 4.0; }
+    double samplesPerStep (const EngineParams& p) const { return sampleRate * 60.0 / jmax (1.0, p.bpm) / 4.0; }
     double songTimeAt (const EngineParams& p, int bufferPos) const
     {
         return (p.songSeconds >= 0.0 ? p.songSeconds : (double) now / sampleRate) + bufferPos / sampleRate;
@@ -236,7 +250,7 @@ private:
     void releaseVoice (Voice& v, const EngineParams& p);
     void startKill (Voice& v, const EngineParams& p);
     Voice& allocateVoice (const EngineParams& p);
-    void renderRange (juce::AudioBuffer<float>& out, int start, int num, const SampleData& s, const EngineParams& p);
+    void renderRange (float* const* out, int numChannels, int start, int num, const SampleData& s, const EngineParams& p);
     void updateControls (Voice& v, int numSamples, const SampleData& s, const EngineParams& p);
     void refreshControls (Voice& v, const SampleData& s, const EngineParams& p);
     void startModKnots (Voice& v, const EngineParams& p);
@@ -283,6 +297,16 @@ private:
     int64_t arpStart = 0;     // time of the first step; step k sits at round (k * step) after it
     int64_t arpSteps = 0;
     int arpIndex = 0, sustainedNote = -1;
-    juce::Random arpRandom { 1234 };
+    // The Random direction's generator: a 48-bit linear congruential sequence from a fixed seed.
+    struct ArpRandom
+    {
+        int64_t seed = 1234;
+        int nextInt (int maxValue) noexcept
+        {
+            seed = (int64_t) ((((uint64_t) seed) * 0x5deece66dULL + 11) & 0xffffffffffffULL);
+            return (int) ((((unsigned int) (int) (seed >> 16)) * (uint64_t) maxValue) >> 32);
+        }
+    };
+    ArpRandom arpRandom;
 };
 }

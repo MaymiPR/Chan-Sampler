@@ -1,13 +1,12 @@
 #pragma once
 
-#include <juce_dsp/juce_dsp.h>
 #include <complex>
 #include <vector>
 
+#include "Dsp.h"
 #include "FastFFT.h"
-#include "Params.h"
 
-namespace cs
+namespace cs::dsp
 {
 
 // Real-time time stretching for the stretch modes (FL keeps pitch and length
@@ -57,13 +56,13 @@ public:
     void next (Reader&& read, double increment, double timeRate, float formantCents, float& outL, float& outR)
     {
         // Up to FL's TIME range on short samples (48 bars of a 0.2 s hit is x400 and more).
-        const double wanted = juce::jlimit (1.0 / 4096.0, 4096.0, increment / juce::jmax (1.0e-9, timeRate));
+        const double wanted = jlimit (1.0 / 4096.0, 4096.0, increment / jmax (1.0e-9, timeRate));
         // FL stretches by the ratio rounded down to its grid (e3 generic and
         // e2 transient 1/512, e2 generic 1/256) and resamples the rest:
         // measured over 25 MUL settings (7 for e2 generic), the treble ripple
         // its read interpolator makes runs at exactly that drift; ratios on
         // the grid (x1.5, x2 ...) don't drift.
-        const double alpha = ratioSteps > 0 ? juce::jmax (1.0 / ratioSteps, std::floor (wanted * ratioSteps) / ratioSteps) : wanted;
+        const double alpha = ratioSteps > 0 ? jmax (1.0 / ratioSteps, std::floor (wanted * ratioSteps) / ratioSteps) : wanted;
         if (! aligned)
         {
             // Measured with clicks: the vocoder's output would run early by a
@@ -135,7 +134,7 @@ private:
     // interpolated by the stretch in octaves).
     double softStart (double alpha, double at15, double at067) const
     {
-        const double x = juce::jlimit (0.0, 1.0, (std::log2 (alpha) + 0.585) / 1.17);
+        const double x = jlimit (0.0, 1.0, (std::log2 (alpha) + 0.585) / 1.17);
         return hfScale * (at067 + x * (at15 - at067));
     }
 
@@ -149,14 +148,14 @@ private:
     void followSplit (double stretch)
     {
         const double hz = stretch <= 2.0 ? baseSplit : baseSplit * std::pow (stretch - 1.0, 3.0);
-        const int kept = hz >= 0.5 * splitRate ? frame / 2 + 1 : juce::roundToInt (hz * frame / splitRate);
+        const int kept = hz >= 0.5 * splitRate ? frame / 2 + 1 : roundToInt (hz * frame / splitRate);
         if (kept != lowBins)
             buildSplit (hz);
     }
 
     int vocoderHop (double alpha) const
     {
-        return juce::jlimit (baseHop / 4, baseHop, (int) std::lround (baseHop * juce::jmin (1.0, 0.5 * alpha)));
+        return jlimit (baseHop / 4, baseHop, (int) std::lround (baseHop * jmin (1.0, 0.5 * alpha)));
     }
 
     template <typename Reader>
@@ -197,7 +196,7 @@ private:
             else
             {
                 for (int i = 0; i < n; ++i)
-                    blockEnergy[juce::jmin (63, i / block)] += power[(size_t) i];
+                    blockEnergy[jmin (63, i / block)] += power[(size_t) i];
             }
         };
         readWindow();
@@ -245,7 +244,7 @@ private:
             // over a tenth of the attack block's peak level.
             sumBlocks();
             int attackAt = -1;
-            for (int b = 4; b < juce::jmin (64, n / block) && attackAt < 0; ++b)
+            for (int b = 4; b < jmin (64, n / block) && attackAt < 0; ++b)
             {
                 const auto before = 0.25f * (blockEnergy[b - 1] + blockEnergy[b - 2] + blockEnergy[b - 3] + blockEnergy[b - 4]);
                 if (blockEnergy[b] > 8.0f * before + 1.0e-4f * block)
@@ -256,7 +255,7 @@ private:
             {
                 float peak = 0.0f;
                 for (int i = attackAt * block; i < (attackAt + 1) * block; ++i)
-                    peak = juce::jmax (peak, power[(size_t) i]);
+                    peak = jmax (peak, power[(size_t) i]);
                 attackSample = attackAt * block;
                 for (int i = (attackAt - 1) * block; i < (attackAt + 1) * block; ++i)
                     if (power[(size_t) i] > 0.01f * peak) { attackSample = i; break; }
@@ -276,7 +275,7 @@ private:
                 const double attackPos = pos + attackSample;
                 const double alphaNow = (double) hop / ha;
                 const double stretched = (attackPos - startPos) * alphaNow + attackShift (std::log2 (pitchRatio)) * pitchRatio + synthOffset;
-                const int ahead = juce::jmax (0, (int) std::round ((stretched - 0.5 * frame - synthPos) / hop));   // frames to the centred one
+                const int ahead = jmax (0, (int) std::round ((stretched - 0.5 * frame - synthPos) / hop));   // frames to the centred one
                 const double centreStart = attackPos + (synthPos + (double) ahead * hop) - stretched;
                 // The 1:1 frames may step back a frame (the source is read by
                 // position). Stretched far (x4 and more) the attack is seen
@@ -293,7 +292,7 @@ private:
                     hfSoftShift = 0.0;
                     if (e3Estimator)
                         scheduleRephase (read, pos + attackOnset, attackPos, alphaNow);
-                    apos = juce::jmax ((double) (pos - frame), centreStart - (double) ahead * hop);
+                    apos = jmax ((double) (pos - frame), centreStart - (double) ahead * hop);
                     lockFrames = ahead + 1;   // up to the one centred on it
                     locked = true;
                     pos = (int) std::floor (apos);
@@ -317,7 +316,7 @@ private:
         // where it was.
         float scale = (float) hop / (0.375f * (float) n);   // the inverse FFT is scaled by 1 / N; Hann^2 overlaps sum to 0.375 frame / hop
         const float holdGain = hybrid && locked ? (lockGain > 0.0f ? lockGain : (hop > ha ? 1.2f : 1.1f)) : 1.0f;
-        const int baseBins = juce::roundToInt (baseSplit * n / splitRate);
+        const int baseBins = roundToInt (baseSplit * n / splitRate);
         lowGainBins = hfBand && lowBins > baseBins ? baseBins : 0;
         lowGain = holdGain;
         if (lowGainBins == 0)
@@ -346,7 +345,7 @@ private:
         }
         else
         {
-            apos += juce::jlimit (0.25 * ha, 4.0 * ha, ha + 0.25 * (idealPos - apos));
+            apos += jlimit (0.25 * ha, 4.0 * ha, ha + 0.25 * (idealPos - apos));
         }
         emit (1.0f);
     }
@@ -364,7 +363,7 @@ private:
     template <typename Reader>
     void scheduleRephase (Reader& read, double onset, double attackPos, double alphaNow)
     {
-        const int lo = (int) std::lround (onset + 660.0 * hfScale), hi = lo + juce::roundToInt (512.0 * hfScale);
+        const int lo = (int) std::lround (onset + 660.0 * hfScale), hi = lo + roundToInt (512.0 * hfScale);
         hfEnsure (read, lo, hi);
         float best = -1.0f;
         int at = lo;
@@ -383,7 +382,7 @@ private:
         }
         // Timed by its peak: where the grid's search reaches 469 samples (the
         // stepped bursts' peak), whether or not the loudest sample is late.
-        const bool byPeak = attackReach > juce::roundToInt (469.0 * hfScale);
+        const bool byPeak = attackReach > roundToInt (469.0 * hfScale);
         const double restart = at - (byPeak ? 20.0 * hfScale : 0.0);
         rephaseShift = (alphaNow - 1.0) * (restart - attackPos);
         rephaseAt = synthOffset + (restart - startPos) * alphaNow;
@@ -398,8 +397,8 @@ private:
         if (hybrid)
             return 0.0;
         static constexpr double at[] = { -8.3, -2.9, 0.0, 2.05, 3.35 };   // -1, -0.5, 0, 0.5, 1 octaves
-        const auto x = juce::jlimit (-2.0, 2.0, octaves) * 2.0 + 2.0;
-        const int i = juce::jlimit (0, 3, (int) std::floor (x));
+        const auto x = jlimit (-2.0, 2.0, octaves) * 2.0 + 2.0;
+        const int i = jlimit (0, 3, (int) std::floor (x));
         return at[i] + (x - i) * (at[i + 1] - at[i]);
     }
 
@@ -461,16 +460,16 @@ private:
                 // which would leave a gap.
                 // The grain modes look ahead of the ideal position too: when
                 // squeezing it runs up to half a period ahead of the grains.
-                const double ahead = grainsOnly ? juce::jmax (hfP, hfIdeal) + P : hfP;
-                const int from = juce::jmax (hfSearched, (int) std::lround (hfP) - P), to = (int) std::lround (ahead) + P + hfHalfKernel;
-                hfSearched = juce::jmax (hfSearched, to);
+                const double ahead = grainsOnly ? jmax (hfP, hfIdeal) + P : hfP;
+                const int from = jmax (hfSearched, (int) std::lround (hfP) - P), to = (int) std::lround (ahead) + P + hfHalfKernel;
+                hfSearched = jmax (hfSearched, to);
                 const int o = to > from ? hfOnset (read, from, to - from) : -1;
                 if (o >= 0)
                 {
                     hfLastOnset = o;
                     double at = hfT + ((double) o - hfIdeal) * alpha + shift;
                     if (grainsOnly)
-                        at = juce::jmax (at, hfT);   // found late: now, not skipped
+                        at = jmax (at, hfT);   // found late: now, not skipped
                     hfP = o - (at - hfT) / spacing;
                     hfLockUntil = o + hfHold (alpha);
                 }
@@ -507,7 +506,7 @@ private:
             double offset, gap;
             if (std::abs (attackPitch - 1.0) < 1.0e-3)
             {
-                const double x = juce::jlimit (0.0, 1.0, (std::log2 (attackAlpha) + 0.585) / 1.17);
+                const double x = jlimit (0.0, 1.0, (std::log2 (attackAlpha) + 0.585) / 1.17);
                 offset = 364.0 + x * 46.0;
                 gap = 144.0 + x * 96.0;
             }
@@ -527,12 +526,12 @@ private:
             // swell of a sung "ah" on FL's side of the grid.
             int under = start;
             float pk = 0.0f;
-            const int un = juce::roundToInt (512.0 * hfScale);
+            const int un = roundToInt (512.0 * hfScale);
             for (int i = 0; i < un; ++i)
             {
                 float l, r;
                 read (start + i, l, r);
-                pk = juce::jmax (pk, l * l + r * r);
+                pk = jmax (pk, l * l + r * r);
             }
             for (int i = 0; i < un; ++i)
             {
@@ -546,7 +545,7 @@ private:
             }
             const double rel = under - startPos;
             const double end = startPos + offset + grid * std::ceil ((rel + gap - offset) / grid);
-            span = juce::jlimit (1, 4096, (int) std::lround (end - start));
+            span = jlimit (1, 4096, (int) std::lround (end - start));
             searchSpan = span;
             // Where the attack sits in the grid sets how much louder FL's low
             // band plays it (measured: 64 bursts stepped through the grid).
@@ -557,7 +556,7 @@ private:
         {
             float l, r;
             read (start + i, l, r);
-            peak = juce::jmax (peak, l * l + r * r);
+            peak = jmax (peak, l * l + r * r);
         }
         int found = start;
         for (int i = 0; i < span; ++i)
@@ -577,7 +576,7 @@ private:
             // louder the later it sits in the grid's range (x1.5 / x2: 1.13 +
             // 0.0019 per sample); timed by its start, about x1.13. (Squeezing
             // varies within the attack and keeps the mean, x1.1.)
-            attackGain = found - start > juce::roundToInt (64.0 * hfScale) ? (float) (1.13 + 0.0019 * windowPhase) : 1.13f;
+            attackGain = found - start > roundToInt (64.0 * hfScale) ? (float) (1.13 + 0.0019 * windowPhase) : 1.13f;
         }
         return found;
     }
@@ -591,7 +590,7 @@ private:
             return hfScale * hfMonoHold;
         static constexpr double oct[] = { -1.0, -0.585, -0.322, 0.322, 0.585, 1.0 };
         static constexpr double len[] = { 336.0, 368.0, 528.0, 704.0, 1000.0, 1150.0 };
-        const double x = juce::jlimit (-1.0, 1.0, std::log2 (alpha));
+        const double x = jlimit (-1.0, 1.0, std::log2 (alpha));
         int i = 0;
         while (i < 4 && x > oct[i + 1])
             ++i;
@@ -650,7 +649,7 @@ private:
             if (l > lo)
                 eSeg += (double) hfSeg[(size_t) (l + W - 1)] * hfSeg[(size_t) (l + W - 1)]
                       - (double) hfSeg[(size_t) (l - 1)] * hfSeg[(size_t) (l - 1)];
-            const double score = hfWork[(size_t) l].real() / std::sqrt (eRef * juce::jmax (1.0e-12, eSeg));
+            const double score = hfWork[(size_t) l].real() / std::sqrt (eRef * jmax (1.0e-12, eSeg));
             hfScore[(size_t) l] = (float) score;
             // e3 generic leans to the middle of the range: FL's lags on noise
             // spread as 132 / 215 / 283 / 337 / 397 (10th..90th percentile),
@@ -693,7 +692,7 @@ private:
     // whole number of periods nearest hfFrameTarget.
     int hfSplice (int period) const
     {
-        return hfFrameTarget > 0.0 ? period * juce::jmax (1, (int) std::lround (hfFrameTarget / period)) : period;
+        return hfFrameTarget > 0.0 ? period * jmax (1, (int) std::lround (hfFrameTarget / period)) : period;
     }
 
     // A 128-sample block's energy (block k covers 128 k ...), cached.
@@ -737,7 +736,7 @@ private:
                 {
                     float l, r;
                     read (start + i, l, r);
-                    peak = juce::jmax (peak, l * l + r * r);
+                    peak = jmax (peak, l * l + r * r);
                 }
                 for (int i = -block; i < block; ++i)
                 {
@@ -888,7 +887,7 @@ private:
     double readPos = 0.0;
 
     // e3 generic's split and high-band grains (see hfAdvance)
-    static constexpr float hfPi = juce::MathConstants<float>::pi;
+    static constexpr float hfPi = MathConstants<float>::pi;
     static constexpr int hfRingSize = 1 << 15, hfRingMask = hfRingSize - 1;
     bool hybrid = false, hfBand = false, grainsOnly = false, psola = true, hfStarted = false;
     int ratioSteps = 0;          // FL's stretch-ratio grid (steps per unit), 0 = none

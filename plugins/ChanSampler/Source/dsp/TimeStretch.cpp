@@ -1,13 +1,13 @@
 #include "TimeStretch.h"
 
-namespace cs
+namespace cs::dsp
 {
 
 namespace
 {
     constexpr int maxFrame = 8192;
-    constexpr float twoPi = juce::MathConstants<float>::twoPi;
-    constexpr float pi = juce::MathConstants<float>::pi;
+    constexpr float twoPi = MathConstants<float>::twoPi;
+    constexpr float pi = MathConstants<float>::pi;
 
     float wrapPhase (float x)
     {
@@ -74,7 +74,7 @@ void TimeStretcher::configure (StretchMode mode, double sourceRate)
     auto useVocoder = [&] (double n44, float transient, bool formants)
     {
         algo = Algo::vocoder;
-        order = juce::jlimit (10, 13, powerOfTwoNear (n44 * scale));
+        order = jlimit (10, 13, powerOfTwoNear (n44 * scale));
         frame = 1 << order;
         hop = baseHop = frame / 4;
         transientThreshold = transient;
@@ -87,7 +87,7 @@ void TimeStretcher::configure (StretchMode mode, double sourceRate)
     auto useGrains = [&] (double fallback, double hold, bool keepFormants)
     {
         algo = Algo::grains;
-        frame = hop = baseHop = juce::jmax (64, juce::roundToInt (256.0 * scale));
+        frame = hop = baseHop = jmax (64, roundToInt (256.0 * scale));
         preserveFormants = false;
         fallback44 = fallback;
         hfMonoHold = hold;
@@ -146,7 +146,7 @@ void TimeStretcher::configure (StretchMode mode, double sourceRate)
     grainsOnly = algo == Algo::grains;
     // e3 times an attack by its peak, the grains by its start.
     hfScale = scale;
-    attackSpan = hybrid ? juce::roundToInt (400.0 * scale) : 1;
+    attackSpan = hybrid ? roundToInt (400.0 * scale) : 1;
     lowBins = 0;
     splitRate = sourceRate;
     // e2 speech splices a whole number of periods, the number nearest 390
@@ -156,21 +156,21 @@ void TimeStretcher::configure (StretchMode mode, double sourceRate)
     risingSplit = e3Estimator;
     if (hfBand || grainsOnly)
     {
-        hfMinPeriod = juce::roundToInt (40.0 * scale);
+        hfMinPeriod = roundToInt (40.0 * scale);
         // FL's e3 / e2 mono find periods up to 1100 samples (40 Hz), e2
         // speech up to 750 (pulse trains, nulltest/measure_grain_marks.py).
         // Ours stop at 512: past that our search picks long periods where
         // FL's trackers don't (a kick's attack), which measured further from
         // FL on real material.
-        hfMaxPeriod = juce::roundToInt (512.0 * scale);
-        hfFallback = juce::roundToInt (fallback44 * scale);
-        hfWindow = juce::roundToInt (512.0 * scale);
-        hfEstOffset = juce::roundToInt (8.0 * scale);
+        hfMaxPeriod = roundToInt (512.0 * scale);
+        hfFallback = roundToInt (fallback44 * scale);
+        hfWindow = roundToInt (512.0 * scale);
+        hfEstOffset = roundToInt (8.0 * scale);
         hfScale = scale;
         hfEstOrder = 11;
         while ((1 << hfEstOrder) < hfWindow + hfMaxPeriod + 1 && hfEstOrder < 13)
             ++hfEstOrder;
-        hfHalfKernel = grainsOnly ? 0 : juce::jmin (frame / 2 - 1, 2047);
+        hfHalfKernel = grainsOnly ? 0 : jmin (frame / 2 - 1, 2047);
         hfFilterOrder = hfHalfKernel <= 1023 ? 12 : 13;
         hfBlock = grainsOnly ? 2048 : (1 << hfFilterOrder) - 2 * hfHalfKernel - 2;
         hfEstReuse = 512.0 * scale;
@@ -190,15 +190,15 @@ void TimeStretcher::buildSplit (double hz)
     // transition matches the vocoder's bin cut (a frame-long Hann).
     // At the Nyquist frequency the vocoder makes the whole band.
     const double nyquist = 0.5 * splitRate;
-    lowBins = hz >= nyquist ? frame / 2 + 1 : juce::roundToInt (hz * frame / splitRate);
+    lowBins = hz >= nyquist ? frame / 2 + 1 : roundToInt (hz * frame / splitRate);
     const int M = hfHalfKernel;
     std::vector<double>& lp = splitTaps;
     double sum = 0.0;
     for (int k = -M; k <= M; ++k)
     {
-        const double x = 2.0 * juce::jmin (hz, nyquist) / splitRate * k;
-        const double sinc = k == 0 ? 1.0 : std::sin (juce::MathConstants<double>::pi * x) / (juce::MathConstants<double>::pi * x);
-        const double w = 0.5 + 0.5 * std::cos (juce::MathConstants<double>::pi * k / (M + 1));
+        const double x = 2.0 * jmin (hz, nyquist) / splitRate * k;
+        const double sinc = k == 0 ? 1.0 : std::sin (MathConstants<double>::pi * x) / (MathConstants<double>::pi * x);
+        const double w = 0.5 + 0.5 * std::cos (MathConstants<double>::pi * k / (M + 1));
         lp[(size_t) (k + M)] = sinc * w;
         sum += sinc * w;
     }
@@ -252,7 +252,7 @@ void TimeStretcher::emit (float gain)
     // Keep the FIFO from overflowing: drop what has been read.
     if (fifoCount + hop > fifoSize)
     {
-        const int drop = juce::jlimit (0, fifoCount, (int) readPos - 1);
+        const int drop = jlimit (0, fifoCount, (int) readPos - 1);
         std::copy (fifoL.begin() + drop, fifoL.begin() + fifoCount, fifoL.begin());
         std::copy (fifoR.begin() + drop, fifoR.begin() + fifoCount, fifoR.begin());
         fifoCount -= drop;
@@ -339,7 +339,7 @@ void TimeStretcher::processSpectrum (int pos, double pitchRatio, float formantCe
         std::copy (mag[0].begin(), mag[0].begin() + half + 1, mag[1].begin());
     }
 
-    const int analysisHop = juce::jmax (1, pos - prevPos);
+    const int analysisHop = jmax (1, pos - prevPos);
     for (int c = 0; c < channels; ++c)
     {
         // Transients (spectral flux jump): take the analysis phases as they
@@ -347,7 +347,7 @@ void TimeStretcher::processSpectrum (int pos, double pitchRatio, float formantCe
         float rise = 0.0f, total = 1.0e-9f;
         for (int k = 1; k < half; ++k)
         {
-            rise += juce::jmax (0.0f, mag[c][(size_t) k] - prevMag[c][(size_t) k]);
+            rise += jmax (0.0f, mag[c][(size_t) k] - prevMag[c][(size_t) k]);
             total += prevMag[c][(size_t) k];
         }
         phaseLock (c, analysisHop, first || attack || rise / total > transientThreshold);
@@ -381,9 +381,9 @@ void TimeStretcher::processSpectrum (int pos, double pitchRatio, float formantCe
                 else
                 {
                     const int i0 = (int) src;
-                    tgt = env[(size_t) i0] + (env[(size_t) juce::jmin (half, i0 + 1)] - env[(size_t) i0]) * (src - (float) i0);
+                    tgt = env[(size_t) i0] + (env[(size_t) jmin (half, i0 + 1)] - env[(size_t) i0]) * (src - (float) i0);
                 }
-                const auto g = std::exp (juce::jlimit (-6.0f, 6.0f, tgt - env[(size_t) k]));
+                const auto g = std::exp (jlimit (-6.0f, 6.0f, tgt - env[(size_t) k]));
                 corr[(size_t) k] = g;
                 const auto m = mag[c][(size_t) k];
                 before += (double) m * m;
@@ -429,7 +429,7 @@ void TimeStretcher::phaseLock (int c, int analysisHop, bool transient)
     // it keep their phase offset to it. Only the peaks need an angle.
     // e3 generic keeps only the bins below the split, so only those (and a
     // few above, for the peaks near it) are worth the work.
-    const int n = frame, half = lowBins > 0 ? juce::jmin (n / 2, lowBins + 8) : n / 2;
+    const int n = frame, half = lowBins > 0 ? jmin (n / 2, lowBins + 8) : n / 2;
     auto& x = bins[c];
     auto& m = mag[c];
     auto& s = synth[c];
@@ -511,7 +511,7 @@ void TimeStretcher::formantEnvelopes()
     // FFT; both are real and even). Only the first n / 64 coefficients are
     // kept, so the envelope is smooth: it is evaluated every 4th bin by a
     // quarter-size FFT and interpolated in between.
-    const int n = frame, half = n / 2, quarter = n / 4, lifter = juce::jmax (8, juce::roundToInt (64.0 * hfScale));
+    const int n = frame, half = n / 2, quarter = n / 4, lifter = jmax (8, roundToInt (64.0 * hfScale));
     for (int k = 0; k <= half; ++k)
     {
         const Complex v (std::log (mag[0][(size_t) k] + 1.0e-7f), std::log (mag[1][(size_t) k] + 1.0e-7f));
@@ -530,7 +530,7 @@ void TimeStretcher::formantEnvelopes()
     {
         const int p = k >> 2;
         const auto t = (float) (k & 3) * 0.25f;
-        const auto a = work[(size_t) p], b = work[(size_t) juce::jmin (quarter / 2, p + 1)];
+        const auto a = work[(size_t) p], b = work[(size_t) jmin (quarter / 2, p + 1)];
         envelope[0][(size_t) k] = a.real() + (b.real() - a.real()) * t;
         envelope[1][(size_t) k] = a.imag() + (b.imag() - a.imag()) * t;
     }
