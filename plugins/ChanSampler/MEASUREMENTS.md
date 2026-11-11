@@ -984,15 +984,16 @@ modes the stretcher's read position folds into the loop on every pass, forward a
 
 ## Host features and robustness (tests)
 
-- `ChanSamplerHostTest <Chan Sampler.vst3> nulltest/signals/sine.wav tests/data/state-*.bin` (paths in this folder) (it expects that 2 s
-  sine) hosts the built VST3 through JUCE's VST3 hosting, as a DAW does: 162 automatable parameters, every one of Chan
-  Sampler's (plus JUCE's MIDI-CC pass-through parameters); volume automation mid-note; pitch bend; MIDI CCs 1, 7, 10
-  and 11 leave the sound alone (map them to parameters in the host) and the sustain pedal (CC64) holds note-offs (FL
-  handles the pedal itself); save / reload into a new instance restores every parameter (host and plugin side), the
-  sample and the editor size, and plays bit-identically; host rate changes keep the pitch; offline rendering right
-  after a change or a project load uses the new sample; a stretch mode chosen while playing plays stretched; a project
-  without its sample plays nothing and keeps the path; projects saved by earlier releases load with every setting
-  unchanged. All pass; ctest runs it.
+- `ChanSamplerHostTest` (the suite's `tools/HostTest.cpp`, every instance given the 2 s test sine as its sample) and
+  `ChanSamplerPlayTests` (`tests/ChanSamplerPlayTests.cpp`) host the built VST3 through JUCE's VST3 hosting, as a DAW
+  does: 162 automatable parameters, every one of Chan Sampler's and the host bypass JUCE's wrapper adds (plus JUCE's
+  MIDI-CC pass-through parameters); volume automation mid-note; pitch bend; MIDI CCs 1, 7, 10 and 11 leave the sound
+  alone (map them to parameters in the host) and the sustain pedal (CC64) holds note-offs (FL handles the pedal
+  itself); save / reload into a new instance restores every parameter (host and plugin side), the sample and the
+  editor size, and plays bit-identically; host rate changes keep the pitch; offline rendering right after a change or
+  a project load uses the new sample; a stretch mode chosen while playing plays stretched; a project without its sample
+  plays nothing and keeps the path; projects saved by earlier releases load with every setting unchanged. All pass;
+  ctest runs both.
 - `CsRender statetest <sample>`: in-process round trip of all 160 parameters, sample and window width, bit-identical audio.
 - `nulltest/check_robust.py`: 44.1 / 48 / 96 kHz hosts with stereo float, mono 16-bit, stereo 24-bit and 48 kHz
   files all play at the right pitch and length; a 10-minute file loads and plays in 0.4 s.
