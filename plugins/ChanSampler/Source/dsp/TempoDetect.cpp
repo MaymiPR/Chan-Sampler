@@ -2,6 +2,7 @@
 
 #include "Dsp.h"
 #include "Fft.h"
+#include "Tuning.h"
 
 #include <algorithm>
 #include <cmath>
@@ -18,8 +19,9 @@ namespace
     std::vector<float> onsetStrength (const Buffer& audio, double sampleRate, double& framesPerSecond)
     {
         constexpr int order = 10, size = 1 << order;
-        const int hop = jmax (64, (int) std::round (512.0 * sampleRate / 44100.0));
-        const int frames = jmin (audio.getNumSamples(), (int) (sampleRate * 120.0));   // two minutes are plenty
+        const auto& t = tuning();
+        const int hop = jmax (64, (int) std::round (t.tempoHop * sampleRate / 44100.0));
+        const int frames = jmin (audio.getNumSamples(), (int) (sampleRate * t.tempoMaxSeconds));   // two minutes are plenty
         framesPerSecond = sampleRate / hop;
 
         const Fft fft (order);
@@ -46,7 +48,7 @@ namespace
             float rise = 0;
             for (size_t k = 1; k < previous.size(); ++k)
             {
-                const auto m = std::log1p (100.0f * buffer[k]);
+                const auto m = std::log1p (t.tempoCompression * buffer[k]);
                 rise += jmax (0.0f, m - previous[k]);
                 previous[k] = m;
             }
@@ -93,8 +95,9 @@ namespace
     double score (const std::vector<float>& onsets, double framesPerSecond, double bpm)
     {
         const auto beat = 60.0 / bpm * framesPerSecond;
-        return autocorrelation (onsets, beat) + 0.5 * autocorrelation (onsets, 2.0 * beat) + 0.25 * autocorrelation (onsets, 4.0 * beat)
-             + 0.25 * autocorrelation (onsets, 0.5 * beat);
+        const auto& t = tuning();
+        return autocorrelation (onsets, beat) + t.tempoWeightDouble * autocorrelation (onsets, 2.0 * beat)
+             + t.tempoWeightQuad * autocorrelation (onsets, 4.0 * beat) + t.tempoWeightHalf * autocorrelation (onsets, 0.5 * beat);
     }
 }
 
@@ -109,7 +112,8 @@ double detect (const Buffer& audio, double sampleRate, double lowBpm, double hig
 
     // The best tempo in the range, then refined between its neighbours.
     double best = lowBpm, bestScore = -1.0e9;
-    for (double bpm = lowBpm; bpm <= highBpm + 1.0e-9; bpm += 0.25)
+    const auto& t = tuning();
+    for (double bpm = lowBpm; bpm <= highBpm + 1.0e-9; bpm += t.tempoStep)
         if (const auto s = score (onsets, fps, bpm); s > bestScore)
         {
             bestScore = s;
@@ -140,8 +144,8 @@ double detect (const Buffer& audio, double sampleRate, double lowBpm, double hig
             const auto bpm = n * 60.0 / seconds;
             const auto s = score (onsets, fps, bpm);
             const bool powerOfTwo = n >= 4 && (n & (n - 1)) == 0;
-            const auto weighted = s * (powerOfTwo ? 1.25 : n % 4 == 0 ? 1.1 : 1.0);
-            if (s >= 0.75 * bestScore && weighted > loopScore)
+            const auto weighted = s * (powerOfTwo ? t.tempoPowerOfTwoWeight : n % 4 == 0 ? t.tempoBarWeight : 1.0);
+            if (s >= t.tempoLoopShare * bestScore && weighted > loopScore)
             {
                 loopScore = weighted;
                 loopBest = bpm;

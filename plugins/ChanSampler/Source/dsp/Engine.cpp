@@ -7,8 +7,6 @@ namespace cs::dsp
 
 namespace
 {
-    constexpr int controlBlock = 32;
-
     // FL's song tick in samples, and a song time in ticks (96 per beat:
     // bpm / 60 * 96 = bpm * 1.6 per second).
     double tickSamples (double sampleRate, const EngineParams& p) { return sampleRate * 60.0 / (jmax (1.0, p.bpm) * 96.0); }
@@ -151,8 +149,9 @@ namespace
     // the MIDI velocity (measured), so v = MIDI velocity.
     float velocityGain (float midiVelocity01)
     {
+        const auto& t = tuning();
         const auto v = std::round (midiVelocity01 * 127.0f);
-        return (std::pow (11.0f, v / 100.0f) - 1.0f) / 10.0f;
+        return (std::pow (t.velocityBase, v / t.velocityUnity) - 1.0f) / (t.velocityBase - 1.0f);
     }
 
     // Echo Mod X / Y (measured in FL): echo k shifts the value by
@@ -210,16 +209,18 @@ Engine::DeclickSpec Engine::declickSpec (DeclickMode m)
     // applies at the sample end (holding the last value) and when a note is
     // cut. Transient (no bleeding)'s out-fade and both Crossfade fades have
     // their own measured shapes (DeclickCurves.h); their times here are unused.
+    const auto& in = tuning().declickInMs;
+    const auto& out = tuning().declickOutMs;
     switch (m)
     {
-        case DeclickMode::outOnly:        return { 0,   false, 10,  false };
-        case DeclickMode::transient:      return { 4,   true,  10,  false };
-        case DeclickMode::transientBleed: return { 4,   true,  20,  true  };
-        case DeclickMode::generic:        return { 20,  false, 20,  true  };
-        case DeclickMode::smooth:         return { 100, false, 100, true  };
-        case DeclickMode::crossfade:      return { 200, false, 200, true  };
+        case DeclickMode::outOnly:        return { in[0], false, out[0], false };
+        case DeclickMode::transient:      return { in[1], true,  out[1], false };
+        case DeclickMode::transientBleed: return { in[2], true,  out[2], true  };
+        case DeclickMode::generic:        return { in[3], false, out[3], true  };
+        case DeclickMode::smooth:         return { in[4], false, out[4], true  };
+        case DeclickMode::crossfade:      return { in[5], false, out[5], true  };
     }
-    return { 0, false, 10, false };
+    return { in[0], false, out[0], false };
 }
 
 void Engine::prepare (double newSampleRate)
@@ -633,7 +634,7 @@ void Engine::playNoteOn (int64_t time, int note, float velocity, NoteMods mods, 
     // 2 G / (3 count + 2) and the original 1.5 - count * that; pan only lowers
     // an echo's level on both sides, by cos (pi/4 min (1, k |pan|)), and ping
     // pong does nothing.
-    const auto feedGain = 2.0f * p.echoFeed;
+    const auto feedGain = tuning().echoFeedScale * p.echoFeed;
     const auto fatGain = 2.0f * feedGain / (3.0f * (float) p.echoCount + 2.0f);
     const auto echoBase = mods;
     if (p.echoFat)
@@ -654,7 +655,7 @@ void Engine::playNoteOn (int64_t time, int note, float velocity, NoteMods mods, 
         else
         {
             e.gain = std::pow (feedGain, (float) k);
-            if (e.gain < 1.0e-3f)
+            if (e.gain < tuning().echoMinGain)
                 break;
             if (p.echoPing)   // bounce between hard left and right
             {
@@ -797,7 +798,7 @@ void Engine::noteOn (int note, float velocity, NoteMods mods, const SampleData& 
 
     v = Voice();
     v.filter.startCompensation ((int) std::lround (tickSamples (sampleRate, p)),   // LPx2 (measured)
-                                tickSeconds (p.bpm) / Envelope::fullRangeSeconds);
+                                tickSeconds (p.bpm) / Envelope::fullRangeSeconds());
     v.active = true;
     v.note = note;
     v.velocity = velocity;
@@ -839,7 +840,7 @@ void Engine::noteOn (int note, float velocity, NoteMods mods, const SampleData& 
     // the LFO and the envelope); the envelope starts that much early (less
     // 13 samples, as it is applied per control block).
     if (p.pitchT.envOn)
-        v.env[4].advance (p.pitchT.env, (float) jmax (0.0, 0.5 * tickSeconds (p.bpm) - 13.0 / sampleRate));
+        v.env[4].advance (p.pitchT.env, (float) jmax (0.0, 0.5 * tickSeconds (p.bpm) - tuning().pitchEnvLeadSamples / sampleRate));
 
     // FL only fades in when playback starts after the first frame. The
     // Transient modes keep the attack and only remove the step: they subtract
@@ -847,8 +848,8 @@ void Engine::noteOn (int note, float velocity, NoteMods mods, const SampleData& 
     v.fadeInLinear = spec.transientIn;
     v.fadeInCrossfade = p.declick == DeclickMode::crossfade;
     v.fadeInLen = v.pos <= 0.0 ? 0
-                : spec.transientIn ? (int) std::round (175.0 * sampleRate / 44100.0)
-                : v.fadeInCrossfade ? (int) std::round (declick::crossfadeInLength * sampleRate / 44100.0)
+                : spec.transientIn ? (int) std::round (tuning().transientInSamples * sampleRate / 44100.0)
+                : v.fadeInCrossfade ? (int) std::round (declick::crossfadeInLength() * sampleRate / 44100.0)
                                     : (int) std::round (spec.inMs * 0.001 * sampleRate);
     if (mods.echo == 0)
         lastNote = (float) note;
@@ -972,8 +973,8 @@ void Engine::startKill (Voice& v, const EngineParams& p)
     v.killShape = p.declick == DeclickMode::transient ? KillShape::transient
                 : p.declick == DeclickMode::crossfade ? KillShape::crossfade
                                                       : KillShape::cosine;
-    v.killLen = v.killShape == KillShape::transient ? (int) std::round (declick::transientOutLength * sampleRate / 44100.0)
-              : v.killShape == KillShape::crossfade ? (int) std::round (declick::crossfadeOutLength * sampleRate / 44100.0)
+    v.killLen = v.killShape == KillShape::transient ? (int) std::round (declick::transientOutLength() * sampleRate / 44100.0)
+              : v.killShape == KillShape::crossfade ? (int) std::round (declick::crossfadeOutLength() * sampleRate / 44100.0)
                                                     : (int) std::round (declickSpec (p.declick).outMs * 0.001 * sampleRate);
     if (v.killLen <= 0)
         v.active = false;
@@ -1113,7 +1114,11 @@ void Engine::updateControls (Voice& v, int numSamples, const SampleData& s, cons
     // through the velocity-to-gain curve, the middle value through
     // (6.5^(m/100) - 1) / 5.5 with m = 0..128, scaled so a middle value of 128
     // is 1; a key knob at 50% moves 0.5 per octave.
-    auto midCurve = [] (float m) { return (std::pow (6.5f, m / 100.0f) - 1.0f) / 5.5f; };
+    auto midCurve = [] (float m)
+    {
+        const auto& t = tuning();
+        return (std::pow (t.velocityMidBase, m / t.velocityUnity) - 1.0f) / (t.velocityMidBase - 1.0f);
+    };
     const auto dv = 2.0f * (velocityGain (v.velocity) - midCurve (p.velMid * 128.0f)) / midCurve (128.0f);
     const auto dk = ((float) v.note - (float) p.keyMid) / 12.0f;
 
@@ -1124,7 +1129,8 @@ void Engine::updateControls (Voice& v, int numSamples, const SampleData& s, cons
                      // -128..128 (measured: full amount = +/-128 cents).
                      + (p.pitchT.envAmt * env[4]
                         + (pitchLfoPerSample (p) ? 0.0f : Lfo::at (p.pitchT.lfo, v.lfo[4].getTime() + 0.5 * tickSeconds (p.bpm), p.bpm,
-                                                                      v.songLfoStart + (double) numSamples / sampleRate + 0.5 * tickSeconds (p.bpm)))) * 1.28f;
+                                                                      v.songLfoStart + (double) numSamples / sampleRate + 0.5 * tickSeconds (p.bpm))))
+                       * (float) tuning().pitchModSemitones;
     v.increment = (s.sourceRate / sampleRate) * std::pow (2.0, semis / 12.0);
 
     // Time stretching: target duration from TIME (beats) or the sample's own
@@ -1195,6 +1201,7 @@ void Engine::renderRange (float* const* out, int numChannels, int start, int num
     auto* outL = out[0];
     auto* outR = numChannels > 1 ? out[1] : nullptr;
     const auto& interp = interpolator();
+    const int controlBlock = tuning().controlBlockSamples;
 
     for (auto& v : voices)
     {
@@ -1243,9 +1250,10 @@ void Engine::renderRange (float* const* out, int numChannels, int start, int num
                 auto incNow = v.increment, rateNow = v.timeRate;
                 if (pitchLfoPerSample (p))
                 {
-                    const auto lead = 0.5 * tickSeconds (p.bpm) - 2.5 / sampleRate;
+                    const auto lead = 0.5 * tickSeconds (p.bpm) - tuning().pitchLfoLeadSamples / sampleRate;
                     v.pitchMul = std::exp2 ((double) Lfo::at (p.pitchT.lfo, v.volLfoStart + (double) (base + i) / sampleRate + lead, p.bpm,
-                                                                          v.songLfoStart + (double) (base + i) / sampleRate + lead) * 1.28 / 12.0);
+                                                                          v.songLfoStart + (double) (base + i) / sampleRate + lead)
+                                           * tuning().pitchModSemitones / 12.0);
                     incNow *= v.pitchMul;
                     rateNow *= v.pitchMul;
                 }
@@ -1336,13 +1344,13 @@ void Engine::renderRange (float* const* out, int numChannels, int start, int num
                     // half speed): the high-pass, silent at its end.
                     auto fade = [&] (double x, float& low, float& value)
                     {
-                        if (x >= declick::transientOutLength)
+                        if (x >= declick::transientOutLength())
                         {
                             value = 0.0f;
                         }
                         else if (x > 0.0)
                         {
-                            low += declick::transientCoefficient (x - declick::sliceOutSpeed * toRate, x) * (value - low);
+                            low += declick::transientCoefficient (x - declick::sliceOutSpeed() * toRate, x) * (value - low);
                             value -= low;
                         }
                     };
@@ -1362,9 +1370,9 @@ void Engine::renderRange (float* const* out, int numChannels, int start, int num
                             auto left = (nextOnset - v.slicePos) / v.increment;
                             if (! looping && ! v.holding && rateNow > 0.0)
                                 left = jmin (left, (endLimit - v.pos) / rateNow);
-                            auto x = (declick::sliceOutLead - left * toRate) * declick::sliceOutSpeed;
+                            auto x = (declick::sliceOutLead() - left * toRate) * declick::sliceOutSpeed();
                             if (rateNow > 0.0 && v.onsetIdx < (int) s.onsets.size())
-                                x = jmax (x, (declick::sliceCutLead - (nextOnset - v.pos) / rateNow * toRate) * declick::sliceOutSpeed);
+                                x = jmax (x, (declick::sliceCutLead() - (nextOnset - v.pos) / rateNow * toRate) * declick::sliceOutSpeed());
                             fade (x, v.sliceLowL, l);
                             fade (x, v.sliceLowR, r);
                             v.sliceFade = x;
@@ -1375,13 +1383,13 @@ void Engine::renderRange (float* const* out, int numChannels, int start, int num
                     {
                         float tl, tr;
                         interp.read (srcL, srcR, v.tailPos, v.increment, at, tl, tr, atIsIndexBelow);
-                        v.tailFade += declick::sliceOutSpeed * toRate;
+                        v.tailFade += declick::sliceOutSpeed() * toRate;
                         fade (v.tailFade, v.tailLowL, tl);
                         fade (v.tailFade, v.tailLowR, tr);
                         l += tl;
                         r += tr;
                         v.tailPos += v.increment;
-                        if (v.tailFade >= declick::transientOutLength || v.tailPos >= v.tailEnd)
+                        if (v.tailFade >= declick::transientOutLength() || v.tailPos >= v.tailEnd)
                             v.tailPos = -1;
                     }
                     v.lastL = l;
@@ -1500,7 +1508,7 @@ void Engine::renderRange (float* const* out, int numChannels, int start, int num
                     const auto onset = (double) s.onsets[(size_t) v.onsetIdx++];
                     if (sliceMap)
                     {
-                        if (v.slicePos >= 0.0 && v.slicePos < onset && v.sliceFade > 0.0 && v.sliceFade < declick::transientOutLength)
+                        if (v.slicePos >= 0.0 && v.slicePos < onset && v.sliceFade > 0.0 && v.sliceFade < declick::transientOutLength())
                         {
                             // Cut while fading: it fades out under the new slice.
                             v.tailPos = v.slicePos;

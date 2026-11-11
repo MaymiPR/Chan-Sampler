@@ -1,6 +1,7 @@
 #include "SampleData.h"
 #include "TrimTail.h"
 #include "Dsp.h"
+#include "Tuning.h"
 
 #include <algorithm>
 #include <cmath>
@@ -23,9 +24,9 @@ namespace
     // w a 9-term cosine series (close to Hann). Matches FL to 1 LSB.
     Buffer convertRate (const Buffer& in, double fromRate, double toRate)
     {
-        static constexpr double a[] = { 0.498387586, 0.490065433, 0.009996963, 0.002969411, -0.002640382,
-                                        0.002159460, -0.001503978, 0.000750707, -0.000168888 };
-        constexpr int half = 44, steps = 1024;
+        const auto& a = tuning().srcWindow;
+        const int half = tuning().srcHalfTaps;
+        constexpr int steps = 1024;
         const double ratio = fromRate / toRate;
         const double c = jmin (1.0, 1.0 / ratio);
 
@@ -74,7 +75,7 @@ namespace
     void boost (Buffer& b, float knob, bool clip)
     {
         if (knob > 0.0f)
-            b.applyGain (1.0f + 16.0f * knob);
+            b.applyGain (1.0f + tuning().boostGain * knob);
         if (clip)
             for (int ch = 0; ch < b.getNumChannels(); ++ch)
                 {
@@ -89,7 +90,7 @@ namespace
     {
         if (std::abs (amount) < 1.0e-6f)
             return;
-        const auto k = 0.75 * (double) amount;
+        const auto k = tuning().tiltEqFeedback * (double) amount;
         for (int ch = 0; ch < b.getNumChannels(); ++ch)
         {
             auto* d = b.getWritePointer (ch);
@@ -107,7 +108,7 @@ namespace
     {
         if (mix <= 0.0f)
             return;
-        const auto inc = MathConstants<double>::twoPi * (256.0 * freqKnob + 8.0) / 5760.0;
+        const auto inc = MathConstants<double>::twoPi * (256.0 * freqKnob + tuning().ringModOffset) / tuning().ringModDivisor;
         for (int ch = 0; ch < b.getNumChannels(); ++ch)
         {
             auto* d = b.getWritePointer (ch);
@@ -162,16 +163,15 @@ namespace
         if (mix <= 0.0f)
             return;
 
-        static constexpr int combsA[] = { 1777, 1847, 1993, 2137 };
-        static constexpr int combsB[] = { 2467, 2767, 3217, 3533, 3877, 4127 };
+        const auto& t = tuning();
         const bool isA = type == 0;
-        const int* combs = isA ? combsA : combsB;
+        const int* combs = isA ? t.reverbCombsA : t.reverbCombsB;
         const int numCombs = isA ? 4 : 6;
-        const double combGain = isA ? 0.15 : 0.16201 / 6.0;
+        const double combGain = isA ? t.reverbCombGainA : t.reverbCombGainB;
         const double t60 = mix / 256.0 * 44100.0;                  // in samples
 
         const int n = b.getNumSamples();
-        const int tail = (int) jmin (20.0 * 44100.0, t60 + 8000.0);
+        const int tail = (int) jmin (t.reverbMaxTailSeconds * 44100.0, t60 + t.reverbTailSamples);
         const int total = n + tail;
         b.setSize (2, total, true);
 
@@ -195,8 +195,9 @@ namespace
                 }
             }
 
-            const int apA[] = { 43, 127, 389 };
-            const int apB[] = { 67, ch == 0 ? 97 : 79, 101, 197, 599 };
+            const int* apA = t.reverbAllpassA;
+            const int apB[] = { t.reverbAllpassB[0], ch == 0 ? t.reverbAllpassB[1] : t.reverbAllpassBRight, t.reverbAllpassB[2],
+                                t.reverbAllpassB[3], t.reverbAllpassB[4] };
             const int* aps = isA ? apA : apB;
             for (int k = 0; k < (isA ? 3 : 5); ++k)
             {
@@ -206,7 +207,7 @@ namespace
                 {
                     const auto xd = i >= D ? acc[(size_t) (i - D)] : 0.0;
                     const auto yd = i >= D ? line[(size_t) (i - D)] : 0.0;
-                    line[(size_t) i] = -0.7 * acc[(size_t) i] + xd + 0.7 * yd;
+                    line[(size_t) i] = -t.reverbAllpassGain * acc[(size_t) i] + xd + t.reverbAllpassGain * yd;
                 }
                 std::swap (acc, line);
             }
@@ -218,13 +219,13 @@ namespace
                 if (isA)
                     wet = 0.5 * acc[(size_t) i] + (i >= 1 ? acc[(size_t) (i - 1)] : 0.0) + (i >= 2 ? 0.5 * acc[(size_t) (i - 2)] : 0.0);
                 else
-                    wet = y1 = acc[(size_t) i] + 0.7 * y1;
-                d[i] = (float) (0.7 * in[(size_t) i] + wet);
+                    wet = y1 = acc[(size_t) i] + t.reverbPoleB * y1;
+                d[i] = (float) (t.reverbDry * in[(size_t) i] + wet);
             }
         }
 
         // Trim trailing near-silence (measured: 65/32768 kept, 64.02/32768 cut).
-        constexpr float threshold = 0.00197f;
+        const float threshold = t.reverbTrimLevel;
         int last = total - 1;
         while (last > 0 && std::abs (b.getSample (0, last)) < threshold && std::abs (b.getSample (1, last)) < threshold)
             --last;
@@ -302,8 +303,9 @@ namespace
         for (int i = 0; i < n; ++i)
         {
             const auto x = (float) i / (float) n;
-            const auto g = jlimit (0.0f, 1.0f, 1.0f - (1.0f - x) * 4.0f * fadeIn)
-                         * jlimit (0.0f, 1.0f, 1.0f - x * 4.0f * fadeOut);
+            const auto slope = tuning().fadeSlope;
+            const auto g = jlimit (0.0f, 1.0f, 1.0f - (1.0f - x) * slope * fadeIn)
+                         * jlimit (0.0f, 1.0f, 1.0f - x * slope * fadeOut);
             b.getWritePointer (0)[i] *= g;
             b.getWritePointer (1)[i] *= g;
         }
@@ -338,7 +340,7 @@ namespace
             // the (inclusive) END; it blends in the audio from START, and the
             // loop then restarts that far after START (each pass is shorter).
             le = jmin (n, le + 1);
-            len = jmin ((int) (s.crossfade / 4.0 * n), le - ls - 2);
+            len = jmin ((int) (s.crossfade / tuning().crossfadeLoopShare * n), le - ls - 2);
             if (len < 1)
                 return;
             out.loopStartShift = len;
@@ -346,7 +348,7 @@ namespace
         }
         else
         {
-            ls = jmax (1, (int) (s.crossfade / 2.0 * n));   // FL truncates
+            ls = jmax (1, (int) (s.crossfade / tuning().crossfadeAutoShare * n));   // FL truncates
             le = n;
             len = ls;
             out.autoLoop = true;
@@ -393,7 +395,8 @@ namespace
     // nulltest/measure_slice_starts.py).
     std::vector<int> detectOnsets (const Buffer& b)
     {
-        constexpr int block = 128;
+        const auto& t = tuning();
+        const int block = t.onsetBlock;
         std::vector<int> onsets { 0 };
         const int n = b.getNumSamples();
         const auto* l = b.getReadPointer (0);
@@ -412,7 +415,7 @@ namespace
         for (size_t i = 4; i < e.size(); ++i)
         {
             const double before = 0.25 * (e[i - 1] + e[i - 2] + e[i - 3] + e[i - 4]);
-            if (e[i] <= 8.0 * before + 1.0e-4 * block || e[i] <= peak * 0.01)
+            if (e[i] <= t.onsetRatio * before + t.onsetFloor * block || e[i] <= peak * t.onsetPeakShare)
                 continue;
             // The hit's own peak, the level before it, and the first sample
             // clearly above that.
@@ -420,9 +423,9 @@ namespace
             float hit = 0.0f, floor = 0.0f;
             for (int k = from; k < to; ++k)
                 hit = jmax (hit, level (k));
-            for (int k = jmax (0, from - 8 * block); k < from; ++k)
+            for (int k = jmax (0, from - t.onsetLookBackBlocks * block); k < from; ++k)
                 floor = jmax (floor, level (k));
-            const float threshold = jmax (floor, 0.03f * hit);
+            const float threshold = jmax (floor, t.onsetHitShare * hit);
             int pos = (int) i * block;
             for (int k = from; k < to; ++k)
                 if (level (k) > threshold) { pos = k; break; }
@@ -431,7 +434,7 @@ namespace
             auto crosses = [&] (const float* x, int k) { return x[k - 1] * x[k] < 0.0f; };
             while (pos > 0 && (l[pos] != 0.0f || r[pos] != 0.0f) && ! crosses (l, pos) && ! crosses (r, pos))
                 --pos;
-            if (pos - onsets.back() >= 2048)
+            if (pos - onsets.back() >= t.onsetMinSpacing)
                 onsets.push_back (pos);
         }
         return onsets;
@@ -549,7 +552,7 @@ SampleData::Ptr buildProcessedSample (const SampleSource& raw, const PrecomputeS
     const auto startPos = trimKnobToFraction (s.start) * (converted - 1);
     int start = jlimit (0, converted - 1, (int) std::floor (startPos + 0.5));
     int remaining = converted - jlimit (0, converted - 1, (int) std::ceil (startPos - 0.5));
-    constexpr int minLength = 40;
+    const int minLength = tuning().trimMinFrames;
     // Length: the fraction of the span from the exact start position to the
     // last frame, rounded half to even, one frame more reversed (fitted to
     // FL's end in 85 forward and 15 reversed in-FL trims of noise, all exact).
@@ -562,7 +565,7 @@ SampleData::Ptr buildProcessedSample (const SampleSource& raw, const PrecomputeS
     // about 40); within that much of the end of the sample it grows backwards,
     // starting earlier (nulltest/cases_trim_short.py).
     // LENGTH 0 keeps its own measured shape (the shortest segment, below).
-    constexpr int shortest = minLength + 1;
+    const int shortest = minLength + 1;
     if (lengthCut && span < shortest)
     {
         if (start >= converted - 1 - (shortest + 1))

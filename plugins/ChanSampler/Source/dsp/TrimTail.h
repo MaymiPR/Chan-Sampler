@@ -2,6 +2,8 @@
 
 #include <cmath>
 
+#include "Tuning.h"
+
 namespace cs::dsp
 {
 
@@ -1089,14 +1091,13 @@ namespace trimtail
 // The values are ours, at 44.1 kHz.
 namespace trimtail
 {
-    constexpr int window = 178;           // frames, the longest (the long table's reach)
-    constexpr double sweepStart = 5.01e-5;
-    constexpr double sweepRate = 9.87, sweepOffset = 1.3;
-    constexpr int closing = 44;            // frames
-
-    // Filters frames [0, end) of d in place; the window ends at end.
+    // Filters frames [0, end) of d in place; the window ends at end. The window (frames, the longest: the long
+    // table's reach), the sweep and the closing fade (frames) are Tuning's trimTail*.
     inline void applyEnd (float* d, int end)
     {
+        const auto& tn = tuning();
+        const int window = tn.trimTailWindow, closing = tn.trimTailClosing;
+        const double sweepStart = tn.trimTailSweepStart, sweepRate = tn.trimTailSweepRate, sweepOffset = tn.trimTailSweepOffset;
         const int w = end < window ? end : window;
         if (w <= 0)
             return;

@@ -4,6 +4,7 @@
 #include "History.h"
 #include "dsp/Chords.h"
 #include "dsp/Dsp.h"
+#include "dsp/Tuning.h"
 
 // Host parameters as FL Studio's Sampler shows them (MEASUREMENTS.md): ids, names, ranges, defaults, display text and
 // typed-value parsers. The ids are ours and never change once released (saved projects find parameters by them).
@@ -920,7 +921,8 @@ inline juce::AudioProcessorValueTreeState::ParameterLayout createLayout (const s
                     [] (const juce::String& t)
                     {
                         const auto ticks = juce::jmax (0.0, parseStepsTicks (t)) * 24.0 + 1.0;
-                        return (float) juce::jlimit (0.0, 1.0, std::log ((ticks + 0.15) / 0.92049) / std::log (209.414));
+                        const auto& law = dsp::tuning();   // the inverse of dsp::flSlideTicks
+                        return (float) juce::jlimit (0.0, 1.0, std::log ((ticks + law.slideTicksC) / law.slideTicksA) / std::log (law.slideTicksBase));
                     }));
     addBool  (l, id::cutItself, "Cut itself", false);
     // Group (FL's Cut / By), shared between Chan Sampler instances (CutGroups.h); 0 = none ("--").

@@ -9,6 +9,8 @@
 #include <cstdint>
 #include <cstring>
 
+#include "Tuning.h"
+
 namespace cs::dsp
 {
 
@@ -159,7 +161,8 @@ namespace cs::dsp
             double tick = tickSeconds (130.0);                                               // song tick, seconds
         };
 
-        static constexpr double fullRangeSeconds = 389.5 / 44100.0;   // the fastest move, 0 to 1
+        // the fastest move, 0 to 1
+        static double fullRangeSeconds() { return tuning().envFullRangeSamples / 44100.0; }
 
         void noteOn()  { stage = Stage::delay; ticks = 0; phase = 0; from = to = out = 0; segment = 0; pending = true; releaseNext = false; ended = false; }
         bool isIdle() const noexcept     { return stage == Stage::idle && ! pending && from == 0.0f && to == 0.0f; }
@@ -234,7 +237,7 @@ namespace cs::dsp
 
         static float limit (const Params& p, float now, float target)
         {
-            const auto step = (float) (p.tick / fullRangeSeconds);
+            const auto step = (float) (p.tick / fullRangeSeconds());
             return now + jlimit (-step, step, target - now);
         }
 
@@ -363,7 +366,7 @@ namespace cs::dsp
             const auto tick = tickSeconds (bpm);
             const auto ref = p.tempo ? 120.0 : jmax (1.0, bpm);
             Timing t;
-            t.period = jmax (3.0, std::round (p.periodT130 * ref / 130.0));
+            t.period = jmax (tuning().lfoMinPeriodTicks, std::round (p.periodT130 * ref / 130.0));
             t.delay = jmax (0.0, std::round (p.delayT130 * ref / 130.0));
             t.attackTicks = (p.tempo ? p.attack * 120.0 / jmax (1.0, bpm) : (double) p.attack) / tick;
             // Global: knots on the song's ticks, the phase from the song start;
@@ -412,7 +415,8 @@ namespace cs::dsp
                     const auto since = std::fmod (t, period * 0.5);
                     const auto progress = t < period * 0.5 ? 1.0
                                         : since >= 4.0 ? 1.0
-                                        : since <= 3.0 ? 0.27205 * since : 0.81615 + 0.18385 * (since - 3.0);
+                                        : since <= 3.0 ? tuning().lfoEdgeStep * since
+                                                       : tuning().lfoEdgeAtThree + tuning().lfoEdgeLast * (since - 3.0);
                     const auto target = high ? 1.0f : -1.0f;
                     wave = -target + 2.0f * target * (float) progress;
                     break;
@@ -466,6 +470,7 @@ namespace cs::dsp
             const bool biquad = t != FilterType::fastLP && t != FilterType::svfLP && t != FilterType::svfLPx2;
             u = jlimit (0.0, biquad ? 2.0 : 1.0, u);
             res = jlimit (0.0, 1.0, res);
+            const auto& tn = tuning();
             switch (type)
             {
                 case FilterType::fastLP:
@@ -474,13 +479,13 @@ namespace cs::dsp
                     break;
                 case FilterType::svfLP:
                 case FilterType::svfLPx2:
-                    f = (std::pow (26.0, u) - 1.0) / 25.0;
-                    q = 1.0 - 0.8 * res;
-                    q2 = 1.0 - 0.6 * res;   // SVF LPx2's second stage (measured: q1 1 - 0.8 res, q2 1 - 0.6 res)
+                    f = (std::pow (tn.svfBase, u) - 1.0) / (tn.svfBase - 1.0);
+                    q = 1.0 - tn.svfDamping * res;
+                    q2 = 1.0 - tn.svfDamping2 * res;   // SVF LPx2's second stage (measured: q1 1 - 0.8 res, q2 1 - 0.6 res)
                     break;
                 default:
                 {
-                    const auto w = jmin (3.0, MathConstants<double>::twoPi * flBiquadF0 (u) / sampleRate);   // FL caps at 3.0 rad (measured)
+                    const auto w = jmin (tn.biquadMaxRadians, MathConstants<double>::twoPi * flBiquadF0 (u) / sampleRate);   // FL caps at 3.0 rad (measured)
                     const auto Q = flBiquadQ (res);
                     comp = type == FilterType::lpx2 ? flLpx2Gain (u, res) : 1.0;
                     const auto alpha = std::sin (w) / (2.0 * Q), c = std::cos (w), a0 = 1.0 + alpha;

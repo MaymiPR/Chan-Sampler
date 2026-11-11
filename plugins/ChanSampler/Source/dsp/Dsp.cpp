@@ -23,25 +23,23 @@ namespace
 double flOnePoleF (double u)
 {
     // Below Mod X 1/64 FL goes linearly to 0 (silence at 0, measured).
-    constexpr double knee = 1.0 / 64.0;
-    const auto atKnee = (std::pow (601.0, knee) - 1.0) / 600.0;
+    const auto& t = tuning();
+    const double knee = t.onePoleKnee;
+    const auto atKnee = (std::pow (t.onePoleBase, knee) - 1.0) / (t.onePoleBase - 1.0);
     if (u < knee)
         return jmax (0.0, u) / knee * atKnee;
-    return (std::pow (601.0, jmin (1.0, u)) - 1.0) / 600.0;
+    return (std::pow (t.onePoleBase, jmin (1.0, u)) - 1.0) / (t.onePoleBase - 1.0);
 }
 
 double flResonance (double res)
 {
     // r measured in FL at raw resonance 0, 32, ..., 640 (cutoff open: y = x + r (y1 - y2),
     // measurements/ChanSampler/res_r.npy), interpolated cubically in log (1 - r). Mod Y maps 0..256 onto it.
-    static const double rv[] = { 0.0, 0.1815353218, 0.3301693593, 0.4518676647, 0.5515086796, 0.6330945280,
-                                 0.6998893266, 0.7545816900, 0.7993627980, 0.8360268703, 0.8660461431,
-                                 0.8906255328, 0.9107490105, 0.9272267638, 0.9407179614, 0.9517637502,
-                                 0.9608078304, 0.9682128425, 0.9742758112, 0.9792400659, 0.9833044645 };
+    const auto& rv = tuning().resonanceTable;
     const auto x = jlimit (0.0, 20.0, res * 20.0);   // in units of 32 raw
     if (x <= 0.0)
         return 0.0;
-    auto L = [] (int k) { return std::log (1.0 - rv[k]); };
+    auto L = [&rv] (int k) { return std::log (1.0 - rv[k]); };
     if (x < 1.0)   // first segment: log (1 - r) is linear from 0
         return 1.0 - std::exp (L (1) * x);
     const int i = jlimit (1, 18, (int) x);
@@ -65,11 +63,10 @@ double flBiquadF0 (double u)
     // agrees with the earlier static points). Above that FL keeps rising
     // exponentially, past the knob's end under modulation, until the 3.0 rad
     // cap in VoiceFilter::setup (21056 Hz at 44.1 kHz, reached at Mod X 100%).
-    static const double mx[] = { 8, 16, 24, 32, 40, 48, 56, 64, 72, 80, 88, 96, 104, 112, 120, 128, 136, 144, 152, 160, 168, 176, 184, 192, 200, 208, 216, 224, 232, 240 };
-    static const double hz[] = { 202.3, 260.4, 328.2, 406.2, 495.2, 596.3, 710.8, 840.3, 986.5, 1151.6, 1338.3, 1549.4, 1788.1, 2058.1, 2363.6, 2709.2, 3100.0, 3542.0, 4041.8, 4606.6, 5245.0, 5966.5, 6782.1, 7704.2, 8747.1, 9927.0, 11262.1, 12772.8, 14481.6, 16412.3 };
+    const auto& t = tuning();
     if (u > 240.0 / 256.0)
-        return 16412.3 * std::exp (3.99 * (u - 240.0 / 256.0));
-    return interpolateLog (mx, hz, u * 256.0);
+        return t.biquadF0Hz[29] * std::exp (t.biquadF0Rise * (u - 240.0 / 256.0));
+    return interpolateLog (t.biquadF0Knots, t.biquadF0Hz, u * 256.0);
 }
 
 double flLpx2Gain (double u, double res)
@@ -81,16 +78,15 @@ double flLpx2Gain (double u, double res)
     // 1 - Q (a - w) b, with a and b fitted to the 8 x 8 compensation measured on
     // noise against FL at Mod X 32..256 x Mod Y 0..256 (within 0.001 of every
     // measured value; w in radians per sample at 44.1 kHz, capped as the filter).
-    const auto w = jmin (3.0, MathConstants<double>::twoPi * flBiquadF0 (u) / 44100.0);
-    return 1.0 - flBiquadQ (res) * (3.19702 - w) * 0.046912;
+    const auto& t = tuning();
+    const auto w = jmin (t.biquadMaxRadians, MathConstants<double>::twoPi * flBiquadF0 (u) / 44100.0);
+    return 1.0 - flBiquadQ (res) * (t.lpx2CompA - w) * t.lpx2CompB;
 }
 
 double flBiquadQ (double res)
 {
     // Q at Mod Y raw 0, 8, ..., 224 (traced with a Mod Y LFO, l_mody_t1), 256 (static).
-    static const double my[] = { 0, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80, 88, 96, 104, 112, 120, 128, 136, 144, 152, 160, 168, 176, 184, 192, 200, 208, 216, 224, 256 };
-    static const double qs[] = { 0.1000, 0.1319, 0.1660, 0.2035, 0.2440, 0.2876, 0.3345, 0.3850, 0.4393, 0.4980, 0.5615, 0.6302, 0.7046, 0.7851, 0.8722, 0.9662, 1.0676, 1.1769, 1.2946, 1.4213, 1.5580, 1.7056, 1.8651, 2.0380, 2.2253, 2.4283, 2.6475, 2.8827, 3.1322, 4.3697 };
-    return interpolateLog (my, qs, res * 256.0);
+    return interpolateLog (tuning().biquadQKnots, tuning().biquadQ, res * 256.0);
 }
 
 // FL's knob laws (moved here from the parameter layer: the DSP reads them).
@@ -114,7 +110,7 @@ float flEnvKnobForSeconds (float seconds)
 // where the earlier fit was a tick out, measure_arp_period.py).
 double flArpTicksForRaw (double raw)
 {
-    const auto halfTicks = std::nearbyint (1.84558 * (std::pow (24.99798, raw / 1000.0) - 1.0));
+    const auto halfTicks = std::nearbyint (tuning().arpTicksA * (std::pow (tuning().arpTicksBase, raw / 1000.0) - 1.0));
     return jmax (1.0, std::floor (halfTicks / 2.0));
 }
 static double arpRawFromKnob (float knob) { return std::round (450.0 + 997.0 * (double) jlimit (0.0f, 1.0f, knob)); }
@@ -127,18 +123,16 @@ float flEnvSeconds (float knob)
     // pin it down. Between the points the time follows log (t - c) linearly,
     // c from the fit t = 0.0646133 e^(6.8996 p) - 0.0636541 (p = knob), which
     // also gives the times below raw 1000.
-    static const float raws[] = { 1000, 1500, 2500, 5000, 7500, 10000, 12500, 15000, 17500, 20000, 22500, 25000, 27500, 30000,
-                                  32500, 35000, 37500, 40000, 42500, 45000, 47500, 50000, 52500, 55000, 57500, 60000, 62500, 65536 };
-    static const float ms[] = { 7.812f, 11.088f, 19.085f, 44.334f, 76.798f, 119.861f, 175.285f, 247.253f, 341.0f, 463.086f, 622.265f,
-                                828.828f, 1098.203f, 1448.203f, 1904.46f, 2498.024f, 3270.312f, 4276.015f, 5584.774f, 7288.515f,
-                                9504.701f, 12391.015f, 16148.047f, 21036.328f, 27396.947f, 35677.991f, 46458.69f, 63999.14f };
-    constexpr double c = -63.6541;   // ms
+    const auto& tn = tuning();
+    const auto& raws = tn.envTimeKnots;
+    const auto& ms = tn.envTimeMs;
+    const double c = tn.envTimeOffsetMs;   // ms
     // Measured: the knob's minimum (raw 100) is no time at all.
     if (knob <= 0.0f)
         return 0.0f;
     const auto raw = jlimit (100.0f, 65536.0f, 100.0f + knob * 65436.0f);
     if (raw < raws[0])
-        return (float) jmax (0.0, 0.0646133 * std::exp (6.8996 * (double) knob) - 0.0636541);
+        return (float) jmax (0.0, tn.envTimeLowA * std::exp (tn.envTimeLowB * (double) knob) - tn.envTimeLowC);
     int i = 0;
     while (i < 26 && raw > raws[i + 1])
         ++i;
@@ -149,14 +143,16 @@ float flEnvSeconds (float knob)
 
 double flLfoPeriodT130 (float speedKnob)
 {
-    return 13.5755 * std::pow (982.5, (double) jlimit (0.0f, 1.0f, speedKnob)) - 13.2745;
+    const auto& t = tuning();
+    return t.lfoPeriodA * std::pow (t.lfoPeriodBase, (double) jlimit (0.0f, 1.0f, speedKnob)) - t.lfoPeriodC;
 }
 
 double flLfoDelayT130 (float delayKnob)
 {
     // The speed law on the predelay's raw value (100 .. 65536).
     const auto raw = 100.0 + jlimit (0.0f, 1.0f, delayKnob) * 65436.0;
-    return jmax (0.0, 13.5755 * std::pow (982.5, (raw - 200.0) / 65336.0) - 13.2745);
+    const auto& t = tuning();
+    return jmax (0.0, t.lfoPeriodA * std::pow (t.lfoPeriodBase, (raw - 200.0) / 65336.0) - t.lfoPeriodC);
 }
 
 int flSlideTicks (float knob)
@@ -165,7 +161,8 @@ int flSlideTicks (float knob)
     // (nulltest/cases_untested.py): raw 0 -> 1, 500 -> 4, 820 -> 13,
     // 1000 -> 23, 1660 -> 193 (raw = knob * 1660). FL shows one tick less.
     const auto raw = jlimit (0.0, 1660.0, (double) knob * 1660.0);
-    return jmax (1, (int) std::lround (0.92049 * std::pow (209.414, raw / 1660.0) - 0.15));
+    const auto& t = tuning();
+    return jmax (1, (int) std::lround (t.slideTicksA * std::pow (t.slideTicksBase, raw / 1660.0) - t.slideTicksC));
 }
 
 double flSlideSteps (float knob)
@@ -185,7 +182,8 @@ double flArpSteps (float knob)
 float flVolumeGain (float x)
 {
     // FL's volume law: (11^x - 1) / 10, x = raw / 12800 (100% = unity, 200% = x12).
-    return (std::pow (11.0f, x) - 1.0f) / 10.0f;
+    const auto base = tuning().volumeLawBase;
+    return (std::pow (base, x) - 1.0f) / (base - 1.0f);
 }
 
 float outputLevel (float position)
@@ -197,8 +195,8 @@ float flTensionToK (float tension)
 {
     // Exponents fitted to FL renders at raw tension -128, -101 (FL's default
     // release tension), -96, -64, ..., 128.
-    static const float t[] = { -128.0f, -101.0f, -96.0f, -64.0f, -32.0f, 0.0f, 32.0f, 64.0f, 96.0f, 128.0f };
-    static const float k[] = { 6.19f, 4.62f, 4.15f, 2.13f, 0.56f, 0.0f, -0.58f, -2.18f, -4.29f, -6.45f };
+    const auto& t = tuning().tensionKnots;
+    const auto& k = tuning().tensionK;
     const auto raw = jlimit (-128.0f, 128.0f, tension * 128.0f);
     int i = 0;
     while (i < 8 && raw > t[i + 1])
