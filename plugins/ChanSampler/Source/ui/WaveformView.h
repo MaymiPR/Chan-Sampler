@@ -19,7 +19,7 @@ public:
     explicit WaveformView (ChanSamplerProcessor&);
     ~WaveformView() override;
 
-    void setSample (SampleData::Ptr newSample);
+    void setSample (dsp::SampleData::Ptr newSample);
 
     void paint (juce::Graphics&) override;
     void mouseDown (const juce::MouseEvent&) override;
@@ -69,7 +69,7 @@ private:
     // first drawn.
     struct BandEnergy
     {
-        SampleData::Ptr owner;
+        dsp::SampleData::Ptr owner;
         std::vector<float> level[2][3];
         int group[2] { 1, 2 };   // 32-frame blocks per level block
     };
@@ -92,15 +92,15 @@ private:
     std::unique_ptr<juce::FileChooser> chooser;
 
     ChanSamplerProcessor& processor;
-    SampleData::Ptr sample;       // what the view draws: the file's sample, or its stretched copy
-    SampleData::Ptr fileSample;   // the processor's sample
+    dsp::SampleData::Ptr sample;       // what the view draws: the file's sample, or its stretched copy
+    dsp::SampleData::Ptr fileSample;   // the processor's sample
 
     // FL draws the sample as the stretch settings play it (PITCH, MUL, TIME,
     // the method; measured in FL): a copy rendered in the background a
     // moment after they change.
     struct StretchKey
     {
-        const SampleData* source = nullptr;
+        const dsp::SampleData* source = nullptr;
         int mode = 0;
         float cents = 0, mul = 1, time = 0, formant = 0;
         double bpm = 0;

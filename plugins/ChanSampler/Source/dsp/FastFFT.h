@@ -1,6 +1,6 @@
 #pragma once
 
-#include <juce_dsp/juce_dsp.h>
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdint>
@@ -9,14 +9,24 @@
 #include <mutex>
 #include <vector>
 
-namespace cs
+#include "Numeric.h"
+
+#if defined (__SSE2__) || defined (_M_X64) || (defined (_M_IX86_FP) && _M_IX86_FP >= 2)
+ #include <emmintrin.h>
+ #define CS_FFT_SSE 1
+#elif defined (__ARM_NEON) || defined (__ARM_NEON__) || defined (_M_ARM64)
+ #include <arm_neon.h>
+ #define CS_FFT_NEON 1
+#endif
+
+namespace cs::dsp
 {
 
 // A complex FFT for powers of two (radix-4 Stockham autosort on split real /
-// imaginary arrays, SIMD butterflies), a drop-in for juce::dsp::FFT::perform:
-// forward e^-i, inverse scaled by 1 / N, same results to about -130 dB.
-// JUCE's fallback FFT (Windows, Linux) is 3-3.6x slower at 256..8192 points,
-// and the stretch modes spend most of their time in FFTs.
+// imaginary arrays, four-lane SIMD butterflies): forward e^-i, inverse scaled
+// by 1 / N. A plain radix-2 FFT (JUCE's fallback on Windows and Linux) is
+// 3-3.6x slower at 256..8192 points, and the stretch modes spend most of
+// their time in FFTs.
 //
 // The twiddle tables are shared by every instance of an order (built once,
 // read-only); the working arrays come from a Scratch the caller owns, which
@@ -28,12 +38,12 @@ public:
     {
         void resize (size_t size)
         {
-            block.allocate (size + 16, true);
-            data_ = reinterpret_cast<float*> ((reinterpret_cast<uintptr_t> (block.get()) + 63) & ~(uintptr_t) 63);
+            block.assign (size + 16, 0.0f);
+            data_ = reinterpret_cast<float*> ((reinterpret_cast<uintptr_t> (block.data()) + 63) & ~(uintptr_t) 63);
         }
         float* data() const noexcept { return data_; }
         float& operator[] (size_t i) const noexcept { return data_[i]; }
-        juce::HeapBlock<float> block;
+        std::vector<float> block;
         float* data_ = nullptr;
     };
 
@@ -80,7 +90,41 @@ public:
     }
 
 private:
-    using V = juce::dsp::SIMDRegister<float>;
+    // Four floats added, subtracted and multiplied lane by lane (SSE2, NEON or plain C++: the same IEEE results).
+    struct V
+    {
+        static constexpr size_t size() noexcept { return 4; }
+       #if CS_FFT_SSE
+        __m128 v;
+        V() = default;
+        explicit V (float x) noexcept : v (_mm_set1_ps (x)) {}
+        static V raw (__m128 x) noexcept { V r; r.v = x; return r; }
+        static V fromRawArray (const float* p) noexcept { return raw (_mm_load_ps (p)); }
+        void copyToRawArray (float* p) const noexcept { _mm_store_ps (p, v); }
+        V operator+ (V o) const noexcept { return raw (_mm_add_ps (v, o.v)); }
+        V operator- (V o) const noexcept { return raw (_mm_sub_ps (v, o.v)); }
+        V operator* (V o) const noexcept { return raw (_mm_mul_ps (v, o.v)); }
+       #elif CS_FFT_NEON
+        float32x4_t v;
+        V() = default;
+        explicit V (float x) noexcept : v (vdupq_n_f32 (x)) {}
+        static V raw (float32x4_t x) noexcept { V r; r.v = x; return r; }
+        static V fromRawArray (const float* p) noexcept { return raw (vld1q_f32 (p)); }
+        void copyToRawArray (float* p) const noexcept { vst1q_f32 (p, v); }
+        V operator+ (V o) const noexcept { return raw (vaddq_f32 (v, o.v)); }
+        V operator- (V o) const noexcept { return raw (vsubq_f32 (v, o.v)); }
+        V operator* (V o) const noexcept { return raw (vmulq_f32 (v, o.v)); }
+       #else
+        float v[4];
+        V() = default;
+        explicit V (float x) noexcept : v { x, x, x, x } {}
+        static V fromRawArray (const float* p) noexcept { V r; for (int i = 0; i < 4; ++i) r.v[i] = p[i]; return r; }
+        void copyToRawArray (float* p) const noexcept { for (int i = 0; i < 4; ++i) p[i] = v[i]; }
+        V operator+ (V o) const noexcept { V r; for (int i = 0; i < 4; ++i) r.v[i] = v[i] + o.v[i]; return r; }
+        V operator- (V o) const noexcept { V r; for (int i = 0; i < 4; ++i) r.v[i] = v[i] - o.v[i]; return r; }
+        V operator* (V o) const noexcept { V r; for (int i = 0; i < 4; ++i) r.v[i] = v[i] * o.v[i]; return r; }
+       #endif
+    };
     struct Stage { int len, twOffset; };
 
     struct Tables
@@ -96,7 +140,7 @@ private:
                 for (int p = 0; p < len / 4; ++p)
                     for (int k = 1; k <= 3; ++k)
                     {
-                        const double a = -2.0 * juce::MathConstants<double>::pi * (double) (k * p) / (double) len;
+                        const double a = -2.0 * MathConstants<double>::pi * (double) (k * p) / (double) len;
                         tw.push_back ((float) std::cos (a));
                         tw.push_back ((float) std::sin (a));
                     }
@@ -105,7 +149,7 @@ private:
             const int m = size / 4;
             for (int k = 0; k < 6; ++k)
             {
-                first[k].resize ((size_t) juce::jmax (1, m));
+                first[k].resize ((size_t) std::max (1, m));
                 for (int p = 0; p < m; ++p)
                     first[k][(size_t) p] = tw[(size_t) (6 * p + k)];
             }

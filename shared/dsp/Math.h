@@ -11,7 +11,7 @@
 #include <cmath>
 #include <limits>
 
-namespace chansampler::math
+namespace chan::math
 {
 inline constexpr double ln2Hi = 6.93147180369123816490e-01;   // ln 2 split so that k * ln2Hi is exact for |k| < 2^20
 inline constexpr double ln2Lo = 1.90821492927058770002e-10;

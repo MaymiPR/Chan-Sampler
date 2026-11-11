@@ -1,6 +1,6 @@
 """In-FL null cases for the 4th-order filters (FL Levels type 5 = LPx2, 7 = SVF LPx2).
 SVF LPx2: two Chamberlin stages, q1 = 1 - 0.8 res, q2 = 1 - 0.6 res (bit-exact).
-LPx2: two identical LP biquads plus a level compensation (Dsp.cpp flLpx2Gain)
+LPx2: two identical LP biquads plus a level compensation (dsp/Filter.cpp flLpx2Gain)
 that FL glides to from unity over the note's first tick."""
 import sys; import ref_solo_lib as F; import cs_ref
 

@@ -2,6 +2,7 @@
 // behaviour (MEASUREMENTS.md). Renders MIDI through Engine, no host.
 
 #include <juce_audio_basics/juce_audio_basics.h>
+#include <juce_dsp/juce_dsp.h>
 #include <iostream>
 
 #include "dsp/SampleData.h"
@@ -23,9 +24,9 @@ namespace
         failures += ok ? 0 : 1;
     }
 
-    RawSample sine (double seconds, double hz = 440.0)
+    dsp::SampleSource sine (double seconds, double hz = 440.0)
     {
-        RawSample r;
+        dsp::SampleSource r;
         r.sampleRate = rate;
         r.audio.setSize (1, (int) (seconds * rate));
         for (int i = 0; i < r.audio.getNumSamples(); ++i)
@@ -35,10 +36,36 @@ namespace
 
     struct Event { int sample; juce::MidiMessage msg; };
 
-    // Render numSamples in 512-sample blocks, returning the left channel.
-    std::vector<float> render (const SampleData& s, const EngineParams& p, int numSamples, std::vector<Event> events)
+    // A MIDI buffer as the engine's events (as the processor turns it).
+    std::vector<dsp::MidiEvent> toEvents (const juce::MidiBuffer& midi)
     {
-        Engine engine;
+        std::vector<dsp::MidiEvent> events;
+        for (const auto m : midi)
+        {
+            const auto msg = m.getMessage();
+            dsp::MidiEvent e;
+            e.position = m.samplePosition;
+            if (msg.isNoteOn()) { e.kind = dsp::MidiEvent::Kind::noteOn; e.note = msg.getNoteNumber(); e.velocity = msg.getFloatVelocity(); }
+            else if (msg.isNoteOff()) { e.kind = dsp::MidiEvent::Kind::noteOff; e.note = msg.getNoteNumber(); }
+            else if (msg.isPitchWheel()) { e.kind = dsp::MidiEvent::Kind::pitchWheel; e.pitchWheel = msg.getPitchWheelValue(); }
+            else if (msg.isAllNotesOff() || msg.isAllSoundOff()) e.kind = dsp::MidiEvent::Kind::allNotesOff;
+            events.push_back (e);
+        }
+        return events;
+    }
+
+    void renderBlock (dsp::Engine& engine, juce::AudioBuffer<float>& block, const juce::MidiBuffer& midi, const dsp::SampleData* s,
+                      const dsp::EngineParams& p)
+    {
+        const auto events = toEvents (midi);
+        engine.render (block.getArrayOfWritePointers(), block.getNumChannels(), block.getNumSamples(), events.data(),
+                       (int) events.size(), s, p);
+    }
+
+    // Render numSamples in 512-sample blocks, returning the left channel.
+    std::vector<float> render (const dsp::SampleData& s, const dsp::EngineParams& p, int numSamples, std::vector<Event> events)
+    {
+        dsp::Engine engine;
         engine.prepare (rate);
         engine.ensureStretchers();
         std::vector<float> out;
@@ -50,7 +77,7 @@ namespace
             for (auto& e : events)
                 if (e.sample >= pos && e.sample < pos + 512)
                     midi.addEvent (e.msg, e.sample - pos);
-            engine.render (block, midi, &s, p);
+            renderBlock (engine, block, midi, &s, p);
             for (int i = 0; i < 512 && pos + i < numSamples; ++i)
                 out.push_back (block.getSample (0, i));
         }
@@ -79,14 +106,14 @@ namespace
         return true;
     }
 
-    EngineParams params() { return {}; }
+    dsp::EngineParams params() { return {}; }
 
     // The stretcher alone, as a voice drives it (pitch from cents, length /
     // speed), at 44.1 kHz where FL's e3 was measured.
     constexpr double sr44 = 44100.0;
-    std::vector<float> stretch (const std::vector<float>& in, double cents, StretchMode mode = StretchMode::e3Generic, double speed = 1.0)
+    std::vector<float> stretch (const std::vector<float>& in, double cents, dsp::StretchMode mode = dsp::StretchMode::e3Generic, double speed = 1.0)
     {
-        TimeStretcher st;
+        dsp::TimeStretcher st;
         st.configure (mode, sr44);
         st.reset (0.0);
         const double ratio = std::pow (2.0, cents / 1200.0);
@@ -160,8 +187,8 @@ namespace
 int main()
 {
     const int sec = (int) rate;
-    PrecomputeSettings plain;
-    auto oneSec = buildProcessedSample (sine (1.0), plain);
+    dsp::PrecomputeSettings plain;
+    auto oneSec = dsp::buildProcessedSample (sine (1.0), plain);
 
     // Root key C5 (MIDI 60) plays at original pitch; an octave up doubles it.
     {
@@ -191,7 +218,7 @@ int main()
 
     // Arpeggio TIME "Hold": the first note only, until every key is up (FL).
     {
-        auto longSample = buildProcessedSample (sine (4.0), plain);
+        auto longSample = dsp::buildProcessedSample (sine (4.0), plain);
         auto p = params();
         p.arpDir = 1;
         p.arpTime = 0.0f;
@@ -205,7 +232,7 @@ int main()
 
     // Looping sustains past the sample's length.
     {
-        auto shortSample = buildProcessedSample (sine (0.25), plain);
+        auto shortSample = dsp::buildProcessedSample (sine (0.25), plain);
         auto p = params();
         p.useLoop = true;
         p.loopStart = 0.25f;
@@ -232,13 +259,13 @@ int main()
     // Overlapping notes keep both voices (FL's Max polyphony has no effect, measured).
     {
         auto p = params();
-        Engine engine;
+        dsp::Engine engine;
         engine.prepare (rate);
         juce::AudioBuffer<float> block (2, 4096);
         juce::MidiBuffer midi;
         midi.addEvent (on (60), 0);
         midi.addEvent (on (64), 100);
-        engine.render (block, midi, oneSec.get(), p);
+        renderBlock (engine, block, midi, oneSec.get(), p);
         check (engine.getNumActiveVoices() == 2, "two overlapping notes keep two voices", juce::String (engine.getNumActiveVoices()));
     }
 
@@ -254,10 +281,10 @@ int main()
 
     // Precomputed: Normalize brings the peak to full scale; Length trims.
     {
-        PrecomputeSettings s;
+        dsp::PrecomputeSettings s;
         s.normalize = true;
         s.length = 0.5f;   // fraction of what remains after Sample Start
-        auto d = buildProcessedSample (sine (1.0), s);
+        auto d = dsp::buildProcessedSample (sine (1.0), s);
         const auto peak = d->audio.getMagnitude (0, 0, d->playEnd);
         check (std::abs (peak - 1.0f) < 1.0e-3f, "normalize peak = 1", juce::String (peak, 4));
         check (std::abs (d->playEnd - sec / 2) < 20 && d->lengthTrimmed, "length 50% trims", juce::String (d->playEnd));
@@ -270,10 +297,10 @@ int main()
     {
         const auto frames = [&] (float start, int span)
         {
-            PrecomputeSettings s;
+            dsp::PrecomputeSettings s;
             s.start = start;
             s.length = (float) ((span + 0.25) / ((sec - 1) * (1.0 - (double) start)));
-            return buildProcessedSample (sine (1.0), s)->playEnd;
+            return dsp::buildProcessedSample (sine (1.0), s)->playEnd;
         };
         check (frames (0.3f, 30) == 72, "length of 30 frames plays 72", juce::String (frames (0.3f, 30)));
         check (frames (0.3f, 41) == 42, "length of 41 frames plays 42", juce::String (frames (0.3f, 41)));
@@ -285,19 +312,19 @@ int main()
     // any threshold above zero removes it.
     {
         auto r = sine (0.5);
-        r.audio.setSize (1, sec, true, true);   // second half is digital silence
-        auto d = buildProcessedSample (r, plain);
+        r.audio.setSize (1, sec, true);   // second half is digital silence
+        auto d = dsp::buildProcessedSample (r, plain);
         check (d->playEnd == sec, "trim 0 keeps trailing silence", juce::String (d->playEnd));
         auto t = plain;
         t.trim = 1.0f / 256.0f;
-        d = buildProcessedSample (r, t);
+        d = dsp::buildProcessedSample (r, t);
         check (std::abs (d->playEnd - sec / 2) < 2, "trim removes trailing silence", juce::String (d->playEnd));
     }
 
     // Filter: a low cutoff attenuates a 440 Hz tone.
     {
         auto p = params();
-        p.filterType = FilterType::lpx2;
+        p.filterType = dsp::FilterType::lpx2;
         p.cutoff = 0.0f;   // Mod X minimum (~170 Hz)
         auto v = render (*oneSec, p, sec / 2, { { 0, on (60) } });
         check (rms (v, 4800, sec / 2) < 0.05f && allFinite (v), "LPx2 at low cutoff attenuates",
@@ -315,7 +342,7 @@ int main()
         };
 
         auto p = params();
-        p.stretchMode = StretchMode::stretch;
+        p.stretchMode = dsp::StretchMode::stretch;
         auto up = render (*oneSec, p, 3 * sec, { { 0, on (72) }, { (int) (2.5 * sec), off (72) } });
         check (std::abs (lastSound (up) - sec) < sec / 20, "stretch: octave up keeps 1 s length", juce::String (lastSound (up)));
         check (std::abs (frequency (up, sec / 10, sec * 8 / 10) - 880) < 15, "stretch: octave up plays 880 Hz",
@@ -328,14 +355,14 @@ int main()
         check (std::abs (frequency (tape, sec / 10, sec) - 220) < 8, "resample MUL x2 halves pitch", juce::String (frequency (tape, sec / 10, sec), 1));
 
         auto t = params();
-        t.stretchMode = StretchMode::stretch;
+        t.stretchMode = dsp::StretchMode::stretch;
         t.stretchTime = 4.0f;    // 4 beats at 120 BPM = 2 s
         auto beats = render (*oneSec, t, 3 * sec, { { 0, on (60) }, { (int) (2.5 * sec), off (60) } });
         check (std::abs (lastSound (beats) - 2 * sec) < sec / 20, "TIME 4 beats at 120 BPM lasts 2 s", juce::String (lastSound (beats)));
 
         // Stretched far past x20 (FL's TIME reaches 48 bars): it still lasts the whole TIME.
         auto far = t;
-        far.stretchMode = StretchMode::e3Generic;
+        far.stretchMode = dsp::StretchMode::e3Generic;
         far.stretchTime = 48.0f;   // 24 s at 120 BPM: x24
         auto longNote = render (*oneSec, far, 25 * sec, { { 0, on (60) } });
         check (std::abs (lastSound (longNote) - 24 * sec) < sec / 4 && rms (longNote, 22 * sec, 23 * sec) > 0.05f,
@@ -343,7 +370,7 @@ int main()
 
         // e3 / e2 loops repeat the stretched loop exactly, a loop x MUL long (as FL's do).
         auto e = params();
-        e.stretchMode = StretchMode::e3Generic;
+        e.stretchMode = dsp::StretchMode::e3Generic;
         e.stretchMul = 2.0f;
         e.useLoop = true;
         e.loopStart = 0.3f;
@@ -361,7 +388,7 @@ int main()
     // x MUL), without a fade; it ends with a fade that is silent just before
     // its end, and the gap up to the next slice is silent.
     {
-        RawSample hits;
+        dsp::SampleSource hits;
         hits.sampleRate = rate;
         hits.audio.setSize (1, sec);
         const int second = sec / 2;
@@ -371,9 +398,9 @@ int main()
             const auto amp = i < second ? 0.1 : 0.9;
             hits.audio.setSample (0, i, (float) (amp * std::exp (-k / (0.5 * rate)) * std::sin (juce::MathConstants<double>::twoPi * 150.0 * k / rate)));
         }
-        auto d = buildProcessedSample (hits, plain);
+        auto d = dsp::buildProcessedSample (hits, plain);
         auto p = params();
-        p.stretchMode = StretchMode::sliceMap;
+        p.stretchMode = dsp::StretchMode::sliceMap;
         p.stretchMul = 2.0f;
         auto v = render (*d, p, 2 * sec, { { 0, on (60) } });
         const auto* src = d->audio.getReadPointer (0);
@@ -415,7 +442,7 @@ int main()
     // further back), and a digitally silent channel never stops it.
     for (const bool silentRight : { false, true })
     {
-        RawSample hits;
+        dsp::SampleSource hits;
         hits.sampleRate = rate;
         hits.audio.setSize (2, sec);
         const int second = sec / 2;
@@ -429,7 +456,7 @@ int main()
             hits.audio.setSample (0, i, left + hit);
             hits.audio.setSample (1, i, right + (silentRight ? 0.0f : hit));
         }
-        auto d = buildProcessedSample (hits, plain);
+        auto d = dsp::buildProcessedSample (hits, plain);
         check (d->onsets.size() == 2 && d->onsets[1] == second - 30,
                silentRight ? "slice map: a silent channel does not stop the zero-crossing search"
                            : "slice map: the zero crossing nearest the hit, in either channel",
@@ -445,8 +472,8 @@ int main()
         {
             const int N = 1 << order;
             juce::dsp::FFT ref (order);
-            FastFFT::Scratch scratch (order);
-            FastFFT fast (order, scratch);
+            dsp::FastFFT::Scratch scratch (order);
+            dsp::FastFFT fast (order, scratch);
             std::vector<std::complex<float>> in ((size_t) N), a ((size_t) N), b ((size_t) N);
             for (auto& x : in) x = { rnd.nextFloat() - 0.5f, rnd.nextFloat() - 0.5f };
             for (const bool inverse : { false, true })
@@ -513,7 +540,7 @@ int main()
             juce::Random rnd (7);
             std::vector<float> noise ((size_t) (2 * n44));
             for (auto& x : noise) x = 0.3f * (rnd.nextFloat() * 2.0f - 1.0f);
-            auto y = stretch (noise, 0.0, StretchMode::e3Generic, 1.0 / 1.25);
+            auto y = stretch (noise, 0.0, dsp::StretchMode::e3Generic, 1.0 / 1.25);
             auto ratioAt = [&] (double hz)
             {
                 auto a = bandpass (noise, hz, 4.0), b = bandpass (y, hz, 4.0);
@@ -547,7 +574,7 @@ int main()
             juce::Random rnd (11);
             std::vector<float> noise ((size_t) n44);
             for (auto& x : noise) x = 0.3f * (rnd.nextFloat() * 2.0f - 1.0f);
-            auto y = stretch (noise, 0.0, StretchMode::e3Generic, 0.9999);
+            auto y = stretch (noise, 0.0, dsp::StretchMode::e3Generic, 0.9999);
             auto yl = lowpass (y, 1000.0), xl = lowpass (noise, 1000.0);
             const int lagLow = bestLag (xl, yl, 20000, 4096, 400);
             const int lagAll = bestLag (noise, y, 20000, 4096, 400);
@@ -576,7 +603,7 @@ int main()
             const int bump = loudest > onset + 1000 ? onset + 760 : onset + 1060;
             for (int i = -24; i <= 24; ++i)
                 bumped[(size_t) (bump + i)] += 0.3f * (float) (0.5 + 0.5 * std::cos (juce::MathConstants<double>::pi * i / 24.0)) * (tones[(size_t) bump] < 0.0f ? -1.0f : 1.0f);
-            auto a = stretch (tones, 0.0, StretchMode::e3Generic, 1.0 / 1.5), b = stretch (bumped, 0.0, StretchMode::e3Generic, 1.0 / 1.5);
+            auto a = stretch (tones, 0.0, dsp::StretchMode::e3Generic, 1.0 / 1.5), b = stretch (bumped, 0.0, dsp::StretchMode::e3Generic, 1.0 / 1.5);
             double worst = 0.0;
             for (int k = 0; k < 5; ++k)
             {
@@ -600,7 +627,7 @@ int main()
         // the spectral envelope (a voice keeps its formants).
         for (const double speed : { 1.0 / 1.5, 1.5 })
         {
-            auto y = stretch (click, 0.0, StretchMode::e3Mono, speed);
+            auto y = stretch (click, 0.0, dsp::StretchMode::e3Mono, speed);
             bool ok = true;
             juce::String detail;
             const int want = (int) std::lround (22050 / speed);   // the click, at its stretched time
@@ -631,7 +658,7 @@ int main()
                 return num / den;
             };
             const double f0 = sr44 / 147.0, up = f0 * std::pow (2.0, 700.0 / 1200.0);
-            auto mono = stretch (vowel, 700.0, StretchMode::e3Mono), generic = stretch (vowel, 700.0, StretchMode::e3Generic);
+            auto mono = stretch (vowel, 700.0, dsp::StretchMode::e3Mono), generic = stretch (vowel, 700.0, dsp::StretchMode::e3Generic);
             const auto c0 = centroid (vowel, f0), cm = centroid (mono, up), cg = centroid (generic, up);
             check (level (mono, up) > 4.0 * level (mono, f0) && std::abs (cm / c0 - 1.0) < 0.15 && cg / c0 > 1.3,
                    "e3 mono: pitch keeps the spectral envelope",
@@ -671,7 +698,7 @@ int main()
                 }
                 return out;
             };
-            auto lagOf = [&] (const std::vector<float>& in, StretchMode mode, double speed, double cents)
+            auto lagOf = [&] (const std::vector<float>& in, dsp::StretchMode mode, double speed, double cents)
             {
                 const auto y = stretch (in, cents, mode, speed);
                 std::vector<float> y2 (y.size()), ideal (y.size());
@@ -694,16 +721,16 @@ int main()
                 }
                 return lag;
             };
-            struct Row { StretchMode mode; const char* name; int lags[4]; };
+            struct Row { dsp::StretchMode mode; const char* name; int lags[4]; };
             const Row rows[] = {
-                { StretchMode::e3Generic,   "e3 generic",    { -20, 4, 12, 4 } },
-                { StretchMode::stretch,     "Stretch",       { -144, -148, -104, -216 } },
-                { StretchMode::stretchPro,  "Stretch Pro",   { -76, -56, -44, -84 } },
-                { StretchMode::e2Generic,   "e2 generic",    { -168, -36, -84, -56 } },
-                { StretchMode::e2Transient, "e2 transient",  { 20, 104, 12, 164 } },
-                { StretchMode::e3Mono,      "e3 mono",       { 4, -20, 12, 12 } },
-                { StretchMode::e2Mono,      "e2 mono",       { 0, -12, 0, 0 } },
-                { StretchMode::e2Speech,    "e2 speech",     { 12, -52, 0, 24 } } };
+                { dsp::StretchMode::e3Generic,   "e3 generic",    { -20, 4, 12, 4 } },
+                { dsp::StretchMode::stretch,     "Stretch",       { -144, -148, -104, -216 } },
+                { dsp::StretchMode::stretchPro,  "Stretch Pro",   { -76, -56, -44, -84 } },
+                { dsp::StretchMode::e2Generic,   "e2 generic",    { -168, -36, -84, -56 } },
+                { dsp::StretchMode::e2Transient, "e2 transient",  { 20, 104, 12, 164 } },
+                { dsp::StretchMode::e3Mono,      "e3 mono",       { 4, -20, 12, 12 } },
+                { dsp::StretchMode::e2Mono,      "e2 mono",       { 0, -12, 0, 0 } },
+                { dsp::StretchMode::e2Speech,    "e2 speech",     { 12, -52, 0, 24 } } };
             const double speeds[] = { std::pow (2.0, -0.585), std::pow (2.0, 0.585), 1.0, 1.0 }, cents[] = { 0.0, 0.0, 700.0, -700.0 };
             for (const auto& r : rows)
             {
@@ -725,8 +752,8 @@ int main()
             // ~200 later, kept for real material; this filter adds its own
             // delay).
             const auto low = lowpass (swell, 700.0);
-            const Row lowRows[] = { { StretchMode::e3Generic, "e3 generic", { 40, 152, 32, 260 } },
-                                    { StretchMode::e2Generic, "e2 generic", { 272, 164, 192, 288 } } };
+            const Row lowRows[] = { { dsp::StretchMode::e3Generic, "e3 generic", { 40, 152, 32, 260 } },
+                                    { dsp::StretchMode::e2Generic, "e2 generic", { 272, 164, 192, 288 } } };
             for (const auto& r : lowRows)
             {
                 bool ok = true;
@@ -747,10 +774,10 @@ int main()
             std::vector<float> in ((size_t) n44);
             for (int i = 0; i < n44; ++i) in[(size_t) i] = (i % 9000 < 300 ? 0.9f : 0.2f) * (rnd.nextFloat() * 2.0f - 1.0f);
             bool ok = true;
-            for (int m = 0; m <= (int) StretchMode::e2Speech; ++m)
+            for (int m = 0; m <= (int) dsp::StretchMode::e2Speech; ++m)
             {
-                TimeStretcher st;
-                st.configure ((StretchMode) m, sr44);
+                dsp::TimeStretcher st;
+                st.configure ((dsp::StretchMode) m, sr44);
                 st.reset (0.0);
                 auto read = [&] (int k, float& l, float& r) { l = r = (k >= 0 && k < n44) ? in[(size_t) k] : 0.0f; };
                 for (int i = 0; i < 60000; ++i)
@@ -772,7 +799,7 @@ int main()
         for (int t = 0; t < 8; ++t)
         {
             auto p = params();
-            p.filterType = (FilterType) t;
+            p.filterType = (dsp::FilterType) t;
             p.cutoff = 0.5f;
             p.resonance = 1.0f;
             p.xT.envOn = p.yT.envOn = p.panT.envOn = p.pitchT.envOn = p.volT.envOn = true;
@@ -809,7 +836,18 @@ int main()
             void setStateInformation (const void*, int) override {}
         } host;
         const std::atomic<int> sampleLength { 0 };
-        juce::AudioProcessorValueTreeState apvts (host, nullptr, "P", createParameterLayout (sampleLength));
+        juce::AudioProcessorValueTreeState apvts (host, nullptr, "P", createLayout (sampleLength));
+
+        // Params.h lists every parameter id once, in the layout's order (the order hosts show them in).
+        {
+            const auto& prms = host.getParameters();
+            int same = 0;
+            for (int i = 0; i < juce::jmin (prms.size(), numParams); ++i)
+                if (auto* hp = dynamic_cast<juce::HostedAudioProcessorParameter*> (prms[i]); hp != nullptr && hp->getParameterID() == allIds[i])
+                    ++same;
+            check (prms.size() == numParams && same == numParams, "allIds lists every parameter in the layout's order",
+                   juce::String (same) + " of " + juce::String (prms.size()));
+        }
 
         struct Case { const char* id; double pos; const char* text; };
         const Case cases[] = {
@@ -840,7 +878,7 @@ int main()
                    text + " -> " + juce::String (back, 4));
         }
         // The default speed is 416 ticks at 130 BPM: 0.5 Hz (FL's 2 s).
-        const auto period = flLfoPeriodT130 ((32950.0f - 200.0f) / 65336.0f);
+        const auto period = dsp::flLfoPeriodT130 ((32950.0f - 200.0f) / 65336.0f);
         check (std::round (period) == 416.0, "LFO speed default = 0.5 Hz",
                juce::String (period, 2) + " ticks = " + juce::String (130.0 / 60.0 * 96.0 / std::round (period), 3) + " Hz");
     }

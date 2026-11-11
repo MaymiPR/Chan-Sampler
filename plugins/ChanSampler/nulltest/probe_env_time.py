@@ -13,7 +13,7 @@ RAWS = [200, 400, 700, 1000, 1500] + list(range(2500, 62501, 2500)) + [65536]
 TABLE = [24.036, 48.072, 81.723, 124.988, 177.868, 250.009, 346.188, 466.365, 624.989, 831.738, 1100.945, 1451.91, 1908.638,
          2504.798, 3274.036, 4278.807, 5591.254, 7293.248, 9509.471, 12393.98, 16149.056, 21038.385, 27398.73, 35683.054, 46455.421]
 
-def table_seconds(raw):   # Params.cpp flEnvSeconds (measured at 130 BPM)
+def table_seconds(raw):   # dsp/KnobLaws.cpp flEnvSeconds (measured at 130 BPM)
     if raw <= 5000: return raw * 48.072 / 5000 * 0.001
     if raw >= 62500: return 0.001 * math.exp(math.log(46455.421) + (math.log(64004.629) - math.log(46455.421)) * (raw - 62500) / 3036)
     pos = raw / 2500 - 1; i = min(23, int(pos)); t = pos - i

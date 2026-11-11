@@ -7,7 +7,7 @@ Use loop points	Off
 Loop start position	0
 Loop end position	0
 Ping pong loop	Off
-Output	2.2 dB
+Output	100%  0.0dB  1.00
 Stretch method	e3 generic
 Formant shift amount	+1045 cents
 Panning LFO tempo-based time	On
@@ -55,7 +55,7 @@ Mod X LFO amount	79%
 Mod X LFO predelay time	51%
 Mod X LFO attack time	13%
 Mod Y envelope	On
-Mod Y predelay time	36%
+Mod Y predelay time	37%
 Mod Y attack time	98%
 Mod Y hold time	60%
 Mod Y decay time	22%

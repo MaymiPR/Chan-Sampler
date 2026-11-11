@@ -14,6 +14,14 @@
   `--dry` without FL) and `nulltest.py --report`, which writes NULLTESTS.md from the saved results. The measured data
   is published in `measurements/ChanSampler/`. Every FL project the harness builds is byte-identical to before, so
   the cached renders stay valid.
+- **Source:** the engine in `Source/dsp/` is plain C++ without JUCE, in the namespace `cs::dsp`; loading a file and
+  the JUCE buffers are its host side (`Source/SampleFile.h`), and Detect tempo uses an FFT of its own with the same
+  results. Every measured and fitted constant of the sound sits in `dsp/Tuning.h`, open to `CsRender`'s `tune:` keys.
+  The parameters are one header, `Params.h`, which lists every parameter ID; the shared code's namespace is `chan`.
+  The sound is unchanged: every render is byte-identical.
+- **Tests:** the host test is the suite's (`tools/HostTest.cpp`), given the test sine as the sample; the sampler's own
+  host checks (automation, MIDI, the sustain pedal, rate changes, offline renders, stretch modes, a missing sample)
+  run as `ChanSamplerPlayTests`.
 - **Screenshots and branding:** the screenshots are the editor at its design size (100 %), with `hero.png` on the
   README; the icon and the social preview are drawn from the banner's mark as SVG, with PNG exports.
 

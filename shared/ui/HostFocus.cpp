@@ -10,7 +10,7 @@
  #include <windows.h>
 #endif
 
-namespace chansampler
+namespace chan
 {
 namespace hostfocus
 {

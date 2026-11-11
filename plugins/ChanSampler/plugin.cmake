@@ -4,11 +4,13 @@ set(CS_DIR ${CMAKE_CURRENT_LIST_DIR})
 
 # The sources: the engine alone (what the engine tests need) and everything.
 set(CS_ENGINE_SOURCES
-    ${CS_DIR}/Source/Params.cpp
     ${CS_DIR}/Source/History.cpp
     ${CS_DIR}/Source/dsp/SampleData.cpp
-    ${CS_DIR}/Source/dsp/Dsp.cpp
+    ${CS_DIR}/Source/dsp/Filter.cpp
+    ${CS_DIR}/Source/dsp/KnobLaws.cpp
     ${CS_DIR}/Source/dsp/Engine.cpp
+    ${CS_DIR}/Source/dsp/Fft.cpp
+    ${CS_DIR}/Source/dsp/TempoDetect.cpp
     ${CS_DIR}/Source/dsp/TimeStretch.cpp)
 set(CS_SOURCES
     ${CS_ENGINE_SOURCES}
@@ -20,7 +22,6 @@ set(CS_SOURCES
     ${CS_DIR}/Source/PluginEditor.cpp
     ${CS_DIR}/Source/ui/Controls.cpp
     ${CS_DIR}/Source/SampleExchange.cpp
-    ${CS_DIR}/Source/dsp/TempoDetect.cpp
     ${CS_DIR}/Source/ui/WaveformView.cpp)
 if(APPLE)
     list(APPEND CS_SOURCES ${CS_DIR}/Source/SampleExchangeMac.mm)   # the macOS clipboard is Objective-C++
@@ -108,10 +109,10 @@ add_test(NAME ChanSamplerUiTests COMMAND ChanSamplerUiTests ${CS_SINE})
 set_tests_properties(ChanSamplerUiTests PROPERTIES FIXTURES_REQUIRED sine)
 add_dependencies(ci_targets ChanSamplerUiTests)
 
-# The built VST3 hosted as a DAW hosts it (tools/HostTest.cpp): automation, MIDI, save and reload, the editor, rate
-# changes, offline rendering and every saved state of an earlier release in tests/data (state-<x.y.z>.bin with its
-# .txt: ChanSamplerHostTest <vst3> --save-state plugins/ChanSampler/tests/data/state-<x.y.z>.bin). A sampler: the
-# test sine is its sample.
+# The built VST3 hosted as a DAW hosts it (tools/HostTest.cpp, the suite's): save and reload, rate changes, offline
+# rendering and every saved state of an earlier release in tests/data (state-<x.y.z>.bin with its .txt:
+# ChanSamplerHostTest <vst3> --save-state plugins/ChanSampler/tests/data/state-<x.y.z>.bin). A sampler is silent
+# without a sample: every instance gets the test sine as its sample (--property samplePath=).
 juce_add_console_app(ChanSamplerHostTest PRODUCT_NAME "ChanSamplerHostTest")
 target_sources(ChanSamplerHostTest PRIVATE ${CMAKE_SOURCE_DIR}/tools/HostTest.cpp)
 target_compile_definitions(ChanSamplerHostTest PRIVATE JUCE_PLUGINHOST_VST3=1 JUCE_MODAL_LOOPS_PERMITTED=1 ${SUITE_DEFS})
@@ -122,9 +123,24 @@ file(GLOB CS_STATES CONFIGURE_DEPENDS ${CS_DIR}/tests/data/state-*.bin)
 # JUCE's property names the .vst3 bundle on every platform; its value is itself a generator expression, so it is
 # evaluated twice (GENEX_EVAL).
 add_test(NAME ChanSamplerHostTest
-    COMMAND ChanSamplerHostTest $<GENEX_EVAL:$<TARGET_PROPERTY:ChanSampler_VST3,JUCE_PLUGIN_ARTEFACT_FILE>> ${CS_SINE} ${CS_STATES})
+    COMMAND ChanSamplerHostTest $<GENEX_EVAL:$<TARGET_PROPERTY:ChanSampler_VST3,JUCE_PLUGIN_ARTEFACT_FILE>>
+        --property samplePath=${CS_SINE} ${CS_STATES})
 set_tests_properties(ChanSamplerHostTest PROPERTIES FIXTURES_REQUIRED sine)
 add_dependencies(ci_targets ChanSamplerHostTest)
+
+# The same VST3 playing the test sine (tests/ChanSamplerPlayTests.cpp): automation, MIDI, the sustain pedal, the
+# plug-in's own state and sound after a reload, the editor's saved size, the pitch across host rates, offline renders
+# right after a change, a stretch mode chosen while playing and a missing sample.
+juce_add_console_app(ChanSamplerPlayTests PRODUCT_NAME "ChanSamplerPlayTests")
+target_sources(ChanSamplerPlayTests PRIVATE ${CS_DIR}/tests/ChanSamplerPlayTests.cpp)
+target_compile_definitions(ChanSamplerPlayTests PRIVATE JUCE_PLUGINHOST_VST3=1 JUCE_MODAL_LOOPS_PERMITTED=1 ${SUITE_DEFS})
+target_link_libraries(ChanSamplerPlayTests PRIVATE juce::juce_audio_processors juce::juce_gui_basics
+    juce::juce_recommended_config_flags juce::juce_recommended_warning_flags suite_warnings)
+add_dependencies(ChanSamplerPlayTests ChanSampler_VST3)
+add_test(NAME ChanSamplerPlayTests
+    COMMAND ChanSamplerPlayTests $<GENEX_EVAL:$<TARGET_PROPERTY:ChanSampler_VST3,JUCE_PLUGIN_ARTEFACT_FILE>> ${CS_SINE})
+set_tests_properties(ChanSamplerPlayTests PROPERTIES FIXTURES_REQUIRED sine)
+add_dependencies(ci_targets ChanSamplerPlayTests)
 
 if(CHANSAMPLER_TOOLS)
     # Editor snapshot (PNG) for the docs and the layout comparison with the reference (docs/screenshots/README.md).

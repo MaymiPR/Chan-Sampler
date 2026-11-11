@@ -15,8 +15,8 @@
 // own (undo, a typed value) passes wantsKeys = true: a click then gives the editor the focus, and JUCE passes every key
 // it does not use on to the host's window.
 //
-// Use: a member of the editor, constructed after noFocus():  chansampler::HostFocus hostFocus { *this };
-namespace chansampler
+// Use: a member of the editor, constructed after noFocus():  chan::HostFocus hostFocus { *this };
+namespace chan
 {
 class HostFocus
 {

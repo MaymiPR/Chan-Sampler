@@ -1,5 +1,6 @@
 #include "ui/Controls.h"
-#include "dsp/Dsp.h"
+#include "dsp/Envelope.h"
+#include "dsp/KnobLaws.h"
 #include "Params.h"
 
 #include <iomanip>
@@ -14,7 +15,7 @@ namespace
     void fillWell (juce::Graphics& g, juce::Rectangle<float> r)
     {
         // FL: a plain dark display without grid lines.
-        g.setColour (chansampler::ui::colour::well);
+        g.setColour (chan::ui::colour::well);
         g.fillRect (r);
     }
 }
@@ -151,7 +152,7 @@ void EnvelopeDisplay::paint (juce::Graphics& g)
     const auto sus = gm.sus;
 
     // Same model as the engine: rate-based decay / release, FL tension curves.
-    const auto attK = flTensionToK (get ("AttT")), decK = flTensionToK (get ("DecT")), relK = flTensionToK (get ("RelT"));
+    const auto attK = dsp::flTensionToK (get ("AttT")), decK = dsp::flTensionToK (get ("DecT")), relK = dsp::flTensionToK (get ("RelT"));
     const bool on = get ("EnvOn") > 0.5f;
     auto yOf = [&r] (float v) { return r.getBottom() - v * r.getHeight(); };
 
@@ -176,7 +177,7 @@ void EnvelopeDisplay::paint (juce::Graphics& g)
 
     // FL draws the curve at full brightness whether or not the envelope is on;
     // when it is on the points grow to show they can be dragged.
-    g.setColour (chansampler::ui::colour::envLine);
+    g.setColour (chan::ui::colour::envLine);
     g.strokePath (p, juce::PathStrokeType (1.5f));
 
     // FL's points: 8 px rings with a dark green fill
@@ -186,9 +187,9 @@ void EnvelopeDisplay::paint (juce::Graphics& g)
         const bool hot = on && (i == hovered || i == dragging);
         const auto size = on ? 9.0f : 8.0f;
         const auto dot = juce::Rectangle<float> (size, size).withCentre (pts[(size_t) i]);
-        g.setColour (hot ? chansampler::ui::colour::envPoint : chansampler::ui::colour::envPointFill);
+        g.setColour (hot ? chan::ui::colour::envPoint : chan::ui::colour::envPointFill);
         g.fillEllipse (dot);
-        g.setColour (chansampler::ui::colour::envPoint);
+        g.setColour (chan::ui::colour::envPoint);
         g.drawEllipse (dot, 1.2f);
     }
 }
@@ -248,7 +249,7 @@ void LfoDisplay::paint (juce::Graphics& g)
         const juce::Point<float> pt (r.getX() + r.getWidth() * (float) i / (float) steps, r.getCentreY() - v * r.getHeight() * 0.5f);
         if (i == 0) p.startNewSubPath (pt); else p.lineTo (pt);
     }
-    g.setColour (chansampler::ui::colour::envLine);
+    g.setColour (chan::ui::colour::envLine);
     g.strokePath (p, juce::PathStrokeType (1.5f));
 }
 
@@ -339,8 +340,8 @@ void RootKeyboard::paint (juce::Graphics& g)
     // keys shading lighter downwards (no borders between them; C keys and the
     // root are flat), black keys with a dark outline, a lit left edge, a
     // front face and a lip, and a shadow row under them.
-    using namespace chansampler::ui::key;
-    const juce::Colour rootBlue = chansampler::ui::key::root, labelText = chansampler::ui::key::label, rootText = chansampler::ui::key::rootLabel;
+    using namespace chan::ui::key;
+    const juce::Colour rootBlue = chan::ui::key::root, labelText = chan::ui::key::label, rootText = chan::ui::key::rootLabel;
 
     g.setColour (strip);
     g.fillRect (0.0f, 0.0f, w, labelH);
@@ -350,7 +351,7 @@ void RootKeyboard::paint (juce::Graphics& g)
     g.fillRect (0.0f, keysTop, w, keysBottom - keysTop);
 
     // FL (measured): a played key turns orange
-    auto pressedKey = [this] (int n, juce::Colour c) { return state.isNoteOn (1, n) ? chansampler::ui::key::pressed : c; };
+    auto pressedKey = [this] (int n, juce::Colour c) { return state.isNoteOn (1, n) ? chan::ui::key::pressed : c; };
     for (int n = 0; n < 128; ++n)
     {
         if (isBlack (n))
@@ -371,7 +372,7 @@ void RootKeyboard::paint (juce::Graphics& g)
         if (n % 12 == 0 || n == root)
         {
             g.setColour (n == root ? rootText : labelText);
-            g.setFont (chansampler::ui::font (10.5f));
+            g.setFont (chan::ui::font (10.5f));
             g.drawText (flNoteName (n), juce::Rectangle<float> (x + 1.0f, 0.0f, octaveW, labelH), juce::Justification::centredLeft, false);
         }
     }
@@ -510,7 +511,7 @@ void RootKeyboard::timerCallback()
 
 //==============================================================================
 RootNotePanel::RootNotePanel (juce::AudioProcessorValueTreeState& s, juce::MidiKeyboardState& k, History& h)
-    : chansampler::ui::Panel ("Root note: C5"), apvts (s), history (h),
+    : chan::ui::Panel ("Root note: C5"), apvts (s), history (h),
       fine (*s.getParameter (id::fineTune), juce::Slider::LinearHorizontal), keyboard (s, k)
 {
     resetButton.setTooltip ("Default root note and fine tune");
@@ -521,14 +522,14 @@ RootNotePanel::RootNotePanel (juce::AudioProcessorValueTreeState& s, juce::MidiK
         setParameterAsGesture (*apvts.getParameter (id::fineTune), 0.0f);
     };
 
-    fineLabel.setFont (chansampler::ui::font (11.5f));
+    fineLabel.setFont (chan::ui::font (11.5f));
     fineAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (apvts, id::fineTune, fine);
     fine.setDoubleClickReturnValue (false, 0.0);   // the default, for the arc; a double-click does nothing (as in FL)
     fine.setTooltip ("Fine tuning");
 
-    hint.setFont (chansampler::ui::font (10.5f));
+    hint.setFont (chan::ui::font (10.5f));
     hint.setJustificationType (juce::Justification::centredLeft);
-    hint.setColour (juce::Label::textColourId, chansampler::ui::colour::dim);
+    hint.setColour (juce::Label::textColourId, chan::ui::colour::dim);
 
     for (auto* c : std::initializer_list<juce::Component*> { &resetButton, &fineLabel, &fine, &hint, &keyboard })
         addAndMakeVisible (c);
@@ -648,7 +649,7 @@ void ParamMenu::show()
             {
                 if (! ok()) return;
                 const auto seconds = (float) (steps * 15.0 / juce::jmax (1.0, displayBpm.load()));
-                setPosition (param.convertTo0to1 (flEnvKnobForSeconds (seconds)));
+                setPosition (param.convertTo0to1 (dsp::flEnvKnobForSeconds (seconds)));
             });
         m.addSubMenu ("&Set", set);
     }
@@ -664,7 +665,7 @@ void ParamMenu::show()
         m.addItem ("&Type in value...", [this, ok] { if (! ok()) return; menuClick = juce::Desktop::getMousePosition(); typeIn(); });
 
     m.setLookAndFeel (&owner.getLookAndFeel());   // otherwise JUCE uses its default look
-    chansampler::ui::armMenuLetters (m);
+    chan::ui::armMenuLetters (m);
     m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&owner).withMousePosition());
 }
 
@@ -693,12 +694,12 @@ namespace
         TypeInBox (const juce::String& name, std::vector<Mode> m, float position)
             : title ("Value for " + name), modes (std::move (m)), current (position)
         {
-            field.setFont (chansampler::ui::font (15.0f));
+            field.setFont (chan::ui::font (15.0f));
             field.setColour (juce::TextEditor::backgroundColourId, juce::Colours::transparentBlack);
             field.setColour (juce::TextEditor::outlineColourId, juce::Colours::transparentBlack);
             field.setColour (juce::TextEditor::focusedOutlineColourId, juce::Colours::transparentBlack);
-            field.setColour (juce::TextEditor::textColourId, chansampler::ui::colour::title);
-            field.setColour (juce::TextEditor::highlightColourId, chansampler::ui::colour::accent.withAlpha (0.45f));
+            field.setColour (juce::TextEditor::textColourId, chan::ui::colour::title);
+            field.setColour (juce::TextEditor::highlightColourId, chan::ui::colour::accent.withAlpha (0.45f));
             field.setColour (juce::TextEditor::highlightedTextColourId, juce::Colours::white);
             field.setIndents (2, 3);
             field.setText (modes.front().text (position), false);
@@ -721,8 +722,8 @@ namespace
 
         void paint (juce::Graphics& g) override
         {
-            g.fillAll (chansampler::ui::colour::panelTab);
-            g.setColour (chansampler::ui::colour::panelEdge);
+            g.fillAll (chan::ui::colour::panelTab);
+            g.setColour (chan::ui::colour::panelEdge);
             g.drawRect (getLocalBounds(), 1);
             for (int i = 0; i < (int) modes.size(); ++i)
             {
@@ -730,19 +731,19 @@ namespace
                     continue;
                 const auto b = button (i).toFloat();
                 const bool chosen = i == mode;
-                g.setColour (chosen ? chansampler::ui::colour::accent : chansampler::ui::colour::comboEdge);
+                g.setColour (chosen ? chan::ui::colour::accent : chan::ui::colour::comboEdge);
                 g.drawRect (b, 1.0f);
                 if (chosen)
                 {
-                    g.setColour (chansampler::ui::colour::comboInnerTop);
+                    g.setColour (chan::ui::colour::comboInnerTop);
                     g.drawRect (b.reduced (1.0f), 1.0f);
                 }
-                g.setColour (chosen ? chansampler::ui::colour::accent : chansampler::ui::colour::text);
-                g.setFont (chansampler::ui::font (9.5f, true));
+                g.setColour (chosen ? chan::ui::colour::accent : chan::ui::colour::text);
+                g.setFont (chan::ui::font (9.5f, true));
                 g.drawText (modes[(size_t) i].label, b, juce::Justification::centred, false);
             }
             // the tick and the cross, then the name
-            g.setColour (chansampler::ui::colour::dim);
+            g.setColour (chan::ui::colour::dim);
             juce::Path tick;
             tick.startNewSubPath (6.0f, 38.0f);
             tick.lineTo (9.0f, 41.5f);
@@ -750,7 +751,7 @@ namespace
             g.strokePath (tick, juce::PathStrokeType (1.4f));
             g.drawLine (26.0f, 34.0f, 33.0f, 41.0f, 1.4f);
             g.drawLine (33.0f, 34.0f, 26.0f, 41.0f, 1.4f);
-            g.setFont (chansampler::ui::font (11.7f));
+            g.setFont (chan::ui::font (11.7f));
             g.drawFittedText (title, juce::Rectangle<int> (45, 29, width - 50, 18), juce::Justification::centredLeft, 1, 1.0f);
         }
 
@@ -839,7 +840,7 @@ juce::String ParamMenu::typedText (float position, bool asPosition) const
     if (u == Unit::decibels)
     {
         const auto v = param.convertFrom0to1 (position);
-        const auto gain = flVolumeGain (v);
+        const auto gain = dsp::flVolumeGain (v);
         return gain > 0.0f ? juce::String (juce::Decibels::gainToDecibels (gain), 1) + "dB" : juce::String ("-INFdB");
     }
     if (u == Unit::percent && ! param.getText (1.0f, 64).contains ("%"))
@@ -1247,13 +1248,13 @@ void ParamKnob::mouseDrag (const juce::MouseEvent& e)
 }
 
 ParamDigiBox::ParamDigiBox (juce::RangedAudioParameter& p, bool redStyle)
-    : chansampler::ui::DigiBox (redStyle), menu (*this, p) {}
+    : chan::ui::DigiBox (redStyle), menu (*this, p) {}
 
 void ParamDigiBox::mouseDown (const juce::MouseEvent& e)
 {
     if (e.mods.isPopupMenu())
         menu.show();
     else
-        chansampler::ui::DigiBox::mouseDown (e);
+        chan::ui::DigiBox::mouseDown (e);
 }
 }

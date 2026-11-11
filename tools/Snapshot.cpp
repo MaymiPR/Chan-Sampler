@@ -41,7 +41,7 @@ int main (int argc, char** argv)
     if (ed == nullptr) { std::cerr << "the plug-in has no editor\n"; return 1; }
     if (levels)
     {
-        if (auto* hooks = dynamic_cast<chansampler::SnapshotHooks*> (ed.get())) hooks->setTestLevels (inDb, outDb);
+        if (auto* hooks = dynamic_cast<chan::SnapshotHooks*> (ed.get())) hooks->setTestLevels (inDb, outDb);
         else std::cerr << "--levels: this editor has no meters to freeze\n";
     }
     // the editor opens at the state's scale (1 in a fresh instance): a scale is a resize by that factor

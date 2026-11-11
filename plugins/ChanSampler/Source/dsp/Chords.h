@@ -2,7 +2,7 @@
 
 #include <array>
 
-namespace cs
+namespace cs::dsp
 {
 
 // Arpeggiator chord presets: standard chord names and their stacked intervals

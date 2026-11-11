@@ -34,6 +34,7 @@
 // BENCH_AUTOMATION_ONLY.
 
 #include <juce_audio_formats/juce_audio_formats.h>
+#include <juce_dsp/juce_dsp.h>
 #include <juce_events/juce_events.h>
 #include <iostream>
 
@@ -393,13 +394,13 @@ int main (int argc, char** argv)
         if (! p.loadSample (juce::File (juce::String (argv[2]))))
             return 1;
         const auto raw = p.getRaw();
-        const auto mode = (StretchMode) (argc > 5 ? juce::String (argv[5]).getIntValue() : (int) StretchMode::e3Generic);
+        const auto mode = (dsp::StretchMode) (argc > 5 ? juce::String (argv[5]).getIntValue() : (int) dsp::StretchMode::e3Generic);
         const double speed = argc > 6 ? juce::String (argv[6]).getDoubleValue() : 1.0;
         const double ratio = std::pow (2.0, juce::String (argv[4]).getDoubleValue() / 1200.0);
         const int inFrames = raw->audio.getNumSamples(), outFrames = (int) (inFrames / speed);
         const auto* l = raw->audio.getReadPointer (0);
         const auto* r = raw->audio.getReadPointer (raw->audio.getNumChannels() > 1 ? 1 : 0);
-        TimeStretcher st;
+        dsp::TimeStretcher st;
         st.configure (mode, raw->sampleRate);
         st.reset (0.0);
         juce::AudioBuffer<float> out (2, outFrames);
@@ -428,9 +429,9 @@ int main (int argc, char** argv)
             return 1;
         const auto raw = p.getRaw();
         const double ranges[][2] = { { 75, 150 }, { 50, 100 }, { 100, 200 }, { 150, 300 } };
-        std::cout << "file " << tempo::format (raw->fileTempo) << " | ";
+        std::cout << "file " << tempoText (raw->fileTempo) << " | ";
         for (auto& r : ranges)
-            std::cout << r[0] << "-" << r[1] << ": " << tempo::format (tempo::detect (raw->audio, raw->sampleRate, r[0], r[1])) << "  ";
+            std::cout << r[0] << "-" << r[1] << ": " << tempoText (dsp::tempo::detect (raw->audio, raw->sampleRate, r[0], r[1])) << "  ";
         std::cout << "\n";
         return 0;
     }
@@ -503,8 +504,8 @@ int main (int argc, char** argv)
         {
             const int N = 1 << order;
             juce::dsp::FFT jf (order);
-            FastFFT::Scratch scratch (order);
-            FastFFT ff (order, scratch);
+            dsp::FastFFT::Scratch scratch (order);
+            dsp::FastFFT ff (order, scratch);
             std::vector<std::complex<float>> in ((size_t) N), a ((size_t) N), b ((size_t) N);
             for (auto& x : in) x = { rnd.nextFloat() - 0.5f, rnd.nextFloat() - 0.5f };
             double err = 0, mag = 0;

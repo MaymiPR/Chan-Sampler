@@ -14,8 +14,9 @@
 #include "CutGroups.h"
 #include "History.h"
 #include "Params.h"
-#include "dsp/SampleData.h"
+#include "SampleFile.h"
 #include "dsp/Engine.h"
+#include "dsp/SampleData.h"
 
 namespace cs
 {
@@ -78,7 +79,7 @@ public:
     void removeSample();
     // A project's sample that could not be loaded: no sample plays, the path is kept.
     void setMissingSample (const juce::File& file);
-    SampleData::Ptr getSampleForDisplay() const;
+    dsp::SampleData::Ptr getSampleForDisplay() const;
     juce::File getSampleFile() const { return getRaw()->file; }
     int getSampleLength() const { return getRaw()->audio.getNumSamples(); }
     // Every parameter back to its default (presets start from here).
@@ -120,10 +121,10 @@ private:
     bool needsStretchers() const;
     void timerCallback() override;
     void rebuildSample();
-    void publish (SampleData::Ptr newSample);
-    PrecomputeSettings readPrecomputeSettings() const;
-    EngineParams readEngineParams() const;
-    static void applyTempo (EngineParams&);
+    void publish (dsp::SampleData::Ptr newSample);
+    dsp::PrecomputeSettings readPrecomputeSettings() const;
+    dsp::EngineParams readEngineParams() const;
+    static void applyTempo (dsp::EngineParams&);
     // Parameter values by ID without building a juce::String or searching
     // the tree (the audio thread reads about 120 a block): looked up once.
     std::atomic<float>* rawParam (std::string_view id) const
@@ -168,13 +169,14 @@ private:
     juce::String loadError;
     std::pair<juce::int64, juce::int64> changedStamp, failedStamp;   // reloadIfFileChanged: (time, size)
     std::shared_ptr<const RawSample> builtFrom;
-    PrecomputeSettings builtWith;
-    Engine engine;
+    dsp::PrecomputeSettings builtWith;
+    dsp::Engine engine;
     const uint32_t instanceId = cutgroups::newInstanceId();
     cutgroups::Reader cutReader { instanceId };
     const int instanceNumber = cutgroups::claimNumber();   // FL's channel number for Cut self
     std::atomic<int> lastCutSelf { -1 };                  // to see Cut self being switched (timer)
     std::vector<int> cutOffsets;                          // this block's cuts by other instances
+    std::vector<dsp::MidiEvent> midiEvents;               // this block's MIDI for the engine (reserved)
 
     // Sustain pedal: note-offs held while it is down (audio thread only).
     bool sustainDown = false;
@@ -188,9 +190,9 @@ private:
     // sample stays in releasePool until only the pool references it, so the
     // audio thread never frees memory.
     juce::SpinLock sampleLock;
-    SampleData::Ptr currentSample;
-    SampleData::Ptr audioThreadSample;
-    juce::ReferenceCountedArray<SampleData> releasePool;
+    dsp::SampleData::Ptr currentSample;
+    dsp::SampleData::Ptr audioThreadSample;
+    std::vector<dsp::SampleData::Ptr> releasePool;
     juce::CriticalSection poolLock;
 
     std::atomic<bool> rebuildPending { false }, building { false };

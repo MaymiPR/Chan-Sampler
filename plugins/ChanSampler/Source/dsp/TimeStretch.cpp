@@ -1,13 +1,14 @@
 #include "TimeStretch.h"
+#include "Tuning.h"
 
-namespace cs
+namespace cs::dsp
 {
 
 namespace
 {
     constexpr int maxFrame = 8192;
-    constexpr float twoPi = juce::MathConstants<float>::twoPi;
-    constexpr float pi = juce::MathConstants<float>::pi;
+    constexpr float twoPi = MathConstants<float>::twoPi;
+    constexpr float pi = MathConstants<float>::pi;
 
     float wrapPhase (float x)
     {
@@ -71,10 +72,11 @@ TimeStretcher::TimeStretcher()
 void TimeStretcher::configure (StretchMode mode, double sourceRate)
 {
     const auto scale = sourceRate / 44100.0;
+    const auto& t = tuning();
     auto useVocoder = [&] (double n44, float transient, bool formants)
     {
         algo = Algo::vocoder;
-        order = juce::jlimit (10, 13, powerOfTwoNear (n44 * scale));
+        order = jlimit (10, 13, powerOfTwoNear (n44 * scale));
         frame = 1 << order;
         hop = baseHop = frame / 4;
         transientThreshold = transient;
@@ -87,7 +89,7 @@ void TimeStretcher::configure (StretchMode mode, double sourceRate)
     auto useGrains = [&] (double fallback, double hold, bool keepFormants)
     {
         algo = Algo::grains;
-        frame = hop = baseHop = juce::jmax (64, juce::roundToInt (256.0 * scale));
+        frame = hop = baseHop = jmax (64, roundToInt (t.grainFrame * scale));
         preserveFormants = false;
         fallback44 = fallback;
         hfMonoHold = hold;
@@ -99,17 +101,17 @@ void TimeStretcher::configure (StretchMode mode, double sourceRate)
     // x0.667; see MEASUREMENTS.md).
     switch (mode)
     {
-        case StretchMode::e3Mono:       useGrains (256, 384, true); break;
-        case StretchMode::e2Mono:       useGrains (128, 0, true); break;
-        case StretchMode::e2Speech:     useGrains (384, 384, false); break;
-        case StretchMode::stretchPro:   useVocoder (2048, 1.5f, true);  break;   // Stretch + formants (FL's two differ only with PITCH)
+        case StretchMode::e3Mono:       useGrains (t.e3MonoFallback, t.e3MonoHold, true); break;
+        case StretchMode::e2Mono:       useGrains (t.e2MonoFallback, t.e2MonoHold, true); break;
+        case StretchMode::e2Speech:     useGrains (t.e2SpeechFallback, t.e2SpeechHold, false); break;
+        case StretchMode::stretchPro:   useVocoder (t.vocoderFrame, t.vocoderTransientThreshold, true);  break;   // Stretch + formants (FL's two differ only with PITCH)
         case StretchMode::stretch:
         case StretchMode::e2Transient:
         case StretchMode::e2Generic:
         case StretchMode::e3Generic:
         case StretchMode::autoMode:
         case StretchMode::sliceStretch:   // e3 generic, restarted at each slice
-        default:                        useVocoder (2048, 1.5f, false); break;
+        default:                        useVocoder (t.vocoderFrame, t.vocoderTransientThreshold, false); break;
     }
 
     // e3 generic: FL's 1.485 kHz split (measured on saws: harmonics up to
@@ -126,13 +128,15 @@ void TimeStretcher::configure (StretchMode mode, double sourceRate)
     soft15 = soft067 = hfSoft15 = hfSoft067 = 0.0;
     switch (mode)
     {
-        case StretchMode::stretch:     soft15 = 57.0;  soft067 = 405.0; break;
-        case StretchMode::stretchPro:  soft15 = 12.0;  soft067 = 267.0; break;
-        case StretchMode::e2Transient: soft15 = -50.0; soft067 = 30.0;  break;
-        case StretchMode::e2Generic:   soft15 = -157.0; soft067 = -30.0; hfSoft15 = 112.0; hfSoft067 = 96.0; break;
+        case StretchMode::stretch:     soft15 = t.stretchSoft15;  soft067 = t.stretchSoft067; break;
+        case StretchMode::stretchPro:  soft15 = t.stretchProSoft15;  soft067 = t.stretchProSoft067; break;
+        case StretchMode::e2Transient: soft15 = t.e2TransientSoft15; soft067 = t.e2TransientSoft067;  break;
+        case StretchMode::e2Generic:
+            soft15 = t.e2GenericSoft15; soft067 = t.e2GenericSoft067; hfSoft15 = t.e2GenericHfSoft15; hfSoft067 = t.e2GenericHfSoft067;
+            break;
         case StretchMode::e3Generic:
         case StretchMode::autoMode:
-        case StretchMode::sliceStretch: hfSoft067 = 60.0; break;   // the grains, with the 1/512 ratio grid (measured with e3_am)
+        case StretchMode::sliceStretch: hfSoft067 = t.e3HfSoft067; break;   // the grains, with the 1/512 ratio grid (measured with e3_am)
         default: break;
     }
     // Slice stretch is e3 generic on each slice (FL's renders null with its
@@ -142,40 +146,40 @@ void TimeStretcher::configure (StretchMode mode, double sourceRate)
           || mode == StretchMode::e2Transient || mode == StretchMode::stretch || mode == StretchMode::stretchPro;
     hfBand = hybrid && mode != StretchMode::e2Transient && mode != StretchMode::stretch && mode != StretchMode::stretchPro;
     e3Estimator = e3;
-    ratioSteps = e3Estimator || mode == StretchMode::e2Transient ? 512 : mode == StretchMode::e2Generic ? 256 : 0;
+    ratioSteps = e3Estimator || mode == StretchMode::e2Transient ? t.e3RatioSteps : mode == StretchMode::e2Generic ? t.e2GenericRatioSteps : 0;
     grainsOnly = algo == Algo::grains;
     // e3 times an attack by its peak, the grains by its start.
     hfScale = scale;
-    attackSpan = hybrid ? juce::roundToInt (400.0 * scale) : 1;
+    attackSpan = hybrid ? roundToInt (t.attackSpan * scale) : 1;
     lowBins = 0;
     splitRate = sourceRate;
     // e2 speech splices a whole number of periods, the number nearest 390
     // samples (FL's, pulse trains of 52 ... 750 samples: 52 -> 364, 64 ->
     // 384, 100 -> 400, 150 -> 450, 220 -> 440, from 300 the period itself).
-    hfFrameTarget = mode == StretchMode::e2Speech ? 390.0 * scale : 0.0;
+    hfFrameTarget = mode == StretchMode::e2Speech ? t.e2SpeechSplice * scale : 0.0;
     risingSplit = e3Estimator;
     if (hfBand || grainsOnly)
     {
-        hfMinPeriod = juce::roundToInt (40.0 * scale);
+        hfMinPeriod = roundToInt (t.grainMinPeriod * scale);
         // FL's e3 / e2 mono find periods up to 1100 samples (40 Hz), e2
         // speech up to 750 (pulse trains, nulltest/measure_grain_marks.py).
         // Ours stop at 512: past that our search picks long periods where
         // FL's trackers don't (a kick's attack), which measured further from
         // FL on real material.
-        hfMaxPeriod = juce::roundToInt (512.0 * scale);
-        hfFallback = juce::roundToInt (fallback44 * scale);
-        hfWindow = juce::roundToInt (512.0 * scale);
-        hfEstOffset = juce::roundToInt (8.0 * scale);
+        hfMaxPeriod = roundToInt (t.grainMaxPeriod * scale);
+        hfFallback = roundToInt (fallback44 * scale);
+        hfWindow = roundToInt (t.grainWindow * scale);
+        hfEstOffset = roundToInt (t.grainEstimateOffset * scale);
         hfScale = scale;
         hfEstOrder = 11;
         while ((1 << hfEstOrder) < hfWindow + hfMaxPeriod + 1 && hfEstOrder < 13)
             ++hfEstOrder;
-        hfHalfKernel = grainsOnly ? 0 : juce::jmin (frame / 2 - 1, 2047);
+        hfHalfKernel = grainsOnly ? 0 : jmin (frame / 2 - 1, 2047);
         hfFilterOrder = hfHalfKernel <= 1023 ? 12 : 13;
         hfBlock = grainsOnly ? 2048 : (1 << hfFilterOrder) - 2 * hfHalfKernel - 2;
-        hfEstReuse = 512.0 * scale;
+        hfEstReuse = t.grainEstimateReuse * scale;
         if (hfBand)
-            buildSplit (baseSplit);
+            buildSplit (t.e3SplitHz);
     }
 
     for (int i = 0; i < frame; ++i)
@@ -190,15 +194,15 @@ void TimeStretcher::buildSplit (double hz)
     // transition matches the vocoder's bin cut (a frame-long Hann).
     // At the Nyquist frequency the vocoder makes the whole band.
     const double nyquist = 0.5 * splitRate;
-    lowBins = hz >= nyquist ? frame / 2 + 1 : juce::roundToInt (hz * frame / splitRate);
+    lowBins = hz >= nyquist ? frame / 2 + 1 : roundToInt (hz * frame / splitRate);
     const int M = hfHalfKernel;
     std::vector<double>& lp = splitTaps;
     double sum = 0.0;
     for (int k = -M; k <= M; ++k)
     {
-        const double x = 2.0 * juce::jmin (hz, nyquist) / splitRate * k;
-        const double sinc = k == 0 ? 1.0 : std::sin (juce::MathConstants<double>::pi * x) / (juce::MathConstants<double>::pi * x);
-        const double w = 0.5 + 0.5 * std::cos (juce::MathConstants<double>::pi * k / (M + 1));
+        const double x = 2.0 * jmin (hz, nyquist) / splitRate * k;
+        const double sinc = k == 0 ? 1.0 : std::sin (MathConstants<double>::pi * x) / (MathConstants<double>::pi * x);
+        const double w = 0.5 + 0.5 * std::cos (MathConstants<double>::pi * k / (M + 1));
         lp[(size_t) (k + M)] = sinc * w;
         sum += sinc * w;
     }
@@ -252,7 +256,7 @@ void TimeStretcher::emit (float gain)
     // Keep the FIFO from overflowing: drop what has been read.
     if (fifoCount + hop > fifoSize)
     {
-        const int drop = juce::jlimit (0, fifoCount, (int) readPos - 1);
+        const int drop = jlimit (0, fifoCount, (int) readPos - 1);
         std::copy (fifoL.begin() + drop, fifoL.begin() + fifoCount, fifoL.begin());
         std::copy (fifoR.begin() + drop, fifoR.begin() + fifoCount, fifoR.begin());
         fifoCount -= drop;
@@ -339,7 +343,7 @@ void TimeStretcher::processSpectrum (int pos, double pitchRatio, float formantCe
         std::copy (mag[0].begin(), mag[0].begin() + half + 1, mag[1].begin());
     }
 
-    const int analysisHop = juce::jmax (1, pos - prevPos);
+    const int analysisHop = jmax (1, pos - prevPos);
     for (int c = 0; c < channels; ++c)
     {
         // Transients (spectral flux jump): take the analysis phases as they
@@ -347,7 +351,7 @@ void TimeStretcher::processSpectrum (int pos, double pitchRatio, float formantCe
         float rise = 0.0f, total = 1.0e-9f;
         for (int k = 1; k < half; ++k)
         {
-            rise += juce::jmax (0.0f, mag[c][(size_t) k] - prevMag[c][(size_t) k]);
+            rise += jmax (0.0f, mag[c][(size_t) k] - prevMag[c][(size_t) k]);
             total += prevMag[c][(size_t) k];
         }
         phaseLock (c, analysisHop, first || attack || rise / total > transientThreshold);
@@ -377,13 +381,13 @@ void TimeStretcher::processSpectrum (int pos, double pitchRatio, float formantCe
                 const auto src = (float) k * warp;
                 float tgt;
                 if (src >= (float) half)
-                    tgt = env[(size_t) half] - 6.0f;
+                    tgt = env[(size_t) half] - tuning().formantMaxGain;
                 else
                 {
                     const int i0 = (int) src;
-                    tgt = env[(size_t) i0] + (env[(size_t) juce::jmin (half, i0 + 1)] - env[(size_t) i0]) * (src - (float) i0);
+                    tgt = env[(size_t) i0] + (env[(size_t) jmin (half, i0 + 1)] - env[(size_t) i0]) * (src - (float) i0);
                 }
-                const auto g = std::exp (juce::jlimit (-6.0f, 6.0f, tgt - env[(size_t) k]));
+                const auto g = std::exp (jlimit (-tuning().formantMaxGain, tuning().formantMaxGain, tgt - env[(size_t) k]));
                 corr[(size_t) k] = g;
                 const auto m = mag[c][(size_t) k];
                 before += (double) m * m;
@@ -429,7 +433,7 @@ void TimeStretcher::phaseLock (int c, int analysisHop, bool transient)
     // it keep their phase offset to it. Only the peaks need an angle.
     // e3 generic keeps only the bins below the split, so only those (and a
     // few above, for the peaks near it) are worth the work.
-    const int n = frame, half = lowBins > 0 ? juce::jmin (n / 2, lowBins + 8) : n / 2;
+    const int n = frame, half = lowBins > 0 ? jmin (n / 2, lowBins + 8) : n / 2;
     auto& x = bins[c];
     auto& m = mag[c];
     auto& s = synth[c];
@@ -511,7 +515,7 @@ void TimeStretcher::formantEnvelopes()
     // FFT; both are real and even). Only the first n / 64 coefficients are
     // kept, so the envelope is smooth: it is evaluated every 4th bin by a
     // quarter-size FFT and interpolated in between.
-    const int n = frame, half = n / 2, quarter = n / 4, lifter = juce::jmax (8, juce::roundToInt (64.0 * hfScale));
+    const int n = frame, half = n / 2, quarter = n / 4, lifter = jmax (8, roundToInt (tuning().formantLifter * hfScale));
     for (int k = 0; k <= half; ++k)
     {
         const Complex v (std::log (mag[0][(size_t) k] + 1.0e-7f), std::log (mag[1][(size_t) k] + 1.0e-7f));
@@ -530,7 +534,7 @@ void TimeStretcher::formantEnvelopes()
     {
         const int p = k >> 2;
         const auto t = (float) (k & 3) * 0.25f;
-        const auto a = work[(size_t) p], b = work[(size_t) juce::jmin (quarter / 2, p + 1)];
+        const auto a = work[(size_t) p], b = work[(size_t) jmin (quarter / 2, p + 1)];
         envelope[0][(size_t) k] = a.real() + (b.real() - a.real()) * t;
         envelope[1][(size_t) k] = a.imag() + (b.imag() - a.imag()) * t;
     }

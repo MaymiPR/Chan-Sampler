@@ -262,13 +262,13 @@ presetimport::Result presetimport::import (ChanSamplerProcessor& processor, cons
             set (id::stretchMul, (float) std::pow (2.0, e->i32 (104) / 10000.0));
             // FL's stored method: -2 Stretch Pro, -1 Stretch, 0 Resample, 1 e3 generic,
             // 2 e3 mono, 3 Slice stretch, 4 Slice map, 5 Auto, 6..9 e2 generic / transient / mono / speech
-            static const std::map<int, StretchMode> modes {
-                { -2, StretchMode::stretchPro }, { -1, StretchMode::stretch }, { 0, StretchMode::resample },
-                { 1, StretchMode::e3Generic }, { 2, StretchMode::e3Mono }, { 3, StretchMode::sliceStretch },
-                { 4, StretchMode::sliceMap }, { 5, StretchMode::autoMode }, { 6, StretchMode::e2Generic },
-                { 7, StretchMode::e2Transient }, { 8, StretchMode::e2Mono }, { 9, StretchMode::e2Speech } };
+            static const std::map<int, dsp::StretchMode> modes {
+                { -2, dsp::StretchMode::stretchPro }, { -1, dsp::StretchMode::stretch }, { 0, dsp::StretchMode::resample },
+                { 1, dsp::StretchMode::e3Generic }, { 2, dsp::StretchMode::e3Mono }, { 3, dsp::StretchMode::sliceStretch },
+                { 4, dsp::StretchMode::sliceMap }, { 5, dsp::StretchMode::autoMode }, { 6, dsp::StretchMode::e2Generic },
+                { 7, dsp::StretchMode::e2Transient }, { 8, dsp::StretchMode::e2Mono }, { 9, dsp::StretchMode::e2Speech } };
             const auto m = modes.find (e->i32 (108));
-            set (id::stretchMode, (float) (int) (m == modes.end() ? StretchMode::resample : m->second));
+            set (id::stretchMode, (float) (int) (m == modes.end() ? dsp::StretchMode::resample : m->second));
         }
         if (e->has (152))   // precomputed start / length and the start offset as doubles
         {
@@ -389,12 +389,12 @@ presetimport::Result presetimport::import (ChanSamplerProcessor& processor, cons
         if (i != 0)   // FL's Panning page has no envelope
         {
             set (p ("EnvOn"), field (1, 0) ? 1.0f : 0.0f);
-            set (p ("Del"),  flEnvKnobForRaw (field (2, 100)));
-            set (p ("Att"),  flEnvKnobForRaw (field (3, 20000)));
-            set (p ("Hold"), flEnvKnobForRaw (field (4, 20000)));
-            set (p ("Dec"),  flEnvKnobForRaw (field (5, 30000)));
+            set (p ("Del"),  dsp::flEnvKnobForRaw (field (2, 100)));
+            set (p ("Att"),  dsp::flEnvKnobForRaw (field (3, 20000)));
+            set (p ("Hold"), dsp::flEnvKnobForRaw (field (4, 20000)));
+            set (p ("Dec"),  dsp::flEnvKnobForRaw (field (5, 30000)));
             set (p ("Sus"),  (float) field (6, 50) / 128.0f);
-            set (p ("Rel"),  flEnvKnobForRaw (field (7, 20000)));
+            set (p ("Rel"),  dsp::flEnvKnobForRaw (field (7, 20000)));
             if (i >= 2)
                 set (p ("EnvAmt"), (float) field (8, 0) / 128.0f);
             set (p ("AttT"), (float) field (14, 0) / 128.0f);
@@ -402,8 +402,8 @@ presetimport::Result presetimport::import (ChanSamplerProcessor& processor, cons
             set (p ("RelT"), (float) field (16, i == 1 ? -101 : 0) / 128.0f);
             set (p ("EnvTempo"), (flags & 1) ? 1.0f : 0.0f);
         }
-        set (p ("LfoDel"),   flEnvKnobForRaw (field (9, 100)));
-        set (p ("LfoAtt"),   flEnvKnobForRaw (field (10, 20000)));
+        set (p ("LfoDel"),   dsp::flEnvKnobForRaw (field (9, 100)));
+        set (p ("LfoAtt"),   dsp::flEnvKnobForRaw (field (10, 20000)));
         set (p ("LfoAmt"),   (float) field (11, 0) / 128.0f);
         set (p ("LfoSpeed"), (float) (field (12, 32950) - 200) / 65336.0f);
         set (p ("LfoShape"), (float) field (13, 0));

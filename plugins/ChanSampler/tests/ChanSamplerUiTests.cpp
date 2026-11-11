@@ -3,7 +3,7 @@
 //
 //   ChanSamplerUiTests <sample.wav>
 //
-// Checks: every drop-down list is the shared chansampler::ui::ComboBox (so all of them get
+// Checks: every drop-down list is the shared chan::ui::ComboBox (so all of them get
 // the same arrow, animation and menu); a choice made in any list reaches its
 // parameter and is still shown after the editor is rebuilt; the history
 // records gestures as single steps, skips edits that change nothing, drops
@@ -102,13 +102,13 @@ int main (int argc, char** argv)
         forEach<juce::ComboBox> (*editor, [&] (juce::ComboBox& box)
         {
             ++lists;
-            if (dynamic_cast<chansampler::ui::ComboBox*> (&box) != nullptr)
+            if (dynamic_cast<chan::ui::ComboBox*> (&box) != nullptr)
                 ++shared;
             else
                 std::cout << "      plain juce::ComboBox: " << box.getTooltip() << " (" << box.getNumItems() << " items)\n";
         });
         check (lists == 4, "four drop-down lists in the editor", juce::String (lists));
-        check (shared == lists, "every drop-down list is chansampler::ui::ComboBox", juce::String (shared) + " of " + juce::String (lists));
+        check (shared == lists, "every drop-down list is chan::ui::ComboBox", juce::String (shared) + " of " + juce::String (lists));
 
         // each list: choose every item, the parameter follows and the box keeps showing it
         const char* ids[] = { id::declick, id::stretchMode, id::filterType, id::arpChord };
@@ -349,8 +349,8 @@ int main (int argc, char** argv)
     {
         auto editor = makeEditor();
         pump();
-        chansampler::ui::MenuArrow* arrow = nullptr;
-        forEach<chansampler::ui::MenuArrow> (*editor, [&] (chansampler::ui::MenuArrow& a) { if (arrow == nullptr) arrow = &a; });
+        chan::ui::MenuArrow* arrow = nullptr;
+        forEach<chan::ui::MenuArrow> (*editor, [&] (chan::ui::MenuArrow& a) { if (arrow == nullptr) arrow = &a; });
         check (arrow != nullptr, "a panel menu arrow");
         if (arrow != nullptr)
         {
@@ -360,7 +360,7 @@ int main (int argc, char** argv)
             // The arrow eases round; sampled every 20 ms for up to 2 s, as a busy machine
             // (a CI runner) can deliver its frames late
             pump (400);
-            for (int t = 0; t < 1600 && chansampler::ui::turnOf (*arrow) <= 0.99f
+            for (int t = 0; t < 1600 && chan::ui::turnOf (*arrow) <= 0.99f
                             && juce::ModalComponentManager::getInstance()->getNumModalComponents() > 0; t += 20)
                 pump (20);
             // JUCE closes a menu whose program is not in the foreground: under
@@ -368,12 +368,12 @@ int main (int argc, char** argv)
             if (juce::ModalComponentManager::getInstance()->getNumModalComponents() == 0)
                 std::cout << "SKIP  turned while its menu is open: the menu was closed by the environment (no foreground window here)" << std::endl;
             else
-                check (chansampler::ui::turnOf (*arrow) > 0.99f, "turned while its menu is open (the mouse elsewhere)", juce::String (chansampler::ui::turnOf (*arrow)));
+                check (chan::ui::turnOf (*arrow) > 0.99f, "turned while its menu is open (the mouse elsewhere)", juce::String (chan::ui::turnOf (*arrow)));
             juce::PopupMenu::dismissAllActiveMenus();
             pump (500);
-            for (int t = 0; t < 1500 && chansampler::ui::turnOf (*arrow) >= 0.01f; t += 20)
+            for (int t = 0; t < 1500 && chan::ui::turnOf (*arrow) >= 0.01f; t += 20)
                 pump (20);
-            check (chansampler::ui::turnOf (*arrow) < 0.01f, "turned back once the menu closes", juce::String (chansampler::ui::turnOf (*arrow)));
+            check (chan::ui::turnOf (*arrow) < 0.01f, "turned back once the menu closes", juce::String (chan::ui::turnOf (*arrow)));
         }
     }
 
@@ -431,11 +431,11 @@ int main (int argc, char** argv)
             check (att != nullptr && relT != nullptr, "the volume ATT and release TENSION knobs");
             if (att != nullptr && relT != nullptr)
             {
-                check (att->menu.typedText (flEnvKnobForRaw (20000)) == "31%" && att->menu.typedText (flEnvKnobForRaw (16193)) == "25%"
-                       && att->menu.typedText (flEnvKnobForRaw (53784)) == "82%" && att->menu.typedText (flEnvKnobForRaw (54722)) == "83%",
-                       "ATT shows FL's 31, 25, 82 and 83 %", att->menu.typedText (flEnvKnobForRaw (20000)));
-                check (att->menu.typedText (flEnvKnobForRaw (20000), true) == "0.31" && near (att->menu.typedPosition ("50"), 0.5),
-                       "ATT: A shows 0.31, 50 is 0.5", att->menu.typedText (flEnvKnobForRaw (20000), true));
+                check (att->menu.typedText (dsp::flEnvKnobForRaw (20000)) == "31%" && att->menu.typedText (dsp::flEnvKnobForRaw (16193)) == "25%"
+                       && att->menu.typedText (dsp::flEnvKnobForRaw (53784)) == "82%" && att->menu.typedText (dsp::flEnvKnobForRaw (54722)) == "83%",
+                       "ATT shows FL's 31, 25, 82 and 83 %", att->menu.typedText (dsp::flEnvKnobForRaw (20000)));
+                check (att->menu.typedText (dsp::flEnvKnobForRaw (20000), true) == "0.31" && near (att->menu.typedPosition ("50"), 0.5),
+                       "ATT: A shows 0.31, 50 is 0.5", att->menu.typedText (dsp::flEnvKnobForRaw (20000), true));
                 const auto relDefault = paramOf (processor, id::env (id::volPrefix, "RelT"))->getDefaultValue();
                 check (relT->menu.typedText (relDefault) == "-79%" && relT->menu.typedText (relDefault, true) == "0.105",
                        "release TENSION: -79%, A 0.105", relT->menu.typedText (relDefault, true));
