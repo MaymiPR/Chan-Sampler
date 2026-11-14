@@ -21,7 +21,10 @@ in its first 8 KB is binary and skipped. Rules:
     V  a vendor word (the vendor: lines of .provenance, any letter case) in a code identifier or a file name: in a code
        file, a CamelCase or snake_case name whose parts spell the vendor word (VendorDrag, render_vendor); in every
        tracked path, a file or folder name with the vendor word among its parts. Word-boundary aware: a plain word in
-       prose or a comment is not an identifier, and a vendor word inside a longer part (Acme in Acmeism) is not a match
+       prose or a comment is not an identifier, and a vendor word inside a longer part (Acme in Acmeism) is not a match.
+       The rule is about the names we give. A name that a library or a standard defines and the code calls passes
+       when .provenance lists it: "uses: <identifier>  <the library or standard that defines it>". Exactly that
+       identifier passes, in code only; a uses: line without its source is a finding
     H  a plug-in's nulltest/ without its harness <ab>_ref.py (<ab>: the plug-in's <Ab>Render abbreviation in lower
        case); the plug-in folder is plugin/ in a suite of one plug-in, plugins/<Id>/ in a suite of several
     I  a numbered iteration script: a script or native helper under nulltest/ or scripts/ whose name ends in a number
@@ -132,6 +135,26 @@ def vendor_words(root=ROOT):
     return words
 
 
+def library_names_in(text):
+    """[(line number, identifier, source)] of the uses: lines of a .provenance text: the names a library or a
+    standard defines, which rule V lets pass."""
+    rows = []
+    for n, line in enumerate(text.split('\n'), 1):
+        if line.strip().startswith('uses:'):
+            name, _, source = line.strip()[5:].strip().partition(' ')
+            rows.append((n, name, source.strip()))
+    return rows
+
+
+def library_names(root=ROOT):
+    """The identifiers the uses: lines of .provenance name."""
+    path = os.path.join(root, '.provenance')
+    if not os.path.isfile(path):
+        return set()
+    with open(path, encoding='utf-8') as h:
+        return {name for _, name, _ in library_names_in(h.read())}
+
+
 def vendor_in(parts, vendor):
     """The vendor word that whole parts in a row spell (Maxx + Bass, or one part maxxbass), or None."""
     for word, run in vendor:
@@ -172,6 +195,14 @@ def tree_rules(files, findings, vendor):
                 if word and (comp, word) not in seen:
                     seen.add((comp, word))
                     findings.append(f'{rel}:1: V: the vendor word {word} in the name {comp}')
+    if '.provenance' in files and os.path.isfile(os.path.join(ROOT, '.provenance')):
+        with open(os.path.join(ROOT, '.provenance'), encoding='utf-8') as h:
+            for n, name, source in library_names_in(h.read()):
+                if not re.fullmatch(r'[A-Za-z_]\w*', name):
+                    findings.append(f'.provenance:{n}: V: a uses: line names one identifier, not "{name}"')
+                elif not source:
+                    findings.append(f'.provenance:{n}: V: the uses: line of {name} does not say which library or '
+                                    f'standard defines it')
     for pdir in plugin_dirs(files):
         if not any(f.startswith(f'{pdir}/nulltest/') for f in files):
             continue
@@ -195,7 +226,7 @@ def tree_rules(files, findings, vendor):
                             f'named for what it does')
 
 
-def check_file(rel, data, old_names, findings, vendor=()):
+def check_file(rel, data, old_names, findings, vendor=(), library=()):
     text = data.decode('utf-8', 'replace')
     code = rel.lower().endswith(CODE_EXT) or os.path.basename(rel) == 'CMakeLists.txt'
     licence = bool(LICENCE.search(rel))
@@ -222,7 +253,7 @@ def check_file(rel, data, old_names, findings, vendor=()):
         if vendor and code:
             for token in set(IDENTIFIER.findall(line)):
                 word = vendor_in(name_parts(token), vendor) if is_identifier(token) else None
-                if word:
+                if word and token not in library:
                     add('V', f'the vendor word {word} in the identifier {token}')
         if any(r.search(line) for r in P_RULES):
             add('P', line)
@@ -377,7 +408,7 @@ def main():
     a = ap.parse_args()
     files = git_files()
     old_names = old_name_rules(files)
-    vendor = vendor_words()
+    vendor, library = vendor_words(), library_names()
     findings, checked = [], 0
     for rel in files:
         data = read_bytes(rel)
@@ -387,7 +418,7 @@ def main():
             print(f'{rel}: fixed whitespace and line endings')
             data = read_bytes(rel)
         checked += 1
-        check_file(rel, data, old_names, findings, vendor)
+        check_file(rel, data, old_names, findings, vendor, library)
     tree_rules(files, findings, vendor)
     if a.release:
         release_rules(files, findings)

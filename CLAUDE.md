@@ -57,7 +57,8 @@ tool and never downloads a dependency.
   `local.yaml`.
 - Never use a word of the reference's vendor or product in a control label, a preset name, a plug-in name, a code
   identifier or a file name. The reference is named only where a document says what a plug-in recreates;
-  `.provenance` lists the words and `scripts/check_repo.py` checks them.
+  `.provenance` lists the words and `scripts/check_repo.py` checks them. A name that a library or a standard
+  defines passes only through a `uses:` line of `.provenance`.
 - Never commit anything taken from or written by the reference or a DAW: renders, captures, screenshots of the
   original, its presets, images, fonts, samples or code, a project file, a state file, a rendered WAV. Test signals
   come from a script. `reference/`, the renders and the result files stay git-ignored.

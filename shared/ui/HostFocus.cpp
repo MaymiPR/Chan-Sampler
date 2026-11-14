@@ -92,19 +92,10 @@ struct FocusOnClick : juce::MouseListener
 };
 }
 
-// FL Studio, by the host's file name, as JUCE recognises it: FL64.exe, OsxFL on macOS, and the bridge process FL
-// runs a bridged plug-in in. Written out here, because JUCE's own test carries the maker's name in its identifier,
-// and a suite whose reference comes from that maker keeps the word out of its code.
-static bool isFlHost()
-{
-    const auto name = juce::File (juce::PluginHostType::getHostPath()).getFileName();
-    return name.startsWith ("FL") || name.containsIgnoreCase ("OsxFL") || name.contains ("ilbridge.");
-}
-
 HostFocus::HostFocus (juce::AudioProcessorEditor& e, bool wantsKeys) : editor (e)
 {
     const auto wrapper = e.processor.wrapperType;
-    if (wrapper == juce::AudioProcessor::wrapperType_VST3 && isFlHost())
+    if (wrapper == juce::AudioProcessor::wrapperType_VST3 && juce::PluginHostType().isFruityLoops())
         listener = std::make_unique<KeepHostFocus> (e);
     else if (wantsKeys && wrapper != juce::AudioProcessor::wrapperType_VST3
              && wrapper != juce::AudioProcessor::wrapperType_Standalone && wrapper != juce::AudioProcessor::wrapperType_Undefined)

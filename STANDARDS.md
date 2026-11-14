@@ -62,7 +62,9 @@ them, then adds the new plug-in beside it.
 Parameter ids are lowerCamelCase and never renamed after a release; parameter names are the names the reference
 shows in a host. No vendor word in a control label, a preset name, a plug-in name, a code identifier, a tracked file
 name or a local file a script reads (`.provenance` lists the words; `scripts/check_repo.py` checks them); the
-reference is named only where a document says what a plug-in recreates.
+reference is named only where a document says what a plug-in recreates. The rule is about the names we give: an
+identifier that a library or a standard defines and the code calls passes when a `uses:` line of `.provenance` names
+it and its source.
 
 The frozen identity never changes once a release has shipped: the manufacturer and plug-in codes (and the VST3 class
 IDs from them), the bundle and CLAP IDs, the parameter IDs, the state tag (the name of the state tree, checked on
