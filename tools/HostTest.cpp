@@ -443,10 +443,10 @@ int main (int argc, char** argv)
             else
             {
                 // a value that names a file may come back in the platform's own form (other slashes)
-                auto same = [] (const juce::String& given, const juce::String& saved)
+                auto same = [] (const juce::String& given, const juce::String& kept)
                 {
-                    return given == saved || (juce::File::isAbsolutePath (given) && juce::File::isAbsolutePath (saved)
-                                              && juce::File (given) == juce::File (saved));
+                    return given == kept || (juce::File::isAbsolutePath (given) && juce::File::isAbsolutePath (kept)
+                                             && juce::File (given) == juce::File (kept));
                 };
                 juce::StringArray lost;
                 for (auto& key : properties.getAllKeys())
