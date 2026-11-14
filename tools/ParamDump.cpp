@@ -26,7 +26,7 @@ int main (int argc, char** argv)
     }
 
     AudioPluginFormatManager fm;
-    fm.addFormat (new VST3PluginFormat());
+    fm.addFormat (std::make_unique<VST3PluginFormat>());
     OwnedArray<PluginDescription> types;
     VST3PluginFormat vst3;
     vst3.findAllTypesForFile (types, args[0]);
@@ -88,7 +88,7 @@ int main (int argc, char** argv)
 
     if (plugin->hasEditor())
     {
-        std::unique_ptr<AudioProcessorEditor> ed (plugin->createEditorIfNeeded());
+        std::unique_ptr<AudioProcessorEditor> ed (plugin->createEditorAndMakeActive());
         if (ed != nullptr)
             std::printf ("\neditor: %d x %d  resizable: %d\n", ed->getWidth(), ed->getHeight(), (int) ed->isResizable());
         if (ed != nullptr) plugin->editorBeingDeleted (ed.get());

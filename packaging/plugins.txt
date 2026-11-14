@@ -1,4 +1,4 @@
 # One line per plug-in in the suite:  CMake target|product name|AU plugin code|AU manufacturer code|AU type
 # AU type: aufx for an effect, aumu for an instrument (release.yml's auval reads it). The installers and the release
 # workflow read this list; add a line when a new plug-in is ready.
-ChanSampler|Chan Sampler|Csm1|Chsm|aumu
+ChanSampler|Chan Sampler|Csm1|Chsm|aumu|ChanSampler

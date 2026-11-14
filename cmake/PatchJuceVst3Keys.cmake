@@ -4,20 +4,25 @@
 # IPlugView::onKeyDown / onKeyUp, and acts on a key itself when the view says
 # it did not use it (FL Studio offers a key this way before running its own
 # shortcut). JUCE 9.0.5's VST3 editor (like 9.0.4's and 8.0.16's) does not implement them, so it declines
-# every key: Ctrl+Z, Ctrl+Y and Ctrl+C / Ctrl+V never reached Chan Sampler in
-# FL Studio, whose own (empty) undo ran instead. This adds the two calls: the
+# every key: Ctrl+Z, Ctrl+Y and Ctrl+C / Ctrl+V never reach a plug-in in
+# FL Studio, whose own (empty) undo runs instead. This adds the two calls: the
 # key goes through the editor's normal key handling, and the host gets every
 # key the editor does not use.
 #
-# Run at configure time on the fetched JUCE (never on a JUCE of your own given
-# with FETCHCONTENT_SOURCE_DIR_JUCE); it changes the file once and recognises
-# its own change afterwards.
+# Run at configure time on the JUCE the build uses, fetched or supplied with
+# FETCHCONTENT_SOURCE_DIR_JUCE: it changes that JUCE's source file in place.
+# The JUCE is therefore this repository's own copy under build/_deps, never
+# another project's checkout. It changes the file once and recognises its own
+# change afterwards, by the marker or by the two functions it adds.
 #   cmake -DJUCE_DIR=<juce source> -P PatchJuceVst3Keys.cmake
 
 set(file "${JUCE_DIR}/modules/juce_audio_plugin_client/juce_audio_plugin_client_VST3.cpp")
 file(READ "${file}" source)
-string(FIND "${source}" "CHANSAMPLER_VST3_KEYS" already)
-if(NOT already EQUAL -1)
+string(FIND "${source}" "VST3_HOST_KEYS" already)
+# The marker, or the added onKeyDown itself (a JUCE patched by an earlier form of this script), means the file is
+# patched already: the functions are never added twice.
+string(FIND "${source}" "tresult PLUGIN_API onKeyDown (char16 key, int16 keyCode, int16 modifiers) override" added)
+if(NOT already EQUAL -1 OR NOT added EQUAL -1)
     return()
 endif()
 
@@ -28,7 +33,7 @@ if(at EQUAL -1)
 endif()
 
 set(keys [=[
-        // CHANSAMPLER_VST3_KEYS (added by Chan Sampler's cmake/PatchJuceVst3Keys.cmake):
+        // VST3_HOST_KEYS (added by cmake/PatchJuceVst3Keys.cmake):
         // the keys the host offers the view go through the editor's key
         // handling; kResultFalse lets the host use the ones it did not take.
         tresult PLUGIN_API onKeyDown (char16 key, int16 keyCode, int16 modifiers) override

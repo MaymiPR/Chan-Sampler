@@ -2,24 +2,28 @@
 
 The rules every repository of this kind follows: layout, naming, branches, versions, commits, documents, hygiene,
 the CI and release standard and the two development flows. CONTRIBUTING.md is the short form for a change;
-this page is the reference. A deviation is listed in the last section with its reason.
+this page is the reference, the same text in every suite, and is never edited in one. A deviation is one sentence
+in CONTRIBUTING.md under "Deviations from the standard", with its reason, and is recorded nowhere else. A file of the
+starter a suite keeps in a version of its own is such a deviation, and `.sync-exempt` lists it with the reason.
 
 ## Tree
 
 | Path | Holds |
 |---|---|
-| `plugin/` or `plugins/<Id>/` | the plug-in folder: `plugin/` in a suite of one plug-in, `plugins/<Id>/` per plug-in in a suite of several (below); it holds `plugin.cmake`, `Source/` (`Params.h`, `PluginProcessor`, `PluginEditor`, `Presets`, a generated `PresetTable.h`; code that is neither DSP nor editor (a document model, a custom Standalone app) beside them, named by its job; `dsp/` with `Engine` and `Tuning.h`; `ui/` with the plug-in's own `Theme.h` and `Controls`), `tests/` (`<Stem>Tests.cpp`, `<Stem><Area>Tests.cpp`, `data/state-<x.y.z>.bin`), `tools/` (`<Ab>Render.cpp`, `<Ab><Part>Render.cpp`), a flat `nulltest/` (with its README), README, RESEARCH, MEASUREMENTS, NULLTESTS; optional `scripts/` (every script that writes under `Source/` or `resources/`, the editor-measuring scripts) and `resources/` (its binary resources) |
+| `plugin/` or `plugins/<Id>/` | the plug-in folder: `plugin/` in a suite of one plug-in, `plugins/<Id>/` per plug-in in a suite of several (below); it holds `plugin.cmake`, `Source/` (`Params.h`, `PluginProcessor`, `PluginEditor`, `Presets`, the generated `Tapers.h` and `PresetTable.h`; code that is neither DSP nor editor (a document model, a custom Standalone app) beside them, named by its job; `dsp/` with `Engine` and `Tuning.h`; `ui/` with the plug-in's own `Theme.h` and `Controls`), `tests/` (`<Stem>Tests.cpp`, `<Stem><Area>Tests.cpp`, `data/state-<x.y.z>.bin`), `tools/` (`<Ab>Render.cpp`, `<Ab><Part>Render.cpp`), a flat `nulltest/` (with its README; `nulltest_lib.py` and `refhost_lib.py` in it are generated and never edited; the tracked `targets/` and `history/`, the git-ignored outputs `probes/`, `fits/`, `out/`, `bench/` and `renders/`), `ui/` (`control-spec.md`, `behaviour.md`, `regions.json`: the editor's control table and behaviour checklist), README, RESEARCH, MEASUREMENTS, NULLTESTS; optional `scripts/` (every script that writes under `Source/` or `resources/`, the editor-measuring scripts) and `resources/` (its binary resources) |
 | `shared/` | code shared by the plug-ins, built as the static library `<SuiteId>Shared`: `shared.cmake`, `ui/` (`Theme.h`, `Widgets`, `HostFocus`), `dsp/` (`Math.h`; editor-side analysis such as a level meter may use JUCE, as the plain-C++ rule covers a plug-in's `Source/dsp/` only), optional `Presets` (the factory-preset helpers the plug-ins share); a suite of one plug-in has it too |
 | `tools/` | C++ only: the reference hosts RefRender, ParamDump, RefCapture, FocusCheck, and `Snapshot.cpp` and `HostTest.cpp`, built per plug-in (Python goes to `scripts/`) |
 | `measurements/` | measurement data: directly in `measurements/` in a suite of one plug-in, in `measurements/<Id>/` (the id's exact case) per plug-in in a suite of several; published by a public suite with the approval recorded, git-ignored while the suite is private |
-| `packaging/` | `plugins.txt` (`Target\|Product name\|PluginCode\|ManufacturerCode\|AU type`), the Inno Setup script, `distribution.xml`, `install-linux.sh`, the INSTALL notes, THIRD-PARTY-NOTICES, ABOUT; the standalone apps unticked by default |
+| `packaging/` | `plugins.txt` (`Target\|Product name\|PluginCode\|ManufacturerCode\|AU type\|Class stem`: the class stem is the last column, the one place the workflows and the scripts read it from), the Inno Setup script, `distribution.xml`, `install-linux.sh`, the INSTALL notes, THIRD-PARTY-NOTICES, ABOUT; the standalone apps unticked by default |
 | `tests/regress/` | the render regression: `jobs.txt` and `golden/*.f32` (in a suite of several, in `<Id>/` per plug-in target), the only place `scripts/render_regress.py`, CI and the local check read |
 | `docs/` | `BUILDING.md`, `branding/` (banners, icon, social preview, `colours.json`), `screenshots/` |
 | `scripts/` | `bump_version.py`, `release_notes.py`, `render_regress.py`, `make_site.py`, `check_repo.py`, `check.ps1`, `check.sh`; `make_screenshots.py` (`docs/screenshots/` from each plug-in's snapshot tool, the views in its `VIEWS`); `build_native.py` (the native null-test helpers into `build/native/`); `nulltest/` for a host the plug-ins share and `ref_state_lib.py` |
-| `.github/` | the five workflows, `dependabot.yml`, the issue forms, the pull request template, `RELEASE_CHECKLIST.md`, CODEOWNERS |
+| `.github/` | the five workflows (no `dependabot.yml`: the action pins are the starter's), the issue forms, the pull request template, `RELEASE_CHECKLIST.md`, CODEOWNERS |
 
 Root files: `README.md` (purpose, contents, quick start, links), `LICENSE` (AGPL-3.0), `CONTRIBUTING.md`,
-`CHANGELOG.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, `STANDARDS.md`, `CMakeLists.txt`, `.provenance`,
+`CLAUDE.md` (the short instructions for a session), `CHANGELOG.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`,
+`STANDARDS.md`, `CMakeLists.txt`, `.provenance`, `.sync-exempt` (the starter's files the suite keeps as its own, each
+with its reason),
 `local.example.yaml` (the keys of the git-ignored `local.yaml`, which holds every machine path; the suite's own keys
 in its closing "Suite keys" block), `.editorconfig`,
 `.gitattributes`, `.gitignore`, `.markdownlint-cli2.yaml`, `.yamllint.yaml`, `requirements.txt`.
@@ -47,7 +51,7 @@ them, then adds the new plug-in beside it.
 | Release files | `<SuiteId>-<version>-<OS>[-<Format>].<ext>` | Example-1.2.0-Windows-Setup.exe |
 | Look and controls | suite colours `shared/ui/Theme.h`, a plug-in's own look `Source/ui/Theme.h`; shared controls `shared/ui/Widgets`, a plug-in's own `Source/ui/Controls`; no forwarding headers | `Source/ui/Controls.cpp` |
 | Test programs | `tests/<Stem>Tests.cpp`, a further one `tests/<Stem><Area>Tests.cpp`; `<Stem>HostTest` from `tools/HostTest.cpp` | `PluginUiTests.cpp` |
-| Harness module | `<ab>_ref.py`, the tool abbreviation in lower case (never the reference's initials or name) | `tp_ref.py` |
+| Harness module | `<ab>_ref.py`, the tool abbreviation in lower case (never the reference's initials or name); it holds what is the plug-in's own and calls the generated `refhost_lib.py` beside it | `tp_ref.py` |
 | Null-test scripts | lower_snake in a flat `nulltest/`; `nulltest.py` and `first_null.py`; others start with their purpose (`measure_`, `probe_`, `fit_`, `train_`, `null_`, `render_`, `compare_`, `check_`, `read_`, `cases_`), helpers are `<topic>_lib.py`, a plug-in is named by its id; no numbered iterations (the script whose output ships keeps the name); native helpers in `nulltest/native/`, built into `build/native/` | `probe_release.py` |
 | Plug-in scripts | `scripts/` in the plug-in folder: `make_`, `export_`, `pack_` for a script that writes under `Source/` or `resources/`; `measure_ui.py`, `compare_ui.py`, `fit_<part>.py` for the editor; `ui/drive_<action>.ps1`, `ui/capture_<target>.ps1`, `ui/<topic>_lib.ps1` for drivers of a Standalone's window | `make_presets.py` |
 | Null-test report | one generated `NULLTESTS.md` per plug-in, a section per kind of case (Settings, Stages, Presets, Grid); the data as JSON in the plug-in's measurements folder | NULLTESTS.md |
@@ -61,8 +65,10 @@ name or a local file a script reads (`.provenance` lists the words; `scripts/che
 reference is named only where a document says what a plug-in recreates.
 
 The frozen identity never changes once a release has shipped: the manufacturer and plug-in codes (and the VST3 class
-IDs from them), the bundle and CLAP IDs, the parameter IDs, the company name, the installer's AppId and the install
-folders. CONTRIBUTING.md records the values under "Frozen identity".
+IDs from them), the bundle and CLAP IDs, the parameter IDs, the state tag (the name of the state tree, checked on
+load), the preset tag and the preset file extension, the company name, the installer's AppId and the install
+folders. A changed state tag opens every saved project at the defaults; a changed preset tag or extension hides
+every user preset. CONTRIBUTING.md records the values under "Frozen identity".
 
 ## Branches
 
@@ -111,8 +117,8 @@ reason and approval date, and `scripts/check_repo.py --release` passes.
 | Workflow | Trigger | Does |
 |---|---|---|
 | Lint (`lint.yml`) | push to main, pull request, by hand | Markdown, YAML, actionlint with shellcheck, the shell scripts, `scripts/check_repo.py`; one Ubuntu job |
-| CI (`ci.yml`) | push to main and pull request (documents, `docs/`, null-test harnesses ignored), by hand | Linux, Windows, macOS: configure with the tools on and CLAP off, build `ci_targets` with zero warnings, `ctest`, the render regression; Windows uploads editor screenshots |
-| Build and release (`release.yml`) | tag `v*`, by hand (artifacts only) | every format on three systems, `ctest`, pluginval at strictness 10, FocusCheck where built, signing when the secrets exist, one installer per OS; on a tag: checksums, attestations, notes, the GitHub release |
+| CI (`ci.yml`) | push to main and pull request (documents, `docs/`, null-test harnesses ignored), by hand | Linux, Windows, macOS: configure with the tools on and CLAP off, build `ci_targets`, zero warnings in the configure and build output, `ctest`, the render regression; Windows uploads editor screenshots |
+| Build and release (`release.yml`) | tag `v*`, by hand (artifacts only) | the tag's version checked against `CMakeLists.txt`; every format on three systems, zero warnings, `ctest`, pluginval at strictness 10, signing when the secrets exist, one installer per OS; on a pushed tag only: checksums, attestations, notes, the GitHub release |
 | Release checklist (`release-checklist.yml`) | creation of `release/x.y.z`, by hand with the version | opens the issue from `.github/RELEASE_CHECKLIST.md` once |
 | Landing page (`pages.yml`) | a published release, by hand | `scripts/make_site.py` to GitHub Pages (public repositories with Pages enabled) |
 
@@ -120,33 +126,42 @@ reason and approval date, and `scripts/check_repo.py --release` passes.
 
 1. The header comment of every workflow states purpose, trigger, runners and what the workflow does not do, in the
    documentation style above, and names a procedure by its page in this repository.
-2. GitHub-owned actions only, pinned by commit SHA with the version in a comment; Dependabot proposes the bumps.
-3. `permissions: contents: read` at the top; `contents: write` only on the job that publishes a release; `pages` and
-   `id-token` only on the Pages deploy; `persist-credentials: false` on every checkout.
+2. GitHub-owned actions only, pinned by commit SHA with the version in a comment. The starter owns the action
+   pins: a suite receives a bump with the sync of the starter's files and keeps no `dependabot.yml`.
+3. `permissions: contents: read` at the top; `contents: write` only on the job that publishes a release, which also
+   holds `id-token` and `attestations` for the build provenance attestations; `pages` and `id-token` on the Pages
+   deploy; no other job has a write permission; `persist-credentials: false` on every checkout.
 4. `workflow_dispatch` on every workflow a person may run by hand; one concurrency group per workflow and ref; Lint
-   and CI cancel the superseded run, Build and release never cancels.
-5. The pins of the table below; JUCE and clap-juce-extensions are pinned in CMake only.
+   and CI cancel the superseded run, Build and release never cancels and publishes only from a pushed tag whose
+   version equals the one in `CMakeLists.txt`. Every job states a time limit (`timeout-minutes`).
+5. The pins of the table below; JUCE and clap-juce-extensions are pinned in CMake only. Every file a workflow
+   downloads is checked against its SHA-256 before it is used, and a tool it installs is named with its exact
+   version; a download that differs from its pin fails the job, and so does a pin left empty.
 6. No secret value is echoed; signing and notarization run only when the secrets exist, the output is otherwise the
    same files unsigned, and the signing state is recorded as an artifact.
-7. A private repository keeps its push- and tag-triggered workflows disabled (`gh workflow disable`; Dependabot
-   stays) and proves the same steps locally with `scripts/check.ps1` or `scripts/check.sh`. The scripts report a
-   tool they cannot find instead of installing it. The workflows are enabled when the repository becomes public.
+7. A private repository keeps its push- and tag-triggered workflows disabled (`gh workflow disable`; Dependabot's
+   alerts stay) and proves the same steps locally with `scripts/check.ps1` or `scripts/check.sh`, which also hold the
+   hand-over checks (the VST3 timestamps, and on request pluginval, FocusCheck and the VST3 null check). Every step
+   reads `ok`, `skipped`, `incomplete` or `fail` in the one CHECK line; a step that did not run is never `ok`. The
+   scripts never install a tool: a missing one makes its step `incomplete`. The workflows are enabled when the repository becomes public.
 8. A workflow whose trigger can never fire in its repository is deleted, not disabled.
-9. A workflow beyond the five is a deviation, listed below with its trigger and purpose.
+9. A workflow beyond the five is a deviation, recorded in CONTRIBUTING.md (never here) with its trigger and purpose.
 10. Zero warnings. A CI or release run passes only when every job on every platform reports no compiler, linker,
-    CMake, lint, actionlint, pluginval or workflow annotation warning. The build jobs count warnings by rule from
-    the build log (lines matching a compiler warning or a `warnings generated` summary; annotation and hint lines
-    excluded; nothing filtered by path) and fail on a count above zero. A third-party false positive is silenced
-    per file with a comment naming the cause, never by a global flag. The local check scripts apply the same count.
+    CMake, lint, actionlint, pluginval or workflow annotation warning. The build jobs and the local check scripts
+    count warnings by one rule from the configure and the build output (lines matching a compiler, linker or MSBuild
+    warning, a `warnings generated` summary or a CMake warning; annotation and hint lines excluded; nothing filtered
+    by path) and fail on a count above zero. A third-party false positive is silenced per file with a comment naming
+    the cause, never by a global flag.
 
 ### Pins
 
 | Item | Pin |
 |---|---|
 | Runners | `ubuntu-24.04`, `windows-latest`, `macos-15`; the Linux release build inside the `ubuntu:22.04` container (glibc 2.35 floor) |
-| pluginval | 1.0.4 |
+| pluginval | 1.0.4, each system's archive checked by SHA-256 |
 | Inno Setup | 7.1.1, checked by SHA-256 |
-| markdownlint-cli2 | 0.24.0 |
+| The Azure signing tool (`sign`) | an exact version, stated with the other pins in `release.yml` |
+| markdownlint-cli2 | 0.24.1 |
 | yamllint | 1.38.0 |
 | actionlint | 1.7.12 |
 | Python for the lint job | 3.12 |
@@ -192,7 +207,3 @@ A new plug-in in the suite:
    every DSP change.
 4. Before its first release: the name review, the provenance and public gates, the plug-in's four documents, the
    screenshots, the CHANGELOG section. The minor version bumps.
-
-## Deviations from the standard
-
-None.

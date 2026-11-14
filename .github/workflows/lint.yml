@@ -1,4 +1,4 @@
-# Lint: the repository's text and workflows. Markdown (markdownlint-cli2 0.24.0, config .markdownlint-cli2.yaml),
+# Lint: the repository's text and workflows. Markdown (markdownlint-cli2 0.24.1, config .markdownlint-cli2.yaml),
 # YAML (yamllint 1.38.0, config .yamllint.yaml), the repository checks (scripts/check_repo.py: paths, old names,
 # attribution forms, document style, whitespace), the workflows (actionlint 1.7.12 with shellcheck) and the shell
 # scripts. A warning fails the run (STANDARDS.md, zero warnings).
@@ -28,6 +28,7 @@ jobs:
   lint:
     name: Markdown, YAML, workflows, shell
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7.0.1
         with:
@@ -38,7 +39,7 @@ jobs:
           python-version: "3.12"
 
       - name: Markdown
-        run: npx --yes markdownlint-cli2@0.24.0 "**/*.md" "#node_modules"
+        run: npx --yes markdownlint-cli2@0.24.1 "**/*.md" "#node_modules"
 
       - name: YAML
         run: |

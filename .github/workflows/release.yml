@@ -1,7 +1,8 @@
 # Build and release: builds every Chan Sampler plug-in listed in packaging/plugins.txt on Windows (VST3, CLAP,
 # standalone), macOS (universal AU, VST3, CLAP, standalone) and Linux (VST3, CLAP, standalone), runs the unit tests,
-# validates every plug-in with pluginval 1.0.4 at strictness 10 (and auval on macOS), fails on any build warning
-# (STANDARDS.md, zero warnings), signs and notarizes when the repository has the secrets named below (without them
+# validates every plug-in with pluginval 1.0.4 at strictness 10 (and auval on macOS), fails on any compiler, linker or
+# CMake warning in the configure and build output (STANDARDS.md, zero warnings; the rule and the inputs of
+# scripts/check.ps1 and check.sh), signs and notarizes when the repository has the secrets named below (without them
 # the files are the same, unsigned, and the notes say so), and makes one installer per operating system holding all
 # of them:
 #   Windows  ChanSampler-<version>-Windows-Setup.exe   (Inno Setup 7.1.1, packaging/ChanSampler.iss)
@@ -10,17 +11,24 @@
 # plus, with ZIP_PER_FORMAT set to 'true', one zip per format and system. On a tag the release job publishes them as
 # a GitHub Release with SHA256SUMS.txt, build provenance attestations (public repositories) and the notes from the
 # version's CHANGELOG.md section (scripts/release_notes.py); a tag with a hyphen (v1.2.0-rc.1) publishes a
-# pre-release.
-# Trigger: a pushed tag v* (scripts/bump_version.py makes the commit and the tag), and by hand (artifacts only).
-# Runners: windows-latest, macos-15, ubuntu-24.04 with the ubuntu:22.04 container for Linux (glibc 2.35 floor).
+# pre-release. The tag's version (without a pre-release suffix) must equal project(... VERSION) in CMakeLists.txt, or
+# the run stops before anything is built.
+# Trigger: a pushed tag v* (scripts/bump_version.py makes the commit and the tag), and by hand (artifacts only: a run
+# by hand never publishes, whatever ref it is started on).
+# Runners: windows-latest, macos-15, ubuntu-24.04 with the ubuntu:22.04 container for Linux (glibc 2.35 floor). Every
+# job has a time limit: 180 minutes for the Windows and macOS builds, 90 for Linux, 10 and 15 for the two small jobs.
+# Pins: the env block below states every download this workflow makes with its SHA-256 (pluginval per system, Inno
+# Setup) and the version of the Azure signing tool; a download that does not match its pin fails the job, and so does
+# a pin that is not filled in.
 # Secrets (all optional): WINDOWS_CERTIFICATE_PFX, WINDOWS_CERTIFICATE_PASSWORD, or AZURE_TENANT_ID, AZURE_CLIENT_ID,
 # AZURE_CLIENT_SECRET, AZURE_TRUSTED_SIGNING_ENDPOINT, AZURE_TRUSTED_SIGNING_ACCOUNT, AZURE_TRUSTED_SIGNING_PROFILE;
 # APPLE_CERTIFICATE_P12, APPLE_CERTIFICATE_PASSWORD, APPLE_INSTALLER_CERTIFICATE_P12,
 # APPLE_INSTALLER_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY, APPLE_INSTALLER_IDENTITY, APPLE_NOTARY_KEY_ID,
 # APPLE_NOTARY_ISSUER_ID, APPLE_NOTARY_KEY_P8.
-# Does not: cancel a running release, publish anything on a run by hand, null against the original plug-ins, or run
-# on a private repository (it stays disabled there; the installers are built locally). The release flow is in
-# CONTRIBUTING.md and .github/RELEASE_CHECKLIST.md.
+# Does not: cancel a running release, publish anything on a run by hand, null against the original plug-ins, run
+# FocusCheck (it drives an editor window and is proven on the development machine: scripts/check.ps1 -FocusCheck, an
+# item of .github/RELEASE_CHECKLIST.md), or run on a private repository (it stays disabled there; the installers are
+# built locally). The release flow is in CONTRIBUTING.md and .github/RELEASE_CHECKLIST.md.
 name: Build and release
 
 on:
@@ -39,13 +47,48 @@ env:
   # The macOS install subfolder for the VST3, CLAP and standalone apps (under VST3/, CLAP/ and /Applications); empty
   # installs them beside other vendors' plug-ins. AU components always go into the Components folder itself.
   SUBFOLDER: ''
-  PLUGINVAL: https://github.com/Tracktion/pluginval/releases/download/v1.0.4   # pinned: a new pluginval can fail an unchanged plug-in
   ZIP_PER_FORMAT: 'false'                                                       # 'true': also one zip per format and system
   NOTES_FOOTER: 'true'                                                          # 'false': the CHANGELOG section alone as the notes
+  # Pins (STANDARDS.md, Pins): every download below is checked against its SHA-256 before it is used. An empty value
+  # is a pin still to fill in: the step that needs it fails and prints the hash of what it downloaded, to be compared
+  # with the publisher's before it is written here.
+  PLUGINVAL: https://github.com/Tracktion/pluginval/releases/download/v1.0.4   # a new pluginval can fail an unchanged plug-in
+  PLUGINVAL_SHA256_WINDOWS: c08e61ce3b96db41636f8ec7e76f4c7e2c13ebdac7fa1b5a1f52b4f32ec715ab   # of pluginval_Windows.zip
+  PLUGINVAL_SHA256_MACOS: 3c4c533bda0c5059eea3ddaea752d757ee2025041f0f47e6bcb0e87f6082b29f     # of pluginval_macOS.zip
+  PLUGINVAL_SHA256_LINUX: c01c49d8063965c4c2dea8324468336768f5c9139e0b1caebde14c2400b55352     # of pluginval_Linux.zip
+  # Inno Setup 7.1.1 (the runner image ships 6.x only): the signed x64 installer from the author's GitHub release.
+  INNO_SETUP_URL: https://github.com/jrsoftware/issrc/releases/download/is-7_1_1/innosetup-7.1.1-x64.exe
+  INNO_SETUP_SHA256: 8a5a6711c3766a6e5fb74f280ba0e3551e719ce94538d901fdbd1f8f9920b3f0
+  SIGN_TOOL_VERSION: '0.9.1-beta.26552.4'                                       # the dotnet tool "sign" (Azure Trusted Signing), an exact version
 
 jobs:
+  version:
+    # A pushed tag must name the version the code states: v1.2.0 and v1.2.0-rc.1 both need project(... VERSION 1.2.0).
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7.0.1
+        with:
+          persist-credentials: false
+      - name: The tag equals the version in CMakeLists.txt
+        shell: bash
+        run: |
+          V=$(sed -n 's/^project(ChanSampler VERSION \([0-9.]*\)).*/\1/p' CMakeLists.txt)
+          if [ -z "$V" ]; then echo "CMakeLists.txt states no project(ChanSampler VERSION x.y.z)"; exit 1; fi
+          if [ "$GITHUB_EVENT_NAME" != push ] || [ "$GITHUB_REF_TYPE" != tag ]; then
+            echo "not a pushed tag: version $V is built, nothing is published"; exit 0
+          fi
+          CORE="${GITHUB_REF_NAME#v}"; CORE="${CORE%%-*}"
+          if [ "$CORE" != "$V" ]; then
+            echo "the tag $GITHUB_REF_NAME names version $CORE, CMakeLists.txt states $V: run scripts/bump_version.py and tag its commit"
+            exit 1
+          fi
+          echo "tag $GITHUB_REF_NAME, version $V"
+
   windows:
+    needs: version
     runs-on: windows-latest
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7.0.1
         with:
@@ -62,18 +105,20 @@ jobs:
           echo "azure=$([ -n "$AZ" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
 
       - name: Configure
-        run: cmake -B build -A x64 -DCHANSAMPLER_TOOLS=OFF
+        shell: bash
+        run: cmake -B build -A x64 -DCHANSAMPLER_TOOLS=OFF 2>&1 | tee build.log
 
       - name: Build (every plug-in, format and test)
-        shell: pwsh
-        run: cmake --build build --config Release --parallel 2>&1 | Tee-Object -FilePath build.log
+        shell: bash
+        run: cmake --build build --config Release --parallel 2>&1 | tee -a build.log
 
       - name: Warnings (zero allowed)
         shell: bash
         run: |
-          if grep -E 'warning C[0-9]+|warning ?:|warning MSB|[0-9]+ warnings? generated' build.log | grep -vE '::warning|hint:' > warnings.txt; then
+          # the rule of scripts/check.ps1 and check.sh: compiler, linker and CMake warnings in the configure and build output
+          if grep -E 'warning [A-Z]+[0-9]+|warning ?:|[0-9]+ warnings? generated|CMake (Deprecation )?Warning' build.log | grep -vE '::warning|hint:' > warnings.txt; then
             cat warnings.txt
-            echo "$(wc -l < warnings.txt) warning line(s) in the build log: zero allowed (STANDARDS.md)"
+            echo "$(wc -l < warnings.txt) warning line(s) in the configure and build output: zero allowed (STANDARDS.md)"
             exit 1
           fi
           echo "0 warnings"
@@ -85,6 +130,9 @@ jobs:
         shell: pwsh
         run: |
           Invoke-WebRequest $env:PLUGINVAL/pluginval_Windows.zip -OutFile pluginval.zip
+          $actual = (Get-FileHash pluginval.zip -Algorithm SHA256).Hash.ToLower()
+          if (-not $env:PLUGINVAL_SHA256_WINDOWS) { throw "PLUGINVAL_SHA256_WINDOWS is not filled in (the pins at the top of this workflow); this download's SHA-256 is $actual" }
+          if ($actual -ne $env:PLUGINVAL_SHA256_WINDOWS) { throw "pluginval_Windows.zip SHA-256 mismatch: $actual" }
           Expand-Archive pluginval.zip -DestinationPath pluginval
           $failed = 0
           foreach ($line in Get-Content packaging/plugins.txt) {
@@ -96,23 +144,6 @@ jobs:
                    -ArgumentList @("--strictness-level", "10", "--skip-gui-tests", "--timeout-ms", "900000", "--validate", "`"$plug`"")
             Write-Host "pluginval $p exit code: $($r.ExitCode)"
             if ($r.ExitCode -ne 0) { $failed++ }
-          }
-          if ($failed -ne 0) { exit 1 }
-
-      - name: Plug-ins leave the keyboard to the host (space = play / pause; FocusCheck)
-        shell: pwsh
-        run: |
-          # FocusCheck (tools/FocusCheck.cpp) clicks through each editor and checks the space bar still reaches the host.
-          # It runs where this build made it (a suite that builds it on Windows without the tools option); otherwise
-          # run it locally before the tag (.github/RELEASE_CHECKLIST.md).
-          $fc = Get-ChildItem -Recurse build -Filter FocusCheck.exe -ErrorAction SilentlyContinue | Select-Object -First 1
-          if (-not $fc) { Write-Host "::notice::FocusCheck not built in this configuration: run it locally before the tag"; exit 0 }
-          $failed = 0
-          foreach ($line in Get-Content packaging/plugins.txt) {
-            if (-not $line.Trim() -or $line.StartsWith('#')) { continue }
-            $t, $p, $code, $mfr = $line.Split([char]0x7C)
-            & $fc.FullName (Resolve-Path "build/${t}_artefacts/Release/VST3/$p.vst3")
-            if ($LASTEXITCODE -ne 0) { $failed++ }
           }
           if ($failed -ne 0) { exit 1 }
 
@@ -144,7 +175,9 @@ jobs:
           ACCOUNT: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT }}
           PROFILE: ${{ secrets.AZURE_TRUSTED_SIGNING_PROFILE }}
         run: |
-          dotnet tool install --global sign --prerelease
+          if (-not $env:SIGN_TOOL_VERSION) { throw "SIGN_TOOL_VERSION is not filled in (the pins at the top of this workflow): the signing tool is installed at an exact version only" }
+          dotnet tool install --global sign --version $env:SIGN_TOOL_VERSION
+          if ($LASTEXITCODE -ne 0) { exit 1 }
           $files = (Get-ChildItem build\*_artefacts\Release -Recurse -File -Include *.dll, *.exe, *.vst3, *.clap).FullName
           sign code trusted-signing --trusted-signing-endpoint $env:ENDPOINT --trusted-signing-account $env:ACCOUNT `
             --trusted-signing-certificate-profile $env:PROFILE --timestamp-url http://timestamp.acs.microsoft.com -v Information $files
@@ -156,14 +189,11 @@ jobs:
           $version = (Select-String -Path CMakeLists.txt -Pattern 'project\(ChanSampler VERSION ([0-9.]+)\)').Matches[0].Groups[1].Value
           if ($env:GITHUB_REF_TYPE -eq 'tag') { $version = $env:GITHUB_REF_NAME.TrimStart('v') }   # a pre-release tag names its files 1.2.0-rc.1
           pwsh packaging/make_iss_include.ps1 build
-          # Inno Setup 7.1.1 (the runner image ships 6.x only): the signed x64 installer from the author's GitHub release,
-          # pinned by SHA-256 so a changed download fails the job instead of building with something else.
-          $innoUrl = "https://github.com/jrsoftware/issrc/releases/download/is-7_1_1/innosetup-7.1.1-x64.exe"
-          $innoSha = "8a5a6711c3766a6e5fb74f280ba0e3551e719ce94538d901fdbd1f8f9920b3f0"
-          Invoke-WebRequest $innoUrl -OutFile innosetup-7.1.1-x64.exe
-          $actual = (Get-FileHash innosetup-7.1.1-x64.exe -Algorithm SHA256).Hash.ToLower()
-          if ($actual -ne $innoSha) { throw "Inno Setup installer SHA-256 mismatch: $actual" }
-          Start-Process .\innosetup-7.1.1-x64.exe -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/ALLUSERS" -Wait
+          # Inno Setup from the pins at the top: a changed download fails the job instead of building with something else.
+          Invoke-WebRequest $env:INNO_SETUP_URL -OutFile innosetup-x64.exe
+          $actual = (Get-FileHash innosetup-x64.exe -Algorithm SHA256).Hash.ToLower()
+          if ($actual -ne $env:INNO_SETUP_SHA256) { throw "Inno Setup installer SHA-256 mismatch: $actual" }
+          Start-Process .\innosetup-x64.exe -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/ALLUSERS" -Wait
           $candidates = "${env:ProgramFiles}\Inno Setup 7\ISCC.exe", "${env:ProgramFiles(x86)}\Inno Setup 7\ISCC.exe"
           $iscc = Get-ChildItem $candidates -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
           if (-not $iscc) { throw "Inno Setup 7 did not install" }
@@ -239,7 +269,9 @@ jobs:
           path: signing/windows.txt
 
   macos:
+    needs: version
     runs-on: macos-15
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7.0.1
         with:
@@ -260,18 +292,20 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: "Configure (universal: Apple Silicon + Intel)"
-        run: cmake -B build -G Xcode -DCHANSAMPLER_TOOLS=OFF -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET=10.13
+        shell: bash
+        run: cmake -B build -G Xcode -DCHANSAMPLER_TOOLS=OFF -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET=10.13 2>&1 | tee build.log
 
       - name: Build (every plug-in, format and test)
         shell: bash
-        run: cmake --build build --config Release -- -quiet 2>&1 | tee build.log
+        run: cmake --build build --config Release -- -quiet 2>&1 | tee -a build.log
 
       - name: Warnings (zero allowed)
         shell: bash
         run: |
-          if grep -E 'warning C[0-9]+|warning ?:|warning MSB|[0-9]+ warnings? generated' build.log | grep -vE '::warning|hint:' > warnings.txt; then
+          # the rule of scripts/check.ps1 and check.sh: compiler, linker and CMake warnings in the configure and build output
+          if grep -E 'warning [A-Z]+[0-9]+|warning ?:|[0-9]+ warnings? generated|CMake (Deprecation )?Warning' build.log | grep -vE '::warning|hint:' > warnings.txt; then
             cat warnings.txt
-            echo "$(wc -l < warnings.txt) warning line(s) in the build log: zero allowed (STANDARDS.md)"
+            echo "$(wc -l < warnings.txt) warning line(s) in the configure and build output: zero allowed (STANDARDS.md)"
             exit 1
           fi
           echo "0 warnings"
@@ -336,9 +370,12 @@ jobs:
           cp -R stage/au/* ~/Library/Audio/Plug-Ins/Components/
           killall -9 AudioComponentRegistrar || true
           curl -fsSL -o pluginval.zip "$PLUGINVAL/pluginval_macOS.zip"
+          ACTUAL=$(shasum -a 256 pluginval.zip | cut -d' ' -f1)
+          if [ -z "$PLUGINVAL_SHA256_MACOS" ]; then echo "PLUGINVAL_SHA256_MACOS is not filled in (the pins at the top of this workflow); this download's SHA-256 is $ACTUAL"; exit 1; fi
+          if [ "$ACTUAL" != "$PLUGINVAL_SHA256_MACOS" ]; then echo "pluginval_macOS.zip SHA-256 mismatch: $ACTUAL"; exit 1; fi
           unzip -q pluginval.zip
           P=pluginval.app/Contents/MacOS/pluginval
-          grep -v '^#' packaging/plugins.txt | grep -v '^\s*$' | while IFS='|' read -r _ p code mfr type; do
+          grep -v '^#' packaging/plugins.txt | grep -v '^\s*$' | while IFS='|' read -r _ p code mfr type _; do
             auval -v "${type:-aufx}" "$code" "$mfr"   # the AU type column: aufx an effect, aumu an instrument
             $P --strictness-level 10 --skip-gui-tests --timeout-ms 900000 --validate ~/Library/Audio/Plug-Ins/Components/"$p.component"
             $P --strictness-level 10 --skip-gui-tests --timeout-ms 900000 --validate "stage/vst3/$p.vst3"
@@ -434,7 +471,9 @@ jobs:
   linux:
     # Built inside an Ubuntu 22.04 container so the binaries keep linking against glibc 2.35, the oldest the README
     # promises, after the ubuntu-22.04 runner image retires (2027-04-17). The host only runs Docker.
+    needs: version
     runs-on: ubuntu-24.04
+    timeout-minutes: 90
     container:
       image: ubuntu:22.04
     steps:
@@ -456,18 +495,20 @@ jobs:
           persist-credentials: false
 
       - name: Configure
-        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCHANSAMPLER_TOOLS=OFF
+        shell: bash
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCHANSAMPLER_TOOLS=OFF 2>&1 | tee build.log
 
       - name: Build (every plug-in, format and test)
         shell: bash
-        run: cmake --build build 2>&1 | tee build.log
+        run: cmake --build build 2>&1 | tee -a build.log
 
       - name: Warnings (zero allowed)
         shell: bash
         run: |
-          if grep -E 'warning C[0-9]+|warning ?:|warning MSB|[0-9]+ warnings? generated' build.log | grep -vE '::warning|hint:' > warnings.txt; then
+          # the rule of scripts/check.ps1 and check.sh: compiler, linker and CMake warnings in the configure and build output
+          if grep -E 'warning [A-Z]+[0-9]+|warning ?:|[0-9]+ warnings? generated|CMake (Deprecation )?Warning' build.log | grep -vE '::warning|hint:' > warnings.txt; then
             cat warnings.txt
-            echo "$(wc -l < warnings.txt) warning line(s) in the build log: zero allowed (STANDARDS.md)"
+            echo "$(wc -l < warnings.txt) warning line(s) in the configure and build output: zero allowed (STANDARDS.md)"
             exit 1
           fi
           echo "0 warnings"
@@ -479,6 +520,9 @@ jobs:
         run: |
           set -e
           curl -fsSL -o pluginval.zip "$PLUGINVAL/pluginval_Linux.zip"
+          ACTUAL=$(sha256sum pluginval.zip | cut -d' ' -f1)
+          if [ -z "$PLUGINVAL_SHA256_LINUX" ]; then echo "PLUGINVAL_SHA256_LINUX is not filled in (the pins at the top of this workflow); this download's SHA-256 is $ACTUAL"; exit 1; fi
+          if [ "$ACTUAL" != "$PLUGINVAL_SHA256_LINUX" ]; then echo "pluginval_Linux.zip SHA-256 mismatch: $ACTUAL"; exit 1; fi
           unzip -q pluginval.zip
           grep -v '^#' packaging/plugins.txt | grep -v '^\s*$' | while IFS='|' read -r t p _ _; do
             xvfb-run -a ./pluginval --strictness-level 10 --skip-gui-tests --timeout-ms 900000 --validate "build/${t}_artefacts/Release/VST3/$p.vst3"
@@ -515,9 +559,11 @@ jobs:
             dist/*.zip
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    # Only a pushed tag publishes: a run by hand with a tag selected builds the artifacts and stops here.
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     needs: [windows, macos, linux]
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     permissions:
       contents: write        # only this job publishes
       id-token: write        # build provenance attestations

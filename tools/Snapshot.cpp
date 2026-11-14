@@ -6,7 +6,8 @@
 // --scale renders through the editor's UI scale, as a host at that zoom would; --size resizes the open editor to W px
 // wide as a host or the corner grip would (the constrainer keeps the proportions). Parameter values are in real units
 // (dB, 0..1); --levels freezes the meters of an editor that offers it, and any other --option goes to the editor's
-// snapshot hooks (shared/ui/Widgets.h SnapshotHooks::snapshotOption), for a view only the editor can set.
+// snapshot hooks (shared/ui/Widgets.h SnapshotHooks::snapshotOption), for a view only the editor can set. Exit code 0
+// only when the PNG is written.
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <cmath>
 #include <iostream>
@@ -64,8 +65,14 @@ int main (int argc, char** argv)
     auto img = ed->createComponentSnapshot (ed->getLocalBounds(), true, 1.0f);
     juce::File f (juce::File::getCurrentWorkingDirectory().getChildFile (argv[1]));
     f.deleteFile();
-    juce::FileOutputStream os (f);
-    juce::PNGImageFormat().writeImageToStream (img, os);
+    bool written = false;
+    {
+        juce::FileOutputStream os (f);
+        written = os.openedOk() && juce::PNGImageFormat().writeImageToStream (img, os);
+        if (written) os.flush();
+        written = written && os.getStatus().wasOk();
+    }
     ed.reset();
+    if (! written) { std::cerr << "cannot write " << f.getFullPathName() << "\n"; return 1; }
     return 0;
 }

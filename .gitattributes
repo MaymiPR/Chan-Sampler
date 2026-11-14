@@ -15,3 +15,6 @@
 *.pkl binary
 *.bin binary
 *.ttf binary
+
+# Suite block: the attributes of this suite's own file types, kept when the starter's form of this file is synced.
+# Suite block end
