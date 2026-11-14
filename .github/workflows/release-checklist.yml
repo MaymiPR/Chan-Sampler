@@ -26,6 +26,7 @@ jobs:
   checklist:
     if: github.event_name == 'workflow_dispatch' || (github.event.ref_type == 'branch' && startsWith(github.event.ref, 'release/'))
     runs-on: ubuntu-24.04
+    timeout-minutes: 5
     permissions:
       contents: read
       issues: write

@@ -1,11 +1,13 @@
 # CI: builds every Chan Sampler plug-in (VST3) with the tools, runs every plug-in's tests through ctest (the DSP,
 # the processor, presets and state) and the render regression (scripts/render_regress.py: each plug-in's own renderer
-# against the golden renders in tests/regress), and fails on any build warning (STANDARDS.md, zero warnings).
+# against the golden renders in tests/regress), and fails on any compiler, linker or CMake warning in the configure and
+# build output (STANDARDS.md, zero warnings; the rule and the inputs of scripts/check.ps1 and check.sh).
 # The build target is ci_targets: every plugin.cmake adds its VST3, tests and renderer to it (CMakeLists.txt), so a
 # new plug-in needs no change here. The Windows job keeps the editor screenshots as an artifact for 14 days.
 # Trigger: push to main and pull requests (not when only documents, docs/ or the null-test harnesses change), and by
 # hand (Actions > CI > Run workflow).
-# Runners: ubuntu-24.04, windows-latest, macos-15.
+# Runners: ubuntu-24.04, windows-latest, macos-15. Every job has a time limit: 60 minutes on Linux and macOS, 120 on
+# Windows (a large suite builds longest there).
 # Does not: build CLAP, AU or the installers, sign, or run pluginval and auval (release.yml does), or null against the
 # original plug-ins (they are not on the runners). A private repository keeps this workflow disabled and runs
 # scripts/check.ps1 or scripts/check.sh instead.
@@ -41,6 +43,7 @@ permissions:
 jobs:
   linux:
     runs-on: ubuntu-24.04
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7.0.1
         with:
@@ -54,18 +57,20 @@ jobs:
             libglu1-mesa-dev mesa-common-dev xvfb
 
       - name: Configure
-        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCHANSAMPLER_TOOLS=ON -DCHANSAMPLER_CLAP=OFF
+        shell: bash
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCHANSAMPLER_TOOLS=ON -DCHANSAMPLER_CLAP=OFF 2>&1 | tee build.log
 
       - name: Build
         shell: bash
-        run: cmake --build build --target ci_targets 2>&1 | tee build.log
+        run: cmake --build build --target ci_targets 2>&1 | tee -a build.log
 
       - name: Warnings (zero allowed)
         shell: bash
         run: |
-          if grep -E 'warning C[0-9]+|warning ?:|warning MSB|[0-9]+ warnings? generated' build.log | grep -vE '::warning|hint:' > warnings.txt; then
+          # the rule of scripts/check.ps1 and check.sh: compiler, linker and CMake warnings in the configure and build output
+          if grep -E 'warning [A-Z]+[0-9]+|warning ?:|[0-9]+ warnings? generated|CMake (Deprecation )?Warning' build.log | grep -vE '::warning|hint:' > warnings.txt; then
             cat warnings.txt
-            echo "$(wc -l < warnings.txt) warning line(s) in the build log: zero allowed (STANDARDS.md)"
+            echo "$(wc -l < warnings.txt) warning line(s) in the configure and build output: zero allowed (STANDARDS.md)"
             exit 1
           fi
           echo "0 warnings"
@@ -79,24 +84,27 @@ jobs:
 
   windows:
     runs-on: windows-latest
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7.0.1
         with:
           persist-credentials: false
 
       - name: Configure
-        run: cmake -B build -A x64 -DCHANSAMPLER_TOOLS=ON -DCHANSAMPLER_CLAP=OFF
+        shell: bash
+        run: cmake -B build -A x64 -DCHANSAMPLER_TOOLS=ON -DCHANSAMPLER_CLAP=OFF 2>&1 | tee build.log
 
       - name: Build
-        shell: pwsh
-        run: cmake --build build --config Release --target ci_targets --parallel 2>&1 | Tee-Object -FilePath build.log
+        shell: bash
+        run: cmake --build build --config Release --target ci_targets --parallel 2>&1 | tee -a build.log
 
       - name: Warnings (zero allowed)
         shell: bash
         run: |
-          if grep -E 'warning C[0-9]+|warning ?:|warning MSB|[0-9]+ warnings? generated' build.log | grep -vE '::warning|hint:' > warnings.txt; then
+          # the rule of scripts/check.ps1 and check.sh: compiler, linker and CMake warnings in the configure and build output
+          if grep -E 'warning [A-Z]+[0-9]+|warning ?:|[0-9]+ warnings? generated|CMake (Deprecation )?Warning' build.log | grep -vE '::warning|hint:' > warnings.txt; then
             cat warnings.txt
-            echo "$(wc -l < warnings.txt) warning line(s) in the build log: zero allowed (STANDARDS.md)"
+            echo "$(wc -l < warnings.txt) warning line(s) in the configure and build output: zero allowed (STANDARDS.md)"
             exit 1
           fi
           echo "0 warnings"
@@ -115,8 +123,9 @@ jobs:
           New-Item -ItemType Directory -Force screenshots | Out-Null
           foreach ($line in Get-Content packaging/plugins.txt) {
             if (-not $line.Trim() -or $line.StartsWith('#')) { continue }
-            $t, $p, $code, $mfr = $line.Split([char]0x7C)
-            $stem = $t -replace '^The', ''
+            $t = $line.Split([char]0x7C)[0].Trim()
+            # the class stem: the sixth column of packaging/plugins.txt, the one place it is read from
+            $stem = $line.Split([char]0x7C)[5].Trim()
             $snap = Get-ChildItem "build/${stem}Snapshot_artefacts/Release/${stem}Snapshot.exe" -ErrorAction SilentlyContinue
             if ($snap) { & $snap.FullName "screenshots/$($t.ToLower()).png"; & $snap.FullName "screenshots/$($t.ToLower())@2x.png" --scale=2 }
           }
@@ -130,6 +139,7 @@ jobs:
 
   macos:
     runs-on: macos-15
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7.0.1
         with:
@@ -138,18 +148,20 @@ jobs:
       - name: Configure
         # Ninja, as on Linux, runs one compile per core. The Makefile generator either sets no job limit (the
         # runner runs out of memory) or, given a count, warns that JUCE's nested helper build has no jobserver.
-        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCHANSAMPLER_TOOLS=ON -DCHANSAMPLER_CLAP=OFF
+        shell: bash
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCHANSAMPLER_TOOLS=ON -DCHANSAMPLER_CLAP=OFF 2>&1 | tee build.log
 
       - name: Build
         shell: bash
-        run: cmake --build build --target ci_targets --parallel 2>&1 | tee build.log
+        run: cmake --build build --target ci_targets --parallel 2>&1 | tee -a build.log
 
       - name: Warnings (zero allowed)
         shell: bash
         run: |
-          if grep -E 'warning C[0-9]+|warning ?:|warning MSB|[0-9]+ warnings? generated' build.log | grep -vE '::warning|hint:' > warnings.txt; then
+          # the rule of scripts/check.ps1 and check.sh: compiler, linker and CMake warnings in the configure and build output
+          if grep -E 'warning [A-Z]+[0-9]+|warning ?:|[0-9]+ warnings? generated|CMake (Deprecation )?Warning' build.log | grep -vE '::warning|hint:' > warnings.txt; then
             cat warnings.txt
-            echo "$(wc -l < warnings.txt) warning line(s) in the build log: zero allowed (STANDARDS.md)"
+            echo "$(wc -l < warnings.txt) warning line(s) in the configure and build output: zero allowed (STANDARDS.md)"
             exit 1
           fi
           echo "0 warnings"

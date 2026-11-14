@@ -19,7 +19,7 @@ each does:
 | Name | What it is |
 |---|---|
 | `cs_ref.py` | the harness: in-FL pairs, FL's Sampler on channel 1 and the Chan Sampler VST3 on channel 2 of one project, rendered once by FL and subtracted |
-| `nulltest.py` | the offline suite (FL's Sampler alone against `CsRender`) and `--report`, which writes NULLTESTS.md |
+| `nulltest.py` | the offline suite (FL's Sampler alone against `CsRender`); `--report`, which writes NULLTESTS.md; `--vst3`, the built VST3 in `RefRender` against `CsRender`, without FL (the null step of the check script) |
 | `first_null.py` | one in-FL pair: proves the harness, FL, the build and the queue (`--dry` without FL) |
 | `cases_<topic>.py` | the case lists: each defines `CASES` |
 | `measure_`, `probe_`, `fit_`, `compare_`, `check_`, `null_` scripts | how each model in the plug-in was found and is checked (below) |

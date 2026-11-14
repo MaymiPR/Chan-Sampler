@@ -18,7 +18,9 @@ as it happens and close this issue when the release is live. The flow in short i
 - [ ] `CHANGELOG.md` has everything user-facing under `## Unreleased`, with before and after numbers in dB for sound changes; `### Highlights` for a new plug-in.
 - [ ] The provenance and public gates pass: `python scripts/check_repo.py --release` (the Provenance section in every
   MEASUREMENTS.md, `## Unreleased` first in the CHANGELOG, no absolute path, old name, attribution form or dated
-  entry), and the `.provenance` file names the vendor words and every allowed file with its reason.
+  entry, no placeholder of the starter left in the README, the CHANGELOG and the plug-in documents, and
+  `docs/screenshots/hero.png`, the icon and the social preview present and not a single colour), and the
+  `.provenance` file names the vendor words and every allowed file with its reason.
 - [ ] First release of a plug-in only: the name review (the vendor's catalogue and the trademark registers searched for the name and its stem), approval recorded with its date.
 - [ ] The Windows test installer builds from PowerShell and installs and uninstalls cleanly: `pwsh
   packaging\make_iss_include.ps1 build`, then `ISCC /DTestRoot=<scratch> /DAppVersion={{VERSION}}

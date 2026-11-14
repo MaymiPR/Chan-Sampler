@@ -1,5 +1,5 @@
 Chan Sampler: third-party software
-===================================
+==================================
 
 Chan Sampler is free software under the GNU Affero General Public License v3
 (LICENSE). It includes the following third-party software, under these licenses.

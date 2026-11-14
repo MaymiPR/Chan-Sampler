@@ -1,23 +1,25 @@
-"""Generic null-test and measurement helpers for the house null-test harnesses.
-
-Everything here is numpy only. Rendering through a plug-in is done elsewhere (see refrender_harness_example.py for a
-JUCE RefRender host, pedalboard_refhost_example.py for pedalboard). Typical use:
+# Generated file: do not edit by hand. It is the starter's text, written when the suite is generated and compared
+# by the starter's sync check, so a change made here is lost; the plug-in's own code is in the harness beside it.
+"""Null-test and measurement helpers for the harness beside this file: the test signals, the .f32 and WAV files, the
+residual in dB and where it is worst, the lag between two renders, and the analysis helpers of a measurement.
+numpy only; rendering through a plug-in is the harness's part.
 
     import nulltest_lib as nl
     x = nl.pink(6, -18)                                  # 6 s of pink noise at -18 dBFS rms, float32, 48 kHz
-    ref, ours = render_ref(x), render_ours(x)            # (2, n) arrays, your own renderers
-    ours = nl.align(ref, ours)                           # remove any latency mismatch (reports the lag)
+    ref, ours = render_ref(x), render_ours(x)            # (2, n) arrays from the harness
+    ours = nl.align(ref, ours)                           # remove a whole-sample latency mismatch (reports the lag)
     print(nl.residual_db(ref, ours, skip=2 * nl.FS))     # dB re the reference's energy, first 2 s skipped
     print(nl.worst_second(ref, ours))                    # (dB, second index): where it is worst
 
-Conventions that every project ended up using (do not change them without a reason):
+Conventions:
 - residual = 10 log10(sum((ref - ours)^2) / sum(ref^2)), over everything after a skip (start-up, pre-roll).
 - "null" is claimed only below about -60 dB on the material in question; -40 is "close", -20 is "a model".
-- always report median AND worst over a grid; the worst case is what a listener hears.
-- keep renders cached by a hash of (input, settings); never cache your own build's output.
+- median and worst over a grid are reported together; the worst case is what a listener hears.
+- renders are cached by a hash of the input and the settings; a build's own output is never cached.
 """
-import hashlib
+import struct
 import numpy as np
+import hashlib
 
 FS = 48000
 
@@ -116,7 +118,9 @@ def drums(secs, db=-6.0, seed=3, fs=FS):
         x[i:i + len(t)] += kick if k % 2 == 0 else snare
         h = i + beat // 2
         if h + len(hat) < n: x[h:h + len(hat)] += hat
-    x *= 10 ** (db / 20) / np.max(np.abs(x))
+    if n <= len(t): x += kick[:n]                # shorter than one hit (0.4 s): the start of the kick, not silence
+    peak = np.max(np.abs(x)) if n else 0.0
+    if peak > 0: x *= 10 ** (db / 20) / peak
     return x.astype(np.float32)
 
 
@@ -135,12 +139,75 @@ def music(secs, db=-10.0, seed=5, fs=FS):
     return (np.stack([l, r]) * 10 ** (db / 20) / m).astype(np.float32)
 
 
-# ---------------------------------------------------------------- residuals ----------------------------------------
+# ---------------------------------------------------------------- shape and level ----------------------------------
 def stereo(x):
     x = np.asarray(x, np.float32)
     return np.stack([x, x]) if x.ndim == 1 else x
 
 
+def rms_db(x):
+    x = np.asarray(x, np.float64)
+    return float(10 * np.log10(max(float(np.mean(x * x)), 1e-30)))
+
+
+def db(x):
+    return 20 * np.log10(np.maximum(np.abs(x), 1e-12))
+
+
+# ---------------------------------------------------------------- files ---------------------------------------------
+def write_f32(path, x):
+    """stereo interleaved float32, the format RefRender and each plug-in's renderer read and write."""
+    stereo(x).T.astype(np.float32).tofile(path)
+
+
+def read_f32(path):
+    return np.fromfile(path, np.float32).reshape(-1, 2).T.copy()
+
+
+def read_wav(path):
+    """(x, sample rate) of a WAV file: x is (channels, n) float64. Reads 16, 24 and 32-bit integer and 32 and 64-bit
+    float data, plain or WAVE_FORMAT_EXTENSIBLE. ValueError when the file is not a RIFF WAVE with fmt and data."""
+    with open(path, 'rb') as h:
+        b = h.read()
+    if b[:4] != b'RIFF' or b[8:12] != b'WAVE':
+        raise ValueError(f'{path}: not a RIFF WAVE file')
+    i = 12; fmt = None; data = None
+    while i + 8 <= len(b):
+        cid = b[i:i + 4]; n = struct.unpack('<I', b[i + 4:i + 8])[0]; body = b[i + 8:i + 8 + n]
+        if cid == b'fmt ':
+            fmt = struct.unpack('<HHIIHH', body[:16]) + ((struct.unpack('<H', body[24:26])[0],) if len(body) >= 26 else (None,))
+        elif cid == b'data':
+            data = body
+        i += 8 + n + (n & 1)
+    if fmt is None or data is None:
+        raise ValueError(f'{path}: no fmt or data chunk')
+    tag, ch, sr, _, _, bits, sub = fmt
+    if tag == 0xFFFE: tag = sub
+    data = data[:len(data) // (ch * bits // 8) * (ch * bits // 8)]
+    if tag == 3: x = np.frombuffer(data, '<f4' if bits == 32 else '<f8').astype(np.float64)
+    elif bits == 16: x = np.frombuffer(data, '<i2') / 32768.0
+    elif bits == 24:
+        a = np.frombuffer(data, np.uint8).reshape(-1, 3).astype(np.int32)
+        v = a[:, 0] | (a[:, 1] << 8) | (a[:, 2] << 16); v[v >= 1 << 23] -= 1 << 24
+        x = v / 8388608.0
+    elif bits == 32: x = np.frombuffer(data, '<i4') / 2147483648.0
+    else: raise ValueError(f'{path}: {bits}-bit data of format {tag} is not read')
+    return x.reshape(-1, ch).T.copy(), sr
+
+
+def write_wav(path, x, fs=FS):
+    """a 32-bit float WAV of x: (n,) mono or (channels, n)."""
+    x = np.asarray(x, np.float32)
+    if x.ndim == 1: x = x[None, :]
+    ch = x.shape[0]
+    raw = np.ascontiguousarray(x.T).tobytes()
+    fmt = struct.pack('<HHIIHH', 3, ch, int(fs), int(fs) * ch * 4, ch * 4, 32)
+    body = b'WAVE' + b'fmt ' + struct.pack('<I', len(fmt)) + fmt + b'data' + struct.pack('<I', len(raw)) + raw
+    with open(path, 'wb') as h:
+        h.write(b'RIFF' + struct.pack('<I', len(body)) + body)
+
+
+# ---------------------------------------------------------------- residuals ----------------------------------------
 def residual_db(ref, ours, skip=0):
     """10 log10(energy of the difference / energy of the reference), after the first `skip` samples."""
     a, b = stereo(ref)[:, skip:], stereo(ours)[:, skip:]
@@ -172,9 +239,12 @@ def worst_second(ref, ours, skip=0, fs=FS):
 
 
 def find_lag(ref, ours, max_lag=20000):
-    """integer sample lag of ours relative to ref by cross-correlation (positive: ours is late)."""
+    """integer sample lag of ours relative to ref by cross-correlation (positive: ours is late). The search covers
+    max_lag samples each way, or the length of the shorter signal less one when that is smaller."""
     a = stereo(ref)[0].astype(np.float64); b = stereo(ours)[0].astype(np.float64)
     n = min(len(a), len(b)); a, b = a[:n], b[:n]
+    if n < 2: return 0
+    max_lag = min(int(max_lag), n - 1)
     c = np.fft.irfft(np.fft.rfft(b, 2 * n) * np.conj(np.fft.rfft(a, 2 * n)))
     lags = np.concatenate([np.arange(0, max_lag + 1), np.arange(-max_lag, 0)])
     vals = np.concatenate([c[:max_lag + 1], c[-max_lag:]])
@@ -212,6 +282,27 @@ def envelope_ratio(ref, x, lat=0):
     return envelope(ref) / np.maximum(np.roll(envelope(x), lat), 1e-9)
 
 
+# octave bands of band_residuals: the edges in Hz and the names by centre frequency
+BANDS = [(44, 88), (88, 177), (177, 355), (355, 710), (710, 1420), (1420, 2840), (2840, 5680), (5680, 11360), (11360, 22720)]
+BAND_NAMES = ['63', '125', '250', '500', '1k', '2k', '4k', '8k', '16k']
+
+
+def band_residuals(ref, ours, fs, skip):
+    """{band name: residual in dB re the reference's energy in that band, or None where the reference is silent}:
+    WHERE a null fails (high bands only: a sub-sample delay or an interpolator; one band: that band's filter or
+    detector; low bands: a dry share or a DC path)."""
+    a = stereo(ref)[:, skip:].astype(np.float64); b = stereo(ours)[:, skip:].astype(np.float64)
+    n = min(a.shape[1], b.shape[1]); a, b = a[:, :n], b[:, :n]
+    A = np.fft.rfft(a, axis=1); D = np.fft.rfft(a - b, axis=1)
+    f = np.fft.rfftfreq(n, 1 / fs)
+    out = {}
+    for (lo, hi), name in zip(BANDS, BAND_NAMES):
+        m = (f >= lo) & (f < hi)
+        e = np.sum(np.abs(A[:, m]) ** 2); d = np.sum(np.abs(D[:, m]) ** 2)
+        out[name] = float(10 * np.log10(max(d, 1e-30) / max(e, 1e-30))) if e > 1e-20 else None
+    return out
+
+
 # ---------------------------------------------------------------- analysis -----------------------------------------
 def transfer(y, x, fs=FS, n=4096):
     """averaged transfer function H = Sxy / Sxx of a render against its input (filter fits).
@@ -239,15 +330,6 @@ def harmonics(y, f, count=8, fs=FS, skip=0):
     return out
 
 
-def rms_db(x):
-    x = np.asarray(x, np.float64)
-    return float(10 * np.log10(max(float(np.mean(x * x)), 1e-30)))
-
-
-def db(x):
-    return 20 * np.log10(np.maximum(np.abs(x), 1e-12))
-
-
 def time_constant(trace, t0, fs=FS, target=0.632):
     """samples from t0 until trace reaches `target` of its final move (t63 of an attack or release step)."""
     tr = np.asarray(trace, np.float64)[t0:]
@@ -269,16 +351,7 @@ def ripple_rate(y, fs=FS, band=(15000, 20000), skip=0):
     return float(fe[np.argmax(E)])
 
 
-# ---------------------------------------------------------------- files and caching --------------------------------
-def write_f32(path, x):
-    """stereo interleaved float32, the format RefRender and each plug-in's renderer read and write."""
-    stereo(x).T.astype(np.float32).tofile(path)
-
-
-def read_f32(path):
-    return np.fromfile(path, np.float32).reshape(-1, 2).T.copy()
-
-
+# ---------------------------------------------------------------- caching and summary ------------------------------
 def cache_key(x, **settings):
     """sha1 of the exact input plus the settings. Add a 'salt' entry for global state a job cannot carry (the
     reference's oversampling page, a hidden mode), or the cache will hand back a render made under another state."""

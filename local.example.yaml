@@ -16,9 +16,13 @@ gpu_python: ''
 tools_dir: ''
 # The FL Studio executable, for renders inside the DAW
 fl_exe: ''
-# A JUCE checkout at the commit CMakeLists.txt pins, reused instead of a download (FETCHCONTENT_SOURCE_DIR_JUCE)
+# This repository's own copy of JUCE at the commit CMakeLists.txt pins, used instead of a download
+# (FETCHCONTENT_SOURCE_DIR_JUCE). The configure step checks the commit and patches the copy in place
+# (cmake/PatchJuceVst3Keys.cmake), so it is never another project's checkout. Empty: build/_deps/juce-src when a copy
+# is there.
 juce_src: ''
-# A clap-juce-extensions checkout at the pinned commit (FETCHCONTENT_SOURCE_DIR_CLAP_JUCE_EXTENSIONS)
+# This repository's own copy of clap-juce-extensions at the pinned commit, checked like JUCE
+# (FETCHCONTENT_SOURCE_DIR_CLAP_JUCE_EXTENSIONS). Empty: build/_deps/clap_juce_extensions-src when a copy is there.
 clap_src: ''
 # The pluginval 1.0.4 executable
 pluginval: ''

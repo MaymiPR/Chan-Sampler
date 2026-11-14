@@ -92,17 +92,10 @@ struct FocusOnClick : juce::MouseListener
 };
 }
 
-// FL Studio, recognised as JUCE recognises it: the host's file name starts with FL (FL64.exe, or OsxFL on macOS).
-static bool isFlHost()
-{
-    const auto name = juce::File (juce::PluginHostType::getHostPath()).getFileName();
-    return name.startsWith ("FL") || name.containsIgnoreCase ("OsxFL");
-}
-
 HostFocus::HostFocus (juce::AudioProcessorEditor& e, bool wantsKeys) : editor (e)
 {
     const auto wrapper = e.processor.wrapperType;
-    if (wrapper == juce::AudioProcessor::wrapperType_VST3 && isFlHost())
+    if (wrapper == juce::AudioProcessor::wrapperType_VST3 && juce::PluginHostType().isFruityLoops())
         listener = std::make_unique<KeepHostFocus> (e);
     else if (wantsKeys && wrapper != juce::AudioProcessor::wrapperType_VST3
              && wrapper != juce::AudioProcessor::wrapperType_Standalone && wrapper != juce::AudioProcessor::wrapperType_Undefined)

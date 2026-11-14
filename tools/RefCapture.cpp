@@ -1,4 +1,4 @@
-// RefCapture (descended from MeterCapture): films or screenshots a plug-in editor while audio plays (Windows), to measure
+// RefCapture: films or screenshots a plug-in editor while audio plays (Windows), to measure
 // the reference's look and meter ballistics the host cannot read.
 //   RefCapture <plugin.vst3> "<sub-plugin name>[@uid]" <out.raw> [paramName=value ...] [in=<mono float32 48 kHz file>]
 //   ... [design=<width>] drag=x,y,dx,dy[,ctrl|shift|alt] ...   (drag script instead of the capture, see DragScript)
@@ -16,6 +16,14 @@
 //   ... savestates=<p#>   with a click script: the state after each click, # = the click's number
 //   ... savestate=<file>  writes the plug-in's state when the run ends (after a click script: settings the host
 //                         cannot set, such as a button the plug-in keeps in its own state)
+//   ... auto=<param name>@<ms>=<value>   (repeatable) while filming, sets that parameter (normalised value) from the
+//                         audio thread when the schedule reaches <ms>, as host automation would (setValueNotifyingHost)
+//   ... playhead=1        gives the plug-in a host transport it can read (120 BPM, 4/4): playing while audio is fed,
+//                         stopped afterwards. With a drag script, the action feed (drag=<start seconds>,0,0,0,feed[,<tail ms>])
+//                         feeds in= with the transport running from <start seconds>, then <tail ms> of silence with it
+//                         stopped (default 3000); feedfilm adds an editor shot every <period ms> meanwhile
+//                         (drag=<start seconds>,0,0,0,feedfilm,<tail ms>,<period ms>)
+//   ... size=<W>,<H>      opens a resizable editor at that size
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <windows.h>
@@ -30,6 +38,24 @@ struct Seg { double secs; double db; bool on; };
 static const Seg schedule[] = { { 1.0, 0, false }, { 2.0, -6, true }, { 3.0, 0, false }, { 2.0, -20, true }, { 3.0, 0, false },
                                 { 0.3, -6, true }, { 3.0, 0, false } };
 
+// playhead=1: a host transport the plug-in can read (120 BPM, 4/4): playing while the feeder feeds, stopped after
+class HostPlayHead : public AudioPlayHead
+{
+public:
+    std::atomic<bool> playing { false };
+    std::atomic<double> seconds { 0.0 };
+    Optional<PositionInfo> getPosition() const override
+    {
+        PositionInfo p;
+        const double s = seconds.load();
+        p.setIsPlaying (playing.load()); p.setIsRecording (false);
+        p.setBpm (120.0); p.setTimeSignature (TimeSignature { 4, 4 });
+        p.setTimeInSeconds (s); p.setTimeInSamples ((int64) (s * fs)); p.setPpqPosition (s * 2.0); p.setPpqPositionOfLastBarStart (std::floor (s * 2.0 / 4.0) * 4.0);
+        return p;
+    }
+};
+static HostPlayHead playHead;
+
 class Feeder : public Thread
 {
 public:
@@ -37,19 +63,41 @@ public:
     std::atomic<double> startTime { 0.0 };
     std::atomic<bool> done { false };
     std::vector<float> recorded;   // the plug-in's output, interleaved stereo; written next to the frames
+    HostPlayHead* ph = nullptr;    // set: the play head runs with the input and stops after it
+    double tailSeconds = 0.0;      // silence fed after the input with the play head stopped (a plug-in's own work after a stop)
+    double startSeconds = 0.0;     // where the play head starts
+    struct Auto { double ms; String name; float value; };
+    std::vector<Auto> automation;  // auto= events, in time order
     void run() override
     {
         AudioBuffer<float> buf (2, block); MidiBuffer midi;
         sleep (2500);
         const double t0 = Time::getMillisecondCounterHiRes() * 0.001;
         startTime = t0;
+        if (ph != nullptr) { ph->seconds = startSeconds; ph->playing = true; }
         for (size_t i = 0; i + (size_t) block <= input.size() && ! threadShouldExit(); i += (size_t) block)
         {
             const double wait = t0 + (double) i / fs - Time::getMillisecondCounterHiRes() * 0.001;
             if (wait > 0) Thread::sleep ((int) (wait * 1000.0));
+            if (ph != nullptr) ph->seconds = startSeconds + (double) i / fs;
             for (int k = 0; k < block; ++k) { buf.setSample (0, k, input[i + (size_t) k]); buf.setSample (1, k, input[i + (size_t) k]); }
+            while (nextAuto < automation.size() && automation[nextAuto].ms <= 1000.0 * (double) i / fs)
+            {
+                for (auto* p : plugin.getParameters())
+                    if (p->getName (64) == automation[nextAuto].name) p->setValueNotifyingHost (automation[nextAuto].value);
+                ++nextAuto;
+            }
             plugin.processBlock (buf, midi);
             for (int k = 0; k < block; ++k) { recorded.push_back (buf.getSample (0, k)); recorded.push_back (buf.getSample (1, k)); }
+        }
+        if (ph != nullptr) ph->playing = false;
+        const double t1 = Time::getMillisecondCounterHiRes() * 0.001;
+        for (size_t i = 0; (double) i / fs < tailSeconds && ! threadShouldExit(); i += (size_t) block)
+        {
+            const double wait = t1 + (double) i / fs - Time::getMillisecondCounterHiRes() * 0.001;
+            if (wait > 0) Thread::sleep ((int) (wait * 1000.0));
+            buf.clear();
+            plugin.processBlock (buf, midi);
         }
         done = true;
         std::printf ("feeder done: %d of %d samples\n", (int) recorded.size() / 2, (int) input.size());
@@ -69,6 +117,7 @@ public:
     }
     AudioPluginInstance& plugin;
     std::vector<float> input;
+    size_t nextAuto = 0;
 };
 
 // the editor's pixels, taken from its own window (PrintWindow with full content: right even while other windows
@@ -134,7 +183,7 @@ public:
     float rowFrom = 0.0f, rowTo = 1.0f;      // rows=<from>,<to>: only that band of the editor (fractions of its height)
 };
 
-// grabs the component's screen area (also native child windows, e.g. a Waves editor) into a PNG
+// grabs the component's screen area (also native child windows of an editor) into a PNG
 static Image grabImage (Component& c);
 static void grabPng (Component& c, const File& f)
 {
@@ -178,6 +227,40 @@ static Image grabImage (Component& c)
     return img;
 }
 
+// a grab of the screen itself over the component's area grown by (right, below): popup menus are separate windows
+static void grabScreenPng (Component& c, int growRight, int growBelow, const File& f)
+{
+    juce::Rectangle<int> r; double scale = 1.0;
+    {
+        MessageManagerLock mml;
+        r = c.getScreenBounds();
+        scale = Desktop::getInstance().getDisplays().getDisplayForRect (r)->scale;
+    }
+    const int x = roundToInt (r.getX() * scale), y = roundToInt (r.getY() * scale);
+    const int w = roundToInt ((r.getWidth() + growRight) * scale), h = roundToInt ((r.getHeight() + growBelow) * scale);
+    HDC screen = GetDC (nullptr), mem = CreateCompatibleDC (screen);
+    HBITMAP bmp = CreateCompatibleBitmap (screen, w, h);
+    auto old = SelectObject (mem, bmp);
+    BitBlt (mem, 0, 0, w, h, screen, x, y, SRCCOPY);
+    BITMAPINFO bi {}; bi.bmiHeader.biSize = sizeof (BITMAPINFOHEADER); bi.bmiHeader.biWidth = w; bi.bmiHeader.biHeight = -h;
+    bi.bmiHeader.biPlanes = 1; bi.bmiHeader.biBitCount = 32; bi.bmiHeader.biCompression = BI_RGB;
+    Image img (Image::ARGB, w, h, true, SoftwareImageType());
+    {
+        Image::BitmapData bd (img, Image::BitmapData::writeOnly);
+        HeapBlock<uint8> px ((size_t) w * (size_t) h * 4);
+        GetDIBits (mem, bmp, 0, (UINT) h, px.get(), &bi, DIB_RGB_COLORS);
+        for (int row = 0; row < h; ++row)
+        {
+            auto* d = bd.getLinePointer (row);
+            const uint8* q = px.get() + (size_t) row * (size_t) w * 4;
+            for (int col = 0; col < w; ++col, d += bd.pixelStride, q += 4) { d[0] = q[0]; d[1] = q[1]; d[2] = q[2]; d[3] = 255; }
+        }
+    }
+    SelectObject (mem, old); DeleteObject (bmp); DeleteDC (mem); ReleaseDC (nullptr, screen);
+    f.deleteFile();
+    if (auto st = f.createOutputStream()) PNGImageFormat().writeImageToStream (img, *st);
+}
+
 // Drag script (drag=x,y,dx,dy[,mod[,steps]] in the editor's design pixels, design=<design width>): moves the real
 // mouse over the editor, prints every parameter before and after each drag, and whether the cursor stayed visible
 // in the middle of the drag. Used to measure how far a control moves per pixel of mouse movement.
@@ -208,6 +291,25 @@ public:
             const int steps = t.size() > 5 ? jmax (1, t[5].getIntValue()) : 50;     // 12 ms apart
             std::printf ("== drag %s\n", d.toRawUTF8());
             dump ("before");
+            if (mod == "feed" || mod == "feedfilm")                // the in= audio through the plug-in with the play head running, then t[5] ms of silence stopped
+            {                                                      // feedfilm: an editor shot every t[6] ms meanwhile (_rec<k>.png)
+                const int tailMs = t.size() > 5 ? t[5].getIntValue() : 3000;
+                Feeder f (plugin, feedInput);
+                f.ph = feedPlayHead; f.tailSeconds = tailMs / 1000.0; f.startSeconds = x;
+                if (mod == "feedfilm")
+                {
+                    const int period = t.size() > 6 ? jmax (100, t[6].getIntValue()) : 1000;
+                    f.startThread();
+                    for (int k = 0; ! f.done.load(); ++k)
+                    {
+                        sleep (period);
+                        if (shots != File()) grabPng (editor, shots.getSiblingFile (shots.getFileNameWithoutExtension() + "_" + String (n) + "_rec" + String (k).paddedLeft ('0', 3) + ".png"));
+                    }
+                    f.stopThread (2000);
+                }
+                else f.run();
+                shot ("fed"); dump ("fed"); continue;
+            }
             Point<int> start;
             {
                 MessageManagerLock mml;
@@ -230,13 +332,13 @@ public:
                 for (double at : { 0.0, 10.0, 20.0, 35.0, 50.0, 75.0, 100.0, 150.0, 200.0, 300.0, 500.0, 800.0, 1200.0 })
                 {
                     while (Time::getMillisecondCounterHiRes() - t0 < at) Thread::yield();
-                    const double t = Time::getMillisecondCounterHiRes() - t0;
-                    burst.emplace_back (t, grabImage (editor));
+                    const double took = Time::getMillisecondCounterHiRes() - t0;
+                    burst.emplace_back (took, grabImage (editor));
                 }
                 if (shots != File())
-                    for (auto& [t, img] : burst)
+                    for (auto& [took, img] : burst)
                     {
-                        auto f = shots.getSiblingFile (shots.getFileNameWithoutExtension() + "_" + String (n) + "_" + String (roundToInt (t)) + "ms.png");
+                        auto f = shots.getSiblingFile (shots.getFileNameWithoutExtension() + "_" + String (n) + "_" + String (roundToInt (took)) + "ms.png");
                         f.deleteFile();
                         if (auto st = f.createOutputStream()) PNGImageFormat().writeImageToStream (img, *st);
                     }
@@ -273,6 +375,29 @@ public:
             {
                 sleep (400); shot ("hover");
                 std::printf ("hover\n"); continue;
+            }
+            if (mod == "sclick" || mod == "shover" || mod == "rsclick")   // click (right click) or only move there, then the screen without closing anything
+            {
+                sleep (300);
+                if (mod != "shover")
+                {
+                    const DWORD dn = mod == "rsclick" ? MOUSEEVENTF_RIGHTDOWN : MOUSEEVENTF_LEFTDOWN, up = mod == "rsclick" ? MOUSEEVENTF_RIGHTUP : MOUSEEVENTF_LEFTUP;
+                    mouse_event (dn, 0, 0, 0, 0); sleep (30); mouse_event (up, 0, 0, 0, 0);
+                }
+                sleep (900);
+                if (shots != File()) grabScreenPng (editor, 300, 400, shots.getSiblingFile (shots.getFileNameWithoutExtension() + "_" + String (n) + "_screen.png"));
+                std::printf ("%s\n", mod.toRawUTF8()); continue;
+            }
+            if (mod == "esc") { keybd_event (VK_ESCAPE, 0, 0, 0); sleep (20); keybd_event (VK_ESCAPE, 0, KEYEVENTF_KEYUP, 0); sleep (400); continue; }
+            if (mod == "menu")                                    // click, then the screen under and right of the editor (a popup menu)
+            {
+                sleep (300);
+                mouse_event (MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0); sleep (30);
+                mouse_event (MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
+                sleep (700);
+                if (shots != File()) grabScreenPng (editor, 300, 400, shots.getSiblingFile (shots.getFileNameWithoutExtension() + "_" + String (n) + "_menu.png"));
+                keybd_event (VK_ESCAPE, 0, 0, 0); sleep (20); keybd_event (VK_ESCAPE, 0, KEYEVENTF_KEYUP, 0); sleep (300);
+                std::printf ("menu\n"); continue;
             }
             if (mod == "click" || mod == "dbl" || mod.endsWith ("click"))   // click / double-click (+ modifier), then type t[6] + Enter
             {
@@ -347,6 +472,8 @@ public:
     }
     // savestates=<pattern>: after each click, the plug-in's state to the pattern with # replaced by the click's number
     String stateEach;
+    std::vector<float> feedInput;          // the in= audio for the feed command
+    HostPlayHead* feedPlayHead = nullptr;
     void saveEach (int n)
     {
         if (stateEach.isEmpty()) return;
@@ -391,7 +518,7 @@ public:
         if (args.size() < 3) { std::printf ("usage: RefCapture plugin.vst3 \"name\" out.raw [param=value ...]\n"); quit(); return; }
         for (auto& a : args)
             if (a.startsWith ("fs=")) fs = a.substring (3).getDoubleValue();
-        fm.addFormat (new VST3PluginFormat());
+        fm.addFormat (std::make_unique<VST3PluginFormat>());
         // "name@uid": build the description directly; enumerating a shell first leaves JUCE's module cache pointing
         // at the shell's first class, so the wrong sub-plugin would load
         if (args[1].contains ("@"))
@@ -452,7 +579,8 @@ public:
         {
             if (args[i].startsWith ("state=") || args[i].startsWith ("shot=") || args[i].startsWith ("in=")
                 || args[i].startsWith ("drag=") || args[i].startsWith ("design=") || args[i].startsWith ("rows=")
-                || args[i].startsWith ("fs=") || args[i].startsWith ("record=")) continue;
+                || args[i].startsWith ("fs=") || args[i].startsWith ("record=") || args[i].startsWith ("playhead=")
+                || args[i].startsWith ("size=") || args[i].startsWith ("auto=")) continue;
             if (args[i].startsWith ("savestate=")) { saveState = args[i].substring (10); continue; }
             if (args[i].startsWith ("savestates=")) continue;
             const auto name = args[i].upToFirstOccurrenceOf ("=", false, false);
@@ -462,7 +590,13 @@ public:
         }
         window = std::make_unique<DocumentWindow> ("RefCapture", Colours::black, DocumentWindow::closeButton);
         window->setUsingNativeTitleBar (true);
-        window->setContentNonOwned (plugin->createEditorIfNeeded(), true);
+        window->setContentNonOwned (plugin->createEditorAndMakeActive(), true);
+        for (int i = 3; i < args.size(); ++i)                 // size=W,H: the editor at another size (a resizable one)
+            if (args[i].startsWith ("size="))
+            {
+                auto wh = StringArray::fromTokens (args[i].substring (5), ",", "");
+                if (auto* ed = window->getContentComponent()) ed->setSize (wh[0].getIntValue(), wh[1].getIntValue());
+            }
         window->setTopLeftPosition (100, 100);
         window->setVisible (true);
         window->setAlwaysOnTop (true);
@@ -472,9 +606,19 @@ public:
             if (args[i].startsWith ("drag=")) drags.add (args[i].substring (5));
             if (args[i].startsWith ("design=")) design = args[i].substring (7).getFloatValue();
         }
+        if (args.contains ("playhead=1")) plugin->setPlayHead (&playHead);
+        std::vector<float> feedIn = Feeder::defaultInput();
+        for (int i = 3; i < args.size(); ++i)
+            if (args[i].startsWith ("in="))
+            {
+                MemoryBlock mb; File (args[i].substring (3)).loadFileAsData (mb);
+                feedIn.assign ((const float*) mb.getData(), (const float*) mb.getData() + mb.getSize() / sizeof (float));
+            }
         if (! drags.isEmpty())
         {
             dragScript = std::make_unique<DragScript> (*plugin, *window->getContentComponent(), drags, design, File (args[2]));
+            dragScript->feedInput = feedIn;
+            if (args.contains ("playhead=1")) dragScript->feedPlayHead = &playHead;
             for (auto& a : args)
                 if (a.startsWith ("savestates=")) dragScript->stateEach = a.substring (11);
             dragWatch = std::make_unique<DragWatch> (*dragScript);
@@ -490,6 +634,15 @@ public:
                 in.assign ((const float*) mb.getData(), (const float*) mb.getData() + mb.getSize() / sizeof (float));
             }
         feeder = std::make_unique<Feeder> (*plugin, std::move (in));
+        for (int i = 3; i < args.size(); ++i)
+            if (args[i].startsWith ("auto="))
+            {
+                const auto spec = args[i].substring (5);
+                feeder->automation.push_back ({ spec.fromLastOccurrenceOf ("@", false, false).upToFirstOccurrenceOf ("=", false, false).getDoubleValue(),
+                                               spec.upToLastOccurrenceOf ("@", false, false),
+                                               spec.fromLastOccurrenceOf ("=", false, false).getFloatValue() });
+            }
+        std::stable_sort (feeder->automation.begin(), feeder->automation.end(), [] (auto& a, auto& b) { return a.ms < b.ms; });
         int shotMs = 0;
         for (int i = 3; i < args.size(); ++i)
             if (args[i].startsWith ("shot=")) shotMs = args[i].substring (5).getIntValue();

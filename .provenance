@@ -1,6 +1,8 @@
 # What may sit in this repository and what may ship: plugin/MEASUREMENTS.md "Provenance".
 # vendor words: never in a control label, preset name, file name or plug-in name
 vendor: Image-Line, FL Studio, FL Sampler, Channel Sampler, Fruity, Edison, Slicex
+# a name a library or a standard defines, which the code calls: exactly this identifier passes the check
+uses: isFruityLoops  JUCE (juce::PluginHostType): its test for the host whose keys shared/ui/HostFocus.cpp hands back
 # files the check would stop, kept with their reason
 allow: plugin/tests/data/state-1.2.0.bin  a project state saved by Chan Sampler 1.2.0 itself, for the host test that old projects load unchanged (approved 2026-11-01)
 allow: measurements/  the measured data of the null tests and measurement scripts (kernels, matrices, curves, tables of our own; no render and no file FL wrote), published (approval recorded 2026-11-09)

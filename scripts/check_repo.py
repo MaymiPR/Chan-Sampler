@@ -21,7 +21,10 @@ in its first 8 KB is binary and skipped. Rules:
     V  a vendor word (the vendor: lines of .provenance, any letter case) in a code identifier or a file name: in a code
        file, a CamelCase or snake_case name whose parts spell the vendor word (VendorDrag, render_vendor); in every
        tracked path, a file or folder name with the vendor word among its parts. Word-boundary aware: a plain word in
-       prose or a comment is not an identifier, and a vendor word inside a longer part (CLA in CLAP) is not a match
+       prose or a comment is not an identifier, and a vendor word inside a longer part (Acme in Acmeism) is not a match.
+       The rule is about the names we give. A name that a library or a standard defines and the code calls passes
+       when .provenance lists it: "uses: <identifier>  <the library or standard that defines it>". Exactly that
+       identifier passes, in code only; a uses: line without its source is a finding
     H  a plug-in's nulltest/ without its harness <ab>_ref.py (<ab>: the plug-in's <Ab>Render abbreviation in lower
        case); the plug-in folder is plugin/ in a suite of one plug-in, plugins/<Id>/ in a suite of several
     I  a numbered iteration script: a script or native helper under nulltest/ or scripts/ whose name ends in a number
@@ -29,10 +32,14 @@ in its first 8 KB is binary and skipped. Rules:
        what it does, the others leave the tree
 
 Licence texts (LICENSE, COPYING and the THIRD-PARTY-NOTICES files) are verbatim third-party text: the P, Q, E and D
-rules skip them. --release also requires a `## Provenance` section in every plug-in's MEASUREMENTS.md and
-`## Unreleased` as the first section of CHANGELOG.md. Standard library only.
+rules skip them. --release also requires a `## Provenance` section in every plug-in's MEASUREMENTS.md,
+`## Unreleased` as the first section of CHANGELOG.md, no placeholder left by the starter (the word in capitals that
+marks text still to write) in README.md, CHANGELOG.md and every plug-in's README.md, RESEARCH.md, MEASUREMENTS.md,
+NULLTESTS.md, ui/control-spec.md and ui/behaviour.md (their example rows carry it), and real images: docs/screenshots/hero.png, docs/branding/<suite>-icon.png and
+docs/branding/<suite>-social.png exist and none is a single colour (the starter writes them as flat placeholders).
+Standard library only.
 """
-import argparse, os, re, subprocess, sys
+import argparse, os, re, struct, subprocess, sys, zlib
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -67,6 +74,11 @@ CODE_EXT = ('.h', '.hpp', '.cpp', '.c', '.mm', '.py', '.cmake', '.ps1', '.sh', '
 IDENTIFIER = re.compile(r'[A-Za-z_][A-Za-z0-9_]*')
 SCRIPT_EXT = ('.py', '.ps1', '.sh', '.bat', '.c', '.cpp', '.h')
 NUMBERED = re.compile(r'[A-Za-z][0-9]+$')
+PLACEHOLDER = 'TO' + 'DO'             # the starter's mark for text still to write; split so this file carries none
+PLUGIN_DOCS = ('README.md', 'RESEARCH.md', 'MEASUREMENTS.md', 'NULLTESTS.md', 'ui/control-spec.md', 'ui/behaviour.md')
+RELEASE_IMAGES = (('the hero screenshot', re.compile(r'docs/screenshots/hero\.png')),
+                  ('the icon', re.compile(r'docs/branding/[^/]+-icon\.png')),
+                  ('the social preview', re.compile(r'docs/branding/[^/]+-social\.png')))
 
 
 def git_files():
@@ -123,6 +135,26 @@ def vendor_words(root=ROOT):
     return words
 
 
+def library_names_in(text):
+    """[(line number, identifier, source)] of the uses: lines of a .provenance text: the names a library or a
+    standard defines, which rule V lets pass."""
+    rows = []
+    for n, line in enumerate(text.split('\n'), 1):
+        if line.strip().startswith('uses:'):
+            name, _, source = line.strip()[5:].strip().partition(' ')
+            rows.append((n, name, source.strip()))
+    return rows
+
+
+def library_names(root=ROOT):
+    """The identifiers the uses: lines of .provenance name."""
+    path = os.path.join(root, '.provenance')
+    if not os.path.isfile(path):
+        return set()
+    with open(path, encoding='utf-8') as h:
+        return {name for _, name, _ in library_names_in(h.read())}
+
+
 def vendor_in(parts, vendor):
     """The vendor word that whole parts in a row spell (Maxx + Bass, or one part maxxbass), or None."""
     for word, run in vendor:
@@ -163,6 +195,14 @@ def tree_rules(files, findings, vendor):
                 if word and (comp, word) not in seen:
                     seen.add((comp, word))
                     findings.append(f'{rel}:1: V: the vendor word {word} in the name {comp}')
+    if '.provenance' in files and os.path.isfile(os.path.join(ROOT, '.provenance')):
+        with open(os.path.join(ROOT, '.provenance'), encoding='utf-8') as h:
+            for n, name, source in library_names_in(h.read()):
+                if not re.fullmatch(r'[A-Za-z_]\w*', name):
+                    findings.append(f'.provenance:{n}: V: a uses: line names one identifier, not "{name}"')
+                elif not source:
+                    findings.append(f'.provenance:{n}: V: the uses: line of {name} does not say which library or '
+                                    f'standard defines it')
     for pdir in plugin_dirs(files):
         if not any(f.startswith(f'{pdir}/nulltest/') for f in files):
             continue
@@ -186,7 +226,7 @@ def tree_rules(files, findings, vendor):
                             f'named for what it does')
 
 
-def check_file(rel, data, old_names, findings, vendor=()):
+def check_file(rel, data, old_names, findings, vendor=(), library=()):
     text = data.decode('utf-8', 'replace')
     code = rel.lower().endswith(CODE_EXT) or os.path.basename(rel) == 'CMakeLists.txt'
     licence = bool(LICENCE.search(rel))
@@ -213,7 +253,7 @@ def check_file(rel, data, old_names, findings, vendor=()):
         if vendor and code:
             for token in set(IDENTIFIER.findall(line)):
                 word = vendor_in(name_parts(token), vendor) if is_identifier(token) else None
-                if word:
+                if word and token not in library:
                     add('V', f'the vendor word {word} in the identifier {token}')
         if any(r.search(line) for r in P_RULES):
             add('P', line)
@@ -252,7 +292,98 @@ def fix_file(rel, data):
     return False
 
 
+def png_flat(data):
+    """True when a PNG is one colour from corner to corner, False when it is not, None when this reader cannot tell
+    (not a PNG, interlaced, a bit depth below 8, damaged). Reads the IHDR and IDAT chunks, inflates the image and
+    undoes the five row filters; stops at the first row that is not the first pixel repeated."""
+    if data[:8] != b'\x89PNG\r\n\x1a\n':
+        return None
+    pos, head, idat = 8, None, []
+    while pos + 8 <= len(data):
+        size, kind = struct.unpack('>I4s', data[pos:pos + 8])
+        body = data[pos + 8:pos + 8 + size]
+        pos += 12 + size
+        if kind == b'IHDR' and len(body) >= 13:
+            head = struct.unpack('>IIBBBBB', body[:13])
+        elif kind == b'IDAT':
+            idat.append(body)
+        elif kind == b'IEND':
+            break
+    if head is None:
+        return None
+    width, height, depth, colour, _, _, interlace = head
+    channels = {0: 1, 2: 3, 3: 1, 4: 2, 6: 4}.get(colour)
+    if channels is None or depth not in (8, 16) or interlace or not width or not height:
+        return None
+    try:
+        raw = zlib.decompress(b''.join(idat))
+    except zlib.error:
+        return None
+    bpp = channels * depth // 8
+    stride = width * bpp
+    if len(raw) < height * (stride + 1):
+        return None
+    prev, first = bytes(stride), None
+    for y in range(height):
+        start = y * (stride + 1)
+        kind, line = raw[start], raw[start + 1:start + 1 + stride]
+        if kind == 0:
+            row = line
+        elif kind == 2:
+            row = bytes((a + b) & 255 for a, b in zip(line, prev))
+        elif kind in (1, 3, 4):
+            out = bytearray(line)
+            for i in range(stride):
+                a = out[i - bpp] if i >= bpp else 0
+                b = prev[i]
+                if kind == 1:
+                    add = a
+                elif kind == 3:
+                    add = (a + b) >> 1
+                else:
+                    c = prev[i - bpp] if i >= bpp else 0
+                    pa, pb, pc = abs(b - c), abs(a - c), abs(a + b - 2 * c)
+                    add = a if pa <= pb and pa <= pc else b if pb <= pc else c
+                out[i] = (out[i] + add) & 255
+            row = bytes(out)
+        else:
+            return None
+        if first is None:
+            first = row[:bpp]
+        if row != first * width:
+            return False
+        prev = row
+    return True
+
+
+def placeholder_rules(files, findings):
+    """--release: no placeholder of the starter in the documents a reader of the release sees, nor in a plug-in's UI
+    tables, whose example rows carry it until the first measured row replaces them."""
+    docs = ['README.md', 'CHANGELOG.md'] + [f'{d}/{name}' for d in plugin_dirs(files) for name in PLUGIN_DOCS]
+    for rel in docs:
+        data = read_bytes(rel) if rel in files else None
+        if data is None:
+            continue
+        hits = [n for n, line in enumerate(data.decode('utf-8', 'replace').splitlines(), 1) if PLACEHOLDER in line]
+        if hits:
+            findings.append(f'{rel}:{hits[0]}: release: {len(hits)} line(s) with a {PLACEHOLDER} placeholder of the starter')
+
+
+def image_rules(files, findings):
+    """--release: the hero screenshot, the icon and the social preview exist and are not the starter's flat PNGs."""
+    for what, pattern in RELEASE_IMAGES:
+        found = [f for f in files if pattern.fullmatch(f)]
+        if not found:
+            findings.append(f'docs:1: release: {what} is missing ({pattern.pattern.replace(chr(92), "")})')
+        for rel in found:
+            data = read_bytes(rel)
+            if data is not None and png_flat(data):
+                findings.append(f'{rel}:1: release: {what} is a single colour (the placeholder of the starter)')
+
+
 def release_rules(files, findings):
+    placeholder_rules(files, findings)
+    image_rules(files, findings)
     for rel in (f'{d}/MEASUREMENTS.md' for d in plugin_dirs(files)):
         if rel in files:
             data = read_bytes(rel)
@@ -277,7 +408,7 @@ def main():
     a = ap.parse_args()
     files = git_files()
     old_names = old_name_rules(files)
-    vendor = vendor_words()
+    vendor, library = vendor_words(), library_names()
     findings, checked = [], 0
     for rel in files:
         data = read_bytes(rel)
@@ -287,7 +418,7 @@ def main():
             print(f'{rel}: fixed whitespace and line endings')
             data = read_bytes(rel)
         checked += 1
-        check_file(rel, data, old_names, findings, vendor)
+        check_file(rel, data, old_names, findings, vendor, library)
     tree_rules(files, findings, vendor)
     if a.release:
         release_rules(files, findings)
