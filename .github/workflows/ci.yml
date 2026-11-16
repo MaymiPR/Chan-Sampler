@@ -6,8 +6,8 @@
 # new plug-in needs no change here. The Windows job keeps the editor screenshots as an artifact for 14 days.
 # Trigger: push to main and pull requests (not when only documents, docs/ or the null-test harnesses change), and by
 # hand (Actions > CI > Run workflow).
-# Runners: ubuntu-24.04, windows-latest, macos-15. Every job has a time limit: 60 minutes on Linux and macOS, 120 on
-# Windows (a large suite builds longest there).
+# Runners: ubuntu-24.04, windows-latest, macos-15. Every job has a time limit: 120 minutes on Linux and macOS, 150 on
+# Windows. A suite of nine plug-ins builds for about 60 minutes on macOS, 80 on Linux and 85 on Windows.
 # Does not: build CLAP, AU or the installers, sign, or run pluginval and auval (release.yml does), or null against the
 # original plug-ins (they are not on the runners). A private repository keeps this workflow disabled and runs
 # scripts/check.ps1 or scripts/check.sh instead.
@@ -43,7 +43,7 @@ permissions:
 jobs:
   linux:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7.0.1
         with:
@@ -84,7 +84,7 @@ jobs:
 
   windows:
     runs-on: windows-latest
-    timeout-minutes: 120
+    timeout-minutes: 150
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7.0.1
         with:
@@ -139,7 +139,7 @@ jobs:
 
   macos:
     runs-on: macos-15
-    timeout-minutes: 60
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7.0.1
         with:
