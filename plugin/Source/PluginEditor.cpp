@@ -427,8 +427,10 @@ void ChanSamplerEditor::showAboutMenu (juce::Component& target)
     const juce::String version = JucePlugin_VersionString;
     juce::PopupMenu menu;
     menu.addSectionHeader ("Chan Sampler v" + version);
-    menu.addItem ("About Chan Sampler", [this, version]
+    menu.addItem ("About Chan Sampler", [this, safe = juce::Component::SafePointer<ChanSamplerEditor> (this), version]
     {
+        if (safe == nullptr)
+            return;
         const auto format = juce::AudioProcessor::getWrapperTypeDescription (samplerProcessor.wrapperType);
         chan::ui::showInfo (canvas, "About Chan Sampler", {
             { "Version", version + (samplerProcessor.wrapperType == juce::AudioProcessor::wrapperType_Undefined ? juce::String() : " (" + juce::String (format) + ")") },
@@ -530,10 +532,14 @@ void ChanSamplerEditor::buildSampleSheet()
         // "Autodetect...": the sample's tempo (FL's Tempo detection), then
         // TIME = its length in beats at that tempo (FL: a 2-bar loop at 128 BPM
         // gives 2:00:00), so it plays at the project's tempo.
-        t.menu.actions["Autodetect..."] = [this]
+        t.menu.actions["Autodetect..."] = [this, safe = juce::Component::SafePointer<ChanSamplerEditor> (this)]
         {
-            waveform.detectTempo ([this] (double bpm)
+            if (safe == nullptr)
+                return;
+            waveform.detectTempo ([this, safe] (double bpm)
             {
+                if (safe == nullptr)
+                    return;
                 const auto raw = samplerProcessor.getRaw();
                 setParam (id::stretchTime, bpm > 0 ? (float) dsp::tempo::beats (raw->audio.getNumSamples(), raw->sampleRate, bpm) : 0.0f);
             });
@@ -950,8 +956,10 @@ void ChanSamplerEditor::showEchoPresets (juce::Component& anchor)
         if (i == 1 || i == 3)
             menu.addSeparator();
         const auto& e = presets[i];
-        menu.addItem (e.name, [this, e]
+        menu.addItem (e.name, [this, safe = juce::Component::SafePointer<ChanSamplerEditor> (this), e]
         {
+            if (safe == nullptr)
+                return;
             const History::Transaction edit (samplerProcessor.history, juce::String ("Echo preset: ") + e.name);
             setParam (id::echoFeed, e.feed);
             setParam (id::echoPan, e.pan);
@@ -986,8 +994,10 @@ void ChanSamplerEditor::showEnvelopeMenu (const juce::String& prefix, juce::Comp
     auto files = envelopeFolder().findChildFiles (juce::File::findFiles, false, "*.csenv");
     files.sort();
     for (const auto& f : files)
-        menu.addItem (f.getFileNameWithoutExtension(), [this, prefix, f]
+        menu.addItem (f.getFileNameWithoutExtension(), [this, safe = juce::Component::SafePointer<ChanSamplerEditor> (this), prefix, f]
         {
+            if (safe == nullptr)
+                return;
             auto xml = juce::parseXML (f);
             if (xml == nullptr)
             {
@@ -999,14 +1009,18 @@ void ChanSamplerEditor::showEnvelopeMenu (const juce::String& prefix, juce::Comp
                 if (xml->hasAttribute (key) && samplerProcessor.apvts.getParameter (id::env (prefix.toRawUTF8(), key)) != nullptr)
                     setParam (id::env (prefix.toRawUTF8(), key), (float) xml->getDoubleAttribute (key));
         });
-    menu.addItem ("Save as...", [this, prefix]
+    menu.addItem ("Save as...", [this, safe = juce::Component::SafePointer<ChanSamplerEditor> (this), prefix]
     {
+        if (safe == nullptr)
+            return;
         envelopeFolder().createDirectory();
         chooser = std::make_unique<juce::FileChooser> ("Save envelope preset", envelopeFolder().getChildFile ("Envelope.csenv"), "*.csenv");
         chooser->launchAsync (juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles
                                   | juce::FileBrowserComponent::warnAboutOverwriting,
-                              [this, prefix] (const juce::FileChooser& fc)
+                              [this, safe, prefix] (const juce::FileChooser& fc)
                               {
+                                  if (safe == nullptr)
+                                      return;
                                   const auto file = fc.getResult();
                                   if (file == juce::File())
                                       return;
@@ -1074,8 +1088,10 @@ void ChanSamplerEditor::chooseFile()
     chooser = std::make_unique<juce::FileChooser> ("Load sample", samplerProcessor.getSampleFile(),
                                                    samplerProcessor.getFormatManager().getWildcardForAllFormats() + ";*.fst");
     chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
-                          [this] (const juce::FileChooser& fc)
+                          [this, safe = juce::Component::SafePointer<ChanSamplerEditor> (this)] (const juce::FileChooser& fc)
                           {
+                              if (safe == nullptr)
+                                  return;
                               if (fc.getResult().existsAsFile())
                                   loadFile (fc.getResult());
                           });

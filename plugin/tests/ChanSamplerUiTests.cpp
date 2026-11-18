@@ -13,12 +13,14 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <iostream>
+#include <thread>
 #if JUCE_LINUX
  #include <dlfcn.h>
 #endif
 
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "PresetImport.h"
 #include "Presets.h"
 
 using namespace cs;
@@ -303,6 +305,34 @@ int main (int argc, char** argv)
         check (redo != nullptr && redo->getTooltip().contains ("+Y)"), "the redo button names Ctrl+Y", redo != nullptr ? redo->getTooltip() : "no button");
     }
 
+    // --- A key that does nothing here is not used, so the host gets it: Ctrl+C with no sample to copy
+    {
+        ChanSamplerProcessor empty;
+        std::unique_ptr<ChanSamplerEditor> editor (static_cast<ChanSamplerEditor*> (empty.createEditor()));
+        pump();
+        check (! editor->keyPressed (juce::KeyPress ('c', juce::ModifierKeys::commandModifier, 0), editor.get()),
+               "Ctrl+C with no sample goes on to the host");
+    }
+
+    // --- A preset file whose event claims more bytes than a file can hold is refused, not read
+    {
+        juce::MemoryOutputStream bytes;
+        bytes.write ("FLhd", 4);
+        bytes.writeInt (6);
+        bytes.writeRepeatedByte (0, 6);
+        bytes.write ("FLdt", 4);
+        bytes.writeInt (12);
+        bytes.writeByte ((char) 0xc0);          // a text or data event: its length follows, 7 bits a byte
+        bytes.writeRepeatedByte (0xff, 10);     // ten bytes that each say another follows
+        bytes.writeByte (0x01);
+        const auto file = juce::File::createTempFile (".fst");
+        file.replaceWithData (bytes.getData(), bytes.getDataSize());
+        ChanSamplerProcessor target;
+        const auto result = presetimport::import (target, file);
+        file.deleteFile();
+        check (! result.ok, "a preset with an impossible event length is refused", result.message);
+    }
+
     // --- The wheel: the value moves at once, the knob eases to it (FL: ~36 ms)
     {
         auto editor = makeEditor();
@@ -474,6 +504,30 @@ int main (int argc, char** argv)
                 check (findBox() == nullptr && std::abs ((double) outParam.getValue() - (double) *out->menu.typedPosition ("-12")) < 1.0e-6,
                        "Return applies -12 dB", out->menu.typedText (outParam.getValue()));
             }
+            // A menu edit of an envelope knob switches the envelope on, as a drag does: inside the edit's step, so
+            // one undo takes the value and the switch back.
+            if (att != nullptr)
+            {
+                auto* envOn = paramOf (processor, id::env (id::volPrefix, "EnvOn"));
+                gesture (*envOn, { 0.0f });
+                h.clear();
+                att->menu.typeIn();
+                pump();
+                if (auto* box3 = findBox())
+                {
+                    box3->setText ("50", false);
+                    box3->keyPressed (juce::KeyPress (juce::KeyPress::returnKey));
+                    pump (100);
+                    const bool switchedOn = envOn->getValue() > 0.5f;
+                    h.undo();
+                    check (switchedOn && envOn->getValue() < 0.5f, "undo of an envelope knob's menu edit switches the envelope off again",
+                           juce::String (h.getNumUndoSteps()) + " steps left");
+                }
+                else
+                {
+                    check (false, "the ATT knob's box opens");
+                }
+            }
             out->menu.typeIn();
             pump();
             editor.reset();   // the editor closes (FL closes the window) with the box open
@@ -613,6 +667,24 @@ int main (int argc, char** argv)
             check (! editor->keyPressed (juce::KeyPress ('z', juce::ModifierKeys::commandModifier, 0), editor.get())
                        && ! editor->keyPressed (juce::KeyPress ('y', juce::ModifierKeys::commandModifier, 0), editor.get()),
                    "Ctrl+Z / Ctrl+Y go on to the host");
+        }
+
+        // Automation reaches a parameter's listeners on the audio thread, where they only set a flag (no message
+        // posted, no thread woken): the processor's timer follows up on the message thread.
+        {
+            std::thread audio ([&] { step->setValueNotifyingHost (step->convertTo0to1 (3.0f)); });
+            audio.join();
+            pump (200);
+            plugin.waitForPendingRebuilds();
+            check (feed->getValue() == feed->getDefaultValue(), "a step the host set off the message thread is followed",
+                   juce::String (feed->getValue()));
+
+            const auto before = plugin.getSampleForDisplay();
+            auto* reverse = paramOf (plugin, id::pcReverse);
+            std::thread automation ([&] { reverse->setValueNotifyingHost (1.0f); });
+            automation.join();
+            pump (300);
+            check (plugin.getSampleForDisplay() != before, "a precomputed setting automated off the message thread rebuilds the sample");
         }
         plugin.removeListener (&ear);
     }

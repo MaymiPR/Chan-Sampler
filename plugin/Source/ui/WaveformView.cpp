@@ -913,23 +913,27 @@ void WaveformView::showMenu()
         item.shortcutKeyDescription = chan::ui::commandShortcutText (key);
         return item;
     };
-    menu.addItem ("&Reload", hasFile, false, [this] { processor.reloadSample(); });
-    menu.addItem ("&Save as...", hasAudio, false, [this] { saveAs(); });
-    menu.addItem ("Locate file", hasFile, false, [this] { processor.getSampleFile().revealToUser(); });
-    menu.addItem (withShortcut ("&Copy", 'c', hasAudio, [this] { copySample(); }));
-    menu.addItem (withShortcut ("&Paste", 'v', exchange::clipboardHasAudio(), [this] { pasteSample(); }));
+    menu.addItem ("&Reload", hasFile, false, [this, safe = juce::Component::SafePointer<WaveformView> (this)] { if (safe == nullptr) return; processor.reloadSample(); });
+    menu.addItem ("&Save as...", hasAudio, false, [this, safe = juce::Component::SafePointer<WaveformView> (this)] { if (safe == nullptr) return; saveAs(); });
+    menu.addItem ("Locate file", hasFile, false, [this, safe = juce::Component::SafePointer<WaveformView> (this)] { if (safe == nullptr) return; processor.getSampleFile().revealToUser(); });
+    menu.addItem (withShortcut ("&Copy", 'c', hasAudio, [this, safe = juce::Component::SafePointer<WaveformView> (this)] { if (safe == nullptr) return; copySample(); }));
+    menu.addItem (withShortcut ("&Paste", 'v', exchange::clipboardHasAudio(), [this, safe = juce::Component::SafePointer<WaveformView> (this)] { if (safe == nullptr) return; pasteSample(); }));
     menu.addSeparator();
-    menu.addItem ("&Detect tempo", hasAudio, false, [this] { detectTempo ({}); });
-    menu.addItem ("&Get properties", hasAudio, false, [this] { showProperties(); });
+    menu.addItem ("&Detect tempo", hasAudio, false, [this, safe = juce::Component::SafePointer<WaveformView> (this)] { if (safe == nullptr) return; detectTempo ({}); });
+    menu.addItem ("&Get properties", hasAudio, false, [this, safe = juce::Component::SafePointer<WaveformView> (this)] { if (safe == nullptr) return; showProperties(); });
     menu.addSeparator();
-    menu.addItem ("Spectrum view", true, spectrumView(), [this]
+    menu.addItem ("Spectrum view", true, spectrumView(), [this, safe = juce::Component::SafePointer<WaveformView> (this)]
     {
+        if (safe == nullptr)
+            return;
         processor.apvts.state.setProperty ("viewSpectrum", ! spectrumView(), nullptr);
         repaint();
     });
     // FL greys this out only while the spectrum view is on.
-    menu.addItem ("Multichannel waveform view", ! spectrumView(), multichannelView(), [this]
+    menu.addItem ("Multichannel waveform view", ! spectrumView(), multichannelView(), [this, safe = juce::Component::SafePointer<WaveformView> (this)]
     {
+        if (safe == nullptr)
+            return;
         processor.apvts.state.setProperty ("viewMultichannel", ! multichannelView(), nullptr);
         repaint();
     });
@@ -938,8 +942,10 @@ void WaveformView::showMenu()
     juce::PopupMenu colours;
     const char* names[] = { "Off", "Color map", "Multiband" };
     for (int i = 0; i < 3; ++i)
-        colours.addItem (names[i], true, colourMode() == i, [this, i]
+        colours.addItem (names[i], true, colourMode() == i, [this, safe = juce::Component::SafePointer<WaveformView> (this), i]
         {
+            if (safe == nullptr)
+                return;
             processor.apvts.state.setProperty ("colorfulWaveforms", i, nullptr);
             repaint();
         });
@@ -1023,16 +1029,19 @@ bool WaveformView::keyShortcut (const juce::KeyPress& key)
     if (code >= 1 && code <= 26)
         code += 'a' - 1;
     code = (int) juce::CharacterFunctions::toLowerCase ((juce::juce_wchar) code);
+    // A key that does nothing here is not used, so the host gets it.
     if (code == 'c')
     {
-        if (sample != nullptr && sample->getTotalFrames() > 0)
-            copySample();
+        if (sample == nullptr || sample->getTotalFrames() <= 0)
+            return false;
+        copySample();
         return true;
     }
     if (code == 'v')
     {
-        if (exchange::clipboardHasAudio())
-            pasteSample();
+        if (! exchange::clipboardHasAudio())
+            return false;
+        pasteSample();
         return true;
     }
     return false;

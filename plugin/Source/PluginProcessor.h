@@ -74,7 +74,10 @@ public:
     void waitForPendingRebuilds()
     {
         while (rebuildPending.load() || building.load())
+        {
+            rebuildThread.notify();   // a change that arrived off the message thread has not woken it yet
             juce::Thread::sleep (2);
+        }
     }
     void removeSample();
     // A project's sample that could not be loaded: no sample plays, the path is kept.
@@ -177,6 +180,7 @@ private:
     std::atomic<int> lastCutSelf { -1 };                  // to see Cut self being switched (timer)
     std::vector<int> cutOffsets;                          // this block's cuts by other instances
     std::vector<dsp::MidiEvent> midiEvents;               // this block's MIDI for the engine (reserved)
+    juce::MidiBuffer filteredMidi;                        // this block's MIDI after the sustain pedal (reserved)
 
     // Sustain pedal: note-offs held while it is down (audio thread only).
     bool sustainDown = false;

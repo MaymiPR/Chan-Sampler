@@ -36,6 +36,8 @@
 #include <juce_audio_formats/juce_audio_formats.h>
 #include <juce_dsp/juce_dsp.h>
 #include <juce_events/juce_events.h>
+#include <cmath>
+#include <cstdlib>
 #include <iostream>
 
 #include "PluginProcessor.h"
@@ -193,6 +195,18 @@ struct Job
     double bpm = 130.0;
 };
 
+// A number: the whole text, finite. False leaves the value alone, so a malformed number never reads as 0.
+bool parseNumber (const juce::String& text, double& value)
+{
+    const auto s = text.trim().toStdString();
+    char* end = nullptr;
+    const double v = std::strtod (s.c_str(), &end);
+    if (s.empty() || end != s.c_str() + s.size() || ! std::isfinite (v))
+        return false;
+    value = v;
+    return true;
+}
+
 // Renders the job into out (2 channels, its length the render's); false with a message on an error.
 bool render (const Job& job, double sampleRate, int blockSize, juce::AudioBuffer<float>& out)
 {
@@ -265,13 +279,20 @@ bool render (const Job& job, double sampleRate, int blockSize, juce::AudioBuffer
     juce::MidiBuffer all;
     for (auto& n : juce::StringArray::fromTokens (job.notes, ";", {}))
     {
-        auto f = juce::StringArray::fromTokens (n, ":", {});
-        if (f.size() < 4)
+        if (n.trim().isEmpty())
             continue;
-        const int key = f[0].getIntValue();
-        const int on = (int) std::round (f[1].getDoubleValue() * sampleRate);
-        const int off = on + (int) std::round (f[2].getDoubleValue() * sampleRate);
-        const auto vel = (juce::uint8) juce::jlimit (1, 127, (int) std::round (f[3].getDoubleValue()));
+        auto f = juce::StringArray::fromTokens (n, ":", {});
+        double keyValue = 0.0, start = 0.0, length = 0.0, velocity = 0.0;
+        if (f.size() < 4 || ! parseNumber (f[0], keyValue) || ! parseNumber (f[1], start) || ! parseNumber (f[2], length)
+            || ! parseNumber (f[3], velocity))
+        {
+            std::cerr << "bad note " << n << " (key:start:length:velocity)\n";
+            return false;
+        }
+        const int key = (int) keyValue;
+        const int on = (int) std::round (start * sampleRate);
+        const int off = on + (int) std::round (length * sampleRate);
+        const auto vel = (juce::uint8) juce::jlimit (1, 127, (int) std::round (velocity));
         all.addEvent (juce::MidiMessage::noteOn (1, key, vel), on);
         all.addEvent (juce::MidiMessage::noteOff (1, key), off);
     }
@@ -303,12 +324,20 @@ int runJobs (int argc, char** argv)
     {
         const juce::String a (argv[i]);
         const auto key = a.upToFirstOccurrenceOf ("=", false, false), value = a.fromFirstOccurrenceOf ("=", false, false);
-        if (key == "fs") sampleRate = value.getDoubleValue();
-        else if (key == "block") blockSize = value.getIntValue();
+        double number = 0.0;
+        const bool isNumber = parseNumber (value, number);
+        if (key == "fs" || key == "block" || key.startsWith ("tune:"))
+            if (! isNumber || (! key.startsWith ("tune:") && number < 1.0))
+            {
+                std::cerr << "bad value in " << a << "\n";
+                return 2;
+            }
+        if (key == "fs") sampleRate = number;
+        else if (key == "block") blockSize = (int) number;
         else if (key == "tuning") { if (dsp::tuning().load (cwd.getChildFile (value).getFullPathName().toRawUTF8()) != 0) return 1; }
         else if (key.startsWith ("tune:"))
         {
-            if (! dsp::tuning().set (key.substring (5).toStdString(), value.getDoubleValue()))
+            if (! dsp::tuning().set (key.substring (5).toStdString(), number))
             {
                 std::cerr << "unknown tuning key " << key.substring (5) << "\n";
                 return 1;
@@ -316,8 +345,14 @@ int runJobs (int argc, char** argv)
         }
         else { std::cerr << "unknown option " << a << "\n"; return 2; }
     }
+    const auto jobsFile = cwd.getChildFile (argv[1]);
+    if (! jobsFile.existsAsFile())
+    {
+        std::cerr << "no jobs file " << jobsFile.getFullPathName() << "\n";
+        return 1;
+    }
     juce::StringArray lines;
-    cwd.getChildFile (argv[1]).readLines (lines);
+    jobsFile.readLines (lines);
     int done = 0;
     for (auto& line : lines)
     {
@@ -327,6 +362,11 @@ int runJobs (int argc, char** argv)
             continue;
         if (words.size() < 2) { std::cerr << "bad job line: " << line << "\n"; return 1; }
         const auto in = cwd.getChildFile (words[0]), outFile = cwd.getChildFile (words[1]);
+        if (! in.existsAsFile())
+        {
+            std::cerr << "no input " << in.getFullPathName() << "\n";
+            return 1;
+        }
         Job job;
         for (int i = 2; i < words.size(); ++i)
         {
@@ -335,8 +375,17 @@ int runJobs (int argc, char** argv)
             if (key == "sample") job.sampleFile = cwd.getChildFile (value);
             else if (key == "notes") job.notes = value;
             else if (key == "factory") job.factory = value.replaceCharacter ('_', ' ');
-            else if (key == "bpm") job.bpm = value.getDoubleValue();
-            else job.params.emplace_back (key, value.getFloatValue());
+            else
+            {
+                double number = 0.0;
+                if (! parseNumber (value, number))
+                {
+                    std::cerr << "bad value in " << words[i] << "\n";
+                    return 1;
+                }
+                if (key == "bpm") job.bpm = number;
+                else job.params.emplace_back (key, (float) number);
+            }
         }
         const int total = (int) (in.getSize() / (2 * (juce::int64) sizeof (float)));
         juce::AudioBuffer<float> out (2, total);
@@ -638,6 +687,11 @@ int main (int argc, char** argv)
     Job job;
     job.sampleFile = sampleFile;
     job.notes = juce::String (argv[5]);
+    if (! paramFile.existsAsFile())
+    {
+        std::cerr << "no parameter file " << paramFile.getFullPathName() << "\n";
+        return 1;
+    }
     juce::StringArray lines;
     paramFile.readLines (lines);
     for (auto& line : lines)

@@ -4,7 +4,7 @@ Each case renders the same sample and note through FL (command-line render of a
 generated project) and through Chan Sampler (offline renderer), scales ours by
 FL's channel gain (volume 78.125% + centre pan = 0.389612, measured), flips
 its polarity, sums, and reports the residual relative to FL's signal.
-Residual < -60 dB = null (FL's 16-bit export floor is about -70 dB here).
+Residual < -60 dB = null (FL's 16-bit export floor is about -65 to -95 dB, depending on the level).
 
     python nulltest.py              # every offline case (cases_offline.py); FL renders through the queue
     python nulltest.py --only eq    # cases whose names contain eq
@@ -79,38 +79,44 @@ def load_results(path=RESULTS):
         return [(n, float(d)) for n, d in json.load(h)]
 
 
-def _db(v):
-    return f"−{-v:.1f}" if v < 0 else f"{v:.1f}"
+def _wrap(text, width=118):
+    import textwrap
+    return textwrap.wrap(text, width, break_long_words=False, break_on_hyphens=False)
 
 
-def report(results):
-    """NULLTESTS.md from the offline suite's results: the summary and one row per case."""
-    r = dict(results)
+def report(results, made=None):
+    """NULLTESTS.md from the offline suite's results: every sentence and number computed from them."""
+    import statistics
     verdicts = [F.verdict(d) for _, d in results]
-    counts = {k: verdicts.count(k) for k in ("NULL", "close", "DIFF")}
-    filters = [r[n] for n in ("off_flt0_128_0", "off_flt1_128_0", "off_flt2_96_160", "off_flt5_128_0") if n in r]
+    counts = {k: verdicts.count(k) for k in F.VERDICTS}
+    worst = max(results, key=lambda x: x[1])
+    median = statistics.median(d for _, d in results)
+    close = sorted(((n, d) for n, d in results if F.verdict(d) != "NULL"), key=lambda x: -x[1])
     lines = [
         "# Null tests",
         "",
         "The same notes through FL Studio's Sampler and through Chan Sampler, subtracted. The residual is in dB re FL's",
         "output; lower is better. How the renders are made (in-FL pairs, offline cases, the render queue, FL's 16-bit export,",
-        "velocity, tempo and rates) and the scale (NULL, close, diff) are in [MEASUREMENTS.md](MEASUREMENTS.md#setup). The",
-        "in-FL null tests of each feature are given beside its law there; the time-stretch modes cannot null (FL's engine is",
-        "proprietary) and are compared by behaviour.",
+        "velocity, tempo and rates) and the scale (NULL, close, model, not a null) are in",
+        "[MEASUREMENTS.md](MEASUREMENTS.md#setup). The in-FL null tests of each feature are given beside its law there; the",
+        "time-stretch modes cannot null (FL's engine is proprietary) and are compared by behaviour.",
         "",
         "## Offline suite",
         "",
-        "At velocity 100 FL's 16-bit floor sits about 6 dB higher than at velocity 128. The EQ and ring-mod cases, three pogo",
-        "cases, the precomputed cut at 512 and the SVF LPx2 filter case, which reach −60 to −66 dB at velocity 128, read",
-        "\"close\" at velocity 100 because of the export alone. The small real differences in the offline suite are the",
-        f"precomputed cut at its lowest cutoff ({_db(r['offL_pccut256_0'])} dB), the envelope with tensions ({_db(r['off_env_tension'])}) "
-        "and the Fast LP, LP, BP and LPx2",
-        f"filter cases (−{int(-max(filters))} to −{int(-min(filters))}). The in-FL tests in [MEASUREMENTS.md](MEASUREMENTS.md) "
-        "are the reference.",
-        "",
-        f"Offline suite: **{len(results)} cases: {counts['NULL']} NULL, {counts['close']} close, {counts['DIFF']} diff** "
-        "([full table](#offline-cases)).",
-        "",
+    ]
+    summary = (f"Offline suite: **{len(results)} cases: {counts['NULL']} NULL, {counts['close']} close, {counts['model']} model, "
+               f"{counts['not a null']} not a null**; the median is {median:.1f} dB and the worst case is `{worst[0]}` at "
+               f"{worst[1]:.1f} dB ([full table](#offline-cases)).")
+    lines += _wrap(summary) + [""]
+    floor = ("FL's command-line export is 16-bit, so no case reads below that floor (about -65 to -95 dB, depending on the "
+             "level): a NULL here is a residual below -60 dB, not a proof of identical samples.")
+    lines += _wrap(floor) + [""]
+    if close:
+        lines += _wrap("The cases that are not a NULL, worst first: " + ", ".join(f"`{n}` ({d:.1f})" for n, d in close) + ".") + [""]
+    if made:
+        lines += _wrap(f"The results are those of the suite's last full run, of {made}: FL's renders and Chan Sampler's were made "
+                       "then, and a later change in the sound is not in this page until the suite runs again.") + [""]
+    lines += [
         "## Offline cases",
         "",
         "Offline cases (`python nulltest.py` in `nulltest/`; this page: `python nulltest.py --report`), FL velocity 100.",
@@ -242,7 +248,9 @@ def main(argv=None):
     if a.vst3:
         return vst3_check(a.only, a.fs or 44100)
     if a.report:
-        text = report(load_results(a.results))
+        import datetime
+        made = datetime.date.fromtimestamp(os.path.getmtime(a.results)).isoformat()
+        text = report(load_results(a.results), made)
         with open(REPORT, "w", encoding="utf-8", newline="\n") as h:
             h.write(text)
         print(f"wrote {os.path.relpath(REPORT, paths_lib.REPO)} from {a.results}")

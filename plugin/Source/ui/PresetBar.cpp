@@ -114,9 +114,9 @@ void PresetBar::step (int delta)
 void PresetBar::showMenu()
 {
     juce::PopupMenu menu;
-    menu.addItem ("Save preset as...", [this] { saveAs(); });
-    menu.addItem ("Import .fst preset...", [this] { importFst(); });
-    menu.addItem ("Initialize", [this] { initialize(); });
+    menu.addItem ("Save preset as...", [this, safe = juce::Component::SafePointer<PresetBar> (this)] { if (safe == nullptr) return; saveAs(); });
+    menu.addItem ("Import .fst preset...", [this, safe = juce::Component::SafePointer<PresetBar> (this)] { if (safe == nullptr) return; importFst(); });
+    menu.addItem ("Initialize", [this, safe = juce::Component::SafePointer<PresetBar> (this)] { if (safe == nullptr) return; initialize(); });
     menu.addSeparator();
 
     // Factory presets (built in, settings only)
@@ -129,7 +129,7 @@ void PresetBar::showMenu()
         {
             const juce::String folder (list[i].folder);
             order.addIfNotAlreadyThere (folder);
-            groups[folder].addItem (list[i].name, true, currentName() == list[i].name, [this, i] { loadFactory ((int) i); });
+            groups[folder].addItem (list[i].name, true, currentName() == list[i].name, [this, safe = juce::Component::SafePointer<PresetBar> (this), i] { if (safe == nullptr) return; loadFactory ((int) i); });
         }
         for (auto& folder : order)
             factory.addSubMenu (folder, groups[folder]);
@@ -145,7 +145,7 @@ void PresetBar::showMenu()
         const auto folder = f.getParentDirectory().getRelativePathFrom (presetFolder());
         const bool ticked = f.getFileNameWithoutExtension() == currentName();
         auto& target = (folder == "." || folder.isEmpty()) ? menu : folders[folder];
-        target.addItem (f.getFileNameWithoutExtension(), true, ticked, [this, f] { load (f); });
+        target.addItem (f.getFileNameWithoutExtension(), true, ticked, [this, safe = juce::Component::SafePointer<PresetBar> (this), f] { if (safe == nullptr) return; load (f); });
     }
     for (auto& [name, sub] : folders)
         menu.addSubMenu (name, sub);
@@ -189,8 +189,10 @@ void PresetBar::saveAs()
     chooser = std::make_unique<juce::FileChooser> ("Save preset", start, juce::String ("*") + extension);
     chooser->launchAsync (juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles
                               | juce::FileBrowserComponent::warnAboutOverwriting,
-                          [this] (const juce::FileChooser& fc)
+                          [this, safe = juce::Component::SafePointer<PresetBar> (this)] (const juce::FileChooser& fc)
                           {
+                              if (safe == nullptr)
+                                  return;
                               auto file = fc.getResult();
                               if (file == juce::File())
                                   return;
@@ -212,8 +214,10 @@ void PresetBar::importFst()
 {
     chooser = std::make_unique<juce::FileChooser> ("Import a .fst preset", juce::File(), "*.fst");
     chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
-                          [this] (const juce::FileChooser& fc)
+                          [this, safe = juce::Component::SafePointer<PresetBar> (this)] (const juce::FileChooser& fc)
                           {
+                              if (safe == nullptr)
+                                  return;
                               const auto file = fc.getResult();
                               if (! file.existsAsFile())
                                   return;

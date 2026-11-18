@@ -589,9 +589,11 @@ ParamMenu::~ParamMenu()
 
 void ParamMenu::setPosition (float normalised)
 {
+    // The gesture opens first, as in a drag: what beforeEdit changes (an envelope switched on) is part of the
+    // same undo step.
+    param.beginChangeGesture();
     if (beforeEdit != nullptr)
         beforeEdit();
-    param.beginChangeGesture();
     param.setValueNotifyingHost (juce::jlimit (0.0f, 1.0f, normalised));
     param.endChangeGesture();
     if (afterEdit != nullptr)

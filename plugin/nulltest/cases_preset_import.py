@@ -10,7 +10,7 @@ channel), so ours is scaled by 0.8; no gain fitting, so levels are checked too.
   python -m cases_preset_import [name filters...]   (from nulltest/)
 """
 import os, sys, subprocess
-import project_file_lib; import wav_lib; import paths_lib; import cs_ref
+import project_file_lib; import wav_lib; import paths_lib; import cs_ref; import ref_solo_lib as F
 
 HERE = paths_lib.ROOT
 R = paths_lib.RENDER_TOOL
@@ -43,7 +43,7 @@ def run(cases, only=None):
         y, _ = wav_lib.read(wav); n = min(len(a), len(y))
         d = cs_ref.null_db(a[:n], 0.8 * y[:n])
         res.append((c['name'], d))
-        print(f"{'NULL' if d < -60 else ('close' if d < -30 else 'DIFF'):5s} {d:7.1f} dB  {c['name']}", flush=True)
+        print(f"{F.verdict(d):5s} {d:7.1f} dB  {c['name']}", flush=True)
     return res
 
 if __name__ == '__main__':

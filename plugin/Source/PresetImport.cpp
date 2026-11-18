@@ -70,14 +70,14 @@ namespace
                 int shift = 0;
                 for (;;)
                 {
-                    if (p >= n) return false;
+                    if (p >= n || shift > 28) return false;   // no event is longer than a file can be
                     const auto c = b[p++];
                     len |= (size_t) (c & 0x7f) << shift;
                     shift += 7;
                     if (! (c & 0x80)) break;
                 }
             }
-            if (p + len > n)
+            if (len > n - p)
                 return false;
             e.data.append (b + p, len);
             p += len;

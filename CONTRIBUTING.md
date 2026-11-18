@@ -41,11 +41,12 @@ folder). Each command returns non-zero on a failure.
 ## The local check
 
 `scripts/check.ps1` (Windows) or `scripts/check.sh` (Linux, macOS) is the one command before any build is handed over
-and the proof on a private repository, where no workflow runs. It closes a running FL Studio, runs `check_repo.py` and
-the lint tools it finds on the PATH (a missing tool is reported, never installed), configures when
-`build/CMakeCache.txt` is missing, builds `ci_targets` into a log, counts warnings by the same rule as the workflows
-and fails above zero, asserts the VST3 is newer than the build start, runs `ctest` and the render regression, and
-prints one `CHECK` line with the counts. Switches: `-SkipBuild`, `-SkipTests`, `-KeepFl`.
+and the proof on a private repository, where no workflow runs. It stops while FL Studio runs (`-CloseFl` closes it
+without saving, `-KeepFl` builds anyway), runs `check_repo.py` and the lint tools it finds on the PATH (a missing tool
+is reported, never installed), configures on every run, builds `ci_targets` into a log, counts warnings by the same
+rule as the workflows and fails above zero, checks that the VST3 is newer than every source it is built from, runs
+`ctest` and the render regression, and prints one `CHECK` line with a result per step. `-Pluginval`, `-FocusCheck`
+and `-NullCheck` add the hand-over checks; the full list of options is at the top of the script.
 
 ## Changing the code
 
@@ -128,13 +129,13 @@ pull requests wait for approval before CI runs.
 | `shared/` | the code every plug-in of the suite links, as the static library `ChanSamplerShared`: `shared.cmake`, `ui/` (`Theme.h`, `Widgets`, `HostFocus`), `dsp/Math.h` |
 | `plugin/` | the plug-in: `plugin.cmake` (the plug-in, its tests and tools, the ctest registrations with the sine fixture), `Source/` (with `dsp/` and `ui/`), `tests/` (`ChanSamplerTests.cpp`, `ChanSamplerUiTests.cpp`, `ChanSamplerPlayTests.cpp`, `data/`: projects saved by earlier releases for the host test), `tools/` (`CsRender.cpp`, and its own `Snapshot.cpp`: a sample, the sheets and the menus beyond the suite's generic tool), `nulltest/` (the null tests and measurement scripts against FL Studio, published; FL's renders and files stay in its git-ignored `renders*/` and `local/` folders), [README.md](plugin/README.md), [RESEARCH.md](plugin/RESEARCH.md), [MEASUREMENTS.md](plugin/MEASUREMENTS.md) (every measurement), [NULLTESTS.md](plugin/NULLTESTS.md) |
 | `tools/` | C++ only: the reference hosts `RefRender.cpp`, `ParamDump.cpp`, `RefCapture.cpp`, `FocusCheck.cpp`, the suite's `Snapshot.cpp` and `HostTest.cpp` (built per plug-in as `<Stem>HostTest`) |
-| `measurements/` | the measured data (kernels, matrices, curves, tables), published (approval recorded 2026-11-09); the null-test scripts read and write it |
+| `measurements/` | the measured data (kernels, matrices, curves, tables), published (approval recorded 2026-11-09); the null-test and measurement scripts made it and the code's constants cite it |
 | `tests/regress/` | the render regression's cases and golden renders |
 | `cmake/` | `PatchJuceVst3Keys.cmake` |
 | `scripts/` | `bump_version.py`, `release_notes.py`, `render_regress.py`, `make_site.py`, `check_repo.py`, `check.ps1`, `check.sh`, `build_native.py` (the null tests' native helpers into `build/native/`); `make_screenshots.py` (the screenshots from each plug-in's snapshot tool) |
 | `packaging/` | the installers; `plugins.txt` lists the plug-in they hold |
 | `docs/` | the build guide, `branding/` (the banners, the icon and the social preview as SVG with their PNG exports, `colours.json`), `screenshots/` (`hero.png`, `chansampler.png`, `chansampler-<view>.png`) |
-| `.github/` | `workflows/` (Lint, CI, Build and release, Release checklist, Landing page), the issue forms, the pull request template, `RELEASE_CHECKLIST.md`, `dependabot.yml`, CODEOWNERS |
+| `.github/` | `workflows/` (Lint, CI, Build and release, Release checklist, Landing page), the issue forms, the pull request template, `RELEASE_CHECKLIST.md`, CODEOWNERS |
 | `local.example.yaml` | the keys of `local.yaml` (git-ignored) for machine paths |
 
 ## Null tests

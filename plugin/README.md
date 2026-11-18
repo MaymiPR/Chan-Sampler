@@ -33,7 +33,7 @@ The root [README](../README.md#usage) has the controls. Presets are `.cspreset` 
 
 ## How close
 
-The offline suite against FL: 82 cases, 65 NULL and 17 close, none diff; the worst is the envelope with tensions at
+The offline suite against FL: 82 cases, 65 NULL and 17 close, none worse; the worst is the envelope with tensions at
 -46.2 dB ([NULLTESTS.md](NULLTESTS.md)). The in-FL null tests of each feature are beside its law in
 MEASUREMENTS.md. The time-stretch modes cannot null (FL's engine is proprietary) and are compared by behaviour.
 

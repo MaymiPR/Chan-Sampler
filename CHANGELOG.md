@@ -12,7 +12,7 @@
 - **Null tests:** the scripts against FL Studio sit in one flat `nulltest/` folder named by purpose (`cases_`,
   `measure_`, `probe_`, `fit_`, `compare_`, `check_`), with the harness `cs_ref.py`, `first_null.py` (one in-FL pair,
   `--dry` without FL) and `nulltest.py --report`, which writes NULLTESTS.md from the saved results. The measured data
-  is published in `measurements/ChanSampler/`. Every FL project the harness builds is byte-identical to before, so
+  is published in `measurements/`. Every FL project the harness builds is byte-identical to before, so
   the cached renders stay valid.
 - **Source:** the engine in `Source/dsp/` is plain C++ without JUCE, in the namespace `cs::dsp`; loading a file and
   the JUCE buffers are its host side (`Source/SampleFile.h`), and Detect tempo uses an FFT of its own with the same
@@ -24,6 +24,20 @@
   run as `ChanSamplerPlayTests`.
 - **Screenshots and branding:** the screenshots are the editor at its design size (100 %), with `hero.png` on the
   README; the icon and the social preview are drawn from the banner's mark as SVG, with PNG exports.
+
+### Fixed
+
+- **Audio thread:** a block with MIDI no longer allocates and frees memory, the interpolation tables are built when
+  playback is prepared and not by the first note, and a setting automated by the host only sets a flag there (the
+  rebuild and the host's undo step follow from the plug-in's timer).
+- **Removing the plug-in during a rebuild:** the rebuild is waited for; its thread is never ended by force.
+- **Ctrl+C and Ctrl+V:** with no sample to copy or no audio to paste the keys go on to the host; they were taken
+  and did nothing.
+- **Undo of a knob menu's edit:** an envelope that Reset, Paste value or Type in value switched on is switched off
+  again by the same undo (standalone app).
+- **Damaged files:** an `.fst` preset whose data claims an impossible length is refused (it could crash the import),
+  and a WAV whose marker chunks claim more entries than the file holds stops at the file's end.
+- **Closing the window right after a menu choice:** the menu's action is dropped; it could run on a closed window.
 
 ## 1.7.1 (2026-11-04)
 
