@@ -225,6 +225,7 @@ Engine::DeclickSpec Engine::declickSpec (DeclickMode m)
 
 void Engine::prepare (double newSampleRate)
 {
+    (void) interpolator();   // its tables are built here, not by the first note on the audio thread
     sampleRate = newSampleRate;
     for (auto& v : voices)
         v = Voice();

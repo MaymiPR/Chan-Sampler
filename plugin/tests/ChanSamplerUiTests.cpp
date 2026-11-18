@@ -13,6 +13,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <iostream>
+#include <thread>
 #if JUCE_LINUX
  #include <dlfcn.h>
 #endif
@@ -613,6 +614,24 @@ int main (int argc, char** argv)
             check (! editor->keyPressed (juce::KeyPress ('z', juce::ModifierKeys::commandModifier, 0), editor.get())
                        && ! editor->keyPressed (juce::KeyPress ('y', juce::ModifierKeys::commandModifier, 0), editor.get()),
                    "Ctrl+Z / Ctrl+Y go on to the host");
+        }
+
+        // Automation reaches a parameter's listeners on the audio thread, where they only set a flag (no message
+        // posted, no thread woken): the processor's timer follows up on the message thread.
+        {
+            std::thread audio ([&] { step->setValueNotifyingHost (step->convertTo0to1 (3.0f)); });
+            audio.join();
+            pump (200);
+            plugin.waitForPendingRebuilds();
+            check (feed->getValue() == feed->getDefaultValue(), "a step the host set off the message thread is followed",
+                   juce::String (feed->getValue()));
+
+            const auto before = plugin.getSampleForDisplay();
+            auto* reverse = paramOf (plugin, id::pcReverse);
+            std::thread automation ([&] { reverse->setValueNotifyingHost (1.0f); });
+            automation.join();
+            pump (300);
+            check (plugin.getSampleForDisplay() != before, "a precomputed setting automated off the message thread rebuilds the sample");
         }
         plugin.removeListener (&ear);
     }

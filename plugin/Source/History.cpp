@@ -82,7 +82,15 @@ void History::parameterValueChanged (int index, float value)
     if (! hostHistory || index != stepIndex || settingStep)
         return;
     hostStep.store (juce::roundToInt (value * (float) (HistoryStepParameter::numValues - 1)));
-    triggerAsyncUpdate();
+    // Automation sets it on the audio thread, where posting a message is not allowed: the value waits for
+    // followHostStep, which the processor's timer calls.
+    if (juce::MessageManager::existsAndIsCurrentThread())
+        triggerAsyncUpdate();
+}
+
+void History::followHostStep()
+{
+    handleAsyncUpdate();
 }
 
 void History::handleAsyncUpdate()

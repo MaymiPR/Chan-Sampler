@@ -38,9 +38,10 @@ ChanSamplerProcessor::~ChanSamplerProcessor()
         apvts.removeParameterListener (id, this);
     for (auto* id : stretchParamIDs)
         apvts.removeParameterListener (id, this);
+    // Joined, never killed: a rebuild in progress holds the rebuild mutex and may hold the heap's lock.
     rebuildThread.signalThreadShouldExit();
     rebuildThread.notify();
-    rebuildThread.stopThread (4000);
+    rebuildThread.stopThread (-1);
 }
 
 bool ChanSamplerProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
@@ -59,6 +60,7 @@ void ChanSamplerProcessor::prepareToPlay (double sampleRate, int)
         engine.ensureStretchers();
     cutOffsets.reserve (256);
     midiEvents.reserve (2048);
+    filteredMidi.ensureSize (32768);
     outputGain.reset (sampleRate, 0.02);
     outputGain.setCurrentAndTargetValue (dsp::outputLevel (param (id::output)));
 }
@@ -77,10 +79,13 @@ void ChanSamplerProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     keyboardState.processNextMidiBuffer (midi, 0, buffer.getNumSamples(), true);
 
     // Sustain pedal (CC64): note-offs wait while it is down. FL handles the
-    // pedal itself; other hosts send it to the instrument.
+    // pedal itself; other hosts send it to the instrument. The filtered events go to a buffer of the processor's
+    // own (its storage reserved in prepareToPlay), so a block with MIDI allocates and frees nothing.
+    const juce::MidiBuffer* events = &midi;
     if (sustainDown || ! midi.isEmpty())
     {
-        juce::MidiBuffer filtered;
+        auto& filtered = filteredMidi;
+        filtered.clear();
         for (const auto m : midi)
         {
             const auto msg = m.getMessage();
@@ -111,7 +116,7 @@ void ChanSamplerProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
                 filtered.addEvent (msg, m.samplePosition);
             }
         }
-        midi.swapWith (filtered);
+        events = &filtered;
     }
 
     {
@@ -148,7 +153,7 @@ void ChanSamplerProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     const int cutBy = (int) param (id::cutBy), cutGroup = (int) param (id::cutGroup);
     cutReader.collect (cutBy, hostTime, buffer.getNumSamples(), cutOffsets);
     midiEvents.clear();
-    for (const auto m : midi)
+    for (const auto m : *events)
     {
         const auto msg = m.getMessage();
         dsp::MidiEvent e;
@@ -412,8 +417,11 @@ void ChanSamplerProcessor::parameterChanged (const juce::String& parameterID, fl
     if (loopParam && param (id::pcCrossfade) <= 0.0f)
         return;
 
+    // Host automation calls this on the audio thread: there it only sets the flag (waking a thread takes a lock),
+    // and the timer wakes the rebuild thread on the message thread.
     rebuildPending = true;
-    rebuildThread.notify();
+    if (juce::MessageManager::existsAndIsCurrentThread())
+        rebuildThread.notify();
 }
 
 void ChanSamplerProcessor::timerCallback()
@@ -437,6 +445,11 @@ void ChanSamplerProcessor::timerCallback()
         }
     }
     lastCutSelf = cutSelf;
+
+    // What a parameter listener left for the message thread (see parameterChanged and History).
+    if (rebuildPending.load() && ! building.load())
+        rebuildThread.notify();
+    history.followHostStep();
 
     if (! engine.hasStretchers() && needsStretchers())
         engine.ensureStretchers();

@@ -108,6 +108,10 @@ public:
 
     bool isRecording() const noexcept { return suspended == 0; }
 
+    // Message thread, called regularly by the processor: follows a step value the host set off the message
+    // thread (nothing to do when there is none).
+    void followHostStep();
+
     // True while a group edit's values are on their way to the host as the
     // plugin's own changes (setParameterValue sends them from another thread).
     static bool isQuiet() noexcept;
