@@ -25,6 +25,18 @@
 - **Screenshots and branding:** the screenshots are the editor at its design size (100 %), with `hero.png` on the
   README; the icon and the social preview are drawn from the banner's mark as SVG, with PNG exports.
 
+### Fixed
+
+- **Audio thread:** a block with MIDI no longer allocates and frees memory, the interpolation tables are built when
+  playback is prepared and not by the first note, and a setting automated by the host only sets a flag there (the
+  rebuild and the host's undo step follow from the plug-in's timer).
+- **Removing the plug-in during a rebuild:** the rebuild is waited for; its thread is never ended by force.
+- **Ctrl+C and Ctrl+V:** with no sample to copy or no audio to paste the keys go on to the host; they were taken
+  and did nothing.
+- **Undo of a knob menu's edit:** an envelope that Reset, Paste value or Type in value switched on is switched off
+  again by the same undo (standalone app).
+- **Closing the window right after a menu choice:** the menu's action is dropped; it could run on a closed window.
+
 ## 1.7.1 (2026-11-04)
 
 A rewording update: no changes to the sound or the controls.

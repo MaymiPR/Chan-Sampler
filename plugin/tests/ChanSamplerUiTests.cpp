@@ -304,6 +304,15 @@ int main (int argc, char** argv)
         check (redo != nullptr && redo->getTooltip().contains ("+Y)"), "the redo button names Ctrl+Y", redo != nullptr ? redo->getTooltip() : "no button");
     }
 
+    // --- A key that does nothing here is not used, so the host gets it: Ctrl+C with no sample to copy
+    {
+        ChanSamplerProcessor empty;
+        std::unique_ptr<ChanSamplerEditor> editor (static_cast<ChanSamplerEditor*> (empty.createEditor()));
+        pump();
+        check (! editor->keyPressed (juce::KeyPress ('c', juce::ModifierKeys::commandModifier, 0), editor.get()),
+               "Ctrl+C with no sample goes on to the host");
+    }
+
     // --- The wheel: the value moves at once, the knob eases to it (FL: ~36 ms)
     {
         auto editor = makeEditor();
@@ -474,6 +483,30 @@ int main (int argc, char** argv)
                 pump (100);
                 check (findBox() == nullptr && std::abs ((double) outParam.getValue() - (double) *out->menu.typedPosition ("-12")) < 1.0e-6,
                        "Return applies -12 dB", out->menu.typedText (outParam.getValue()));
+            }
+            // A menu edit of an envelope knob switches the envelope on, as a drag does: inside the edit's step, so
+            // one undo takes the value and the switch back.
+            if (att != nullptr)
+            {
+                auto* envOn = paramOf (processor, id::env (id::volPrefix, "EnvOn"));
+                gesture (*envOn, { 0.0f });
+                h.clear();
+                att->menu.typeIn();
+                pump();
+                if (auto* box3 = findBox())
+                {
+                    box3->setText ("50", false);
+                    box3->keyPressed (juce::KeyPress (juce::KeyPress::returnKey));
+                    pump (100);
+                    const bool switchedOn = envOn->getValue() > 0.5f;
+                    h.undo();
+                    check (switchedOn && envOn->getValue() < 0.5f, "undo of an envelope knob's menu edit switches the envelope off again",
+                           juce::String (h.getNumUndoSteps()) + " steps left");
+                }
+                else
+                {
+                    check (false, "the ATT knob's box opens");
+                }
             }
             out->menu.typeIn();
             pump();
