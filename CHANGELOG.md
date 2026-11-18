@@ -35,6 +35,8 @@
   and did nothing.
 - **Undo of a knob menu's edit:** an envelope that Reset, Paste value or Type in value switched on is switched off
   again by the same undo (standalone app).
+- **Damaged files:** an `.fst` preset whose data claims an impossible length is refused (it could crash the import),
+  and a WAV whose marker chunks claim more entries than the file holds stops at the file's end.
 - **Closing the window right after a menu choice:** the menu's action is dropped; it could run on a closed window.
 
 ## 1.7.1 (2026-11-04)

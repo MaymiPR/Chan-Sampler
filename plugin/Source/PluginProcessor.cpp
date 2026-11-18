@@ -559,7 +559,8 @@ namespace
             else if (id == (int) juce::ByteOrder::littleEndianInt ("cue ") && size >= 4)
             {
                 const int count = in.readInt();
-                for (int i = 0; i < count && (juce::uint32) (4 + 24 * (i + 1)) <= size; ++i)
+                // The count and the size are the file's word: stop at the chunk's end and at the file's.
+                for (juce::int64 i = 0; i < count && 4 + 24 * (i + 1) <= (juce::int64) size && ! in.isExhausted(); ++i)
                 {
                     juce::uint32 f[6];
                     for (auto& v : f) v = (juce::uint32) in.readInt();
@@ -571,7 +572,7 @@ namespace
                 const auto header = (juce::uint32) in.readInt();
                 const int count = in.readInt();
                 in.setPosition (next - size - (size & 1) + header);
-                for (int i = 0; i < count && header + (juce::uint32) (24 * (i + 1)) <= size; ++i)
+                for (juce::int64 i = 0; i < count && (juce::int64) header + 24 * (i + 1) <= (juce::int64) size && ! in.isExhausted(); ++i)
                 {
                     juce::uint32 f[6];
                     for (auto& v : f) v = (juce::uint32) in.readInt();

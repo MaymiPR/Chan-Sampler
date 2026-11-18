@@ -20,6 +20,7 @@
 
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "PresetImport.h"
 #include "Presets.h"
 
 using namespace cs;
@@ -311,6 +312,25 @@ int main (int argc, char** argv)
         pump();
         check (! editor->keyPressed (juce::KeyPress ('c', juce::ModifierKeys::commandModifier, 0), editor.get()),
                "Ctrl+C with no sample goes on to the host");
+    }
+
+    // --- A preset file whose event claims more bytes than a file can hold is refused, not read
+    {
+        juce::MemoryOutputStream bytes;
+        bytes.write ("FLhd", 4);
+        bytes.writeInt (6);
+        bytes.writeRepeatedByte (0, 6);
+        bytes.write ("FLdt", 4);
+        bytes.writeInt (12);
+        bytes.writeByte ((char) 0xc0);          // a text or data event: its length follows, 7 bits a byte
+        bytes.writeRepeatedByte (0xff, 10);     // ten bytes that each say another follows
+        bytes.writeByte (0x01);
+        const auto file = juce::File::createTempFile (".fst");
+        file.replaceWithData (bytes.getData(), bytes.getDataSize());
+        ChanSamplerProcessor target;
+        const auto result = presetimport::import (target, file);
+        file.deleteFile();
+        check (! result.ok, "a preset with an impossible event length is refused", result.message);
     }
 
     // --- The wheel: the value moves at once, the knob eases to it (FL: ~36 ms)

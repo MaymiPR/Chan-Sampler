@@ -165,4 +165,9 @@ if(CHANSAMPLER_TOOLS)
         target_link_libraries(${t} PRIVATE ChanSamplerShared juce::juce_recommended_config_flags)
     endforeach()
     add_dependencies(ci_targets CsRender)          # the render regression
+    # The renderer exits non-zero on what it cannot do: a jobs file that is not there, a malformed number.
+    add_test(NAME CsRenderMissingJobs COMMAND CsRender no_such_jobs.txt)
+    add_test(NAME CsRenderBadBlock COMMAND CsRender ${CMAKE_SOURCE_DIR}/tests/regress/jobs.txt block=x)
+    add_test(NAME CsRenderBadRate COMMAND CsRender ${CMAKE_SOURCE_DIR}/tests/regress/jobs.txt fs=x)
+    set_tests_properties(CsRenderMissingJobs CsRenderBadBlock CsRenderBadRate PROPERTIES WILL_FAIL TRUE TIMEOUT 60)
 endif()
