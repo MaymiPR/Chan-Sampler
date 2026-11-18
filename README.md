@@ -20,8 +20,8 @@
 Open-source recreation of FL Studio's Channel Sampler, null-tested against FL itself. VST3, CLAP, AU and
 Standalone for Windows, macOS and Linux.
 
-Every knob uses FL's units, and most features render sample-identically to FL. FL Sampler presets (`.fst`) load
-with their sample.
+Every knob uses FL's units, and most features null against FL (a residual below -60 dB, at the floor of FL's
+16-bit export). FL Sampler presets (`.fst`) load with their sample.
 
 ![Chan Sampler's Sample page, with a drum loop, its loop points and the precomputed effects](docs/screenshots/hero.png)
 
@@ -148,10 +148,13 @@ and Multiband in the multichannel view.
 
 Each feature was checked against FL Studio 26.1.7 with null tests: the same
 notes rendered through FL's Sampler and through Chan Sampler inside FL, then
-subtracted. The precomputed effects, interpolation, envelopes, LFOs, filters,
-loops, tracking, glide, echo, most of the arpeggiator and the compressed formats
-null against FL. The sample view's colours, grid and spectrum were measured
-from FL's screen.
+subtracted. A residual below -60 dB counts as a null, -40 to -60 dB as close.
+Interpolation, LFOs, loops, tracking, glide, the compressed formats and most of
+the precomputed effects, envelopes, filters, echo and arpeggiator null against
+FL. Close, not a null: the precomputed cut at low cutoffs, ring modulation, EQ
+and pogo, an envelope with tensions, four filter settings, echo with a pitch
+offset, velocity to Mod X and the shortest arpeggio steps. The sample view's
+colours, grid and spectrum were measured from FL's screen.
 
 Known gaps:
 

@@ -1,9 +1,9 @@
 """Writes the base test signals into signals/ (they are generated, not stored in
 the repository). Python's standard library only, so CI can run it as is.
 
-    python nulltest/make_base_signals.py              # every signal that is missing
-    python nulltest/make_base_signals.py sine.wav     # just these
-    python nulltest/make_base_signals.py -f           # rewrite them all
+    python nulltest/render_signals.py              # every signal that is missing
+    python nulltest/render_signals.py sine.wav     # just these
+    python nulltest/render_signals.py -f           # rewrite them all
 
 Existing files are kept unless -f is given, so cached FL renders made from them
 stay valid. Until 2026-11-01 these signals were stored in the repository; the

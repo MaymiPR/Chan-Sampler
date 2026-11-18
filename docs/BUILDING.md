@@ -59,7 +59,7 @@ folders, or run the standalone app from there.
 
 ## Tests
 
-The target `ci_targets` builds what CI builds: the VST3, the three test programs, the renderer and, on Windows, the
+The target `ci_targets` builds what CI builds: the VST3, the four test programs, the renderer and, on Windows, the
 snapshot tool. Then `ctest` runs every test:
 
 ```bash

@@ -45,9 +45,13 @@ def run_fl(project, wav):
         raise RuntimeError(f'FL did not render {project}')
 
 
+VERDICTS = ('NULL', 'close', 'model', 'not a null')
+
+
 def verdict(db):
-    """NULL below -60 dB (a match; FL's 16-bit export floor is about -65 to -95), close to -30, else DIFF."""
-    return 'NULL' if db < -60 else ('close' if db < -30 else 'DIFF')
+    """The scale of every document: NULL below -60 dB (inaudible; FL's 16-bit export floor is about -65 to -95),
+    close from -40 to -60, model from -20 to -40, not a null above -20."""
+    return 'NULL' if db < -60 else 'close' if db < -40 else 'model' if db < -20 else 'not a null'
 
 
 def word(eid, value):

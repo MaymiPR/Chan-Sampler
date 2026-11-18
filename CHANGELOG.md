@@ -12,7 +12,7 @@
 - **Null tests:** the scripts against FL Studio sit in one flat `nulltest/` folder named by purpose (`cases_`,
   `measure_`, `probe_`, `fit_`, `compare_`, `check_`), with the harness `cs_ref.py`, `first_null.py` (one in-FL pair,
   `--dry` without FL) and `nulltest.py --report`, which writes NULLTESTS.md from the saved results. The measured data
-  is published in `measurements/ChanSampler/`. Every FL project the harness builds is byte-identical to before, so
+  is published in `measurements/`. Every FL project the harness builds is byte-identical to before, so
   the cached renders stay valid.
 - **Source:** the engine in `Source/dsp/` is plain C++ without JUCE, in the namespace `cs::dsp`; loading a file and
   the JUCE buffers are its host side (`Source/SampleFile.h`), and Detect tempo uses an FFT of its own with the same

@@ -40,17 +40,17 @@ not reproduced. FL has no Panning envelope (LFO only), so neither does Chan Samp
 - **Time-stretch modes:** our own algorithms (pitch-synchronous grains, phase vocoder, e3's band split; see [Time
   stretching](MEASUREMENTS.md#time-stretching-against-fls-renders)). FL's elastique is proprietary, so they match FL
   in duration, pitch, attack timing and character, not sample for sample. Resample with TIME nulls.
-- **LPx2:** −47…−63 dB, SVF LPx2 bit-exact (nulltest/cases_filter_fourth_order.py): SVF LPx2 = two Chamberlin stages with
-  q1 = 1 − 0.8 res, q2 = 1 − 0.6 res; LPx2 = two identical LP biquads (no Q floor) times a level compensation linear
-  in the stage's Q times its frequency, 1 − Q(a − ω)b (a and b fitted to the 8 × 8 compensation measured on noise,
-  within 0.001 everywhere; worst in-FL case −47 dB). A note starts the compensation at unity and moves it tick by
+- **LPx2:** -47…-63 dB, SVF LPx2 bit-exact (nulltest/cases_filter_fourth_order.py): SVF LPx2 = two Chamberlin stages with
+  q1 = 1 - 0.8 res, q2 = 1 - 0.6 res; LPx2 = two identical LP biquads (no Q floor) times a level compensation linear
+  in the stage's Q times its frequency, 1 - Q(a - ω)b (a and b fitted to the 8 × 8 compensation measured on noise,
+  within 0.001 everywhere; worst in-FL case -47 dB). A note starts the compensation at unity and moves it tick by
   tick, linearly within each tick, by at most the envelopes' slew per tick (full range per 8.83 ms): at maximum
   resonance the first tick only gets from 1 to 0.455 (target 0.39) and the second finishes it (read from FL's output
-  over our uncompensated filter, Mod X 96 / Mod Y 256): those cases −59.5 / −59.3 dB in FL.
-- **SMP trim, segments under 200 frames:** −59…−69 dB (lengths match FL's; the end filter is a model fitted to FL's
+  over our uncompensated filter, Mod X 96 / Mod Y 256): those cases -59.5 / -59.3 dB in FL.
+- **SMP trim, segments under 200 frames:** -59…-69 dB (lengths match FL's; the end filter is a model fitted to FL's
   click matrices at seven lengths; LENGTH 0 and LENGTH 0 with a start are at FL's 16-bit export floor, a few one-step
   differences on a quiet segment). Not matched: a START tie (exactly 0.5) landing where a sound starts out of digital
-  silence (loud.wav, −52.5 dB: the start filter comes out a frame early).
+  silence (loud.wav, -52.5 dB: the start filter comes out a frame early).
 - **LFO:** see the LFO row in [MEASUREMENTS.md](MEASUREMENTS.md#measured-laws). FL's pan envelope had no audible
   effect in CLI renders (amount ±128, sustain 128), so Chan Sampler has a panning LFO and no panning envelope.
 - **Sample view:** the spectrum is a model of FL's: 0.4 to 1.6 dB per pixel on the four synthetic captures; on six
