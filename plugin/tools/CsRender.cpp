@@ -27,6 +27,7 @@
 //   fftbench                           the stretcher's FFT against JUCE's
 //   bench <sample>                     CPU per stretch mode, 32 / 64 voices
 //   decode <file> <out-prefix>         what each audio format reader decodes
+//   params                             every parameter, one tab-separated line (nulltest/read_params.py)
 //
 // Environment (the single form): RENDER_SR (render rate, default 44100), RENDER_BPM (host tempo, default 130 as in
 // FL's test projects), RENDER_FACTORY (a factory preset's name, applied on top of params.txt); bench takes BENCH_MODE
@@ -418,6 +419,34 @@ int main (int argc, char** argv)
     // "<jobs.txt> [fs=] [block=] ...": the job-file form (the render regression)
     if (argc >= 2 && argc < 6 && juce::String (argv[1]).endsWithIgnoreCase (".txt"))
         return runJobs (argc, argv);
+
+    // "params": one line per parameter in the host's order: index, ID, name, kind, steps, the default's text and
+    // the text at 0, 1/4, 1/2, 3/4 and 1 of the normalised range (nulltest/read_params.py writes params.md from it).
+    if (argc == 2 && juce::String (argv[1]) == "params")
+    {
+        juce::ScopedJuceInitialiser_GUI init;
+        ChanSamplerProcessor p;
+        int index = 0;
+        for (auto* param : p.getParameters())
+        {
+            auto* rp = dynamic_cast<juce::RangedAudioParameter*> (param);
+            if (rp == nullptr)
+                continue;
+            const char* kind = dynamic_cast<juce::AudioParameterBool*> (rp) != nullptr ? "switch"
+                             : dynamic_cast<juce::AudioParameterChoice*> (rp) != nullptr ? "choice"
+                             : dynamic_cast<juce::AudioParameterInt*> (rp) != nullptr ? "whole number" : "continuous";
+            // a whole number's steps are its range's (JUCE reports it as continuous)
+            const int steps = dynamic_cast<juce::AudioParameterInt*> (rp) != nullptr
+                                  ? juce::roundToInt (rp->getNormalisableRange().getRange().getLength()) + 1
+                                  : rp->isDiscrete() ? rp->getNumSteps() : 0;
+            std::cout << index++ << '\t' << rp->getParameterID() << '\t' << rp->getName (128) << '\t' << kind << '\t'
+                      << steps << '\t' << rp->getText (rp->getDefaultValue(), 128);
+            for (const float v : { 0.0f, 0.25f, 0.5f, 0.75f, 1.0f })
+                std::cout << '\t' << rp->getText (v, 128);
+            std::cout << '\n';
+        }
+        return index > 0 ? 0 : 1;
+    }
 
     // "loadcheck <sample>": Use loop points off, load, print the loop state
     // (a file's loop points set the markers but must not switch looping on).

@@ -24,6 +24,7 @@ each does:
 | `first_null.py` | one in-FL pair: proves the harness, FL, the build and the queue (`--dry` without FL) |
 | `cases_<topic>.py` | the case lists: each defines `CASES` |
 | `measure_`, `probe_`, `fit_`, `compare_`, `check_`, `null_` scripts | how each model in the plug-in was found and is checked (below) |
+| `read_params.py`, `read_classification.py` | write `params.md` (the built plug-in's parameter list; ctest fails when it is not the build's) and `classification.md` (one row per stage of the offline suite, from its saved results) |
 | `render_signals.py`, `render_stretch_signals.py` | write the test signals into `signals/` (generated, never committed) |
 | `<topic>_lib.py` | shared code: `queue_lib` (the render queue), `ref_solo_lib` (FL's Sampler alone), `project_lib` and `project_file_lib` (FL project files), `channel_lib` (the Chan Sampler channel), `wav_lib`, `paths_lib`, `nulltest_lib` (generic residual and signal helpers), and the models the fits use (`filter_lib`, `onepole_lib`, `resample_lib`, `transfer_lib`, `reverb_lib`, `reverb_b_lib`, `stretch_lib`, `stretch_metrics_lib`) |
 

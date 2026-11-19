@@ -170,4 +170,7 @@ if(CHANSAMPLER_TOOLS)
     add_test(NAME CsRenderBadBlock COMMAND CsRender ${CMAKE_SOURCE_DIR}/tests/regress/jobs.txt block=x)
     add_test(NAME CsRenderBadRate COMMAND CsRender ${CMAKE_SOURCE_DIR}/tests/regress/jobs.txt fs=x)
     set_tests_properties(CsRenderMissingJobs CsRenderBadBlock CsRenderBadRate PROPERTIES WILL_FAIL TRUE TIMEOUT 60)
+    # nulltest/params.md is the built plug-in's parameter list: the test fails when the table is not the build's.
+    add_test(NAME ChanSamplerParamsTable
+        COMMAND ${CHANSAMPLER_PYTHON} ${CS_DIR}/nulltest/read_params.py --check --tool $<TARGET_FILE:CsRender>)
 endif()
