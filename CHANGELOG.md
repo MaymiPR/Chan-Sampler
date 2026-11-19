@@ -9,19 +9,11 @@
   load as before: the plug-in codes, bundle IDs and parameter IDs are unchanged.
 - **Installers:** the standalone app is no longer installed unless chosen (Windows: the "all" installation type or a
   custom one; macOS: the app choice), as for every suite; the VST3 and CLAP plug-ins install as before.
-- **Null tests:** the scripts against FL Studio sit in one flat `nulltest/` folder named by purpose (`cases_`,
-  `measure_`, `probe_`, `fit_`, `compare_`, `check_`), with the harness `cs_ref.py`, `first_null.py` (one in-FL pair,
-  `--dry` without FL) and `nulltest.py --report`, which writes NULLTESTS.md from the saved results. The measured data
-  is published in `measurements/`. Every FL project the harness builds is byte-identical to before, so
-  the cached renders stay valid.
-- **Source:** the engine in `Source/dsp/` is plain C++ without JUCE, in the namespace `cs::dsp`; loading a file and
-  the JUCE buffers are its host side (`Source/SampleFile.h`), and Detect tempo uses an FFT of its own with the same
-  results. Every measured and fitted constant of the sound sits in `dsp/Tuning.h`, open to `CsRender`'s `tune:` keys.
-  The parameters are one header, `Params.h`, which lists every parameter ID; the shared code's namespace is `chan`.
-  The sound is unchanged: every render is byte-identical.
-- **Tests:** the host test is the suite's (`tools/HostTest.cpp`), given the test sine as the sample; the sampler's own
-  host checks (automation, MIDI, the sustain pedal, rate changes, offline renders, stretch modes, a missing sample)
-  run as `ChanSamplerPlayTests`.
+- **Behind the controls:** the source, the tests and the null-test scripts were reorganised: the engine is plain
+  C++ of its own, every measured and fitted constant of the sound sits in one header, and the scripts against FL
+  Studio sit in one folder named by purpose, with the measured data published in `measurements/`. The sound is
+  unchanged: every render is byte-identical. [CONTRIBUTING.md](CONTRIBUTING.md) has the layout.
+- **CLAP:** the CLAP plug-in is built with a newer clap-juce-extensions (commit 6bde108329ff).
 - **Screenshots and branding:** the screenshots are the editor at its design size (100 %), with `hero.png` on the
   README; the icon and the social preview are drawn from the banner's mark as SVG, with PNG exports.
 
@@ -37,8 +29,6 @@
   again by the same undo (standalone app).
 - **Damaged files:** an `.fst` preset whose data claims an impossible length is refused (it could crash the import),
   and a WAV whose marker chunks claim more entries than the file holds stops at the file's end.
-- **Null tests, the render queue:** a render that runs out of time no longer ends FL Studio by force. The queue
-  reports it, stops and leaves FL for you to close; the next run continues where it stopped.
 - **Closing the window right after a menu choice:** the menu's action is dropped; it could run on a closed window.
 
 ## 1.7.1 (2026-11-04)
