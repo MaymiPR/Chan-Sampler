@@ -314,6 +314,36 @@ int main (int argc, char** argv)
                "Ctrl+C with no sample goes on to the host");
     }
 
+    // --- Values that are not a number (a damaged state, preset or automation): the plug-in plays on, its output
+    // finite, each such value read as the parameter's default
+    {
+        processor.loadSample (sample);
+        for (auto* p : processor.getParameters())
+            if (auto* rp = dynamic_cast<juce::RangedAudioParameter*> (p))
+                if (rp->getParameterID() != id::historyStep)
+                    rp->setValueNotifyingHost (std::numeric_limits<float>::quiet_NaN());
+        processor.waitForPendingRebuilds();
+        pump (200);
+        juce::AudioBuffer<float> block (2, 512);
+        bool finite = true;
+        for (int i = 0; i < 40; ++i)
+        {
+            block.clear();
+            juce::MidiBuffer midi;
+            if (i == 0) midi.addEvent (juce::MidiMessage::noteOn (1, 60, (juce::uint8) 100), 0);
+            if (i == 20) midi.addEvent (juce::MidiMessage::noteOff (1, 60), 0);
+            processor.processBlock (block, midi);
+            for (int ch = 0; ch < 2; ++ch)
+                for (int k = 0; k < 512; ++k)
+                    finite = finite && std::isfinite (block.getSample (ch, k));
+        }
+        check (finite, "values that are not a number give a finite output");
+        processor.resetParameters();
+        processor.waitForPendingRebuilds();
+        pump (200);
+        h.clear();
+    }
+
     // --- Cut self and the two groups it sets are one step, and one undo takes all three back
     {
         pump (120);                       // the processor's timer has seen the state it starts from

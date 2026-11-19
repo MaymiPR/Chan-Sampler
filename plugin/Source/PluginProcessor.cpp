@@ -18,7 +18,8 @@ ChanSamplerProcessor::ChanSamplerProcessor()
     formatManager.registerBasicFormats();
     for (auto* p : getParameters())
         if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (p))
-            rawParams[std::string_view (ranged->paramID.toRawUTF8())] = apvts.getRawParameterValue (ranged->paramID);
+            rawParams[std::string_view (ranged->paramID.toRawUTF8())] = { apvts.getRawParameterValue (ranged->paramID),
+                                                                          ranged->convertFrom0to1 (ranged->getDefaultValue()) };
 
     for (auto& id : precomputeParamIDs())
         apvts.addParameterListener (id, this);
@@ -267,7 +268,7 @@ dsp::EngineParams ChanSamplerProcessor::readEngineParams() const
             std::memcpy (buf.data() + n, s, juce::jmin (m, buf.size() - 1 - n));
             return buf;
         };
-        auto get = [this, &id] (const char* s) { return rawParam (id (s).data())->load(); };
+        auto get = [this, &id] (const char* s) { return param (std::string_view (id (s).data())); };
         dsp::EngineParams::Target t;
         if (rawParam (id ("EnvOn").data()) == nullptr)
         {
@@ -277,8 +278,8 @@ dsp::EngineParams ChanSamplerProcessor::readEngineParams() const
         {
             t.envOn    = get ("EnvOn") > 0.5f;
             t.envTempo = get ("EnvTempo") > 0.5f;
-            if (auto* amt = rawParam (id ("EnvAmt").data()))
-                t.envAmt = amt->load();
+            if (rawParam (id ("EnvAmt").data()) != nullptr)
+                t.envAmt = get ("EnvAmt");
             t.env.delay    = dsp::flEnvSeconds (get ("Del"));
             // Measured: the minimum raw attack (100, position 0) is instant.
             const auto att = get ("Att");

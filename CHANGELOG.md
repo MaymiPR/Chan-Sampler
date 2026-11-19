@@ -30,6 +30,8 @@
   and did nothing.
 - **Undo of a knob menu's edit:** an envelope that Reset, Paste value or Type in value switched on is switched off
   again by the same undo (standalone app).
+- **Damaged values:** a setting whose value is not a number (from a damaged project, preset or automation) is read
+  as its default. Before, the next note could crash the plug-in.
 - **Damaged files:** an `.fst` preset whose data claims an impossible length is refused (it could crash the import),
   and a WAV whose marker chunks claim more entries than the file holds stops at the file's end.
 - **Cut self:** switching it and the two cut groups it sets are one undo step (they were three), and one undo
