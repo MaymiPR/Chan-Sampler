@@ -513,7 +513,7 @@ void ChanSamplerEditor::buildSampleSheet()
                 && std::abs (pitchParam->convertFrom0to1 (pitchParam->getValue())) > 0.5f)
                 setParameterAsGesture (*modeParam, (float) dsp::StretchMode::autoMode);
         };
-        pk.onDragEnd = toAuto;
+        pk.onDragEnding = toAuto;   // inside the drag's gesture: the two changes are one step
         pk.onUserChange = [&pk, toAuto] { if (! pk.isMouseButtonDown()) toAuto(); };   // the wheel and the menu
     }
     caption (stretch, "PITCH", 10, 61, 28, 7);

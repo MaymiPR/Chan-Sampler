@@ -314,6 +314,41 @@ int main (int argc, char** argv)
                "Ctrl+C with no sample goes on to the host");
     }
 
+    // --- A PITCH drag away from 0 switches Resample to Auto when it is let go: the drag and the switch are one step
+    {
+        processor.resetParameters();
+        auto* mode = paramOf (processor, id::stretchMode);
+        auto* pitchParam = paramOf (processor, id::pitch);
+        mode->setValueNotifyingHost (mode->convertTo0to1 ((float) dsp::StretchMode::resample));
+        auto editor = makeEditor();
+        pump (50);
+        h.clear();
+        ParamKnob* knob = nullptr;
+        forEach<ParamKnob> (*editor, [&] (ParamKnob& k) { if (knob == nullptr && k.getTooltip().startsWithIgnoreCase ("Pitch shift")) knob = &k; });
+        check (knob != nullptr, "the PITCH knob");
+        if (knob != nullptr)
+        {
+            const auto centre = knob->getLocalBounds().getCentre().toFloat();
+            const auto now = juce::Time::getCurrentTime();
+            auto event = [&] (juce::Point<float> at, bool dragged)
+            {
+                return juce::MouseEvent (juce::Desktop::getInstance().getMainMouseSource(), at, juce::ModifierKeys::leftButtonModifier, 0.0f,
+                                         0.0f, 0.0f, 0.0f, 0.0f, knob, knob, now, centre, now, 1, dragged);
+            };
+            knob->mouseDown (event (centre, false));
+            knob->mouseDrag (event (centre.translated (0.0f, -40.0f), true));
+            knob->mouseUp (event (centre.translated (0.0f, -40.0f), true));
+            pump (50);
+            const bool moved = std::abs (pitchParam->convertFrom0to1 (pitchParam->getValue())) > 0.5f;
+            const bool isAuto = juce::roundToInt (mode->convertFrom0to1 (mode->getValue())) == (int) dsp::StretchMode::autoMode;
+            check (moved && isAuto && h.getNumUndoSteps() == 1, "a PITCH drag and the switch to Auto it causes are one step",
+                   juce::String (h.getNumUndoSteps()) + " steps, moved " + juce::String ((int) moved) + ", Auto " + juce::String ((int) isAuto));
+        }
+        editor.reset();
+        processor.resetParameters();
+        h.clear();
+    }
+
     // --- A project whose sample is no longer at its saved path finds it by its name in the folder a sample was last
     // loaded from (a sample library that moved); with no file of that name anywhere it stays missing, its path kept
     {
