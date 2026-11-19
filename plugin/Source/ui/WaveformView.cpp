@@ -548,12 +548,12 @@ void WaveformView::paint (juce::Graphics& g)
     const auto sx = fracToX (getValue (id::startOffset));
     // FL's loop colours (sampled): START line / tab / label pure red, END a
     // darker red, the region a dark red tint. Grey versions when not looping.
-    const auto startCol = looping ? juce::Colour (0xffa78bfa) : juce::Colour (0xff7c7c7c);
-    const auto endCol   = looping ? juce::Colour (0xff6d4fd6) : juce::Colour (0xff4c4c4c);
+    const auto startCol = looping ? chan::ui::colour::loopStart : chan::ui::colour::loopStartOff;
+    const auto endCol   = looping ? chan::ui::colour::loopEnd : chan::ui::colour::loopEndOff;
 
     if (loopShown)
     {
-        g.setColour (looping ? juce::Colour (0xff1a1030) : juce::Colour (0xff1a1a1a));
+        g.setColour (looping ? chan::ui::colour::loopRegion : chan::ui::colour::loopRegionOff);
         g.fillRect (juce::Rectangle<float>::leftTopRightBottom (ls, wave.getY(), juce::jmax (ls + 1.0f, le), wave.getBottom()));
     }
     drawGrid();
@@ -593,7 +593,7 @@ void WaveformView::paint (juce::Graphics& g)
     // hanging from the top of the view (FL's look, measured).
     if (! sample->fileMarkers.empty())
     {
-        g.setColour (juce::Colour (0xffebebeb));
+        g.setColour (chan::ui::colour::fileMarker);
         for (auto m : sample->fileMarkers)
         {
             const auto x = std::floor (fracToX ((float) m / (float) sample->getTotalFrames()));
@@ -610,7 +610,7 @@ void WaveformView::paint (juce::Graphics& g)
     // one notch for mono, two for stereo (measured with 16 / 24 / 32-bit files).
     {
         const auto iconR = juce::Rectangle<float> (wave.getRight() - 15.0f, wave.getBottom() - 13.0f, 9.0f, 9.0f);
-        g.setColour (juce::Colour (0xffdfe5e8));
+        g.setColour (chan::ui::colour::channelIcon);
         g.drawRect (iconR.withTrimmedTop (1.0f), 1.0f);
         if (sample->mono)
             g.fillRect (iconR.getCentreX() - 1.0f, iconR.getY() - 1.0f, 2.0f, 2.0f);
@@ -710,7 +710,7 @@ void WaveformView::paint (juce::Graphics& g)
         const auto t1 = std::ceil (inner.getX() + viewEnd * inner.getWidth());
         for (int row = 0; row < (int) inner.getHeight(); ++row)
         {
-            g.setColour (row % 2 == 0 ? juce::Colour (0xff080808) : juce::Colour (0xff0c0c0c));
+            g.setColour (row % 2 == 0 ? chan::ui::colour::scrollRowEven : chan::ui::colour::scrollRowOdd);
             g.fillRect (juce::Rectangle<float>::leftTopRightBottom (inner.getX(), inner.getY() + (float) row, t0, inner.getY() + (float) row + 1.0f));
             g.fillRect (juce::Rectangle<float>::leftTopRightBottom (t1, inner.getY() + (float) row, inner.getRight(), inner.getY() + (float) row + 1.0f));
         }

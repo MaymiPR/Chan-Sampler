@@ -379,13 +379,13 @@ LookAndFeel::LookAndFeel()
     setColour (juce::PopupMenu::backgroundColourId, colour::menuBg);
     setColour (juce::PopupMenu::textColourId, colour::menuText);
     setColour (juce::PopupMenu::headerTextColourId, colour::text);
-    setColour (juce::PopupMenu::highlightedBackgroundColourId, juce::Colour (0xff2e2e2e));
+    setColour (juce::PopupMenu::highlightedBackgroundColourId, colour::menuHighlight);
     setColour (juce::PopupMenu::highlightedTextColourId, juce::Colours::white);
     setColour (juce::ComboBox::textColourId, colour::comboText);
     setColour (juce::Label::textColourId, colour::text);
     setColour (juce::TextButton::textColourOffId, colour::buttonText);
     setColour (juce::TextButton::textColourOnId, colour::arc);
-    setColour (juce::TooltipWindow::textColourId, juce::Colour (0xffebebeb));   // also the knob value popup (menu text)
+    setColour (juce::TooltipWindow::textColourId, colour::tooltipText);
     setColour (juce::Slider::rotarySliderFillColourId, colour::arc);
     setColour (juce::TextEditor::highlightColourId, colour::arc.withAlpha (0.4f));
 }
@@ -605,7 +605,7 @@ void LookAndFeel::drawPopupMenuItemWithOptions (juce::Graphics& g, const juce::R
     // FL's shortcut text: right-aligned, italic, a little dimmer (FL capture: #A0A5A4)
     if (item.shortcutKeyDescription.isNotEmpty() && ! dd)
     {
-        g.setColour (item.isEnabled ? juce::Colour (0xffa4a4a4) : rmDisabled);
+        g.setColour (item.isEnabled ? colour::menuShortcut : rmDisabled);
         g.setFont (f.italicised());
         g.drawText (item.shortcutKeyDescription, area.withTrimmedRight (14), juce::Justification::centredRight, false);
         g.setFont (f);
@@ -1268,7 +1268,7 @@ void IconButton::paintButton (juce::Graphics& g, bool highlighted, bool down)
     const auto w = b.getWidth();
     drawButton (g, getLocalBounds(), false, highlighted, down, isEnabled());   // FL: the same push button as Reset
 
-    const auto c = isEnabled() ? juce::Colour (0xffebebeb) : colour::dim;
+    const auto c = isEnabled() ? colour::menuButtonText : colour::dim;
     g.setColour (c);
     if (down)
         g.addTransform (juce::AffineTransform::translation (0.0f, 1.0f));   // FL: a pressed icon drops a pixel
@@ -1352,13 +1352,13 @@ namespace
     void paintDialogButton (juce::Graphics& g, juce::Rectangle<int> button, const juce::String& label, bool hover, bool down)
     {
         const auto b = button.toFloat();
-        g.setColour (juce::Colour (0xff2b2b2b));
+        g.setColour (colour::dialogButtonFrame);
         g.fillRect (b);
-        g.setColour (juce::Colour (0xff383838));
+        g.setColour (colour::dialogButtonEdge);
         g.fillRect (b.reduced (1.0f));
         const float lift = down ? -0.06f : hover ? 0.06f : 0.0f;
-        g.setGradientFill (juce::ColourGradient (juce::Colour (0xff222222).brighter (lift), 0.0f, b.getY() + 2.0f,
-                                                 juce::Colour (0xff141414).brighter (lift), 0.0f, b.getBottom() - 1.0f, false));
+        g.setGradientFill (juce::ColourGradient (colour::dialogButtonTop.brighter (lift), 0.0f, b.getY() + 2.0f,
+                                                 colour::dialogButtonBottom.brighter (lift), 0.0f, b.getBottom() - 1.0f, false));
         g.fillRect (b.reduced (1.0f).withTrimmedTop (1.0f));
         g.setColour (dlgButtonText);
         g.setFont (font (dlgSmallEm));
@@ -1679,7 +1679,7 @@ namespace
             : DialogBase (t), prompt (p), onText (std::move (f))
         {
             editor.setFont (juce::FontOptions (13.0f));
-            editor.setColour (juce::TextEditor::backgroundColourId, juce::Colour (0xff141414));
+            editor.setColour (juce::TextEditor::backgroundColourId, colour::dialogField);
             editor.setColour (juce::TextEditor::textColourId, juce::Colours::white);
             editor.setColour (juce::TextEditor::outlineColourId, colour::arc);
             editor.setColour (juce::TextEditor::focusedOutlineColourId, colour::arc);

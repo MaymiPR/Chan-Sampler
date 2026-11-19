@@ -144,10 +144,29 @@ namespace chan::ui
         const juce::Colour fieldEdge  { 0xff303030 };   // the preset bar's outline
         const juce::Colour startFlag  { 0xffebebeb };   // Start flag
         const juce::Colour playBar    { 0xffa78bfa };   // playback bar (overview)
+        const juce::Colour loopStart     { 0xffa78bfa };   // the loop's START line, tab and label while looping
+        const juce::Colour loopEnd       { 0xff6d4fd6 };   // its END line, tab and label
+        const juce::Colour loopRegion    { 0xff1a1030 };   // the tint between them
+        const juce::Colour loopStartOff  { 0xff7c7c7c };   // the same three when the loop is not in use
+        const juce::Colour loopEndOff    { 0xff4c4c4c };
+        const juce::Colour loopRegionOff { 0xff1a1a1a };
+        const juce::Colour fileMarker    { 0xffebebeb };   // the tabs of the file's region and slice markers
+        const juce::Colour channelIcon   { 0xffdfe5e8 };   // the mono / stereo icon in the view's corner
+        const juce::Colour scrollRowEven { 0xff080808 };   // the scroll bar outside the thumb, row by row
+        const juce::Colour scrollRowOdd  { 0xff0c0c0c };
 
         // Menus and dialogs
         const juce::Colour menuBg     { 0xff141414 };
         const juce::Colour menuText   { 0xffebebeb };
+        const juce::Colour menuHighlight { 0xff2e2e2e };   // the row under the mouse
+        const juce::Colour menuShortcut  { 0xffa4a4a4 };   // a menu item's shortcut text
+        const juce::Colour tooltipText   { 0xffebebeb };   // also the knob value popup
+        const juce::Colour menuButtonText { 0xffebebeb };  // the text of a button that opens a menu
+        const juce::Colour dialogButtonFrame  { 0xff2b2b2b };   // a dialog's button: frame, top edge, darkening fill
+        const juce::Colour dialogButtonEdge   { 0xff383838 };
+        const juce::Colour dialogButtonTop    { 0xff222222 };
+        const juce::Colour dialogButtonBottom { 0xff141414 };
+        const juce::Colour dialogField        { 0xff141414 };   // a dialog's text field
         const juce::Colour ledOn      { 0xfff472b6 };   // the file name when the sample is missing
     }
 
