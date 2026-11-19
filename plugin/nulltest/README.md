@@ -37,7 +37,8 @@ adopted when its project is byte-identical and nothing it depends on is newer, a
 reason printed. On Windows FL renders on a desktop of its own, so its window does not take over the screen while a
 queue runs (the renders are byte-identical; `FLQUEUE_VISIBLE=1` shows them again, for a render that hangs on a
 dialog). A failed render is retried (three attempts), and so is one that ends before its last note (FL sometimes
-stops early), a hung FL is killed after the timeout, `renders*/queue.json` makes a stopped run resumable, and one lock
+stops early), a render that runs out of time stops the queue and leaves FL for you to close (the queue never ends FL by
+force), `renders*/queue.json` makes a stopped run resumable, and one lock
 keeps two queues apart. A plug-in rebuild makes every in-FL pair stale ("newer than the render: Chan Sampler.vst3"):
 after a DSP change render again; after a rebuild that changed no audio pass `adopt=True` (`--adopt`) once, or
 `plugin_dep=False` (`--no-plugin-dep`).
