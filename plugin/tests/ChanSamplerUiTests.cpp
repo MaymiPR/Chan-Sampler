@@ -314,6 +314,18 @@ int main (int argc, char** argv)
                "Ctrl+C with no sample goes on to the host");
     }
 
+    // --- A dialog left open when the editor closes is deleted with it
+    {
+        auto editor = makeEditor();
+        chan::ui::showDialog (*editor, "Test", "A dialog left open");
+        pump (50);
+        const int shown = chan::ui::numOpenDialogs();
+        editor.reset();
+        pump (100);
+        check (shown == 1 && chan::ui::numOpenDialogs() == 0, "a dialog left open is deleted with the editor",
+               juce::String (shown) + " shown, " + juce::String (chan::ui::numOpenDialogs()) + " left");
+    }
+
     // --- Values that are not a number (a damaged state, preset or automation): the plug-in plays on, its output
     // finite, each such value read as the parameter's default
     {

@@ -41,6 +41,7 @@
   the drag's own, which a host could record as a broken edit.
 - **Arpeggiator:** when a host switches the arpeggiator off and on again while keys are held, it goes on from
   the next step of its grid. Before, every step missed in between played at once, as one very loud block.
+- **Closing the window with a dialog open:** the dialog is released with the window; it stayed in memory.
 - **Closing the window right after a menu choice:** the menu's action is dropped; it could run on a closed window.
 
 ## 1.7.1 (2026-11-04)

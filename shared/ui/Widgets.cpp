@@ -1362,12 +1362,28 @@ namespace
     // What FL's dialogs share: the frame with its title and close cross, the
     // panel under the title, and closing (the dialog deletes itself once the
     // event that closed it is done).
+    int liveDialogs = 0;   // message thread only
+
     class DialogBase : public juce::Component
     {
     public:
         explicit DialogBase (const juce::String& t) : title (t)
         {
             setWantsKeyboardFocus (true);
+            ++liveDialogs;
+        }
+
+        ~DialogBase() override { --liveDialogs; }
+
+        // The window that showed the dialog owns it only as a child, and a component does not delete its children:
+        // when that window goes away with the dialog open, the dialog deletes itself.
+        void parentHierarchyChanged() override
+        {
+            if (getParentComponent() != nullptr || leaving)
+                return;
+            leaving = true;
+            juce::Component::SafePointer<DialogBase> self (this);
+            juce::MessageManager::callAsync ([self] { delete self.getComponent(); });
         }
 
     protected:
@@ -1407,6 +1423,7 @@ namespace
         // Hides the dialog and deletes it after the current event; then runs after.
         void dismiss (std::function<void()> after = {})
         {
+            leaving = true;
             setVisible (false);
             juce::Component::SafePointer<DialogBase> self (this);
             juce::MessageManager::callAsync ([self, after]
@@ -1420,6 +1437,7 @@ namespace
         juce::String title;
         juce::Rectangle<int> box, panel, closeBox;
         bool closeHover = false;
+        bool leaving = false;   // its deletion is on its way
     };
 
     // A message (OK), or a properties sheet of label / value rows.
@@ -1774,6 +1792,8 @@ namespace
         d->grabKeyboardFocus();
     }
 }
+
+int numOpenDialogs() { return liveDialogs; }
 
 void showInfo (juce::Component& owner, const juce::String& title, const InfoRows& rows)
 {
