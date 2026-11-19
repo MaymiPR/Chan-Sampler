@@ -23,6 +23,7 @@ WaveformView::WaveformView (ChanSamplerProcessor& p) : processor (p)
 
 WaveformView::~WaveformView()
 {
+    endMarkerDrag();      // closed in mid-drag: no gesture stays open
     ++renderGeneration;   // a running render stops at its next check
     renderPool.removeAllJobs (true, 10000);
 }
@@ -880,16 +881,21 @@ void WaveformView::mouseDrag (const juce::MouseEvent& e)
 void WaveformView::mouseUp (const juce::MouseEvent&)
 {
     lastPressMs = juce::Time::getMillisecondCounterHiRes();   // no zoom from scroll right after a click
-    if (dragging != Marker::none && dragging != Marker::scrollThumb)
-        for (auto id : { id::startOffset, id::loopStart, id::loopEnd })
-            processor.apvts.getParameter (id)->endChangeGesture();
-    dragging = Marker::none;
+    endMarkerDrag();
 
     if (previewNote >= 0)
     {
         processor.requestPreview (previewNote, false);
         previewNote = -1;
     }
+}
+
+void WaveformView::endMarkerDrag()
+{
+    if (dragging != Marker::none && dragging != Marker::scrollThumb)
+        for (auto id : { id::startOffset, id::loopStart, id::loopEnd })
+            processor.apvts.getParameter (id)->endChangeGesture();
+    dragging = Marker::none;
 }
 
 //==============================================================================

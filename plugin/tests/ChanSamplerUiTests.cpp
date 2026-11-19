@@ -314,6 +314,50 @@ int main (int argc, char** argv)
                "Ctrl+C with no sample goes on to the host");
     }
 
+    // --- An editor closed in the middle of a drag closes the gestures the drag opened (an open gesture would keep
+    // the history from ever closing a step)
+    {
+        struct Gestures : juce::AudioProcessorParameter::Listener
+        {
+            void parameterValueChanged (int, float) override {}
+            void parameterGestureChanged (int, bool starting) override { open += starting ? 1 : -1; }
+            int open = 0;
+        } seen;
+        for (auto* p : processor.getParameters())
+        {
+            p->addListener (&seen);
+            if (auto* rp = dynamic_cast<juce::RangedAudioParameter*> (p))
+                if (rp->getParameterID().endsWith ("EnvOn"))
+                    rp->setValueNotifyingHost (1.0f);          // an envelope's points can be dragged when it is on
+        }
+        auto editor = makeEditor();
+        pump (50);
+        int opened = 0;
+        forEach<EnvelopeDisplay> (*editor, [&] (EnvelopeDisplay& view)
+        {
+            if (opened > 0)
+                return;
+            for (int y = 2; y < view.getHeight() && seen.open == 0; y += 2)
+                for (int x = 2; x < view.getWidth() && seen.open == 0; x += 2)
+                {
+                    const juce::Point<float> at ((float) x, (float) y);
+                    const juce::MouseEvent e (juce::Desktop::getInstance().getMainMouseSource(), at, juce::ModifierKeys(), 0.0f, 0.0f,
+                                              0.0f, 0.0f, 0.0f, &view, &view, juce::Time::getCurrentTime(), at,
+                                              juce::Time::getCurrentTime(), 1, false);
+                    view.mouseDown (e);
+                }
+            opened = seen.open;
+        });
+        editor.reset();
+        pump (50);
+        check (opened > 0 && seen.open == 0, "an editor closed in mid-drag closes the drag's gestures",
+               juce::String (opened) + " opened, " + juce::String (seen.open) + " left open");
+        for (auto* p : processor.getParameters())
+            p->removeListener (&seen);
+        processor.resetParameters();
+        h.clear();
+    }
+
     // --- A dialog left open when the editor closes is deleted with it
     {
         auto editor = makeEditor();

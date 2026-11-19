@@ -134,6 +134,18 @@ void EnvelopeDisplay::mouseDrag (const juce::MouseEvent& e)
 
 void EnvelopeDisplay::mouseUp (const juce::MouseEvent&)
 {
+    endDrag();
+}
+
+// A view that goes away in the middle of a drag (the editor closed) must not leave its gestures open: the host
+// would wait for their end, and the history would never close a step again.
+EnvelopeDisplay::~EnvelopeDisplay()
+{
+    endDrag();
+}
+
+void EnvelopeDisplay::endDrag()
+{
     if (dragging < 0)
         return;
     static const char* ids[] = { "Del", "Att", "Hold", "Dec", "Rel" };

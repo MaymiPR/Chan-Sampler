@@ -17,6 +17,7 @@ class EnvelopeDisplay : public juce::Component
 {
 public:
     EnvelopeDisplay (juce::AudioProcessorValueTreeState&, const char* prefix);
+    ~EnvelopeDisplay() override;
     void paint (juce::Graphics&) override;
 
     // As in FL, with the envelope on its points are bigger and can be dragged:
@@ -33,6 +34,7 @@ private:
     Geometry geometry() const;
     std::array<juce::Point<float>, 5> points (const Geometry&) const;
     int pointAt (juce::Point<float>) const;
+    void endDrag();   // closes the gestures a drag opened
     void set (const char* suffix, float value);
     float get (const char* suffix) const;
 

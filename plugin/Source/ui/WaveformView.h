@@ -123,6 +123,7 @@ private:
     bool smoothZooming = false;
     double lastSmoothMs = 0.0, lastPressMs = -1.0e9;
     Marker dragging = Marker::none;
+    void endMarkerDrag();   // closes the gestures a marker drag opened
     float dragOffset = 0.0f;
     int previewNote = -1;
     float lastMarkers[4] {};
