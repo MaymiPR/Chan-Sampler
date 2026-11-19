@@ -9,7 +9,7 @@ ChanSamplerProcessor::ChanSamplerProcessor()
     : AudioProcessor (BusesProperties().withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
       apvts (*this, nullptr, "STATE", createLayout (loopTextLength)),
       history (*this, [this] { return getRaw()->file; },
-               [this] (const juce::File& f) { if (f == juce::File()) removeSample(); else if (! loadSample (f)) setMissingSample (f); },
+               [this] (const juce::File& f) { restoreSample (f); },
                [this] { return apvts.state.getProperty ("presetName", "").toString(); },
                [this] (const juce::String& name) { apvts.state.setProperty ("presetName", name, nullptr); },
                dynamic_cast<HistoryStepParameter*> (apvts.getParameter (id::historyStep)),
@@ -827,6 +827,20 @@ bool ChanSamplerProcessor::loadSample (const juce::File& file)
 
     rebuildSample();
     return true;
+}
+
+// The history putting a sample back (undo, redo): the sample only. Loading a file sets values of its own (its root
+// note, its loop points, the start offset), which are not the step's: every setting stays as it is, and the step
+// then puts back what it changed.
+void ChanSamplerProcessor::restoreSample (const juce::File& file)
+{
+    const auto settings = apvts.copyState();
+    if (file == juce::File())
+        removeSample();
+    else if (! loadSample (file))
+        setMissingSample (file);
+    apvts.replaceState (settings);
+    rebuildSample();
 }
 
 void ChanSamplerProcessor::removeSample()

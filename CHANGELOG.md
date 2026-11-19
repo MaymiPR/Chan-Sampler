@@ -41,6 +41,8 @@
   as its default. Before, the next note could crash the plug-in.
 - **Damaged files:** an `.fst` preset whose data claims an impossible length is refused (it could crash the import),
   and a WAV whose marker chunks claim more entries than the file holds stops at the file's end.
+- **Undo of a sample change:** the sample comes back with the settings you had, where it came back with the root
+  note and the loop points its file carries (standalone app).
 - **PITCH:** a drag of PITCH and the switch from Resample to Auto it causes are one undo step (they were two;
   standalone app).
 - **Cut self:** switching it and the two cut groups it sets are one undo step (they were three), and one undo
