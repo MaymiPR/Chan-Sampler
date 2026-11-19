@@ -625,7 +625,7 @@ void WaveformView::paint (juce::Graphics& g)
     }
     if (startShown)
     {
-        g.setColour (juce::Colours::black.withAlpha (0.6f));   // FL darkens the part before Start
+        g.setColour (chan::ui::colour::black.withAlpha (0.6f));   // FL darkens the part before Start
         g.fillRect (juce::Rectangle<float>::leftTopRightBottom (wave.getX(), wave.getY(), juce::jmax (wave.getX(), sx), wave.getBottom()));
 
         // Start flag (gold, top)
@@ -675,7 +675,7 @@ void WaveformView::paint (juce::Graphics& g)
         const auto px = std::floor (fracToX (playhead));
         if (px >= wave.getX() && px <= wave.getRight())
         {
-            const juce::Colour line (0xffa78bfa);
+            const auto line = chan::ui::colour::playLine;
             float alpha = 0.351f;
             for (int k = 1; k <= 11; ++k, alpha *= 0.71f)
             {
@@ -1359,8 +1359,8 @@ namespace
                                               { 227, 152, 66 }, { 242, 208, 66 }, { 253, 250, 66 }, { 255, 255, 104 }, { 255, 255, 166 },
                                               { 255, 255, 214 }, { 255, 255, 255 } };
         constexpr int n = (int) std::size (at);
-        if (db <= at[0])     return juce::Colours::black;
-        if (db >= at[n - 1]) return juce::Colours::white;
+        if (db <= at[0])     return chan::ui::colour::black;
+        if (db >= at[n - 1]) return chan::ui::colour::white;
         int i = 0;
         while (db > at[i + 1]) ++i;
         const auto u = (db - at[i]) / (at[i + 1] - at[i]);

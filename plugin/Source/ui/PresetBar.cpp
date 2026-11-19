@@ -48,7 +48,7 @@ void PresetBar::paint (juce::Graphics& g)
     for (int side = 0; side < 2; ++side)
     {
         // a clicked arrow lights up white and fades back (not measured in FL)
-        g.setColour (chan::ui::colour::dim.interpolatedWith (juce::Colours::white, flash[side]));
+        g.setColour (chan::ui::colour::dim.interpolatedWith (chan::ui::colour::white, flash[side]));
         const auto a = side == 0 ? leftArrow() : rightArrow();
         const auto d = side == 0 ? 1.0f : -1.0f;
         juce::Path chevron;
@@ -59,7 +59,7 @@ void PresetBar::paint (juce::Graphics& g)
     }
 
     const auto name = currentName();
-    g.setColour (name.isEmpty() ? chan::ui::colour::dim : juce::Colours::white.withAlpha (0.85f));
+    g.setColour (name.isEmpty() ? chan::ui::colour::dim : chan::ui::colour::white.withAlpha (0.85f));
     g.setFont (chan::ui::font (10.8f));
     g.drawText (name.isEmpty() ? juce::String ("Presets") : name,
                 r.withTrimmedLeft (17.0f).withTrimmedRight (17.0f), juce::Justification::centred, true);

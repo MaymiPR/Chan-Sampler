@@ -697,12 +697,12 @@ namespace
             : title ("Value for " + name), modes (std::move (m)), current (position)
         {
             field.setFont (chan::ui::font (15.0f));
-            field.setColour (juce::TextEditor::backgroundColourId, juce::Colours::transparentBlack);
-            field.setColour (juce::TextEditor::outlineColourId, juce::Colours::transparentBlack);
-            field.setColour (juce::TextEditor::focusedOutlineColourId, juce::Colours::transparentBlack);
+            field.setColour (juce::TextEditor::backgroundColourId, chan::ui::colour::clear);
+            field.setColour (juce::TextEditor::outlineColourId, chan::ui::colour::clear);
+            field.setColour (juce::TextEditor::focusedOutlineColourId, chan::ui::colour::clear);
             field.setColour (juce::TextEditor::textColourId, chan::ui::colour::title);
             field.setColour (juce::TextEditor::highlightColourId, chan::ui::colour::accent.withAlpha (0.45f));
-            field.setColour (juce::TextEditor::highlightedTextColourId, juce::Colours::white);
+            field.setColour (juce::TextEditor::highlightedTextColourId, chan::ui::colour::white);
             field.setIndents (2, 3);
             field.setText (modes.front().text (position), false);
             field.onReturnKey = [this] { if (onDone) onDone (true); };
