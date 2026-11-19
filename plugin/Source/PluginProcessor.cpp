@@ -24,6 +24,7 @@ ChanSamplerProcessor::ChanSamplerProcessor()
         apvts.addParameterListener (id, this);
     for (auto* id : stretchParamIDs)
         apvts.addParameterListener (id, this);
+    apvts.addParameterListener (id::cutItself, this);
 
     publish (dsp::buildProcessedSample (*raw, readPrecomputeSettings()));
     rebuildThread.startThread();
@@ -38,6 +39,7 @@ ChanSamplerProcessor::~ChanSamplerProcessor()
         apvts.removeParameterListener (id, this);
     for (auto* id : stretchParamIDs)
         apvts.removeParameterListener (id, this);
+    apvts.removeParameterListener (id::cutItself, this);
     // Joined, never killed: a rebuild in progress holds the rebuild mutex and may hold the heap's lock.
     rebuildThread.signalThreadShouldExit();
     rebuildThread.notify();
@@ -382,7 +384,7 @@ juce::File ChanSamplerProcessor::userFolder (const juce::String& name)
     return juce::File::getSpecialLocation (juce::File::userDocumentsDirectory).getChildFile ("Chan Sampler").getChildFile (name);
 }
 
-void ChanSamplerProcessor::applyLoopLink (const juce::String& changedId)
+void ChanSamplerProcessor::applyLoopLink (const juce::String& changedId, bool endGestureOpen)
 {
     // FL's linked loop knobs (measured): START moves alone while it is below
     // END and pushes END to START + 1 sample when it passes it; END moves
@@ -397,8 +399,13 @@ void ChanSamplerProcessor::applyLoopLink (const juce::String& changedId)
         newEnd = juce::jmin (1.0f, start + oneSample);
     else if (changedId == id::loopEnd && end < start)
         newEnd = start;
-    if (newEnd != end)
-        setParameterAsGesture (*apvts.getParameter (id::loopEnd), newEnd);
+    if (newEnd == end)
+        return;
+    auto& endParam = *apvts.getParameter (id::loopEnd);
+    if (endGestureOpen)
+        setParameterValue (endParam, endParam.convertTo0to1 (newEnd));   // a gesture inside a gesture is not allowed
+    else
+        setParameterAsGesture (endParam, newEnd);
 }
 
 bool ChanSamplerProcessor::needsStretchers() const
@@ -409,6 +416,15 @@ bool ChanSamplerProcessor::needsStretchers() const
 
 void ChanSamplerProcessor::parameterChanged (const juce::String& parameterID, float)
 {
+    // Cut self from the editor: Cut and By follow at once, inside the click's gesture, so the three are one step.
+    // Set by the host (the audio thread), the timer does it.
+    if (parameterID == id::cutItself)
+    {
+        if (juce::MessageManager::existsAndIsCurrentThread())
+            followCutSelf();
+        return;
+    }
+
     // A stretch mode switched on from the editor gets its stretchers at once
     // (host automation runs on the audio thread: the timer makes them then).
     if (std::any_of (std::begin (stretchParamIDs), std::end (stretchParamIDs), [&] (const char* id) { return parameterID == id; }))
@@ -430,7 +446,7 @@ void ChanSamplerProcessor::parameterChanged (const juce::String& parameterID, fl
         rebuildThread.notify();
 }
 
-void ChanSamplerProcessor::timerCallback()
+void ChanSamplerProcessor::followCutSelf()
 {
     // FL: switching Cut self on sets Cut and By to the channel's own number, so
     // other channels can be cut by it too (here the instance number); off
@@ -451,6 +467,11 @@ void ChanSamplerProcessor::timerCallback()
         }
     }
     lastCutSelf = cutSelf;
+}
+
+void ChanSamplerProcessor::timerCallback()
+{
+    followCutSelf();
 
     // What a parameter listener left for the message thread (see parameterChanged and History).
     if (rebuildPending.load() && ! building.load())

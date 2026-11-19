@@ -96,7 +96,10 @@ public:
     // Documents/Chan Sampler/<name>: the user's presets, envelopes and pasted audio.
     static juce::File userFolder (const juce::String& name);
     // FL's linked loop START / END, for the user's edits (message thread).
-    void applyLoopLink (const juce::String& changedId);
+    // endGestureOpen: the caller holds loop END's gesture open (a marker drag), so END moves inside it.
+    void applyLoopLink (const juce::String& changedId, bool endGestureOpen = false);
+    // Cut self switched: Cut and By follow (message thread).
+    void followCutSelf();
     juce::String getSampleInfo() const;
     // The loaded file as read (before precomputed effects)
     std::shared_ptr<const RawSample> getRaw() const

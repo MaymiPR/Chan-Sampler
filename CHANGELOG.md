@@ -32,6 +32,10 @@
   again by the same undo (standalone app).
 - **Damaged files:** an `.fst` preset whose data claims an impossible length is refused (it could crash the import),
   and a WAV whose marker chunks claim more entries than the file holds stops at the file's end.
+- **Cut self:** switching it and the two cut groups it sets are one undo step (they were three), and one undo
+  takes all three back (standalone app).
+- **Loop markers:** dragging a loop marker in the sample view no longer opens a second edit of loop END inside
+  the drag's own, which a host could record as a broken edit.
 - **Closing the window right after a menu choice:** the menu's action is dropped; it could run on a closed window.
 
 ## 1.7.1 (2026-11-04)

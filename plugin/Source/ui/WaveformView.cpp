@@ -871,8 +871,9 @@ void WaveformView::mouseDrag (const juce::MouseEvent& e)
     const auto frac = xToFrac (e.position.x);
 
     // The processor applies FL's link: START pushes END, END stops at START.
-    if (dragging == Marker::loopStart)    { setValue (id::loopStart, frac); processor.applyLoopLink (id::loopStart); }
-    else if (dragging == Marker::loopEnd) { setValue (id::loopEnd, frac);   processor.applyLoopLink (id::loopEnd); }
+    // The drag holds END's gesture open (mouseDown), so the link sets END inside it.
+    if (dragging == Marker::loopStart)    { setValue (id::loopStart, frac); processor.applyLoopLink (id::loopStart, true); }
+    else if (dragging == Marker::loopEnd) { setValue (id::loopEnd, frac);   processor.applyLoopLink (id::loopEnd, true); }
     else                                  setValue (id::startOffset, frac);
 }
 
