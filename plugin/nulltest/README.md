@@ -24,6 +24,7 @@ each does:
 | `first_null.py` | one in-FL pair: proves the harness, FL, the build and the queue (`--dry` without FL) |
 | `cases_<topic>.py` | the case lists: each defines `CASES` |
 | `measure_`, `probe_`, `fit_`, `compare_`, `check_`, `null_` scripts | how each model in the plug-in was found and is checked (below) |
+| `read_params.py`, `read_classification.py` | write `params.md` (the built plug-in's parameter list; ctest fails when it is not the build's) and `classification.md` (one row per stage of the offline suite, from its saved results) |
 | `render_signals.py`, `render_stretch_signals.py` | write the test signals into `signals/` (generated, never committed) |
 | `<topic>_lib.py` | shared code: `queue_lib` (the render queue), `ref_solo_lib` (FL's Sampler alone), `project_lib` and `project_file_lib` (FL project files), `channel_lib` (the Chan Sampler channel), `wav_lib`, `paths_lib`, `nulltest_lib` (generic residual and signal helpers), and the models the fits use (`filter_lib`, `onepole_lib`, `resample_lib`, `transfer_lib`, `reverb_lib`, `reverb_b_lib`, `stretch_lib`, `stretch_metrics_lib`) |
 
@@ -37,7 +38,8 @@ adopted when its project is byte-identical and nothing it depends on is newer, a
 reason printed. On Windows FL renders on a desktop of its own, so its window does not take over the screen while a
 queue runs (the renders are byte-identical; `FLQUEUE_VISIBLE=1` shows them again, for a render that hangs on a
 dialog). A failed render is retried (three attempts), and so is one that ends before its last note (FL sometimes
-stops early), a hung FL is killed after the timeout, `renders*/queue.json` makes a stopped run resumable, and one lock
+stops early), a render that runs out of time stops the queue and leaves FL for you to close (the queue never ends FL by
+force), `renders*/queue.json` makes a stopped run resumable, and one lock
 keeps two queues apart. A plug-in rebuild makes every in-FL pair stale ("newer than the render: Chan Sampler.vst3"):
 after a DSP change render again; after a rebuild that changed no audio pass `adopt=True` (`--adopt`) once, or
 `plugin_dep=False` (`--no-plugin-dep`).

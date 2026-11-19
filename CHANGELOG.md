@@ -37,6 +37,8 @@
   again by the same undo (standalone app).
 - **Damaged files:** an `.fst` preset whose data claims an impossible length is refused (it could crash the import),
   and a WAV whose marker chunks claim more entries than the file holds stops at the file's end.
+- **Null tests, the render queue:** a render that runs out of time no longer ends FL Studio by force. The queue
+  reports it, stops and leaves FL for you to close; the next run continues where it stopped.
 - **Closing the window right after a menu choice:** the menu's action is dropped; it could run on a closed window.
 
 ## 1.7.1 (2026-11-04)

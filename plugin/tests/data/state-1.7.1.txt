@@ -1,0 +1,162 @@
+Pitch bend range	7
+Declicking mode	Smooth (bleeding)
+Load regions	Off
+Load slice markers	On
+Sample start offset	61%
+Use loop points	Off
+Loop start position	0
+Loop end position	0
+Ping pong loop	Off
+Output	70%  -7.2dB  0.43
+Stretch method	e3 generic
+Time stretch (multiplicator)	334.38%
+Time stretch (time)	26:09:00
+Formant shift amount	-789 cents
+Pitch shift	+695 cents
+Remove DC offset	Off
+Reverse polarity	Off
+Normalize	On
+Fade stereo	Off
+Reverse	On
+Swap stereo	Off
+Sample start offset (precomputed)	12 %
+Sample end offset	73 %
+Quick fade in	35%
+Quick fade out	97%
+Crossfade loop	59%
+Silence trimming threshold	21%
+Boosts the gain	82%
+Add clipping at 0dB	Off
+Shifts the frequency balance	-88%
+Ring modulation mix	68%
+Ring modulation frequency	30%
+Filter cutoff	92%
+Filter resonance	53%
+Reverb type	A
+Reverb amount	77%
+Stereo delay	23% left
+Pogo effect	-99%
+Panning LFO tempo-based time	On
+Panning LFO global phase	Off
+Panning LFO shape	Pulse
+Panning LFO speed	48%
+Panning LFO amount	-81%
+Panning LFO predelay time	71%
+Panning LFO attack time	33%
+Volume envelope	On
+Volume predelay time	57%
+Volume attack time	19%
+Volume hold time	80%
+Volume decay time	42%
+Volume sustain level	4%
+Volume release time	66%
+Volume attack tension	-45%
+Volume decay tension	79%
+Volume release tension	2%
+Volume envelope tempo-based time	Off
+Volume LFO tempo-based time	On
+Volume LFO global phase	Off
+Volume LFO shape	Pulse
+Volume LFO speed	60%
+Volume LFO amount	-56%
+Volume LFO predelay time	84%
+Volume LFO attack time	46%
+Mod X envelope	Off
+Mod X predelay time	69%
+Mod X attack time	31%
+Mod X hold time	93%
+Mod X decay time	55%
+Mod X sustain level	16%
+Mod X release time	78%
+Mod X attack tension	-20%
+Mod X decay tension	-97%
+Mod X release tension	27%
+Mod X envelope amount	-49%
+Mod X envelope tempo-based time	On
+Mod X LFO tempo-based time	Off
+Mod X LFO global phase	Off
+Mod X LFO shape	Triangle
+Mod X LFO speed	34%
+Mod X LFO amount	92%
+Mod X LFO predelay time	58%
+Mod X LFO attack time	20%
+Mod Y envelope	On
+Mod Y predelay time	43%
+Mod Y attack time	5%
+Mod Y hold time	67%
+Mod Y decay time	29%
+Mod Y sustain level	91%
+Mod Y release time	52%
+Mod Y attack tension	-72%
+Mod Y decay tension	52%
+Mod Y release tension	-24%
+Mod Y envelope amount	99%
+Mod Y envelope tempo-based time	On
+Mod Y LFO tempo-based time	Off
+Mod Y LFO global phase	On
+Mod Y LFO shape	Triangle
+Mod Y LFO speed	9%
+Mod Y LFO amount	41%
+Mod Y LFO predelay time	32%
+Mod Y LFO attack time	94%
+Pitch envelope	On
+Pitch predelay time	18%
+Pitch attack time	79%
+Pitch hold time	41%
+Pitch decay time	3%
+Pitch sustain level	65%
+Pitch release time	27%
+Pitch attack tension	77%
+Pitch decay tension	1%
+Pitch release tension	-76%
+Pitch envelope amount	48%
+Pitch envelope tempo-based time	Off
+Pitch LFO tempo-based time	On
+Pitch LFO global phase	On
+Pitch LFO shape	Sine
+Pitch LFO speed	83%
+Pitch LFO amount	-11%
+Pitch LFO predelay time	7%
+Pitch LFO attack time	68%
+Filter type	BP
+Filter frequency (modulation X)	92%
+Filter bandwidth (modulation Y)	54%
+Panning offset	69% left
+Volume multiplier	155%  12.0dB  3.98
+Modulation X offset	-22%
+Modulation Y offset	-98%
+Maximum polyphony	40
+Monophonic mode	Off
+Portamento mode	On
+Portamento time	0:11
+Cut itself	Off
+Cut group	71
+Cut by group	33
+Velocity to panning	91%
+Velocity to modulation X	14%
+Velocity to modulation Y	-62%
+Velocity middle value	81%
+Key to panning	-15%
+Key to modulation X	-91%
+Key to modulation Y	32%
+Middle value	A#2
+Arpeggio direction	Up / down (sticky)
+Arpeggio range (octaves)	4
+Arpeggio repeat	3
+Arpeggio time	1:19
+Arpeggio gate	37%
+Arpeggio slide	On
+Arpeggio chord	m-Maj7add13
+Delay feedback	45%
+Delay panning	137% right
+Delay modulation X	-8%
+Delay modulation Y	-84%
+Delay pitch	+471 cents
+Delay time	2:12
+Echoes	15
+Ping pong	On
+Fat mode	Off
+Root note	E8
+Fine tuning	-19 cents
+History step	1471
+Bypass	Off

@@ -10,7 +10,9 @@ beside the WAV holds the same key; an old WAV without that file is adopted
 when the project rebuilt with the old sample path is byte-identical to the
 .flp on disk and no dependency is newer than the WAV (`adopt=True` trusts
 the WAV regardless, for a plugin rebuild that changed nothing). Everything
-else is rendered, each failure retried, and the WAV checked before it is
+else is rendered, each failure retried (but a render that ran out of time
+stops the queue: FL is never ended by force, the person at the machine
+closes it), and the WAV checked before it is
 trusted: complete, and as long as the project (`build.min_seconds`, the end
 of its last note; FL now and then stops a render early, so a short render
 counts as a failure and is rendered again).
@@ -87,10 +89,6 @@ def fl_processes():
 def pid_alive(pid):
     out = subprocess.run(['tasklist', '/FI', f'PID eq {pid}', '/FO', 'CSV', '/NH'], capture_output=True, text=True).stdout
     return f'"{pid}"' in out
-
-
-def kill_tree(pid):
-    subprocess.run(['taskkill', '/T', '/F', '/PID', str(pid)], capture_output=True)
 
 
 # FL's command-line render opens FL's window and takes the focus each time.
@@ -183,7 +181,9 @@ def validate_wav(path, min_frames=1, min_seconds=0.0):
 
 def render_fl(project, wav, timeout=TIMEOUT, exe=None):
     """One FL command-line render (`FL64.exe /R /Ewav project`). Raises
-    RenderError with reason fl_running, timeout, no_output or bad_wav."""
+    RenderError with reason fl_running, timeout, no_output or bad_wav. A
+    render that ran out of time is reported and FL is left running: the
+    queue never ends FL by force."""
     exe = exe or fl_exe()
     if fl_processes():
         raise RenderError('fl_running', 'FL Studio is open (a running FL swallows the command-line render)')
@@ -193,8 +193,8 @@ def render_fl(project, wav, timeout=TIMEOUT, exe=None):
     try:
         p.wait(timeout=timeout)
     except subprocess.TimeoutExpired:
-        kill_tree(p.pid)
-        raise RenderError('timeout', f'{os.path.basename(project)} took more than {timeout} s')
+        raise RenderError('timeout', f'{os.path.basename(project)} took more than {timeout} s; '
+                          f'FL (process {p.pid}) is left running')
     if not os.path.exists(wav):
         raise RenderError('no_output', f'FL did not render {os.path.basename(project)} (exit {p.returncode})')
     validate_wav(wav)
@@ -410,6 +410,11 @@ class Queue:
                 except RenderError as e:
                     j.error = str(e)
                     self.log(f'  [{i}/{n}] {j.name} attempt {a} failed: {e}')
+                    if e.reason == 'timeout':
+                        j.state = 'failed'
+                        self._save_state()
+                        self.log('  stopped: close FL yourself, then run the queue again (it continues where it stopped)')
+                        return
                     time.sleep(2)
             else:
                 j.state = 'failed'
@@ -607,6 +612,20 @@ def selftest():
         q7.add('a', build(b'project a v3'))
         q7.run(dry=True)
         assert open(os.path.join(out, 'a.flp'), 'rb').read() == b'project a v2 @ ' + gone.encode() and calls['a'] == 3
+
+        # a render that ran out of time: FL is left as it is, so the queue stops there and starts nothing more
+        hung_calls = []
+
+        def hung(project, wav, timeout=0):
+            hung_calls.append(os.path.basename(project))
+            raise RenderError('timeout', 'simulated')
+
+        qt = Queue(os.path.join(tmp, 'hung'), renderer=hung, log=logs.append)
+        qt.add('x', build(b'project x')).add('y', build(b'project y'))
+        qt.run(attempts=3)
+        assert hung_calls == ['x.flp'], hung_calls
+        assert [j.state for j in qt.jobs] == ['failed', 'missing'] and list(qt.failed) == ['x'], [j.state for j in qt.jobs]
+        assert not hasattr(sys.modules[__name__], 'kill_tree'), 'the queue can still end a process by force'
 
         # status and lock
         q6.status()
