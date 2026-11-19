@@ -186,16 +186,6 @@ minor release): FL Studio and other hosts list the plug-in under the new vendor,
   instead of the plug-in id and `uiScale`, because projects saved by every release read them.
 - Bypass (decided 2026-11-11): the plug-in has no bypass parameter of its own; the JUCE VST3 wrapper's bypass serves
   hosts and the host test.
-- The kickoff's parameter data (decided 2026-11-19): there is no `nulltest/paramdump.txt`, no `nulltest/tapers.json`
-  and no generated `Source/Tapers.h`. The reference is a feature of a DAW, not a plug-in a host tool can load and
-  dump; its ranges and tapers were measured through FL renders, are described in `plugin/MEASUREMENTS.md` and sit in
-  `Source/Params.h` and `Source/dsp/Tuning.h`.
-- The factory presets (decided 2026-11-19): there is no generated `Source/PresetTable.h`. The reference ships no
-  factory set to generate from; the ten factory presets are settings of our own, written by hand in
-  `Source/Presets.cpp`.
-- The stress grid and the demo-track null (decided 2026-11-19): there is no `nulltest/null_stress.py` and no
-  `nulltest/null_track.py`. Both scripts of the standard render through an offline host of the reference plug-in;
-  here every reference render is an FL render through the queue, and the `cases_*.py` modules are the grid.
 
 ## License
 
