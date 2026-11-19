@@ -387,6 +387,29 @@ juce::File ChanSamplerProcessor::userFolder (const juce::String& name)
     return juce::File::getSpecialLocation (juce::File::userDocumentsDirectory).getChildFile ("Chan Sampler").getChildFile (name);
 }
 
+namespace
+{
+    // The folder a sample was last loaded from, in any instance: where a project's moved samples are looked for.
+    juce::CriticalSection sampleFolderLock;
+    juce::File lastSampleFolder;
+}
+
+juce::File ChanSamplerProcessor::findSample (const juce::File& saved)
+{
+    const auto name = saved.getFileName();
+    if (saved.existsAsFile() || name.isEmpty())
+        return saved;
+    juce::File last;
+    {
+        const juce::ScopedLock sl (sampleFolderLock);
+        last = lastSampleFolder;
+    }
+    for (const auto& folder : { userFolder ("Samples"), last })
+        if (folder != juce::File() && folder.getChildFile (name).existsAsFile())
+            return folder.getChildFile (name);
+    return saved;
+}
+
 void ChanSamplerProcessor::applyLoopLink (const juce::String& changedId, bool endGestureOpen)
 {
     // FL's linked loop knobs (measured): START moves alone while it is below
@@ -703,6 +726,10 @@ bool ChanSamplerProcessor::loadSample (const juce::File& file)
         return false;
     }
     loadError.clear();
+    {
+        const juce::ScopedLock sl (sampleFolderLock);
+        lastSampleFolder = file.getParentDirectory();
+    }
 
     RawSample r;
     r.file = file;
@@ -872,7 +899,7 @@ void ChanSamplerProcessor::setStateInformation (const void* data, int sizeInByte
     {
         // Restore the project's own loop points, not the file's embedded ones.
         const auto savedLoop = apvts.copyState();
-        const juce::File file (path);
+        const auto file = findSample (juce::File (path));
         if (file.existsAsFile() && loadSample (file))
         {
             apvts.replaceState (savedLoop);
@@ -905,7 +932,7 @@ void ChanSamplerProcessor::loadPreset (juce::ValueTree state, const juce::String
     const juce::String path = state.getProperty ("samplePath").toString();
     if (path.isEmpty())
         removeSample();
-    else if (const juce::File file (path); file != getSampleFile() && ! (file.existsAsFile() && loadSample (file)))
+    else if (const auto file = findSample (juce::File (path)); file != getSampleFile() && ! (file.existsAsFile() && loadSample (file)))
         setMissingSample (file);
     for (auto* p : getParameters())
     {

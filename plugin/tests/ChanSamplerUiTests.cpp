@@ -314,6 +314,35 @@ int main (int argc, char** argv)
                "Ctrl+C with no sample goes on to the host");
     }
 
+    // --- A project whose sample is no longer at its saved path finds it by its name in the folder a sample was last
+    // loaded from (a sample library that moved); with no file of that name anywhere it stays missing, its path kept
+    {
+        const auto base = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("cs_path_test");
+        base.deleteRecursively();
+        const auto oldPlace = base.getChildFile ("old"), newPlace = base.getChildFile ("new");
+        oldPlace.createDirectory();
+        newPlace.createDirectory();
+        sample.copyFileTo (oldPlace.getChildFile ("moved.wav"));
+        sample.copyFileTo (newPlace.getChildFile ("other.wav"));
+        processor.loadSample (oldPlace.getChildFile ("moved.wav"));
+        juce::MemoryBlock saved;
+        processor.getStateInformation (saved);
+        oldPlace.getChildFile ("moved.wav").moveFileTo (newPlace.getChildFile ("moved.wav"));   // the library moved
+        processor.loadSample (newPlace.getChildFile ("other.wav"));                                // and the user loaded from there
+        processor.setStateInformation (saved.getData(), (int) saved.getSize());
+        check (processor.getSampleFile() == newPlace.getChildFile ("moved.wav") && processor.getSampleLength() > 0,
+               "a sample that moved is found by its name where a sample was last loaded from",
+               processor.getSampleFile().getFileName() + ", " + juce::String (processor.getSampleLength()) + " frames");
+        newPlace.getChildFile ("moved.wav").deleteFile();
+        processor.setStateInformation (saved.getData(), (int) saved.getSize());
+        check (processor.getSampleFile() == oldPlace.getChildFile ("moved.wav") && processor.getSampleLength() == 0,
+               "a sample found nowhere stays missing with its saved path");
+        base.deleteRecursively();
+        processor.loadSample (sample);
+        processor.resetParameters();
+        h.clear();
+    }
+
     // --- An editor closed in the middle of a drag closes the gestures the drag opened (an open gesture would keep
     // the history from ever closing a step)
     {

@@ -61,6 +61,10 @@ public:
 
     // Message thread API
     bool loadSample (const juce::File& file);
+    // Where a saved sample is now: its saved path while a file is there; otherwise a file of the same name in the
+    // user's Samples folder (Documents/Chan Sampler/Samples) or in the folder a sample was last loaded from; the
+    // saved path when there is none (the sample is then missing, its path kept).
+    static juce::File findSample (const juce::File& saved);
     bool reloadSample();   // the same file again from disk, settings kept
     // Reloads the sample once its file has changed on disk (saved from an audio
     // editor) and the change has settled; called regularly by the editor.

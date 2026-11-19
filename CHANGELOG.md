@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### New
+
+- **A sample that moved:** when a project's or a preset's sample is not at its saved path, Chan Sampler looks for a
+  file of the same name in `Documents/Chan Sampler/Samples` and in the folder a sample was last loaded from, and
+  loads it from there. Found nowhere, the sample is shown as missing with its saved path, as before.
+
 ### Improved
 
 - **Vendor name:** hosts list the plug-in under the vendor "Chan Sampler" (it was "ChanSampler"). FL Studio and other
