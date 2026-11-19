@@ -216,6 +216,39 @@ int main()
         check (rms (v, sec / 2, sec / 2 + 4800) < 1.0e-4f, "env on: release silences note");
     }
 
+    // The arpeggiator switched off and on again while keys are held (host automation): it goes on from the next
+    // step of its grid and does not play the steps it missed all at once.
+    {
+        auto longSample = dsp::buildProcessedSample (sine (4.0), plain);
+        auto p = params();
+        p.arpDir = 1;
+        p.arpTime = 0.25f;
+        dsp::Engine engine;
+        engine.prepare (rate);
+        juce::AudioBuffer<float> block (2, 512);
+        int mostVoices = 0;
+        float loudest = 0.0f, loudestBefore = 0.0f;
+        for (int b = 0; b < 300; ++b)
+        {
+            block.clear();
+            juce::MidiBuffer midi;
+            if (b == 0) { midi.addEvent (on (60), 0); midi.addEvent (on (64), 0); }
+            p.arpDir = (b >= 20 && b < 280) ? 0 : 1;      // off for 260 blocks (2.8 s), then on again
+            renderBlock (engine, block, midi, longSample.get(), p);
+            if (b < 20)
+                loudestBefore = juce::jmax (loudestBefore, block.getMagnitude (0, 0, 512));
+            if (b >= 280)
+            {
+                mostVoices = juce::jmax (mostVoices, engine.getNumActiveVoices());
+                loudest = juce::jmax (loudest, block.getMagnitude (0, 0, 512));
+            }
+        }
+        check (loudestBefore > 0.1f && mostVoices <= 4 && loudest < loudestBefore * 1.5f,
+               "the arpeggiator switched back on plays no burst of missed steps",
+               juce::String (mostVoices) + " voices, peak " + juce::String (loudest, 2) + " against " + juce::String (loudestBefore, 2)
+                   + " before the pause");
+    }
+
     // Arpeggio TIME "Hold": the first note only, until every key is up (FL).
     {
         auto longSample = dsp::buildProcessedSample (sine (4.0), plain);

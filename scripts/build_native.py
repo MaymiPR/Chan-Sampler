@@ -108,6 +108,9 @@ def main():
     ap.add_argument('plugins', nargs='*', help='plug-in ids (default: every plug-in)')
     ap.add_argument('--list', action='store_true', help='list the helpers and their outputs, build nothing')
     a = ap.parse_args()
+    unknown = [p for p in a.plugins if p not in FOLDERS]
+    if unknown:
+        sys.exit('no plug-in %s (the ids: %s)' % (', '.join(unknown), ', '.join(FOLDERS) or 'none'))
     items = sources(set(a.plugins) or None)
     if a.list:
         for plugin, stem, src, out in items:

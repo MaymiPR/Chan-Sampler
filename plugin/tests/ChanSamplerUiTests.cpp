@@ -314,6 +314,49 @@ int main (int argc, char** argv)
                "Ctrl+C with no sample goes on to the host");
     }
 
+    // --- Cut self and the two groups it sets are one step, and one undo takes all three back
+    {
+        pump (120);                       // the processor's timer has seen the state it starts from
+        h.clear();
+        auto* cut = paramOf (processor, id::cutItself);
+        auto* group = paramOf (processor, id::cutGroup);
+        auto* by = paramOf (processor, id::cutBy);
+        gesture (*cut, { 1.0f });
+        pump (120);
+        check (h.getNumUndoSteps() == 1 && group->getValue() > 0.0f && by->getValue() > 0.0f,
+               "Cut self and the two groups it sets are one step", juce::String (h.getNumUndoSteps()) + " steps");
+        while (h.canUndo())
+            h.undo();
+        pump (120);
+        check (cut->getValue() < 0.5f && group->getValue() == 0.0f && by->getValue() == 0.0f, "undo takes Cut self and both groups back");
+        h.clear();
+    }
+
+    // --- A marker drag has its gestures open: the loop link moves END inside them, with no gesture of its own
+    {
+        struct Gestures : juce::AudioProcessorParameter::Listener
+        {
+            void parameterValueChanged (int, float) override {}
+            void parameterGestureChanged (int, bool starting) override { open += starting ? 1 : -1; deepest = juce::jmax (deepest, open); }
+            int open = 0, deepest = 0;
+        } seen;
+        auto* start = paramOf (processor, id::loopStart);
+        auto* end = paramOf (processor, id::loopEnd);
+        end->setValueNotifyingHost (0.5f);
+        end->addListener (&seen);
+        start->beginChangeGesture();
+        end->beginChangeGesture();
+        start->setValueNotifyingHost (0.7f);
+        processor.applyLoopLink (id::loopStart, true);
+        start->endChangeGesture();
+        end->endChangeGesture();
+        end->removeListener (&seen);
+        check (seen.deepest == 1 && seen.open == 0 && end->getValue() > 0.7f, "the loop link opens no gesture inside a drag's",
+               juce::String (seen.deepest) + " deep");
+        processor.resetParameters();
+        h.clear();
+    }
+
     // --- A preset file whose event claims more bytes than a file can hold is refused, not read
     {
         juce::MemoryOutputStream bytes;

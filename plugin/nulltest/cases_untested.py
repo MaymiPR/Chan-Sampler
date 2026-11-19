@@ -14,7 +14,7 @@ FL storage (found by saving from FL's GUI and comparing the files):
 - root note: event 135 (u32, only written when not 60; PyFLP ChannelID.RootNote);
   fine tune: levels (219) pitch field (cents)
 """
-import os, shutil, struct, sys
+import os, struct, sys
 import ref_solo_lib as F; import paths_lib; import cs_ref
 
 def loop_points(start, end):
@@ -191,20 +191,15 @@ CASES += [
     dict(name='u_fine-75', sample='signals/sine.wav', fl=[F.levels('pitch', -75)], ours={'fineTune': -75}, beats=2),
 ]
 
-# Compressed formats, using samples that ship with FL Studio (copied in when
-# missing; not in the repository). Long samples need the envelope so the note
+# Compressed formats, using samples that ship with FL Studio, read where FL
+# installed them and never copied. Long samples need the envelope so the note
 # stops before the other half of the render.
 _FLD = os.path.join(paths_lib.FL_PATCHES, 'Misc', 'Used by demo projects')
-for _name, _src in (('fmt_test.flac', r'Astes - Bien Duro\WAEC_Clap_06.flac'),
-                    ('fmt_test.ogg', r'Astes - Bien Duro\1.1 Build #1.ogg'),
-                    ('fmt_test.mp3', r'Gimbal & Sinan + Futorial - RawFL\Sincinaty_RawFL_Sample_03.mp3')):
-    _dst = os.path.join(paths_lib.ROOT, _name)
-    if not os.path.exists(_dst) and os.path.exists(os.path.join(_FLD, _src)):
-        shutil.copyfile(os.path.join(_FLD, _src), _dst)
 CASES += [
-    dict(name='f_flac', sample='fmt_test.flac', beats=4),
-    dict(name='f_ogg', sample='fmt_test.ogg', beats=4),
-    dict(name='f_mp3env', sample='fmt_test.mp3', fl=ENV, ours=ENV_OURS, beats=4),
+    dict(name='f_flac', sample=os.path.join(_FLD, 'Astes - Bien Duro', 'WAEC_Clap_06.flac'), beats=4),
+    dict(name='f_ogg', sample=os.path.join(_FLD, 'Astes - Bien Duro', '1.1 Build #1.ogg'), beats=4),
+    dict(name='f_mp3env', sample=os.path.join(_FLD, 'Gimbal & Sinan + Futorial - RawFL', 'Sincinaty_RawFL_Sample_03.mp3'),
+         fl=ENV, ours=ENV_OURS, beats=4),
 ]
 
 # Notes after the first, and glides on the song's tick grid, need both halves

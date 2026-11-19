@@ -495,7 +495,10 @@ void Engine::handleNoteOff (int64_t time, int note, const EngineParams& p)
 void Engine::advanceArp (int64_t until, const EngineParams& p)
 {
     if (p.arpDir == 0 || held.empty() || arpNextStep < 0)
+    {
+        arpPaused = p.arpDir == 0 && ! held.empty() && arpNextStep >= 0;
         return;
+    }
 
     // Measured in FL: step k starts at round (k * step) samples after the
     // first (not a rounded step added up). TIME "Hold": only the first step
@@ -509,6 +512,17 @@ void Engine::advanceArp (int64_t until, const EngineParams& p)
         arpNextStep = hold ? std::numeric_limits<int64_t>::max()
                            : jmax (arpNextStep + 1, arpStart + (int64_t) std::llround ((double) arpSteps * step));
     };
+    if (arpPaused)
+    {
+        // Switched back on with the keys still held: the grid stays where it was, and the steps that fell into
+        // the pause are skipped (played all at once they were thousands of notes in one block).
+        arpPaused = false;
+        if (! hold && step > 0.0 && arpNextStep != std::numeric_limits<int64_t>::max() && arpNextStep < until)
+        {
+            arpSteps = jmax (arpSteps, (int64_t) std::ceil ((double) (until - arpStart) / step));
+            arpNextStep = jmax (until, arpStart + (int64_t) std::llround ((double) arpSteps * step));
+        }
+    }
     if (! hold && arpNextStep == std::numeric_limits<int64_t>::max())   // TIME turned off Hold
         arpNextStep = jmax (until, arpStart + (int64_t) std::llround ((double) arpSteps * step));
     while (arpNextStep <= until)

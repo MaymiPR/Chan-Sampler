@@ -34,6 +34,10 @@ public:
     void releaseResources() override {}
     bool isBusesLayoutSupported (const BusesLayout& layouts) const override;
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+    // Bypassed, the plug-in still reads the MIDI and moves its voices, and outputs silence: a key released during
+    // the bypass ends its note, the pedal and the arpeggiator's held keys stay true, and nothing hangs afterwards.
+    void processBlockBypassed (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+    using juce::AudioProcessor::processBlockBypassed;   // the double-precision one stays JUCE's (not hidden)
     using juce::AudioProcessor::processBlock;   // the double-precision one stays JUCE's (not hidden)
 
     juce::AudioProcessorEditor* createEditor() override;
@@ -92,7 +96,10 @@ public:
     // Documents/Chan Sampler/<name>: the user's presets, envelopes and pasted audio.
     static juce::File userFolder (const juce::String& name);
     // FL's linked loop START / END, for the user's edits (message thread).
-    void applyLoopLink (const juce::String& changedId);
+    // endGestureOpen: the caller holds loop END's gesture open (a marker drag), so END moves inside it.
+    void applyLoopLink (const juce::String& changedId, bool endGestureOpen = false);
+    // Cut self switched: Cut and By follow (message thread).
+    void followCutSelf();
     juce::String getSampleInfo() const;
     // The loaded file as read (before precomputed effects)
     std::shared_ptr<const RawSample> getRaw() const

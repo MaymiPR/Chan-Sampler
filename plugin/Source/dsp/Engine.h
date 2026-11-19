@@ -300,6 +300,7 @@ private:
     int64_t arpNextStep = -1;
     int64_t arpStart = 0;     // time of the first step; step k sits at round (k * step) after it
     int64_t arpSteps = 0;
+    bool arpPaused = false;   // the direction was off while keys were held: the missed steps are skipped
     int arpIndex = 0, sustainedNote = -1;
     // The Random direction's generator: a 48-bit linear congruential sequence from a fixed seed.
     struct ArpRandom
