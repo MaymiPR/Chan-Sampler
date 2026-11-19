@@ -994,6 +994,14 @@ modes the stretcher's read position folds into the loop on every pass, forward a
   a project load uses the new sample; a stretch mode chosen while playing plays stretched; a project without its sample
   plays nothing and keeps the path; projects saved by earlier releases load with every setting unchanged. All pass;
   ctest runs both.
+- Behaviour of our own, tested and not measured in FL (`ChanSamplerPlayTests`, `ChanSamplerTests`,
+  `ChanSamplerUiTests`): bypassed by the host, the plug-in still follows the MIDI and outputs silence, so a key
+  released during the bypass has ended its note when the bypass is lifted (the note's level there: 0.030 without
+  this, 0 with it). The arpeggiator switched off and on again by the host while keys are held keeps its step grid
+  and skips the steps that fell into the pause (played at once they peaked at 62.64 against 1.43 while playing);
+  what FL's own arpeggiator does there is not measured. A parameter value that is not a number is read as the
+  parameter's default. A sample that is not at its saved path is looked for by its name in
+  `Documents/Chan Sampler/Samples` and in the folder a sample was last loaded from.
 - `CsRender statetest <sample>`: in-process round trip of all 160 parameters, sample and window width, bit-identical audio.
 - `nulltest/check_robust.py`: 44.1 / 48 / 96 kHz hosts with stereo float, mono 16-bit, stereo 24-bit and 48 kHz
   files all play at the right pitch and length; a 10-minute file loads and plays in 0.4 s.

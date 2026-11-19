@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/MaymiPR/Chan-Sampler/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/MaymiPR/Chan-Sampler?color=a78bfa&label=release"></a>
+  <a href="https://github.com/MaymiPR/Chan-Sampler/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/MaymiPR/Chan-Sampler?color=6d4fd6&label=release"></a>
   <a href="https://github.com/MaymiPR/Chan-Sampler/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/MaymiPR/Chan-Sampler/actions/workflows/ci.yml/badge.svg"></a>
   <img alt="Formats" src="https://img.shields.io/badge/formats-VST3%20%7C%20CLAP%20%7C%20AU%20%7C%20Standalone-2d3133">
   <img alt="Platforms" src="https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-2d3133">
@@ -33,7 +33,7 @@ Every knob uses FL's units, and most features null against FL (a residual below 
 > Image-Line. It contains none of Image-Line's code, artwork, samples, presets or
 > other files; its editor is drawn by its own code.
 
-## How it was made
+## How it was built
 
 Chan Sampler was created entirely with Claude (Anthropic's AI): the code, the measurements behind it and
 this documentation. FL Studio was the reference throughout, as described in
@@ -144,7 +144,7 @@ and Multiband in the multichannel view.
 
 ![The sample view three times: Multiband colours, Color map colours, and the multichannel view with left and right channels](docs/screenshots/chansampler-waveforms.png)
 
-## How close is it to FL?
+## How close
 
 Each feature was checked against FL Studio 26.1.7 with null tests: the same
 notes rendered through FL's Sampler and through Chan Sampler inside FL, then
@@ -169,7 +169,7 @@ Known gaps:
 [NULLTESTS.md](plugin/NULLTESTS.md) the null-test results and
 [RESEARCH.md](plugin/RESEARCH.md) every known gap.
 
-## Build from source
+## Building from source
 
 You need CMake 3.22 or later, Git and a C++ compiler. JUCE downloads
 automatically. On Linux:
