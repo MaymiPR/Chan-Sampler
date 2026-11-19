@@ -41,7 +41,9 @@ ChanSamplerProcessor::~ChanSamplerProcessor()
     for (auto* id : stretchParamIDs)
         apvts.removeParameterListener (id, this);
     apvts.removeParameterListener (id::cutItself, this);
-    // Joined, never killed: a rebuild in progress holds the rebuild mutex and may hold the heap's lock.
+    // Joined, never killed: a rebuild in progress holds the rebuild mutex and may hold the heap's lock. It is told
+    // to give up, so the join is short even in the middle of a long sample's reverb.
+    stopRebuild = true;
     rebuildThread.signalThreadShouldExit();
     rebuildThread.notify();
     rebuildThread.stopThread (-1);
@@ -497,7 +499,10 @@ void ChanSamplerProcessor::rebuildSample()
         settings.targetRate = 0.0;   // the file is already at the playback rate: nothing to convert
     if (source == builtFrom && settings == builtWith)
         return;
-    publish (dsp::buildProcessedSample (*source, settings, source));
+    auto built = dsp::buildProcessedSample (*source, settings, source, &stopRebuild);
+    if (built == nullptr)
+        return;   // told to stop: the plug-in is going away
+    publish (std::move (built));
     builtFrom = source;
     builtWith = settings;
     sendChangeMessage();

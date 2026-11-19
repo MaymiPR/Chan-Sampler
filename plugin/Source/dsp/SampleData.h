@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <memory>
 #include <tuple>
 #include <vector>
@@ -88,8 +89,10 @@ struct SampleSource
 
 // With owner (the shared source raw belongs to), a sample that needs no
 // processing at all refers to the file's audio instead of copying it.
+// With stop, the build looks at the flag between its stages and inside the two long ones (the rate conversion,
+// the reverb) and returns nothing once it is set, so that whoever waits for the build does not wait long.
 SampleData::Ptr buildProcessedSample (const SampleSource& raw, const PrecomputeSettings& settings,
-                                      std::shared_ptr<const SampleSource> owner = {});
+                                      std::shared_ptr<const SampleSource> owner = {}, const std::atomic<bool>* stop = nullptr);
 
 // Sample Start / Length knob position (0..1) to a fraction of the sample.
 double trimKnobToFraction (float knob);

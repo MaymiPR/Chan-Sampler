@@ -25,7 +25,8 @@
 - **Audio thread:** a block with MIDI no longer allocates and frees memory, the interpolation tables are built when
   playback is prepared and not by the first note, and a setting automated by the host only sets a flag there (the
   rebuild and the host's undo step follow from the plug-in's timer).
-- **Removing the plug-in during a rebuild:** the rebuild is waited for; its thread is never ended by force.
+- **Removing the plug-in during a rebuild:** the rebuild is waited for; its thread is never ended by force. The
+  rebuild gives up as soon as it is told, so the wait is short even in the middle of a long sample's reverb.
 - **Ctrl+C and Ctrl+V:** with no sample to copy or no audio to paste the keys go on to the host; they were taken
   and did nothing.
 - **Undo of a knob menu's edit:** an envelope that Reset, Paste value or Type in value switched on is switched off

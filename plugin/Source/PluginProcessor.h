@@ -194,6 +194,7 @@ private:
     const uint32_t instanceId = cutgroups::newInstanceId();
     cutgroups::Reader cutReader { instanceId };
     const int instanceNumber = cutgroups::claimNumber();   // FL's channel number for Cut self
+    std::atomic<bool> stopRebuild { false };              // set when the processor goes away: a build in progress gives up
     std::atomic<int> lastCutSelf { -1 };                  // to see Cut self being switched (timer)
     std::vector<int> cutOffsets;                          // this block's cuts by other instances
     std::vector<dsp::MidiEvent> midiEvents;               // this block's MIDI for the engine (reserved)
