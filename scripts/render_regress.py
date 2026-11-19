@@ -324,6 +324,8 @@ def main():
             print(f'  {"ok  " if ok else "FAIL"} {target}/{c["name"]:24s} {db:8.1f} dB re golden (threshold {c["threshold"]:.0f}, {len(ours) // 2} frames)')
             if not ok:
                 failed.append(c['name'])
+    if a.only and total == 0:
+        sys.exit(f'--only {a.only}: no case name contains it, nothing was checked')
     if a.update:
         print(f'{total} goldens written under tests/regress; commit them with the DSP change that made them')
         return
