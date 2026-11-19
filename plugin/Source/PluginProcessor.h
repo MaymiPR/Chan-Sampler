@@ -34,6 +34,10 @@ public:
     void releaseResources() override {}
     bool isBusesLayoutSupported (const BusesLayout& layouts) const override;
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+    // Bypassed, the plug-in still reads the MIDI and moves its voices, and outputs silence: a key released during
+    // the bypass ends its note, the pedal and the arpeggiator's held keys stay true, and nothing hangs afterwards.
+    void processBlockBypassed (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+    using juce::AudioProcessor::processBlockBypassed;   // the double-precision one stays JUCE's (not hidden)
     using juce::AudioProcessor::processBlock;   // the double-precision one stays JUCE's (not hidden)
 
     juce::AudioProcessorEditor* createEditor() override;

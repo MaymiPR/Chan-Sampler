@@ -215,6 +215,31 @@ int main (int argc, char** argv)
         render (*a, 20, [] (int i, juce::MidiBuffer& m) { if (i == 0) m.addEvent (juce::MidiMessage::allNotesOff (1), 0); });
     }
 
+    // The host bypass: silence while bypassed, and a key released during the bypass has ended its note when the
+    // bypass is lifted (the plug-in keeps reading the MIDI and moving its voices while bypassed). The volume
+    // envelope is on: without it a note plays its whole sample whatever the key does.
+    if (auto* bypass = a->getBypassParameter())
+    {
+        auto* envOn = findParam (*a, "Volume envelope");
+        if (envOn != nullptr) envOn->setValueNotifyingHost (1.0f);
+        auto yb = render (*a, 200, [bypass] (int i, juce::MidiBuffer& m)
+        {
+            if (i == 0) m.addEvent (juce::MidiMessage::noteOn (1, 60, (juce::uint8) 100), 0);
+            if (i == 40) bypass->setValueNotifyingHost (1.0f);
+            if (i == 50) m.addEvent (juce::MidiMessage::noteOff (1, 60), 0);
+            if (i == 60) bypass->setValueNotifyingHost (0.0f);
+        });
+        const auto playing = rms (yb, 30 * bs, 39 * bs), bypassed = rms (yb, 44 * bs, 59 * bs), lifted = rms (yb, 170 * bs, 200 * bs);
+        std::cout << "      bypass: level before " << playing << ", while bypassed " << bypassed << ", after " << lifted << "\n";
+        check (playing > 1.0e-3f && bypassed == 0.0f, "the host bypass silences the output");
+        check (playing > 1.0e-3f && lifted < playing * 0.05f, "a key released during the bypass has ended its note");
+        bypass->setValueNotifyingHost (0.0f);
+        if (envOn != nullptr) envOn->setValueNotifyingHost (0.0f);
+        render (*a, 20, [] (int i, juce::MidiBuffer& m) { if (i == 0) m.addEvent (juce::MidiMessage::allNotesOff (1), 0); });
+    }
+    else
+        check (false, "the host bypass is offered");
+
     // 3. Save / reload into a new instance: the plug-in's own values, then the
     //    sound with audible settings, then the editor size it was left at.
     juce::Random rng (7);

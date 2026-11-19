@@ -65,6 +65,12 @@ void ChanSamplerProcessor::prepareToPlay (double sampleRate, int)
     outputGain.setCurrentAndTargetValue (dsp::outputLevel (param (id::output)));
 }
 
+void ChanSamplerProcessor::processBlockBypassed (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
+{
+    processBlock (buffer, midi);
+    buffer.clear();
+}
+
 void ChanSamplerProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
 {
     juce::ScopedNoDenormals noDenormals;

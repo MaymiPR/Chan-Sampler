@@ -185,7 +185,8 @@ minor release): FL Studio and other hosts list the plug-in under the new vendor,
 - State names (decided 2026-11-11): the state's root tag stays `STATE` and the editor's size property stays `uiWidth`
   instead of the plug-in id and `uiScale`, because projects saved by every release read them.
 - Bypass (decided 2026-11-11): the plug-in has no bypass parameter of its own; the JUCE VST3 wrapper's bypass serves
-  hosts and the host test.
+  hosts and the host test. Bypassed, the processor still reads the MIDI and moves its voices (`processBlockBypassed`)
+  and outputs silence, so no note hangs afterwards.
 
 ## License
 

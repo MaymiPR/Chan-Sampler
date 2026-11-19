@@ -19,6 +19,9 @@
 
 ### Fixed
 
+- **Bypass:** a key released while the host has the plug-in bypassed ends its note. Before, the note went on
+  after the bypass and a looped one never stopped; the sustain pedal and the arpeggiator's held keys went stale
+  the same way. While bypassed the plug-in still follows the MIDI and outputs silence.
 - **Audio thread:** a block with MIDI no longer allocates and frees memory, the interpolation tables are built when
   playback is prepared and not by the first note, and a setting automated by the host only sets a flag there (the
   rebuild and the host's undo step follow from the plug-in's timer).
