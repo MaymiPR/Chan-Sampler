@@ -300,6 +300,8 @@ namespace chan::ui
     // message on a panel with a large grey sign, OK below. Shown over the
     // plugin window that holds owner; closes with OK, the cross, Return or Esc.
     void showDialog (juce::Component& owner, const juce::String& title, const juce::String& message, bool warning = false);
+    // The dialogs that exist now (shown and not yet deleted), for the tests.
+    int numOpenDialogs();
     // FL's question dialog with a column of choices; onChoice gets the chosen
     // index (not called when the dialog is closed).
     void showChoices (juce::Component& owner, const juce::String& title, const juce::String& message,

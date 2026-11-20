@@ -55,10 +55,10 @@ namespace
         explicit HistoryButton (bool isRedo) : juce::Button (isRedo ? "Redo" : "Undo"), redo (isRedo) {}
         void paintButton (juce::Graphics& g, bool, bool down) override
         {
-            auto c = isEnabled() ? chan::ui::colour::dim.interpolatedWith (juce::Colours::white, 0.55f * chan::ui::hoverOf (*this))
+            auto c = isEnabled() ? chan::ui::colour::dim.interpolatedWith (chan::ui::colour::white, 0.55f * chan::ui::hoverOf (*this))
                                  : chan::ui::colour::dim.withAlpha (0.4f);
             if (down && isEnabled())
-                c = juce::Colours::white;
+                c = chan::ui::colour::white;
             // drawn for undo (head at the left) and mirrored for redo
             const float w = (float) getWidth(), cy = std::floor ((float) getHeight() * 0.5f);
             auto x = [this, w] (float v) { return redo ? w - v : v; };
@@ -513,7 +513,7 @@ void ChanSamplerEditor::buildSampleSheet()
                 && std::abs (pitchParam->convertFrom0to1 (pitchParam->getValue())) > 0.5f)
                 setParameterAsGesture (*modeParam, (float) dsp::StretchMode::autoMode);
         };
-        pk.onDragEnd = toAuto;
+        pk.onDragEnding = toAuto;   // inside the drag's gesture: the two changes are one step
         pk.onUserChange = [&pk, toAuto] { if (! pk.isMouseButtonDown()) toAuto(); };   // the wheel and the menu
     }
     caption (stretch, "PITCH", 10, 61, 28, 7);

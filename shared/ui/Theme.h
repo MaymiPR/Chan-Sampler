@@ -144,10 +144,44 @@ namespace chan::ui
         const juce::Colour fieldEdge  { 0xff303030 };   // the preset bar's outline
         const juce::Colour startFlag  { 0xffebebeb };   // Start flag
         const juce::Colour playBar    { 0xffa78bfa };   // playback bar (overview)
+        const juce::Colour playLine   { 0xffa78bfa };   // the playback line in the view, and its fading trail
+        const juce::Colour loopStart     { 0xffa78bfa };   // the loop's START line, tab and label while looping
+        const juce::Colour loopEnd       { 0xff6d4fd6 };   // its END line, tab and label
+        const juce::Colour loopRegion    { 0xff1a1030 };   // the tint between them
+        const juce::Colour loopStartOff  { 0xff7c7c7c };   // the same three when the loop is not in use
+        const juce::Colour loopEndOff    { 0xff4c4c4c };
+        const juce::Colour loopRegionOff { 0xff1a1a1a };
+        const juce::Colour fileMarker    { 0xffebebeb };   // the tabs of the file's region and slice markers
+        const juce::Colour channelIcon   { 0xffdfe5e8 };   // the mono / stereo icon in the view's corner
+        const juce::Colour scrollRowEven { 0xff080808 };   // the scroll bar outside the thumb, row by row
+        const juce::Colour scrollRowOdd  { 0xff0c0c0c };
 
         // Menus and dialogs
         const juce::Colour menuBg     { 0xff141414 };
         const juce::Colour menuText   { 0xffebebeb };
+        const juce::Colour menuHighlight { 0xff2e2e2e };   // the row under the mouse
+        const juce::Colour menuShortcut  { 0xffa4a4a4 };   // a menu item's shortcut text
+        const juce::Colour tooltipText   { 0xffebebeb };   // also the knob value popup
+        const juce::Colour menuButtonText { 0xffebebeb };  // the text of a button that opens a menu
+        const juce::Colour dialogButtonFrame  { 0xff2b2b2b };   // a dialog's button: frame, top edge, darkening fill
+        const juce::Colour dialogButtonEdge   { 0xff383838 };
+        const juce::Colour dialogButtonTop    { 0xff222222 };
+        const juce::Colour dialogButtonBottom { 0xff141414 };
+        const juce::Colour dialogField        { 0xff141414 };   // a dialog's text field
+        // The drop-down list of a field
+        const juce::Colour ddBg { 0xff0e0e0e }, ddEdge { 0xff000000 }, ddHeader { 0xff222222 }, ddHeaderText { 0xff8c8c8c },
+                           ddText { 0xffffffff }, ddHighlight { 0xff383838 };
+        // The right-click menu
+        const juce::Colour rmBg { 0xff141414 }, rmText { 0xffebebeb }, rmHighlight { 0xff2e2e2e }, rmDisabled { 0xff6c6c6c },
+                           rmHeader { 0xff222222 }, rmHeaderText { 0xff8c8c8c }, rmSeparator { 0xff262626 };
+        // The dialogs
+        const juce::Colour dlgBg { 0xff000000 }, dlgEdge { 0xff2b2b2b }, dlgPanel { 0xff121212 }, dlgPanelEdge { 0xff2b2b2b },
+                           dlgTitle { 0xffffffff }, dlgText { 0xffebebeb }, dlgSign { 0xffa78bfa }, dlgButtonText { 0xffe4e4e4 };
+
+        // The ends of the scale, for a light or a shade laid over a surface with an alpha, and for nothing at all
+        const juce::Colour white { 0xffffffff };
+        const juce::Colour black { 0xff000000 };
+        const juce::Colour clear { 0x00000000 };
         const juce::Colour ledOn      { 0xfff472b6 };   // the file name when the sample is missing
     }
 

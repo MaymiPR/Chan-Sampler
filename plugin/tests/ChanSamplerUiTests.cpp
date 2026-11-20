@@ -314,6 +314,156 @@ int main (int argc, char** argv)
                "Ctrl+C with no sample goes on to the host");
     }
 
+    // --- A PITCH drag away from 0 switches Resample to Auto when it is let go: the drag and the switch are one step
+    {
+        processor.resetParameters();
+        auto* mode = paramOf (processor, id::stretchMode);
+        auto* pitchParam = paramOf (processor, id::pitch);
+        mode->setValueNotifyingHost (mode->convertTo0to1 ((float) dsp::StretchMode::resample));
+        auto editor = makeEditor();
+        pump (50);
+        h.clear();
+        ParamKnob* knob = nullptr;
+        forEach<ParamKnob> (*editor, [&] (ParamKnob& k) { if (knob == nullptr && k.getTooltip().startsWithIgnoreCase ("Pitch shift")) knob = &k; });
+        check (knob != nullptr, "the PITCH knob");
+        if (knob != nullptr)
+        {
+            const auto centre = knob->getLocalBounds().getCentre().toFloat();
+            const auto now = juce::Time::getCurrentTime();
+            auto event = [&] (juce::Point<float> at, bool dragged)
+            {
+                return juce::MouseEvent (juce::Desktop::getInstance().getMainMouseSource(), at, juce::ModifierKeys::leftButtonModifier, 0.0f,
+                                         0.0f, 0.0f, 0.0f, 0.0f, knob, knob, now, centre, now, 1, dragged);
+            };
+            knob->mouseDown (event (centre, false));
+            knob->mouseDrag (event (centre.translated (0.0f, -40.0f), true));
+            knob->mouseUp (event (centre.translated (0.0f, -40.0f), true));
+            pump (50);
+            const bool moved = std::abs (pitchParam->convertFrom0to1 (pitchParam->getValue())) > 0.5f;
+            const bool isAuto = juce::roundToInt (mode->convertFrom0to1 (mode->getValue())) == (int) dsp::StretchMode::autoMode;
+            check (moved && isAuto && h.getNumUndoSteps() == 1, "a PITCH drag and the switch to Auto it causes are one step",
+                   juce::String (h.getNumUndoSteps()) + " steps, moved " + juce::String ((int) moved) + ", Auto " + juce::String ((int) isAuto));
+        }
+        editor.reset();
+        processor.resetParameters();
+        h.clear();
+    }
+
+    // --- A project whose sample is no longer at its saved path finds it by its name in the folder a sample was last
+    // loaded from (a sample library that moved); with no file of that name anywhere it stays missing, its path kept
+    {
+        const auto base = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("cs_path_test");
+        base.deleteRecursively();
+        const auto oldPlace = base.getChildFile ("old"), newPlace = base.getChildFile ("new");
+        oldPlace.createDirectory();
+        newPlace.createDirectory();
+        sample.copyFileTo (oldPlace.getChildFile ("moved.wav"));
+        sample.copyFileTo (newPlace.getChildFile ("other.wav"));
+        processor.loadSample (oldPlace.getChildFile ("moved.wav"));
+        juce::MemoryBlock saved;
+        processor.getStateInformation (saved);
+        oldPlace.getChildFile ("moved.wav").moveFileTo (newPlace.getChildFile ("moved.wav"));   // the library moved
+        processor.loadSample (newPlace.getChildFile ("other.wav"));                                // and the user loaded from there
+        processor.setStateInformation (saved.getData(), (int) saved.getSize());
+        check (processor.getSampleFile() == newPlace.getChildFile ("moved.wav") && processor.getSampleLength() > 0,
+               "a sample that moved is found by its name where a sample was last loaded from",
+               processor.getSampleFile().getFileName() + ", " + juce::String (processor.getSampleLength()) + " frames");
+        newPlace.getChildFile ("moved.wav").deleteFile();
+        processor.setStateInformation (saved.getData(), (int) saved.getSize());
+        check (processor.getSampleFile() == oldPlace.getChildFile ("moved.wav") && processor.getSampleLength() == 0,
+               "a sample found nowhere stays missing with its saved path");
+        base.deleteRecursively();
+        processor.loadSample (sample);
+        processor.resetParameters();
+        h.clear();
+    }
+
+    // --- An editor closed in the middle of a drag closes the gestures the drag opened (an open gesture would keep
+    // the history from ever closing a step)
+    {
+        struct Gestures : juce::AudioProcessorParameter::Listener
+        {
+            void parameterValueChanged (int, float) override {}
+            void parameterGestureChanged (int, bool starting) override { open += starting ? 1 : -1; }
+            int open = 0;
+        } seen;
+        for (auto* p : processor.getParameters())
+        {
+            p->addListener (&seen);
+            if (auto* rp = dynamic_cast<juce::RangedAudioParameter*> (p))
+                if (rp->getParameterID().endsWith ("EnvOn"))
+                    rp->setValueNotifyingHost (1.0f);          // an envelope's points can be dragged when it is on
+        }
+        auto editor = makeEditor();
+        pump (50);
+        int opened = 0;
+        forEach<EnvelopeDisplay> (*editor, [&] (EnvelopeDisplay& view)
+        {
+            if (opened > 0)
+                return;
+            for (int y = 2; y < view.getHeight() && seen.open == 0; y += 2)
+                for (int x = 2; x < view.getWidth() && seen.open == 0; x += 2)
+                {
+                    const juce::Point<float> at ((float) x, (float) y);
+                    const juce::MouseEvent e (juce::Desktop::getInstance().getMainMouseSource(), at, juce::ModifierKeys(), 0.0f, 0.0f,
+                                              0.0f, 0.0f, 0.0f, &view, &view, juce::Time::getCurrentTime(), at,
+                                              juce::Time::getCurrentTime(), 1, false);
+                    view.mouseDown (e);
+                }
+            opened = seen.open;
+        });
+        editor.reset();
+        pump (50);
+        check (opened > 0 && seen.open == 0, "an editor closed in mid-drag closes the drag's gestures",
+               juce::String (opened) + " opened, " + juce::String (seen.open) + " left open");
+        for (auto* p : processor.getParameters())
+            p->removeListener (&seen);
+        processor.resetParameters();
+        h.clear();
+    }
+
+    // --- A dialog left open when the editor closes is deleted with it
+    {
+        auto editor = makeEditor();
+        chan::ui::showDialog (*editor, "Test", "A dialog left open");
+        pump (50);
+        const int shown = chan::ui::numOpenDialogs();
+        editor.reset();
+        pump (100);
+        check (shown == 1 && chan::ui::numOpenDialogs() == 0, "a dialog left open is deleted with the editor",
+               juce::String (shown) + " shown, " + juce::String (chan::ui::numOpenDialogs()) + " left");
+    }
+
+    // --- Values that are not a number (a damaged state, preset or automation): the plug-in plays on, its output
+    // finite, each such value read as the parameter's default
+    {
+        processor.loadSample (sample);
+        for (auto* p : processor.getParameters())
+            if (auto* rp = dynamic_cast<juce::RangedAudioParameter*> (p))
+                if (rp->getParameterID() != id::historyStep)
+                    rp->setValueNotifyingHost (std::numeric_limits<float>::quiet_NaN());
+        processor.waitForPendingRebuilds();
+        pump (200);
+        juce::AudioBuffer<float> block (2, 512);
+        bool finite = true;
+        for (int i = 0; i < 40; ++i)
+        {
+            block.clear();
+            juce::MidiBuffer midi;
+            if (i == 0) midi.addEvent (juce::MidiMessage::noteOn (1, 60, (juce::uint8) 100), 0);
+            if (i == 20) midi.addEvent (juce::MidiMessage::noteOff (1, 60), 0);
+            processor.processBlock (block, midi);
+            for (int ch = 0; ch < 2; ++ch)
+                for (int k = 0; k < 512; ++k)
+                    finite = finite && std::isfinite (block.getSample (ch, k));
+        }
+        check (finite, "values that are not a number give a finite output");
+        processor.resetParameters();
+        processor.waitForPendingRebuilds();
+        pump (200);
+        h.clear();
+    }
+
     // --- Cut self and the two groups it sets are one step, and one undo takes all three back
     {
         pump (120);                       // the processor's timer has seen the state it starts from

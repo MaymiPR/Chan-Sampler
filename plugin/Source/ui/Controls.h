@@ -17,6 +17,7 @@ class EnvelopeDisplay : public juce::Component
 {
 public:
     EnvelopeDisplay (juce::AudioProcessorValueTreeState&, const char* prefix);
+    ~EnvelopeDisplay() override;
     void paint (juce::Graphics&) override;
 
     // As in FL, with the envelope on its points are bigger and can be dragged:
@@ -33,6 +34,7 @@ private:
     Geometry geometry() const;
     std::array<juce::Point<float>, 5> points (const Geometry&) const;
     int pointAt (juce::Point<float>) const;
+    void endDrag();   // closes the gestures a drag opened
     void set (const char* suffix, float value);
     float get (const char* suffix) const;
 
@@ -121,6 +123,9 @@ public:
     // Called after the user changes the value (drag, wheel or the menu), not
     // when the host or automation moves it.
     std::function<void()> onUserChange;
+    // Called when a drag is let go, while its gesture is still open: what it changes belongs to the drag's step.
+    std::function<void()> onDragEnding;
+    void stoppedDragging() override { if (onDragEnding != nullptr) onDragEnding(); }
 
     // FL's gestures (measured in FL): a drag moves the value by its
     // pixels (a quarter as fast with Ctrl; Shift changes nothing), a wheel

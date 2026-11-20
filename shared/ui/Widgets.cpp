@@ -106,7 +106,7 @@ namespace
         glint (g, c, Rb - 0.8f, 1.6f, colour::knobBodyFoot, juce::MathConstants<float>::pi, 1.0f);
         if (hover > 0.0f)
         {
-            g.setColour (juce::Colours::white.withAlpha (0.018f * hover));   // a touch lighter under the mouse
+            g.setColour (colour::white.withAlpha (0.018f * hover));   // a touch lighter under the mouse
             g.fillEllipse (circle (c, R));
         }
 
@@ -178,14 +178,14 @@ namespace
         g.setGradientFill (vertical (colour::bigCapTop, colour::bigCapBottom, c.y - 17.5f * k, c.y + 17.5f * k, colour::bigCapMid));
         g.fillEllipse (circle (c, 17.5f * k));
         // darker towards its sides, a light up to the right
-        g.setGradientFill (juce::ColourGradient (juce::Colours::black.withAlpha (0.0f), c, juce::Colours::black.withAlpha (0.25f),
+        g.setGradientFill (juce::ColourGradient (colour::black.withAlpha (0.0f), c, colour::black.withAlpha (0.25f),
                                                  c.translated (17.5f * k, 0.0f), true));
         g.fillEllipse (circle (c, 17.5f * k));
         spot (g, c.getPointOnCircumference (10.0f * k, juce::degreesToRadians (30.0f)), 8.0f * k, colour::bigCapLight);
         spot (g, c.getPointOnCircumference (12.0f * k, juce::degreesToRadians (210.0f)), 5.0f * k, colour::bigCapLight.withMultipliedAlpha (0.4f));
         if (open > 0.0f)
         {
-            g.setColour (juce::Colours::white.withAlpha (0.1f * open));
+            g.setColour (colour::white.withAlpha (0.1f * open));
             g.fillEllipse (circle (c, 17.5f * k));
         }
         // the value: an arc just outside the ring, as on the small knobs, and the dot on the ring
@@ -252,7 +252,7 @@ namespace
             // the shadow, on the rows below the ball only
             const juce::Graphics::ScopedSaveState below (g);
             g.reduceClipRegion (juce::Rectangle<float> (area.getX(), c.y + 7.5f, area.getWidth(), 8.0f).toNearestIntEdges());
-            spot (g, c, 13.2f, juce::Colours::black.withAlpha (0.42f));
+            spot (g, c, 13.2f, colour::black.withAlpha (0.42f));
         }
         g.setGradientFill (vertical (colour::thumbTop, colour::thumbBottom, ball.getY(), ball.getBottom(), colour::thumbMid));
         g.fillEllipse (ball);
@@ -379,13 +379,13 @@ LookAndFeel::LookAndFeel()
     setColour (juce::PopupMenu::backgroundColourId, colour::menuBg);
     setColour (juce::PopupMenu::textColourId, colour::menuText);
     setColour (juce::PopupMenu::headerTextColourId, colour::text);
-    setColour (juce::PopupMenu::highlightedBackgroundColourId, juce::Colour (0xff2e2e2e));
-    setColour (juce::PopupMenu::highlightedTextColourId, juce::Colours::white);
+    setColour (juce::PopupMenu::highlightedBackgroundColourId, colour::menuHighlight);
+    setColour (juce::PopupMenu::highlightedTextColourId, colour::white);
     setColour (juce::ComboBox::textColourId, colour::comboText);
     setColour (juce::Label::textColourId, colour::text);
     setColour (juce::TextButton::textColourOffId, colour::buttonText);
     setColour (juce::TextButton::textColourOnId, colour::arc);
-    setColour (juce::TooltipWindow::textColourId, juce::Colour (0xffebebeb));   // also the knob value popup (menu text)
+    setColour (juce::TooltipWindow::textColourId, colour::tooltipText);
     setColour (juce::Slider::rotarySliderFillColourId, colour::arc);
     setColour (juce::TextEditor::highlightColourId, colour::arc.withAlpha (0.4f));
 }
@@ -420,10 +420,6 @@ namespace
     // FL menu metrics (measured from FL screenshots at 100%).
     constexpr int menuRowH = 19, menuHeaderH = 13, knobHeaderH = 16;
     constexpr float menuEm = 10.8f, menuHeaderEm = 8.55f;
-    const juce::Colour ddBg { 0xff0e0e0e }, ddEdge { 0xff000000 }, ddHeader { 0xff222222 }, ddHeaderText { 0xff8c8c8c },
-                       ddText { 0xffffffff }, ddHighlight { 0xff383838 };
-    const juce::Colour rmBg { 0xff141414 }, rmText { 0xffebebeb }, rmHighlight { 0xff2e2e2e }, rmDisabled { 0xff6c6c6c },
-                       rmHeader { 0xff222222 }, rmHeaderText { 0xff8c8c8c }, rmSeparator { 0xff262626 };
 
     // "&Copy value" -> text without '&' and the index of the underlined letter.
     juce::String stripAccelerator (const juce::String& t, int& index)
@@ -500,17 +496,17 @@ void LookAndFeel::preparePopupMenuWindow (juce::Component& window)
 
 void LookAndFeel::drawPopupMenuBackgroundWithOptions (juce::Graphics& g, int w, int h, const juce::PopupMenu::Options& o)
 {
-    g.fillAll (isDropDown (o) ? ddBg : rmBg);
-    g.setColour (isDropDown (o) ? ddEdge : juce::Colours::black);
+    g.fillAll (isDropDown (o) ? colour::ddBg : colour::rmBg);
+    g.setColour (isDropDown (o) ? colour::ddEdge : colour::black);
     g.drawRect (0, 0, w, h);
 }
 
 void LookAndFeel::drawPopupMenuSectionHeaderWithOptions (juce::Graphics& g, const juce::Rectangle<int>& area,
                                                          const juce::String& name, const juce::PopupMenu::Options& o)
 {
-    g.setColour (isDropDown (o) ? ddHeader : rmHeader);
+    g.setColour (isDropDown (o) ? colour::ddHeader : colour::rmHeader);
     g.fillRect (area);
-    g.setColour (isDropDown (o) ? ddHeaderText : rmHeaderText);
+    g.setColour (isDropDown (o) ? colour::ddHeaderText : colour::rmHeaderText);
     g.setFont (font (menuHeaderEm));
     g.drawText (name, area.withTrimmedLeft (4), juce::Justification::centredLeft, true);
 }
@@ -555,7 +551,7 @@ int LookAndFeel::getPopupMenuColumnSeparatorWidthWithOptions (const juce::PopupM
 
 void LookAndFeel::drawPopupMenuColumnSeparatorWithOptions (juce::Graphics& g, const juce::Rectangle<int>& r, const juce::PopupMenu::Options& o)
 {
-    g.setColour (isDropDown (o) ? ddEdge : juce::Colours::black);
+    g.setColour (isDropDown (o) ? colour::ddEdge : colour::black);
     g.fillRect (r);
 }
 
@@ -567,7 +563,7 @@ void LookAndFeel::drawPopupMenuItemWithOptions (juce::Graphics& g, const juce::R
     {
         // FL: a full-width dark rule (2 px in the knob menus, 1 px in the
         // sample menu)
-        g.setColour (dd ? juce::Colours::black.withAlpha (0.4f) : rmHeader);
+        g.setColour (dd ? colour::black.withAlpha (0.4f) : colour::rmHeader);
         if (dd)                  g.fillRect (area.withHeight (1).withY (area.getCentreY()).withTrimmedLeft (2).withTrimmedRight (2));
         else if (isContext (o))  g.fillRect (area.withHeight (1).withY (area.getY() + 3));
         else                     g.fillRect (area.withHeight (2).withY (area.getCentreY() - 1));
@@ -577,15 +573,15 @@ void LookAndFeel::drawPopupMenuItemWithOptions (juce::Graphics& g, const juce::R
     const bool hl = (isHighlighted || (dd && item.isTicked)) && item.isEnabled;
     if (hl)
     {
-        g.setColour (dd ? ddHighlight : rmHighlight);
+        g.setColour (dd ? colour::ddHighlight : colour::rmHighlight);
         g.fillRect (area.reduced (1, 0));
     }
 
     int acc = -1;
     const auto text = stripAccelerator (item.text, acc);
-    auto col = dd ? ddText : rmText;
-    if (! item.isEnabled) col = rmDisabled;
-    if (hl && dd)         col = juce::Colours::white;
+    auto col = dd ? colour::ddText : colour::rmText;
+    if (! item.isEnabled) col = colour::rmDisabled;
+    if (hl && dd)         col = colour::white;
     g.setColour (col);
     if (item.isTicked && ! dd)
     {
@@ -605,7 +601,7 @@ void LookAndFeel::drawPopupMenuItemWithOptions (juce::Graphics& g, const juce::R
     // FL's shortcut text: right-aligned, italic, a little dimmer (FL capture: #A0A5A4)
     if (item.shortcutKeyDescription.isNotEmpty() && ! dd)
     {
-        g.setColour (item.isEnabled ? juce::Colour (0xffa4a4a4) : rmDisabled);
+        g.setColour (item.isEnabled ? colour::menuShortcut : colour::rmDisabled);
         g.setFont (f.italicised());
         g.drawText (item.shortcutKeyDescription, area.withTrimmedRight (14), juce::Justification::centredRight, false);
         g.setFont (f);
@@ -859,9 +855,9 @@ void LookAndFeel::drawBubble (juce::Graphics& g, juce::BubbleComponent& bubble, 
 {
     // Same look as the right-click menus: flat grey box, 1 px black edge.
     juce::ignoreUnused (bubble);
-    g.setColour (rmBg);
+    g.setColour (colour::rmBg);
     g.fillRect (body);
-    g.setColour (juce::Colours::black);
+    g.setColour (colour::black);
     g.drawRect (body, 1.0f);
 }
 
@@ -1000,7 +996,7 @@ void DigiBox::paint (juce::Graphics& g)
         g.fillRoundedRectangle (box, 4.7f);
         if (hoverAmount > 0.0f)
         {
-            g.setColour (juce::Colours::white.withAlpha (0.047f * hoverAmount));
+            g.setColour (colour::white.withAlpha (0.047f * hoverAmount));
             g.fillRoundedRectangle (box, 4.7f);
         }
     }
@@ -1268,7 +1264,7 @@ void IconButton::paintButton (juce::Graphics& g, bool highlighted, bool down)
     const auto w = b.getWidth();
     drawButton (g, getLocalBounds(), false, highlighted, down, isEnabled());   // FL: the same push button as Reset
 
-    const auto c = isEnabled() ? juce::Colour (0xffebebeb) : colour::dim;
+    const auto c = isEnabled() ? colour::menuButtonText : colour::dim;
     g.setColour (c);
     if (down)
         g.addTransform (juce::AffineTransform::translation (0.0f, 1.0f));   // FL: a pressed icon drops a pixel
@@ -1343,24 +1339,22 @@ void MenuArrow::showMenu (juce::PopupMenu& menu)
 
 namespace
 {
-    // FL's dialog colours (measured from FL's dialogs)
-    const juce::Colour dlgBg { 0xff000000 }, dlgEdge { 0xff2b2b2b }, dlgPanel { 0xff121212 }, dlgPanelEdge { 0xff2b2b2b },
-                       dlgTitle { 0xffffffff }, dlgText { 0xffebebeb }, dlgSign { 0xffa78bfa }, dlgButtonText { 0xffe4e4e4 };
+    // The dialogs' type sizes (their colours are tokens of Theme.h)
     constexpr float dlgEm = 11.25f, dlgSmallEm = 10.8f;
 
     // FL's dialog button: dark frame, lighter top edge, darkening fill
     void paintDialogButton (juce::Graphics& g, juce::Rectangle<int> button, const juce::String& label, bool hover, bool down)
     {
         const auto b = button.toFloat();
-        g.setColour (juce::Colour (0xff2b2b2b));
+        g.setColour (colour::dialogButtonFrame);
         g.fillRect (b);
-        g.setColour (juce::Colour (0xff383838));
+        g.setColour (colour::dialogButtonEdge);
         g.fillRect (b.reduced (1.0f));
         const float lift = down ? -0.06f : hover ? 0.06f : 0.0f;
-        g.setGradientFill (juce::ColourGradient (juce::Colour (0xff222222).brighter (lift), 0.0f, b.getY() + 2.0f,
-                                                 juce::Colour (0xff141414).brighter (lift), 0.0f, b.getBottom() - 1.0f, false));
+        g.setGradientFill (juce::ColourGradient (colour::dialogButtonTop.brighter (lift), 0.0f, b.getY() + 2.0f,
+                                                 colour::dialogButtonBottom.brighter (lift), 0.0f, b.getBottom() - 1.0f, false));
         g.fillRect (b.reduced (1.0f).withTrimmedTop (1.0f));
-        g.setColour (dlgButtonText);
+        g.setColour (colour::dlgButtonText);
         g.setFont (font (dlgSmallEm));
         g.drawText (label, button, juce::Justification::centred, false);
     }
@@ -1368,12 +1362,28 @@ namespace
     // What FL's dialogs share: the frame with its title and close cross, the
     // panel under the title, and closing (the dialog deletes itself once the
     // event that closed it is done).
+    int liveDialogs = 0;   // message thread only
+
     class DialogBase : public juce::Component
     {
     public:
         explicit DialogBase (const juce::String& t) : title (t)
         {
             setWantsKeyboardFocus (true);
+            ++liveDialogs;
+        }
+
+        ~DialogBase() override { --liveDialogs; }
+
+        // The window that showed the dialog owns it only as a child, and a component does not delete its children:
+        // when that window goes away with the dialog open, the dialog deletes itself.
+        void parentHierarchyChanged() override
+        {
+            if (getParentComponent() != nullptr || leaving)
+                return;
+            leaving = true;
+            juce::Component::SafePointer<DialogBase> self (this);
+            juce::MessageManager::callAsync ([self] { delete self.getComponent(); });
         }
 
     protected:
@@ -1390,29 +1400,30 @@ namespace
 
         void paintFrame (juce::Graphics& g) const
         {
-            g.fillAll (juce::Colours::black.withAlpha (0.25f));   // keeps the eye on the dialog
-            g.setColour (juce::Colours::black.withAlpha (0.35f));
+            g.fillAll (colour::black.withAlpha (0.25f));   // keeps the eye on the dialog
+            g.setColour (colour::black.withAlpha (0.35f));
             g.fillRect (box.translated (2, 3));
-            g.setColour (dlgEdge);
+            g.setColour (colour::dlgEdge);
             g.fillRect (box);
-            g.setColour (dlgBg);
+            g.setColour (colour::dlgBg);
             g.fillRect (box.reduced (1));
-            g.setColour (dlgTitle);
+            g.setColour (colour::dlgTitle);
             g.setFont (font (dlgEm));
             g.drawText (title, box.getX() + 6, box.getY(), box.getWidth() - 34, titleH, juce::Justification::centredLeft, true);
             const auto cc = closeBox.toFloat().reduced (4.5f);
-            g.setColour (closeHover ? juce::Colours::white : dlgTitle);
+            g.setColour (closeHover ? colour::white : colour::dlgTitle);
             g.drawLine (cc.getX(), cc.getY(), cc.getRight(), cc.getBottom(), 1.3f);
             g.drawLine (cc.getRight(), cc.getY(), cc.getX(), cc.getBottom(), 1.3f);
-            g.setColour (dlgPanelEdge);
+            g.setColour (colour::dlgPanelEdge);
             g.fillRect (panel);
-            g.setColour (dlgPanel);
+            g.setColour (colour::dlgPanel);
             g.fillRect (panel.reduced (1));
         }
 
         // Hides the dialog and deletes it after the current event; then runs after.
         void dismiss (std::function<void()> after = {})
         {
+            leaving = true;
             setVisible (false);
             juce::Component::SafePointer<DialogBase> self (this);
             juce::MessageManager::callAsync ([self, after]
@@ -1426,6 +1437,7 @@ namespace
         juce::String title;
         juce::Rectangle<int> box, panel, closeBox;
         bool closeHover = false;
+        bool leaving = false;   // its deletion is on its way
     };
 
     // A message (OK), or a properties sheet of label / value rows.
@@ -1447,7 +1459,7 @@ namespace
             constexpr int signW = 46;
             const int boxW = juce::jmin (380, getWidth() - 24);
             juce::AttributedString as;
-            as.append (message, font (dlgEm), dlgText);
+            as.append (message, font (dlgEm), colour::dlgText);
             as.setWordWrap (juce::AttributedString::byWord);
             text.createLayout (as, (float) (boxW - 8 - signW - 16));
             const int panelH = juce::jmax (64, (int) std::ceil (text.getHeight()) + 32);
@@ -1461,7 +1473,7 @@ namespace
             paintFrame (g);
             if (rows.empty())
             {
-                g.setColour (dlgSign);
+                g.setColour (colour::dlgSign);
                 g.setFont (font (36.0f));
                 g.drawText (warning ? "!" : "i", panel.withWidth (46).withTrimmedTop (8).withHeight (56), juce::Justification::centred, false);
                 text.draw (g, textArea);
@@ -1521,7 +1533,7 @@ namespace
                 if (label.isNotEmpty() || value.isNotEmpty())
                 {
                     juce::AttributedString as;
-                    as.append (value, font (dlgSmallEm), dlgText);
+                    as.append (value, font (dlgSmallEm), colour::dlgText);
                     as.setWordWrap (juce::AttributedString::byChar);
                     tl.createLayout (as, valueW);
                     panelH += juce::jmax (20, (int) std::ceil (tl.getHeight()) + 5);
@@ -1547,13 +1559,13 @@ namespace
                 const auto& [label, value] = rows[i];
                 if (label.isEmpty() && value.isEmpty())
                 {
-                    g.setColour (dlgPanelEdge);
+                    g.setColour (colour::dlgPanelEdge);
                     g.fillRect (x0, y + ruleH / 2, panel.getRight() - 12 - x0, 1);
                     y += ruleH;
                     continue;
                 }
                 const int h = juce::jmax (20, (int) std::ceil (layouts[i].getHeight()) + 5);
-                g.setColour (dlgSign);
+                g.setColour (colour::dlgSign);
                 g.setFont (font (dlgSmallEm));
                 g.drawText (label, x0, y, labelW - 8, 20, juce::Justification::centredLeft, true);
                 layouts[i].draw (g, juce::Rectangle<float> ((float) xv, (float) y + 2.5f, (float) (panel.getRight() - 12 - xv), (float) h));
@@ -1585,7 +1597,7 @@ namespace
             constexpr int signW = 70, choiceW = 104, choiceH = 23, gap = 4;   // FL: 31 / 6, but our window is smaller
             const int boxW = juce::jmin (546, getWidth() - 24);
             juce::AttributedString as;
-            as.append (message, font (dlgEm), dlgText);
+            as.append (message, font (dlgEm), colour::dlgText);
             as.setWordWrap (juce::AttributedString::byWord);
             text.createLayout (as, (float) (boxW - 8 - signW - 16));
             const int panelH = juce::jmax (64, (int) std::ceil (text.getHeight()) + 24);
@@ -1601,7 +1613,7 @@ namespace
         void paint (juce::Graphics& g) override
         {
             paintFrame (g);
-            g.setColour (dlgSign);
+            g.setColour (colour::dlgSign);
             g.setFont (font (57.6f));
             g.drawText ("?", panel.withWidth (70).withTrimmedTop (4).withHeight (80), juce::Justification::centred, false);
             text.draw (g, textArea);
@@ -1679,8 +1691,8 @@ namespace
             : DialogBase (t), prompt (p), onText (std::move (f))
         {
             editor.setFont (juce::FontOptions (13.0f));
-            editor.setColour (juce::TextEditor::backgroundColourId, juce::Colour (0xff141414));
-            editor.setColour (juce::TextEditor::textColourId, juce::Colours::white);
+            editor.setColour (juce::TextEditor::backgroundColourId, colour::dialogField);
+            editor.setColour (juce::TextEditor::textColourId, colour::white);
             editor.setColour (juce::TextEditor::outlineColourId, colour::arc);
             editor.setColour (juce::TextEditor::focusedOutlineColourId, colour::arc);
             editor.setJustification (juce::Justification::centred);
@@ -1714,7 +1726,7 @@ namespace
         void paint (juce::Graphics& g) override
         {
             paintFrame (g);
-            g.setColour (dlgText);
+            g.setColour (colour::dlgText);
             g.setFont (font (dlgEm));
             g.drawText (prompt, panel.withHeight (40), juce::Justification::centred, true);
             paintDialogButton (g, button, "OK", buttonHover, buttonDown);
@@ -1780,6 +1792,8 @@ namespace
         d->grabKeyboardFocus();
     }
 }
+
+int numOpenDialogs() { return liveDialogs; }
 
 void showInfo (juce::Component& owner, const juce::String& title, const InfoRows& rows)
 {

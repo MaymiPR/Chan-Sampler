@@ -23,7 +23,9 @@ namespace
     // 22.05/32/48/88.2 kHz files (nulltest/measure_src_kernel.py): an 88-tap windowed
     // sinc, k(d) = c sinc(c d) w(d), |d| < 44 input samples, c = min(1, 1/ratio),
     // w a 9-term cosine series (close to Hann). Matches FL to 1 LSB.
-    Buffer convertRate (const Buffer& in, double fromRate, double toRate)
+    bool stopped (const std::atomic<bool>* stop) { return stop != nullptr && stop->load (std::memory_order_relaxed); }
+
+    Buffer convertRate (const Buffer& in, double fromRate, double toRate, const std::atomic<bool>* stop)
     {
         const auto& a = tuning().srcWindow;
         const int half = tuning().srcHalfTaps;
@@ -52,6 +54,8 @@ namespace
             auto* y = out.getWritePointer (ch);
             for (int o = 0; o < outLen; ++o)
             {
+                if ((o & 4095) == 0 && stopped (stop))
+                    return out;
                 const double pos = o * ratio;
                 const int base = (int) std::floor (pos);
                 double sum = 0.0;
@@ -158,7 +162,7 @@ namespace
     //   B: combs 2467 2767 3217 3533 3877 4127 (0.027 each), allpasses
     //      67 97|79 (left|right) 101 197 599, output one-pole y = w + 0.7 y[-1].
     // FL then trims the tail at the last sample above 65 / 32768.
-    void reverb (Buffer& b, int type, float amount)
+    void reverb (Buffer& b, int type, float amount, const std::atomic<bool>* stop)
     {
         const auto mix = amount * 256.0f;
         if (mix <= 0.0f)
@@ -186,6 +190,8 @@ namespace
             std::fill (acc.begin(), acc.end(), 0.0);
             for (int k = 0; k < numCombs; ++k)
             {
+                if (stopped (stop))
+                    return;
                 const int D = combs[k];
                 const double g = std::pow (10.0, -3.0 * D / t60);
                 line.assign ((size_t) total, 0.0);
@@ -202,6 +208,8 @@ namespace
             const int* aps = isA ? apA : apB;
             for (int k = 0; k < (isA ? 3 : 5); ++k)
             {
+                if (stopped (stop))
+                    return;
                 const int D = aps[k];
                 line.assign ((size_t) total, 0.0);
                 for (int i = 0; i < total; ++i)
@@ -501,8 +509,11 @@ namespace
     }
 }
 
-SampleData::Ptr buildProcessedSample (const SampleSource& raw, const PrecomputeSettings& s, std::shared_ptr<const SampleSource> owner)
+SampleData::Ptr buildProcessedSample (const SampleSource& raw, const PrecomputeSettings& s, std::shared_ptr<const SampleSource> owner,
+                                      const std::atomic<bool>* stop)
 {
+    if (stopped (stop))
+        return nullptr;
     auto out = std::make_shared<SampleData>();
     out->sourceRate = raw.sampleRate;
     out->mono = raw.audio.getNumChannels() == 1;
@@ -526,7 +537,9 @@ SampleData::Ptr buildProcessedSample (const SampleSource& raw, const PrecomputeS
         b.setSize (2, n);
         for (int ch = 0; ch < 2; ++ch)
             b.copyFrom (ch, 0, raw.audio, jmin (ch, raw.audio.getNumChannels() - 1), 0, n);
-        b = convertRate (b, raw.sampleRate, s.targetRate);
+        b = convertRate (b, raw.sampleRate, s.targetRate, stop);
+        if (stopped (stop))
+            return nullptr;
         out->sourceRate = s.targetRate;
     }
     const Buffer& whole = convert ? b : raw.audio;
@@ -721,7 +734,11 @@ SampleData::Ptr buildProcessedSample (const SampleSource& raw, const PrecomputeS
     tiltEq (main, s.eq);
     ringMod (main, s.rmMix, s.rmFreq, raw.audio.getNumChannels() == 1);
     lowpass (main, s.cut, s.res);
-    reverb (main, s.reverbType, s.reverb);
+    if (stopped (stop))
+        return nullptr;
+    reverb (main, s.reverbType, s.reverb, stop);
+    if (stopped (stop))
+        return nullptr;
     stereoDelay (main, s.stereoDelay);
     pogo (main, s.pogo);
 

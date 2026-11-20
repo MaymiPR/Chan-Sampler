@@ -7,6 +7,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_audio_formats/juce_audio_formats.h>
 #include <array>
+#include <cmath>
 #include <mutex>
 #include <string_view>
 #include <unordered_map>
@@ -60,6 +61,10 @@ public:
 
     // Message thread API
     bool loadSample (const juce::File& file);
+    // Where a saved sample is now: its saved path while a file is there; otherwise a file of the same name in the
+    // user's Samples folder (Documents/Chan Sampler/Samples) or in the folder a sample was last loaded from; the
+    // saved path when there is none (the sample is then missing, its path kept).
+    static juce::File findSample (const juce::File& saved);
     bool reloadSample();   // the same file again from disk, settings kept
     // Reloads the sample once its file has changed on disk (saved from an audio
     // editor) and the change has settled; called regularly by the editor.
@@ -140,10 +145,18 @@ private:
     std::atomic<float>* rawParam (std::string_view id) const
     {
         const auto it = rawParams.find (id);
-        return it != rawParams.end() ? it->second : nullptr;
+        return it != rawParams.end() ? it->second.value : nullptr;
     }
-    float param (const char* id) const { return rawParam (id)->load(); }
-    float param (const juce::String& id) const { return rawParam (id.toRawUTF8())->load(); }
+    // A parameter's value; one that is not a number (a damaged state, preset or automation) reads as its default,
+    // so that nothing downstream indexes a table or sizes a buffer with it.
+    float param (std::string_view id) const
+    {
+        const auto& entry = rawParams.find (id)->second;
+        const float v = entry.value->load();
+        return std::isfinite (v) ? v : entry.fallback;
+    }
+    float param (const char* id) const { return param (std::string_view (id)); }
+    float param (const juce::String& id) const { return param (std::string_view (id.toRawUTF8())); }
 
     // Rebuilds the precomputed sample off the message thread whenever a
     // precomputed setting changes, so the waveform follows knobs live.
@@ -170,7 +183,8 @@ private:
         ChanSamplerProcessor& owner;
     };
 
-    std::unordered_map<std::string_view, std::atomic<float>*> rawParams;   // views of the parameters' own IDs
+    struct RawParam { std::atomic<float>* value = nullptr; float fallback = 0.0f; };   // fallback: the default
+    std::unordered_map<std::string_view, RawParam> rawParams;   // views of the parameters' own IDs
     juce::AudioFormatManager formatManager;
     std::shared_ptr<const RawSample> raw = std::make_shared<RawSample>();
     // Rebuilds run one at a time; one with the same file and settings as the
@@ -184,6 +198,7 @@ private:
     const uint32_t instanceId = cutgroups::newInstanceId();
     cutgroups::Reader cutReader { instanceId };
     const int instanceNumber = cutgroups::claimNumber();   // FL's channel number for Cut self
+    std::atomic<bool> stopRebuild { false };              // set when the processor goes away: a build in progress gives up
     std::atomic<int> lastCutSelf { -1 };                  // to see Cut self being switched (timer)
     std::vector<int> cutOffsets;                          // this block's cuts by other instances
     std::vector<dsp::MidiEvent> midiEvents;               // this block's MIDI for the engine (reserved)

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### New
+
+- **A sample that moved:** when a project's or a preset's sample is not at its saved path, Chan Sampler looks for a
+  file of the same name in `Documents/Chan Sampler/Samples` and in the folder a sample was last loaded from, and
+  loads it from there. Found nowhere, the sample is shown as missing with its saved path, as before.
+
 ### Improved
 
 - **Vendor name:** hosts list the plug-in under the vendor "Chan Sampler" (it was "ChanSampler"). FL Studio and other
@@ -25,19 +31,27 @@
 - **Audio thread:** a block with MIDI no longer allocates and frees memory, the interpolation tables are built when
   playback is prepared and not by the first note, and a setting automated by the host only sets a flag there (the
   rebuild and the host's undo step follow from the plug-in's timer).
-- **Removing the plug-in during a rebuild:** the rebuild is waited for; its thread is never ended by force.
+- **Removing the plug-in during a rebuild:** the rebuild is waited for; its thread is never ended by force. The
+  rebuild gives up as soon as it is told, so the wait is short even in the middle of a long sample's reverb.
 - **Ctrl+C and Ctrl+V:** with no sample to copy or no audio to paste the keys go on to the host; they were taken
   and did nothing.
 - **Undo of a knob menu's edit:** an envelope that Reset, Paste value or Type in value switched on is switched off
   again by the same undo (standalone app).
+- **Damaged values:** a setting whose value is not a number (from a damaged project, preset or automation) is read
+  as its default. Before, the next note could crash the plug-in.
 - **Damaged files:** an `.fst` preset whose data claims an impossible length is refused (it could crash the import),
   and a WAV whose marker chunks claim more entries than the file holds stops at the file's end.
+- **PITCH:** a drag of PITCH and the switch from Resample to Auto it causes are one undo step (they were two;
+  standalone app).
 - **Cut self:** switching it and the two cut groups it sets are one undo step (they were three), and one undo
   takes all three back (standalone app).
 - **Loop markers:** dragging a loop marker in the sample view no longer opens a second edit of loop END inside
   the drag's own, which a host could record as a broken edit.
 - **Arpeggiator:** when a host switches the arpeggiator off and on again while keys are held, it goes on from
   the next step of its grid. Before, every step missed in between played at once, as one very loud block.
+- **Closing the window in the middle of a drag:** the edit the drag began is ended. It stayed open, and the
+  standalone app's undo then recorded nothing until it was restarted.
+- **Closing the window with a dialog open:** the dialog is released with the window; it stayed in memory.
 - **Closing the window right after a menu choice:** the menu's action is dropped; it could run on a closed window.
 
 ## 1.7.1 (2026-11-04)

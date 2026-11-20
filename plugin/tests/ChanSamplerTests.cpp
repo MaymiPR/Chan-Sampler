@@ -3,6 +3,7 @@
 
 #include <juce_audio_basics/juce_audio_basics.h>
 #include <juce_dsp/juce_dsp.h>
+#include <atomic>
 #include <iostream>
 
 #include "dsp/SampleData.h"
@@ -214,6 +215,25 @@ int main()
         p.volT.env.release = 0.05f;
         auto v = render (*oneSec, p, sec, { { 0, on (60) }, { 4800, off (60) } });
         check (rms (v, sec / 2, sec / 2 + 4800) < 1.0e-4f, "env on: release silences note");
+    }
+
+    // The precompute told to stop (the plug-in is being removed) gives up and returns nothing, in whichever stage
+    // it is; told nothing, it gives the same sample as without the flag.
+    {
+        auto settings = plain;
+        settings.targetRate = 44100.0;      // a rate conversion
+        settings.reverb = 0.5f;             // and a reverb, the two long stages
+        const auto source = sine (20.0);
+        std::atomic<bool> stop { true };
+        check (dsp::buildProcessedSample (source, settings, {}, &stop) == nullptr, "a precompute told to stop returns nothing");
+        stop = false;
+        const auto withFlag = dsp::buildProcessedSample (source, settings, {}, &stop);
+        const auto without = dsp::buildProcessedSample (source, settings);
+        bool same = withFlag != nullptr && without != nullptr && withFlag->audio.getNumSamples() == without->audio.getNumSamples();
+        for (int ch = 0; same && ch < 2; ++ch)
+            for (int i = 0; same && i < without->audio.getNumSamples(); ++i)
+                same = withFlag->audio.getSample (ch, i) == without->audio.getSample (ch, i);
+        check (same, "a precompute not told to stop gives the same sample");
     }
 
     // The arpeggiator switched off and on again while keys are held (host automation): it goes on from the next

@@ -134,6 +134,18 @@ void EnvelopeDisplay::mouseDrag (const juce::MouseEvent& e)
 
 void EnvelopeDisplay::mouseUp (const juce::MouseEvent&)
 {
+    endDrag();
+}
+
+// A view that goes away in the middle of a drag (the editor closed) must not leave its gestures open: the host
+// would wait for their end, and the history would never close a step again.
+EnvelopeDisplay::~EnvelopeDisplay()
+{
+    endDrag();
+}
+
+void EnvelopeDisplay::endDrag()
+{
     if (dragging < 0)
         return;
     static const char* ids[] = { "Del", "Att", "Hold", "Dec", "Rel" };
@@ -697,12 +709,12 @@ namespace
             : title ("Value for " + name), modes (std::move (m)), current (position)
         {
             field.setFont (chan::ui::font (15.0f));
-            field.setColour (juce::TextEditor::backgroundColourId, juce::Colours::transparentBlack);
-            field.setColour (juce::TextEditor::outlineColourId, juce::Colours::transparentBlack);
-            field.setColour (juce::TextEditor::focusedOutlineColourId, juce::Colours::transparentBlack);
+            field.setColour (juce::TextEditor::backgroundColourId, chan::ui::colour::clear);
+            field.setColour (juce::TextEditor::outlineColourId, chan::ui::colour::clear);
+            field.setColour (juce::TextEditor::focusedOutlineColourId, chan::ui::colour::clear);
             field.setColour (juce::TextEditor::textColourId, chan::ui::colour::title);
             field.setColour (juce::TextEditor::highlightColourId, chan::ui::colour::accent.withAlpha (0.45f));
-            field.setColour (juce::TextEditor::highlightedTextColourId, juce::Colours::white);
+            field.setColour (juce::TextEditor::highlightedTextColourId, chan::ui::colour::white);
             field.setIndents (2, 3);
             field.setText (modes.front().text (position), false);
             field.onReturnKey = [this] { if (onDone) onDone (true); };

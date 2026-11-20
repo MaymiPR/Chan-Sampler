@@ -23,6 +23,7 @@ WaveformView::WaveformView (ChanSamplerProcessor& p) : processor (p)
 
 WaveformView::~WaveformView()
 {
+    endMarkerDrag();      // closed in mid-drag: no gesture stays open
     ++renderGeneration;   // a running render stops at its next check
     renderPool.removeAllJobs (true, 10000);
 }
@@ -548,12 +549,12 @@ void WaveformView::paint (juce::Graphics& g)
     const auto sx = fracToX (getValue (id::startOffset));
     // FL's loop colours (sampled): START line / tab / label pure red, END a
     // darker red, the region a dark red tint. Grey versions when not looping.
-    const auto startCol = looping ? juce::Colour (0xffa78bfa) : juce::Colour (0xff7c7c7c);
-    const auto endCol   = looping ? juce::Colour (0xff6d4fd6) : juce::Colour (0xff4c4c4c);
+    const auto startCol = looping ? chan::ui::colour::loopStart : chan::ui::colour::loopStartOff;
+    const auto endCol   = looping ? chan::ui::colour::loopEnd : chan::ui::colour::loopEndOff;
 
     if (loopShown)
     {
-        g.setColour (looping ? juce::Colour (0xff1a1030) : juce::Colour (0xff1a1a1a));
+        g.setColour (looping ? chan::ui::colour::loopRegion : chan::ui::colour::loopRegionOff);
         g.fillRect (juce::Rectangle<float>::leftTopRightBottom (ls, wave.getY(), juce::jmax (ls + 1.0f, le), wave.getBottom()));
     }
     drawGrid();
@@ -593,7 +594,7 @@ void WaveformView::paint (juce::Graphics& g)
     // hanging from the top of the view (FL's look, measured).
     if (! sample->fileMarkers.empty())
     {
-        g.setColour (juce::Colour (0xffebebeb));
+        g.setColour (chan::ui::colour::fileMarker);
         for (auto m : sample->fileMarkers)
         {
             const auto x = std::floor (fracToX ((float) m / (float) sample->getTotalFrames()));
@@ -610,7 +611,7 @@ void WaveformView::paint (juce::Graphics& g)
     // one notch for mono, two for stereo (measured with 16 / 24 / 32-bit files).
     {
         const auto iconR = juce::Rectangle<float> (wave.getRight() - 15.0f, wave.getBottom() - 13.0f, 9.0f, 9.0f);
-        g.setColour (juce::Colour (0xffdfe5e8));
+        g.setColour (chan::ui::colour::channelIcon);
         g.drawRect (iconR.withTrimmedTop (1.0f), 1.0f);
         if (sample->mono)
             g.fillRect (iconR.getCentreX() - 1.0f, iconR.getY() - 1.0f, 2.0f, 2.0f);
@@ -625,7 +626,7 @@ void WaveformView::paint (juce::Graphics& g)
     }
     if (startShown)
     {
-        g.setColour (juce::Colours::black.withAlpha (0.6f));   // FL darkens the part before Start
+        g.setColour (chan::ui::colour::black.withAlpha (0.6f));   // FL darkens the part before Start
         g.fillRect (juce::Rectangle<float>::leftTopRightBottom (wave.getX(), wave.getY(), juce::jmax (wave.getX(), sx), wave.getBottom()));
 
         // Start flag (gold, top)
@@ -675,7 +676,7 @@ void WaveformView::paint (juce::Graphics& g)
         const auto px = std::floor (fracToX (playhead));
         if (px >= wave.getX() && px <= wave.getRight())
         {
-            const juce::Colour line (0xffa78bfa);
+            const auto line = chan::ui::colour::playLine;
             float alpha = 0.351f;
             for (int k = 1; k <= 11; ++k, alpha *= 0.71f)
             {
@@ -710,7 +711,7 @@ void WaveformView::paint (juce::Graphics& g)
         const auto t1 = std::ceil (inner.getX() + viewEnd * inner.getWidth());
         for (int row = 0; row < (int) inner.getHeight(); ++row)
         {
-            g.setColour (row % 2 == 0 ? juce::Colour (0xff080808) : juce::Colour (0xff0c0c0c));
+            g.setColour (row % 2 == 0 ? chan::ui::colour::scrollRowEven : chan::ui::colour::scrollRowOdd);
             g.fillRect (juce::Rectangle<float>::leftTopRightBottom (inner.getX(), inner.getY() + (float) row, t0, inner.getY() + (float) row + 1.0f));
             g.fillRect (juce::Rectangle<float>::leftTopRightBottom (t1, inner.getY() + (float) row, inner.getRight(), inner.getY() + (float) row + 1.0f));
         }
@@ -880,16 +881,21 @@ void WaveformView::mouseDrag (const juce::MouseEvent& e)
 void WaveformView::mouseUp (const juce::MouseEvent&)
 {
     lastPressMs = juce::Time::getMillisecondCounterHiRes();   // no zoom from scroll right after a click
-    if (dragging != Marker::none && dragging != Marker::scrollThumb)
-        for (auto id : { id::startOffset, id::loopStart, id::loopEnd })
-            processor.apvts.getParameter (id)->endChangeGesture();
-    dragging = Marker::none;
+    endMarkerDrag();
 
     if (previewNote >= 0)
     {
         processor.requestPreview (previewNote, false);
         previewNote = -1;
     }
+}
+
+void WaveformView::endMarkerDrag()
+{
+    if (dragging != Marker::none && dragging != Marker::scrollThumb)
+        for (auto id : { id::startOffset, id::loopStart, id::loopEnd })
+            processor.apvts.getParameter (id)->endChangeGesture();
+    dragging = Marker::none;
 }
 
 //==============================================================================
@@ -1359,8 +1365,8 @@ namespace
                                               { 227, 152, 66 }, { 242, 208, 66 }, { 253, 250, 66 }, { 255, 255, 104 }, { 255, 255, 166 },
                                               { 255, 255, 214 }, { 255, 255, 255 } };
         constexpr int n = (int) std::size (at);
-        if (db <= at[0])     return juce::Colours::black;
-        if (db >= at[n - 1]) return juce::Colours::white;
+        if (db <= at[0])     return chan::ui::colour::black;
+        if (db >= at[n - 1]) return chan::ui::colour::white;
         int i = 0;
         while (db > at[i + 1]) ++i;
         const auto u = (db - at[i]) / (at[i + 1] - at[i]);
