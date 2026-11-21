@@ -314,6 +314,41 @@ int main (int argc, char** argv)
                "Ctrl+C with no sample goes on to the host");
     }
 
+    // --- Undo of a sample change brings the sample back with the values the user had, not the ones its file sets
+    // (a WAV that carries its own root note, which the user had changed)
+    {
+        juce::MemoryOutputStream wav;
+        const int frames = 2000;
+        wav.write ("RIFF", 4);  wav.writeInt (4 + 24 + 44 + 8 + frames * 2);  wav.write ("WAVE", 4);
+        wav.write ("fmt ", 4);  wav.writeInt (16);  wav.writeShort (1);  wav.writeShort (1);  wav.writeInt (44100);
+        wav.writeInt (88200);   wav.writeShort (2);  wav.writeShort (16);
+        wav.write ("smpl", 4);  wav.writeInt (36);
+        for (int v : { 0, 0, 22675, 48, 0, 0, 0, 0, 0 })      // the fourth field is the file's root note: 48
+            wav.writeInt (v);
+        wav.write ("data", 4);  wav.writeInt (frames * 2);
+        for (int i = 0; i < frames; ++i)
+            wav.writeShort ((short) (8000.0 * std::sin (i * 0.05)));
+        const auto withRoot = juce::File::createTempFile (".wav");
+        withRoot.replaceWithData (wav.getData(), wav.getDataSize());
+
+        processor.resetParameters();
+        auto* root = paramOf (processor, id::rootNote);
+        processor.loadSample (withRoot);
+        const auto fileRoot = juce::roundToInt (root->convertFrom0to1 (root->getValue()));
+        gesture (*root, { root->convertTo0to1 (60.0f) });      // the user's own root note
+        h.clear();
+        processor.loadSample (sample);                         // another sample: one step
+        h.undo();
+        const auto back = juce::roundToInt (root->convertFrom0to1 (root->getValue()));
+        check (fileRoot == 48 && processor.getSampleFile() == withRoot && back == 60,
+               "undo of a sample change keeps the root note the user had set",
+               "the file's " + juce::String (fileRoot) + ", after undo " + juce::String (back));
+        processor.loadSample (sample);
+        withRoot.deleteFile();
+        processor.resetParameters();
+        h.clear();
+    }
+
     // --- A PITCH drag away from 0 switches Resample to Auto when it is let go: the drag and the switch are one step
     {
         processor.resetParameters();

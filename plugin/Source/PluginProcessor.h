@@ -61,6 +61,7 @@ public:
 
     // Message thread API
     bool loadSample (const juce::File& file);
+    void restoreSample (const juce::File& file);   // the history's: the sample without its file's own values
     // Where a saved sample is now: its saved path while a file is there; otherwise a file of the same name in the
     // user's Samples folder (Documents/Chan Sampler/Samples) or in the folder a sample was last loaded from; the
     // saved path when there is none (the sample is then missing, its path kept).
