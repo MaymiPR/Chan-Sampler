@@ -488,6 +488,49 @@ int main (int argc, char** argv)
         h.clear();
     }
 
+    // --- The sample view reads the audio only of the columns it is asked to paint (the strip around the play bar
+    // while a note plays), and paints them as a whole repaint does
+    {
+        processor.resetParameters();
+        processor.loadSample (sample);
+        processor.waitForPendingRebuilds();
+        auto editor = makeEditor();
+        pump (100);
+        WaveformView* view = nullptr;
+        forEach<WaveformView> (*editor, [&] (WaveformView& v) { view = &v; });
+        check (view != nullptr, "the sample view");
+        if (view != nullptr)
+            for (const float zoom : { 1.0f, 0.1f })      // the whole sample (a filled shape), a tenth of it (a line)
+            {
+                view->setView (0.0f, zoom);
+                const int w = view->getWidth(), height = view->getHeight();
+                juce::Image whole (juce::Image::ARGB, w, height, true), part (juce::Image::ARGB, w, height, true);
+                view->takeColumnsScanned();
+                {
+                    juce::Graphics g (whole);
+                    view->paint (g);
+                }
+                const int all = view->takeColumnsScanned();
+                const juce::Rectangle<int> strip (w / 2, 0, 25, height);
+                {
+                    juce::Graphics g (part);
+                    g.reduceClipRegion (strip);
+                    view->paint (g);
+                }
+                const int some = view->takeColumnsScanned();
+                int differing = 0;
+                for (int y = 0; y < height; ++y)
+                    for (int x = strip.getX(); x < strip.getRight(); ++x)
+                        differing += whole.getPixelAt (x, y) != part.getPixelAt (x, y) ? 1 : 0;
+                check (all > 0 && some * 4 < all && differing == 0,
+                       "a strip of the sample view reads only its own columns, zoom " + juce::String (zoom),
+                       juce::String (some) + " of " + juce::String (all) + " columns, " + juce::String (differing) + " pixels differ");
+            }
+        editor.reset();
+        processor.resetParameters();
+        h.clear();
+    }
+
     // --- A project whose sample is no longer at its saved path finds it by its name in the folder a sample was last
     // loaded from (a sample library that moved); with no file of that name anywhere it stays missing, its path kept
     {

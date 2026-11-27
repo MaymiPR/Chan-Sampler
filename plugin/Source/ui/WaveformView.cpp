@@ -269,14 +269,32 @@ void WaveformView::timerCallback()
     const float now[4] = { getValue (id::startOffset), getValue (id::loopStart),
                            getValue (id::loopEnd), getValue (id::useLoop) + (sample != nullptr && sample->autoLoop ? 2.0f : 0.0f) };
     const auto ph = processor.getPlayhead();
-    if (std::memcmp (now, lastMarkers, sizeof (now)) != 0 || ph != playhead)
+    const bool markersMoved = std::memcmp (now, lastMarkers, sizeof (now)) != 0;
+    if (markersMoved || ph != playhead)
     {
         std::memcpy (lastMarkers, now, sizeof (now));
         if (ph >= 0.0f && playhead >= 0.0f && ph != playhead)
             playDirection = ph > playhead ? 1.0f : -1.0f;
+        // The play bar alone moving (a note playing, up to 60 times a second) repaints where it was and where
+        // it is, not the whole view
+        repaintPlayBar (playhead);
         playhead = ph;
-        repaint();
+        repaintPlayBar (playhead);
+        if (markersMoved)
+            repaint();
     }
+}
+
+// The play bar's two places: its line and 11 px trail in the wave (on either side: the direction may have
+// turned), and its 2 px mark in the overview.
+void WaveformView::repaintPlayBar (float at)
+{
+    if (at < 0.0f)
+        return;
+    const auto wave = waveArea();
+    repaint (juce::Rectangle<float> (std::floor (fracToX (at)) - 12.0f, wave.getY(), 25.0f, wave.getHeight()).getSmallestIntegerContainer());
+    const auto inner = scrollArea().withTrimmedTop (2.0f).withTrimmedBottom (1.0f).reduced (buttonW, 0.0f);
+    repaint (juce::Rectangle<float> (inner.getX() + at * inner.getWidth() - 2.0f, inner.getY(), 4.0f, inner.getHeight()).getSmallestIntegerContainer());
 }
 
 // FL's sample view colours live with the other tokens in Widgets.h.
@@ -303,6 +321,12 @@ void WaveformView::drawLanes (juce::Graphics& g, juce::Rectangle<float> area, fl
     if (total <= 0 || width <= 0)
         return;
     const auto framesPerColumn = (double) (to - from) * total / area.getWidth();
+    // Only the columns inside what is being painted, and a few around them so that the shape's edge there is
+    // the one a whole repaint draws: a strip around the play bar costs a strip.
+    const auto clip = g.getClipBounds().toFloat();
+    constexpr int around = 8;
+    const int firstColumn = juce::jlimit (0, width, (int) std::floor ((clip.getX() - area.getX()) * scale) - around);
+    const int lastColumn = juce::jlimit (firstColumn, width, (int) std::ceil ((clip.getRight() - area.getX()) * scale) + around);
     const int chL = laneChannel >= 0 ? laneChannel : 0, chR = laneChannel >= 0 ? laneChannel : juce::jmin (1, sample->audio.getNumChannels() - 1);
     const auto* l0 = sample->audio.getReadPointer (chL);
     const auto* r0 = sample->audio.getReadPointer (chR);
@@ -336,12 +360,13 @@ void WaveformView::drawLanes (juce::Graphics& g, juce::Rectangle<float> area, fl
             lastI = i;
             lastV = v;
         };
-        for (int x = 0; x < width; ++x)
+        for (int x = firstColumn; x < lastColumn; ++x)
         {
             const auto f0 = from + (to - from) * (float) x / (float) width;
             const auto f1 = from + (to - from) * (float) (x + 1) / (float) width;
             if (f0 >= 1.0f)
                 break;
+            ++columnsScanned;
             const int i0 = juce::jlimit (0, total - 1, (int) std::floor (f0 * (float) total));
             const int i1 = juce::jlimit (i0 + 1, total, (int) std::floor (f1 * (float) total));
             int iLo = i0, iHi = i0;
@@ -369,12 +394,13 @@ void WaveformView::drawLanes (juce::Graphics& g, juce::Rectangle<float> area, fl
     std::vector<juce::Point<float>> upper, lower;
     upper.reserve ((size_t) width);
     lower.reserve ((size_t) width);
-    for (int x = 0; x < width; ++x)
+    for (int x = firstColumn; x < lastColumn; ++x)
     {
         const auto f0 = from + (to - from) * (float) x / (float) width;
         const auto f1 = from + (to - from) * (float) (x + 1) / (float) width;
         if (f0 >= 1.0f)
             break;
+        ++columnsScanned;
         float lo = 0, hi = 0;
         if (framesPerColumn <= 8192.0)
         {
@@ -1403,11 +1429,13 @@ void WaveformView::drawSpectrum (juce::Graphics& g, juce::Rectangle<float> area)
 {
     const auto scale = juce::jmax (1.0f, g.getInternalContext().getPhysicalPixelScaleFactor());
     const int w = juce::jmax (1, (int) std::ceil (area.getWidth() * scale)), h = juce::jmax (2, (int) std::ceil (area.getHeight() * scale));
-    const auto key = juce::String::toHexString ((juce::pointer_sized_int) sample.get()) + " " + juce::String (viewStart) + " " + juce::String (viewEnd)
-                   + " " + juce::String (w) + "x" + juce::String (h);
-    if (key != spectrumKey)
+    const auto key = juce::String (viewStart) + " " + juce::String (viewEnd) + " " + juce::String (w) + "x" + juce::String (h);
+    // The image is this sample's: told by the sample itself, since a later sample may sit at a freed one's address
+    const bool sameSample = ! spectrumOf.owner_before (sample) && ! sample.owner_before (spectrumOf) && ! spectrumOf.expired();
+    if (key != spectrumKey || ! sameSample)
     {
         spectrumKey = key;
+        spectrumOf = sample;
         spectrumImage = juce::Image (juce::Image::RGB, w, h, true, juce::SoftwareImageType());   // filled from several threads
         const int total = sample->getTotalFrames();
         const auto* l = sample->audio.getReadPointer (0);

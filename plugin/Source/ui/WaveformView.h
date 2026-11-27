@@ -36,6 +36,8 @@ public:
     // Shows frac0..frac1 of the sample (tests / snapshots).
     void setView (float frac0, float frac1) { viewStart = frac0; viewEnd = frac1; repaint(); }
     void showPropertiesForTesting() { showProperties(); }
+    // The pixel columns whose audio the wave drawing has read since the last call (tests)
+    int takeColumnsScanned() const { return std::exchange (columnsScanned, 0); }
 
     // FL's Detect tempo: the Tempo detection dialog; the chosen tempo becomes
     // the sample's (0 = no tempo) and is passed to done (TIME > Autodetect).
@@ -81,6 +83,7 @@ private:
     void showMenu();
     void copySample();
     void pasteSample();
+    void repaintPlayBar (float at);
     // The Tempo detection dialog for this sample, once its estimate (or the tempo it has: isCurrent) is known
     void showTempoChoices (std::shared_ptr<const RawSample> raw, double estimate, bool isCurrent, std::function<void (double)> done);
     void saveAs();
@@ -90,7 +93,9 @@ private:
 
     juce::Image spectrumImage;
     juce::String spectrumKey;
+    std::weak_ptr<dsp::SampleData> spectrumOf;   // the sample spectrumImage shows
     int laneChannel = -1;   // drawLanes: one channel only (multichannel view), -1 both
+    mutable int columnsScanned = 0;
     std::unique_ptr<juce::FileChooser> chooser;
 
     ChanSamplerProcessor& processor;

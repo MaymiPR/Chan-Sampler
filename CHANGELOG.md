@@ -10,6 +10,8 @@
 
 ### Improved
 
+- **Sample view:** while a note plays, only the strip around the play bar is redrawn, and the wave is read only
+  where it is drawn. The editor uses less of the processor while playing; the picture is the same.
 - **Long samples:** a file opened, dropped, pasted or reloaded in the editor is read in the background, and so
   is tempo detection, so a long file no longer holds the host's window while it loads. The sample changes when
   it is ready.
