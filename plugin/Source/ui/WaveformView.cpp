@@ -1009,7 +1009,7 @@ void WaveformView::showTempoChoices (std::shared_ptr<const RawSample> raw, doubl
         {
             if (safe == nullptr)
                 return;
-            safe->processor.setSampleTempo (bpm);
+            safe->processor.editSampleTempo (bpm);
             if (done != nullptr)
                 done (bpm);
         };

@@ -378,6 +378,17 @@ int main (int argc, char** argv)
             const bool isAuto = juce::roundToInt (mode->convertFrom0to1 (mode->getValue())) == (int) dsp::StretchMode::autoMode;
             check (moved && isAuto && h.getNumUndoSteps() == 1, "a PITCH drag and the switch to Auto it causes are one step",
                    juce::String (h.getNumUndoSteps()) + " steps, moved " + juce::String ((int) moved) + ", Auto " + juce::String ((int) isAuto));
+
+            // The same from the knob's menu (a preset, Paste value, Type in value)
+            processor.resetParameters();
+            mode->setValueNotifyingHost (mode->convertTo0to1 ((float) dsp::StretchMode::resample));
+            pump (50);
+            h.clear();
+            knob->menu.setPosition (0.75f);
+            pump (50);
+            const bool menuAuto = juce::roundToInt (mode->convertFrom0to1 (mode->getValue())) == (int) dsp::StretchMode::autoMode;
+            check (menuAuto && h.getNumUndoSteps() == 1, "a PITCH value from the knob's menu and the switch to Auto are one step",
+                   juce::String (h.getNumUndoSteps()) + " steps, Auto " + juce::String ((int) menuAuto));
         }
         editor.reset();
         processor.resetParameters();
@@ -439,6 +450,40 @@ int main (int argc, char** argv)
         check (reports == 1 && processor.getSampleFile() == second, "of two files asked for, the later one is the sample", juce::String (reports));
         processor.loadSample (sample);
         second.deleteFile();
+        processor.resetParameters();
+        h.clear();
+    }
+
+    // --- The sample's tempo belongs to the steps: undo of a sample change brings the old sample's tempo back
+    {
+        const auto other = juce::File::createTempFile (".wav");
+        sample.copyFileTo (other);
+        processor.resetParameters();
+        processor.loadSample (sample);
+        processor.setSampleTempo (120.0);
+        h.clear();
+        processor.loadSample (other);            // a file with no tempo of its own
+        const auto afterLoad = processor.getSampleTempo();
+        h.undo();
+        const auto afterUndo = processor.getSampleTempo();
+        h.redo();
+        check (afterLoad == 0.0 && afterUndo == 120.0 && processor.getSampleTempo() == 0.0, "undo of a sample change brings the sample's tempo back",
+               "after undo " + juce::String (afterUndo) + ", after redo " + juce::String (processor.getSampleTempo()));
+        processor.loadSample (sample);
+        other.deleteFile();
+
+        // The user's own change of the tempo (Detect tempo) is a step
+        processor.setSampleTempo (0.0);
+        h.clear();
+        processor.editSampleTempo (140.0);
+        const int steps = h.getNumUndoSteps();
+        const auto stepName = h.getUndoName();
+        h.undo();
+        const auto undone = processor.getSampleTempo();
+        h.redo();
+        check (steps == 1 && stepName == "Sample tempo" && undone == 0.0 && processor.getSampleTempo() == 140.0, "a change of the sample's tempo is one step",
+               juce::String (steps) + " steps, " + stepName + ", undone " + juce::String (undone));
+        processor.setSampleTempo (0.0);
         processor.resetParameters();
         h.clear();
     }

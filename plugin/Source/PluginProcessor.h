@@ -87,6 +87,8 @@ public:
     // The sample's tempo (FL's Detect tempo, or a WAV's ACID tempo); 0 = none.
     double getSampleTempo() const { return (double) apvts.state.getProperty ("sampleTempo", 0.0); }
     void setSampleTempo (double bpm) { apvts.state.setProperty ("sampleTempo", juce::jmax (0.0, bpm), nullptr); }
+    // The user's change of it (Detect tempo): one step of the history, and the host is told the state changed.
+    void editSampleTempo (double bpm);
     // The file's audio (before precomputed effects) as a WAV file in memory.
     juce::MemoryBlock getSampleAsWav() const;
     juce::String getLoadError() const { return loadError; }   // why the last loadSample failed

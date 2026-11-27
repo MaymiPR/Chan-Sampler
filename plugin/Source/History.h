@@ -28,7 +28,7 @@ private:
 
 // Undo / redo of the user's edits, in one place: parameter changes (knobs,
 // sliders, switches, lists, the menus), the sample loaded, replaced or
-// removed, and the preset name shown with them. As in FL Studio, a drag is one step (recorded when the gesture
+// removed, the sample's tempo, and the preset name shown with them. As in FL Studio, a drag is one step (recorded when the gesture
 // ends), an edit that changes nothing records nothing, and a new edit after an
 // undo drops the redo steps.
 //
@@ -58,8 +58,12 @@ public:
     // The preset's name shown (none = no preset).
     using NameGetter = std::function<juce::String()>;
     using NameSetter = std::function<void (const juce::String&)>;
+    // The sample's tempo (0 = none): it comes with the sample and Detect tempo changes it.
+    using TempoGetter = std::function<double()>;
+    using TempoSetter = std::function<void (double)>;
 
-    History (juce::AudioProcessor&, SampleGetter, SampleSetter, NameGetter, NameSetter, HistoryStepParameter*, bool followsHost);
+    History (juce::AudioProcessor&, SampleGetter, SampleSetter, NameGetter, NameSetter, TempoGetter, TempoSetter,
+             HistoryStepParameter*, bool followsHost);
     ~History() override;
 
     static constexpr int maxSteps = 100;
@@ -123,6 +127,7 @@ private:
         std::vector<float> values;   // normalised, by parameter index
         juce::File sample;
         juce::String presetName;
+        double tempo = 0.0;
     };
     struct Change { int index; float before, after; };
     struct Step
@@ -133,6 +138,8 @@ private:
         juce::File sampleBefore, sampleAfter;
         bool nameChanged = false;
         juce::String nameBefore, nameAfter;
+        bool tempoChanged = false;
+        double tempoBefore = 0.0, tempoAfter = 0.0;
         int stepBefore = 0, stepAfter = 0;   // the step parameter's values around it (in a host)
     };
 
@@ -153,6 +160,8 @@ private:
     SampleSetter setSample;
     NameGetter getName;
     NameSetter setName;
+    TempoGetter getTempo;
+    TempoSetter setTempo;
     HistoryStepParameter* stepParam;
     const bool hostHistory;
     int stepIndex = -1;          // the step parameter's index (left out of the snapshots)

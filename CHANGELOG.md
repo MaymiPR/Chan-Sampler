@@ -46,6 +46,11 @@
   and a WAV whose marker chunks claim more entries than the file holds stops at the file's end.
 - **Undo of a sample change:** the sample comes back with the settings you had, where it came back with the root
   note and the loop points its file carries (standalone app).
+- **Sample tempo:** the sample's tempo belongs to undo and redo (standalone app): undo of a sample change brings
+  the old sample's tempo back, and a tempo set with Detect tempo is a step of its own. The project is marked
+  as changed when the tempo changes.
+- **Knob menus:** a value set from a knob's menu and what follows it (the linked loop END, PITCH switching
+  Resample to Auto) are one undo step.
 - **PITCH:** a drag of PITCH and the switch from Resample to Auto it causes are one undo step (they were two;
   standalone app).
 - **Cut self:** switching it and the two cut groups it sets are one undo step (they were three), and one undo

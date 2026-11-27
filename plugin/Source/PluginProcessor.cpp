@@ -12,6 +12,8 @@ ChanSamplerProcessor::ChanSamplerProcessor()
                [this] (const juce::File& f) { restoreSample (f); },
                [this] { return apvts.state.getProperty ("presetName", "").toString(); },
                [this] (const juce::String& name) { apvts.state.setProperty ("presetName", name, nullptr); },
+               [this] { return getSampleTempo(); },
+               [this] (double bpm) { setSampleTempo (bpm); },
                dynamic_cast<HistoryStepParameter*> (apvts.getParameter (id::historyStep)),
                wrapperType != wrapperType_Standalone && wrapperType != wrapperType_Undefined)   // a plugin: the host's history
 {
@@ -944,6 +946,12 @@ void ChanSamplerProcessor::restoreSample (const juce::File& file)
         setMissingSample (file);
     apvts.replaceState (settings);
     rebuildSample();
+}
+
+void ChanSamplerProcessor::editSampleTempo (double bpm)
+{
+    const History::Transaction edit (history, "Sample tempo");
+    setSampleTempo (bpm);
 }
 
 void ChanSamplerProcessor::removeSample()

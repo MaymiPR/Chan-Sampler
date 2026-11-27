@@ -40,9 +40,10 @@ void History::runQuietly (const std::function<void()>& fn)
 }
 
 History::History (juce::AudioProcessor& p, SampleGetter getter, SampleSetter setter, NameGetter nameGetter, NameSetter nameSetter,
-                  HistoryStepParameter* step, bool followsHost)
+                  TempoGetter tempoGetter, TempoSetter tempoSetter, HistoryStepParameter* step, bool followsHost)
     : processor (p), getSample (std::move (getter)), setSample (std::move (setter)),
-      getName (std::move (nameGetter)), setName (std::move (nameSetter)), stepParam (step), hostHistory (followsHost && step != nullptr)
+      getName (std::move (nameGetter)), setName (std::move (nameSetter)),
+      getTempo (std::move (tempoGetter)), setTempo (std::move (tempoSetter)), stepParam (step), hostHistory (followsHost && step != nullptr)
 {
     for (auto* param : processor.getParameters())
         param->addListener (this);
@@ -72,6 +73,7 @@ History::Snapshot History::snapshot() const
         s.values.push_back (param->getValue());
     s.sample = getSample != nullptr ? getSample() : juce::File();
     s.presetName = getName != nullptr ? getName() : juce::String();
+    s.tempo = getTempo != nullptr ? getTempo() : 0.0;
     return s;
 }
 
@@ -164,12 +166,19 @@ void History::close()
         step.nameBefore = opened.presetName;
         step.nameAfter = now.presetName;
     }
-    if (step.changes.empty() && ! step.sampleChanged && ! step.nameChanged)
+    if (now.tempo != opened.tempo)
+    {
+        step.tempoChanged = true;
+        step.tempoBefore = opened.tempo;
+        step.tempoAfter = now.tempo;
+    }
+    if (step.changes.empty() && ! step.sampleChanged && ! step.nameChanged && ! step.tempoChanged)
         return;   // nothing changed: no step
     if (step.name.isEmpty())
         step.name = step.sampleChanged ? juce::String ("sample")
-                  : step.changes.empty() ? juce::String ("preset name") : params[step.changes.front().index]->getName (64);
-    if (step.sampleChanged)
+                  : ! step.changes.empty() ? params[step.changes.front().index]->getName (64)
+                  : step.tempoChanged ? juce::String ("sample tempo") : juce::String ("preset name");
+    if (step.sampleChanged || step.tempoChanged)
         tellHostStateChanged();
     if (hostHistory)
         recordInHost (step);
@@ -238,6 +247,12 @@ void History::apply (const Step& step, bool forward)
     }
     if (step.nameChanged && setName != nullptr)
         setName (forward ? step.nameAfter : step.nameBefore);
+    // After the sample, which comes back with its file's own tempo
+    if (step.tempoChanged && setTempo != nullptr)
+    {
+        setTempo (forward ? step.tempoAfter : step.tempoBefore);
+        tellHostStateChanged();
+    }
     const auto& params = processor.getParameters();
     auto setAll = [&] (bool asGestures)
     {
