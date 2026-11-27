@@ -81,6 +81,8 @@ private:
     void showMenu();
     void copySample();
     void pasteSample();
+    // The Tempo detection dialog for this sample, once its estimate (or the tempo it has: isCurrent) is known
+    void showTempoChoices (std::shared_ptr<const RawSample> raw, double estimate, bool isCurrent, std::function<void (double)> done);
     void saveAs();
     void showProperties();
     void drawSpectrum (juce::Graphics&, juce::Rectangle<float> area);

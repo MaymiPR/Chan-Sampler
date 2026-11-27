@@ -1107,8 +1107,11 @@ void ChanSamplerEditor::loadFile (const juce::File& file)
             chan::ui::showDialog (canvas, "Chan Sampler", r.message, ! r.ok);
         return;
     }
-    if (! samplerProcessor.loadSample (file))
-        chan::ui::showDialog (canvas, "Chan Sampler", samplerProcessor.getLoadError(), true);
+    samplerProcessor.loadSampleInBackground (file, [this, safe = juce::Component::SafePointer<ChanSamplerEditor> (this)] (bool loaded)
+    {
+        if (safe != nullptr && ! loaded)
+            chan::ui::showDialog (canvas, "Chan Sampler", samplerProcessor.getLoadError(), true);
+    });
 }
 
 bool ChanSamplerEditor::canLoad (const juce::File& f)

@@ -10,6 +10,9 @@
 
 ### Improved
 
+- **Long samples:** a file opened, dropped, pasted or reloaded in the editor is read in the background, and so
+  is tempo detection, so a long file no longer holds the host's window while it loads. The sample changes when
+  it is ready.
 - **Vendor name:** hosts list the plug-in under the vendor "Chan Sampler" (it was "ChanSampler"). FL Studio and other
   hosts file it under the new name; if it does not show up there, rescan the plug-ins. Saved projects and presets
   load as before: the plug-in codes, bundle IDs and parameter IDs are unchanged.

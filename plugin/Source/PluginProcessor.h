@@ -8,6 +8,9 @@
 #include <juce_audio_formats/juce_audio_formats.h>
 #include <array>
 #include <cmath>
+#include <deque>
+#include <functional>
+#include <memory>
 #include <mutex>
 #include <string_view>
 #include <unordered_map>
@@ -60,13 +63,24 @@ public:
     void setStateInformation (const void* data, int sizeInBytes) override;
 
     // Message thread API
+    // Reads the file and makes it the sample before it returns: for what must be in place when the call ends (a
+    // project or a preset loading, the history, the tests).
     bool loadSample (const juce::File& file);
+    // The same on the worker thread, for the editor (the chooser, a drop, a paste, a reload): a long file does not
+    // hold the host's window. The sample changes on the message thread once it is read and its precomputed copy
+    // built; done (message thread) then says whether it loaded (getLoadError says why not). A request replaced by
+    // a later one, or by a sample put in place meanwhile, ends without done. keepSettings: the settings in use
+    // stay, not the file's own (a reload), and the history takes no step.
+    void loadSampleInBackground (const juce::File& file, std::function<void (bool loaded)> done = {}, bool keepSettings = false);
+    // Work too long for the message thread (reading a file, detecting a tempo) on the processor's worker thread,
+    // one job after the other; completion then runs on the message thread, unless the processor is gone by then.
+    void runInBackground (std::function<void()> work, std::function<void()> completion);
     void restoreSample (const juce::File& file);   // the history's: the sample without its file's own values
     // Where a saved sample is now: its saved path while a file is there; otherwise a file of the same name in the
     // user's Samples folder (Documents/Chan Sampler/Samples) or in the folder a sample was last loaded from; the
     // saved path when there is none (the sample is then missing, its path kept).
     static juce::File findSample (const juce::File& saved);
-    bool reloadSample();   // the same file again from disk, settings kept
+    void reloadSample (std::function<void (bool reloaded)> done = {});   // the same file again from disk, settings kept; in the background
     // Reloads the sample once its file has changed on disk (saved from an audio
     // editor) and the change has settled; called regularly by the editor.
     void reloadIfFileChanged();
@@ -138,6 +152,16 @@ private:
     void timerCallback() override;
     void rebuildSample();
     void publish (dsp::SampleData::Ptr newSample);
+    struct Decoded
+    {
+        std::shared_ptr<const RawSample> raw;   // none: the file could not be read, error says why
+        int rootNote = 60;                      // the file's own, C5 when it names none
+        juce::String error;
+    };
+    Decoded decodeSample (const juce::File& file, double playbackRate);
+    void applySample (const Decoded&, dsp::SampleData::Ptr prebuilt, const dsp::PrecomputeSettings& prebuiltWith);
+    // The settings a build of this source uses: no rate conversion for a file already at the playback rate.
+    static dsp::PrecomputeSettings settingsFor (const RawSample& source, dsp::PrecomputeSettings settings);
     dsp::PrecomputeSettings readPrecomputeSettings() const;
     dsp::EngineParams readEngineParams() const;
     static void applyTempo (dsp::EngineParams&);
@@ -184,6 +208,57 @@ private:
         ChanSamplerProcessor& owner;
     };
 
+    // One thread for the jobs of runInBackground. Joined when the processor goes away, never killed; the jobs
+    // still waiting then are dropped.
+    class Worker : public juce::Thread
+    {
+    public:
+        Worker() : juce::Thread ("ChanSampler worker") {}
+        void add (std::function<void()> work, std::function<void()> completion, std::shared_ptr<std::atomic<bool>> ownerAlive)
+        {
+            {
+                const juce::ScopedLock sl (lock);
+                jobs.push_back ({ std::move (work), std::move (completion), std::move (ownerAlive) });
+            }
+            notify();
+        }
+        void run() override
+        {
+            while (! threadShouldExit())
+            {
+                Job job;
+                {
+                    const juce::ScopedLock sl (lock);
+                    if (! jobs.empty())
+                    {
+                        job = std::move (jobs.front());
+                        jobs.pop_front();
+                    }
+                }
+                if (job.work == nullptr)
+                {
+                    wait (-1);
+                    continue;
+                }
+                job.work();
+                juce::MessageManager::callAsync ([ownerAlive = std::move (job.ownerAlive), completion = std::move (job.completion)]
+                {
+                    if (ownerAlive->load() && completion != nullptr)
+                        completion();
+                });
+            }
+        }
+
+    private:
+        struct Job
+        {
+            std::function<void()> work, completion;
+            std::shared_ptr<std::atomic<bool>> ownerAlive;
+        };
+        juce::CriticalSection lock;
+        std::deque<Job> jobs;
+    };
+
     struct RawParam { std::atomic<float>* value = nullptr; float fallback = 0.0f; };   // fallback: the default
     std::unordered_map<std::string_view, RawParam> rawParams;   // views of the parameters' own IDs
     juce::AudioFormatManager formatManager;
@@ -226,6 +301,11 @@ private:
     std::atomic<double> hostRate { 0.0 };
     std::atomic<int> previewOn { -1 }, previewOff { -1 };
     RebuildThread rebuildThread { *this };
+    Worker worker;
+    std::shared_ptr<std::atomic<bool>> alive = std::make_shared<std::atomic<bool>> (true);   // false: no completion runs any more
+    std::shared_ptr<std::atomic<bool>> loadCancel;   // the background load in progress gives up when set (message thread)
+    std::atomic<int> loadTicket { 0 };               // counts the samples asked for: a background load applies only if still the latest
+    std::atomic<int> loadsRunning { 0 };             // background loads not yet completed
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChanSamplerProcessor)
 };

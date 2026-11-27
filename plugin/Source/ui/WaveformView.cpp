@@ -963,12 +963,27 @@ void WaveformView::showMenu()
 void WaveformView::detectTempo (std::function<void (double)> done)
 {
     const auto raw = processor.getRaw();
-    const int frames = raw->audio.getNumSamples();
-    if (frames == 0)
+    if (raw->audio.getNumSamples() == 0)
         return;
+    if (const auto current = processor.getSampleTempo(); current > 0)
+    {
+        showTempoChoices (raw, current, true, std::move (done));
+        return;
+    }
+    // The estimate reads the whole sample: on the worker thread, and the choices open when it is there
+    const auto estimate = std::make_shared<double> (0.0);
+    processor.runInBackground ([raw, estimate] { *estimate = dsp::tempo::detect (raw->audio, raw->sampleRate, 75.0, 150.0); },
+                               [safe = juce::Component::SafePointer<WaveformView> (this), raw, estimate, done = std::move (done)]
+    {
+        if (safe != nullptr && safe->processor.getRaw() == raw)   // still this sample
+            safe->showTempoChoices (raw, *estimate, false, done);
+    });
+}
+
+void WaveformView::showTempoChoices (std::shared_ptr<const RawSample> raw, double estimate, bool isCurrent, std::function<void (double)> done)
+{
+    const int frames = raw->audio.getNumSamples();
     const auto rate = raw->sampleRate;
-    const auto current = processor.getSampleTempo();
-    const auto estimate = current > 0 ? current : dsp::tempo::detect (raw->audio, rate, 75.0, 150.0);
     const auto project = displayBpm.load();
     auto describe = [frames, rate] (double bpm)
     {
@@ -976,11 +991,11 @@ void WaveformView::detectTempo (std::function<void (double)> done)
     };
 
     juce::String message = "Choose the tempo range (BPM) this sample most likely falls in, or keep the tempo it has now.\n\n";
-    message << (current > 0 ? "This sample's tempo is " + describe (current) + "."
-                            : "This sample has no tempo information. If the estimate (" + describe (estimate) + ") looks wrong, choose a range.")
+    message << (isCurrent ? "This sample's tempo is " + describe (estimate) + "."
+                          : "This sample has no tempo information. If the estimate (" + describe (estimate) + ") looks wrong, choose a range.")
             << "\n\nTo play it in step with the project, choose the project's tempo. If it should not follow any tempo, choose No tempo.";
 
-    const juce::StringArray choices { tempoText (estimate) + (current > 0 ? " (current)" : " (estimated)"),
+    const juce::StringArray choices { tempoText (estimate) + (isCurrent ? " (current)" : " (estimated)"),
                                       "50 to 100", "75 to 150", "100 to 200", "150 to 300",
                                       "Type in (BPM)", "Type in (beats)", tempoText (project) + " (project)", "No tempo" };
     const auto name = raw->file.getFileNameWithoutExtension().isNotEmpty() ? raw->file.getFileNameWithoutExtension() : juce::String ("Sample");
@@ -1003,8 +1018,13 @@ void WaveformView::detectTempo (std::function<void (double)> done)
         {
             case 0: apply (estimate); break;
             case 1: case 2: case 3: case 4:
-                apply (dsp::tempo::detect (raw->audio, rate, ranges[choice - 1][0], ranges[choice - 1][1]));
+            {
+                const auto bpm = std::make_shared<double> (0.0);
+                safe->processor.runInBackground ([raw, rate, low = ranges[choice - 1][0], high = ranges[choice - 1][1], bpm]
+                                                 { *bpm = dsp::tempo::detect (raw->audio, rate, low, high); },
+                                                 [apply, bpm] { apply (*bpm); });
                 break;
+            }
             case 5:
                 chan::ui::askText (*safe, "Tempo detection", "Tempo (BPM)", tempoText (estimate), [apply] (const juce::String& t)
                 {
@@ -1066,8 +1086,12 @@ void WaveformView::pasteSample()
     const auto file = exchange::pasteFromClipboard (ChanSamplerProcessor::userFolder ("Pasted audio"));
     if (file == juce::File())
         chan::ui::showDialog (*this, "Chan Sampler", "The clipboard holds no audio.", true);
-    else if (! processor.loadSample (file))
-        chan::ui::showDialog (*this, "Chan Sampler", processor.getLoadError(), true);
+    else
+        processor.loadSampleInBackground (file, [this, safe = juce::Component::SafePointer<WaveformView> (this)] (bool loaded)
+        {
+            if (safe != nullptr && ! loaded)
+                chan::ui::showDialog (*this, "Chan Sampler", processor.getLoadError(), true);
+        });
 }
 
 void WaveformView::saveAs()

@@ -384,6 +384,65 @@ int main (int argc, char** argv)
         h.clear();
     }
 
+    // --- A file dropped on the editor is read off the message thread: the drop returns before the sample is there,
+    // and the sample arrives as a load on the message thread makes it, as one step
+    {
+        processor.resetParameters();
+        processor.loadSample (sample);
+        processor.waitForPendingRebuilds();
+        const auto wantFrames = processor.getSampleForDisplay()->getTotalFrames();
+        processor.removeSample();
+        h.clear();
+        auto editor = makeEditor();
+        pump();
+        editor->filesDropped ({ sample.getFullPathName() }, 0, 0);
+        const bool returnedFirst = processor.getSampleFile() == juce::File();
+        for (int i = 0; i < 300 && processor.getSampleFile() != sample; ++i)
+            pump (10);
+        processor.waitForPendingRebuilds();
+        check (returnedFirst && processor.getSampleFile() == sample && processor.getSampleForDisplay()->getTotalFrames() == wantFrames,
+               "a dropped file is read off the message thread",
+               juce::String (returnedFirst ? "" : "the drop returned with the sample loaded; ") + juce::String (processor.getSampleLength()) + " frames");
+        check (h.getNumUndoSteps() == 1 && h.getUndoName() == "Load sample: " + sample.getFileName(), "and the load is one step", h.getUndoName());
+
+        // A file that cannot be read: the sample stays and a dialog says why
+        const auto bad = juce::File::createTempFile (".wav");
+        bad.replaceWithText ("not audio");
+        const int dialogs = chan::ui::numOpenDialogs();
+        editor->filesDropped ({ bad.getFullPathName() }, 0, 0);
+        for (int i = 0; i < 300 && chan::ui::numOpenDialogs() == dialogs; ++i)
+            pump (10);
+        check (chan::ui::numOpenDialogs() == dialogs + 1 && processor.getSampleFile() == sample, "a file that cannot be read keeps the sample and says so",
+               juce::String (chan::ui::numOpenDialogs() - dialogs) + " dialogs");
+        bad.deleteFile();
+        editor.reset();
+        pump (50);
+
+        // A plug-in removed while a file is being read: the worker is joined and nothing arrives afterwards
+        bool arrived = false;
+        {
+            ChanSamplerProcessor going;
+            going.loadSampleInBackground (sample, [&arrived] (bool) { arrived = true; });
+        }
+        pump (100);
+        check (! arrived, "a plug-in removed while a file is read: nothing arrives afterwards");
+
+        // Two files asked for one after the other: the later one is the sample, and only it reports
+        const auto second = juce::File::createTempFile (".wav");
+        sample.copyFileTo (second);
+        int reports = 0;
+        processor.loadSampleInBackground (sample, [&reports] (bool) { reports += 10; });
+        processor.loadSampleInBackground (second, [&reports] (bool) { reports += 1; });
+        for (int i = 0; i < 300 && reports == 0; ++i)
+            pump (10);
+        pump (50);
+        check (reports == 1 && processor.getSampleFile() == second, "of two files asked for, the later one is the sample", juce::String (reports));
+        processor.loadSample (sample);
+        second.deleteFile();
+        processor.resetParameters();
+        h.clear();
+    }
+
     // --- A project whose sample is no longer at its saved path finds it by its name in the folder a sample was last
     // loaded from (a sample library that moved); with no file of that name anywhere it stays missing, its path kept
     {
