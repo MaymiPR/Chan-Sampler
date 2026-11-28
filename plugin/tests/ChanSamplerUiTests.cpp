@@ -549,11 +549,12 @@ int main (int argc, char** argv)
                 check (all > 0 && some * 4 < all && own.pixels == 0,
                        "a strip of the sample view reads only its own columns, zoom " + juce::String (zoom),
                        juce::String (some) + " of " + juce::String (all) + " columns, " + juce::String (own.pixels) + " pixels differ");
-                // The platform's renderer (CoreGraphics on macOS) is reported, not judged: its pixels are its own
+                // On the platform's renderer (CoreGraphics on macOS) a pixel may round its anti-aliasing another way:
+                // up to 3 of 255 is no difference anyone sees while the play bar moves
                 const auto native = compare (juce::NativeImageType());
-                std::cout << "NOTE  the strip on the platform's renderer, zoom " << zoom << ": " << native.pixels << " of " << strip.getWidth() * height
-                          << " pixels differ, by at most " << native.most << " of 255, within " << native.where.toString() << " (strip from x "
-                          << strip.getX() << ")\n";
+                check (native.most <= 3, "the strip on the platform's renderer looks as the whole repaint, zoom " + juce::String (zoom),
+                       juce::String (native.pixels) + " of " + juce::String (strip.getWidth() * height) + " pixels differ, by at most "
+                           + juce::String (native.most) + " of 255, within " + native.where.toString() + " (strip from x " + juce::String (strip.getX()) + ")");
             }
         editor.reset();
         processor.resetParameters();
