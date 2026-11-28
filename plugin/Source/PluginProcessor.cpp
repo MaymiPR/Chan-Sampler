@@ -903,7 +903,7 @@ void ChanSamplerProcessor::loadSampleInBackground (const juce::File& file, std::
         result->settings = settingsFor (*result->decoded.raw, settings);
         result->built = dsp::buildProcessedSample (*result->decoded.raw, result->settings, result->decoded.raw, cancel.get());
     },
-    [this, ticket, result, done = std::move (done), keepSettings]
+    [this, ticket, result, report = std::move (done), keepSettings]
     {
         --loadsRunning;
         if (ticket != loadTicket.load())
@@ -924,8 +924,8 @@ void ChanSamplerProcessor::loadSampleInBackground (const juce::File& file, std::
         {
             applySample (result->decoded, result->built, result->settings);
         }
-        if (done != nullptr)
-            done (ok);
+        if (report != nullptr)
+            report (ok);
     });
 }
 

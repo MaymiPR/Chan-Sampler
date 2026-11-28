@@ -1014,10 +1014,10 @@ void WaveformView::detectTempo (std::function<void (double)> done)
     // The estimate reads the whole sample: on the worker thread, and the choices open when it is there
     const auto estimate = std::make_shared<double> (0.0);
     processor.runInBackground ([raw, estimate] { *estimate = dsp::tempo::detect (raw->audio, raw->sampleRate, 75.0, 150.0); },
-                               [safe = juce::Component::SafePointer<WaveformView> (this), raw, estimate, done = std::move (done)]
+                               [safe = juce::Component::SafePointer<WaveformView> (this), raw, estimate, chosen = std::move (done)]
     {
         if (safe != nullptr && safe->processor.getRaw() == raw)   // still this sample
-            safe->showTempoChoices (raw, *estimate, false, done);
+            safe->showTempoChoices (raw, *estimate, false, chosen);
     });
 }
 
