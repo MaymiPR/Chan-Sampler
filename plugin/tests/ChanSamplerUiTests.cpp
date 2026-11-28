@@ -378,8 +378,227 @@ int main (int argc, char** argv)
             const bool isAuto = juce::roundToInt (mode->convertFrom0to1 (mode->getValue())) == (int) dsp::StretchMode::autoMode;
             check (moved && isAuto && h.getNumUndoSteps() == 1, "a PITCH drag and the switch to Auto it causes are one step",
                    juce::String (h.getNumUndoSteps()) + " steps, moved " + juce::String ((int) moved) + ", Auto " + juce::String ((int) isAuto));
+
+            // The same from the knob's menu (a preset, Paste value, Type in value)
+            processor.resetParameters();
+            mode->setValueNotifyingHost (mode->convertTo0to1 ((float) dsp::StretchMode::resample));
+            pump (50);
+            h.clear();
+            knob->menu.setPosition (0.75f);
+            pump (50);
+            const bool menuAuto = juce::roundToInt (mode->convertFrom0to1 (mode->getValue())) == (int) dsp::StretchMode::autoMode;
+            check (menuAuto && h.getNumUndoSteps() == 1, "a PITCH value from the knob's menu and the switch to Auto are one step",
+                   juce::String (h.getNumUndoSteps()) + " steps, Auto " + juce::String ((int) menuAuto));
         }
         editor.reset();
+        processor.resetParameters();
+        h.clear();
+    }
+
+    // --- A file dropped on the editor is read off the message thread: the drop returns before the sample is there,
+    // and the sample arrives as a load on the message thread makes it, as one step
+    {
+        processor.resetParameters();
+        processor.loadSample (sample);
+        processor.waitForPendingRebuilds();
+        const auto wantFrames = processor.getSampleForDisplay()->getTotalFrames();
+        processor.removeSample();
+        h.clear();
+        auto editor = makeEditor();
+        pump();
+        editor->filesDropped ({ sample.getFullPathName() }, 0, 0);
+        const bool returnedFirst = processor.getSampleFile() == juce::File();
+        for (int i = 0; i < 300 && processor.getSampleFile() != sample; ++i)
+            pump (10);
+        processor.waitForPendingRebuilds();
+        check (returnedFirst && processor.getSampleFile() == sample && processor.getSampleForDisplay()->getTotalFrames() == wantFrames,
+               "a dropped file is read off the message thread",
+               juce::String (returnedFirst ? "" : "the drop returned with the sample loaded; ") + juce::String (processor.getSampleLength()) + " frames");
+        check (h.getNumUndoSteps() == 1 && h.getUndoName() == "Load sample: " + sample.getFileName(), "and the load is one step", h.getUndoName());
+
+        // A file that cannot be read: the sample stays and a dialog says why
+        const auto bad = juce::File::createTempFile (".wav");
+        bad.replaceWithText ("not audio");
+        const int dialogs = chan::ui::numOpenDialogs();
+        editor->filesDropped ({ bad.getFullPathName() }, 0, 0);
+        for (int i = 0; i < 300 && chan::ui::numOpenDialogs() == dialogs; ++i)
+            pump (10);
+        check (chan::ui::numOpenDialogs() == dialogs + 1 && processor.getSampleFile() == sample, "a file that cannot be read keeps the sample and says so",
+               juce::String (chan::ui::numOpenDialogs() - dialogs) + " dialogs");
+        bad.deleteFile();
+        editor.reset();
+        pump (50);
+
+        // A plug-in removed while a file is being read: the worker is joined and nothing arrives afterwards
+        bool arrived = false;
+        {
+            ChanSamplerProcessor going;
+            going.loadSampleInBackground (sample, [&arrived] (bool) { arrived = true; });
+        }
+        pump (100);
+        check (! arrived, "a plug-in removed while a file is read: nothing arrives afterwards");
+
+        // Two files asked for one after the other: the later one is the sample, and only it reports
+        const auto second = juce::File::createTempFile (".wav");
+        sample.copyFileTo (second);
+        int reports = 0;
+        processor.loadSampleInBackground (sample, [&reports] (bool) { reports += 10; });
+        processor.loadSampleInBackground (second, [&reports] (bool) { reports += 1; });
+        for (int i = 0; i < 300 && reports == 0; ++i)
+            pump (10);
+        pump (50);
+        check (reports == 1 && processor.getSampleFile() == second, "of two files asked for, the later one is the sample", juce::String (reports));
+        processor.loadSample (sample);
+        second.deleteFile();
+        processor.resetParameters();
+        h.clear();
+    }
+
+    // --- The sample's tempo belongs to the steps: undo of a sample change brings the old sample's tempo back
+    {
+        const auto other = juce::File::createTempFile (".wav");
+        sample.copyFileTo (other);
+        processor.resetParameters();
+        processor.loadSample (sample);
+        processor.setSampleTempo (120.0);
+        h.clear();
+        processor.loadSample (other);            // a file with no tempo of its own
+        const auto afterLoad = processor.getSampleTempo();
+        h.undo();
+        const auto afterUndo = processor.getSampleTempo();
+        h.redo();
+        check (afterLoad == 0.0 && afterUndo == 120.0 && processor.getSampleTempo() == 0.0, "undo of a sample change brings the sample's tempo back",
+               "after undo " + juce::String (afterUndo) + ", after redo " + juce::String (processor.getSampleTempo()));
+        processor.loadSample (sample);
+        other.deleteFile();
+
+        // The user's own change of the tempo (Detect tempo) is a step
+        processor.setSampleTempo (0.0);
+        h.clear();
+        processor.editSampleTempo (140.0);
+        const int steps = h.getNumUndoSteps();
+        const auto stepName = h.getUndoName();
+        h.undo();
+        const auto undone = processor.getSampleTempo();
+        h.redo();
+        check (steps == 1 && stepName == "Sample tempo" && undone == 0.0 && processor.getSampleTempo() == 140.0, "a change of the sample's tempo is one step",
+               juce::String (steps) + " steps, " + stepName + ", undone " + juce::String (undone));
+        processor.setSampleTempo (0.0);
+        processor.resetParameters();
+        h.clear();
+    }
+
+    // --- The sample view reads the audio only of the columns it is asked to paint (the strip around the play bar
+    // while a note plays), and paints them as a whole repaint does
+    {
+        processor.resetParameters();
+        processor.loadSample (sample);
+        processor.waitForPendingRebuilds();
+        auto editor = makeEditor();
+        pump (100);
+        WaveformView* view = nullptr;
+        forEach<WaveformView> (*editor, [&] (WaveformView& v) { view = &v; });
+        check (view != nullptr, "the sample view");
+        if (view != nullptr)
+            for (const float zoom : { 1.0f, 0.1f })      // the whole sample (a filled shape), a tenth of it (a line)
+            {
+                view->setView (0.0f, zoom);
+                const int w = view->getWidth(), height = view->getHeight();
+                const juce::Rectangle<int> strip (w / 2, 0, 25, height);
+                int all = 0, some = 0;
+                // The strip painted alone against the same strip of a whole repaint: how many pixels differ, the
+                // largest difference of a channel, and where
+                struct Difference
+                {
+                    int pixels = 0, most = 0;
+                    juce::Rectangle<int> where;
+                };
+                auto compare = [&] (const juce::ImageType& type)
+                {
+                    juce::Image whole (juce::Image::ARGB, w, height, true, type), part (juce::Image::ARGB, w, height, true, type);
+                    view->takeColumnsScanned();
+                    {
+                        juce::Graphics g (whole);
+                        view->paint (g);
+                    }
+                    all = view->takeColumnsScanned();
+                    {
+                        juce::Graphics g (part);
+                        g.reduceClipRegion (strip);
+                        view->paint (g);
+                    }
+                    some = view->takeColumnsScanned();
+                    Difference d;
+                    for (int y = 0; y < height; ++y)
+                        for (int x = strip.getX(); x < strip.getRight(); ++x)
+                        {
+                            const auto a = whole.getPixelAt (x, y), b = part.getPixelAt (x, y);
+                            const int most = juce::jmax (std::abs (a.getRed() - b.getRed()), std::abs (a.getGreen() - b.getGreen()),
+                                                         std::abs (a.getBlue() - b.getBlue()), std::abs (a.getAlpha() - b.getAlpha()));
+                            if (most > 0)
+                            {
+                                ++d.pixels;
+                                d.most = juce::jmax (d.most, most);
+                                d.where = d.pixels == 1 ? juce::Rectangle<int> (x, y, 1, 1) : d.where.getUnion ({ x, y, 1, 1 });
+                            }
+                        }
+                    return d;
+                };
+                // On JUCE's own renderer, the same on every platform, the strip is the whole repaint's to the pixel
+                const auto own = compare (juce::SoftwareImageType());
+                check (all > 0 && some * 4 < all && own.pixels == 0,
+                       "a strip of the sample view reads only its own columns, zoom " + juce::String (zoom),
+                       juce::String (some) + " of " + juce::String (all) + " columns, " + juce::String (own.pixels) + " pixels differ");
+                // On the platform's renderer (CoreGraphics on macOS) a pixel may round its anti-aliasing another way:
+                // up to 3 of 255 is no difference anyone sees while the play bar moves
+                const auto native = compare (juce::NativeImageType());
+                check (native.most <= 3, "the strip on the platform's renderer looks as the whole repaint, zoom " + juce::String (zoom),
+                       juce::String (native.pixels) + " of " + juce::String (strip.getWidth() * height) + " pixels differ, by at most "
+                           + juce::String (native.most) + " of 255, within " + native.where.toString() + " (strip from x " + juce::String (strip.getX()) + ")");
+            }
+        editor.reset();
+        processor.resetParameters();
+        h.clear();
+    }
+
+    // --- What the editor shows is saved with the state: the sheet, the Tools / Effects tab, the INS target page
+    // and the sample view's zoom come back with a project
+    {
+        processor.resetParameters();
+        processor.loadSample (sample);
+        auto first = makeEditor();
+        pump (50);
+        WaveformView* view = nullptr;
+        forEach<WaveformView> (*first, [&] (WaveformView& v) { view = &v; });
+        first->showSheetForTesting (0, 1);      // the Effects tab
+        first->showSheetForTesting (1, 3);      // the INS sheet, Mod Y
+        view->setView (0.25f, 0.5f);
+        juce::MemoryBlock saved;
+        processor.getStateInformation (saved);
+        {
+            ChanSamplerProcessor other;
+            other.setStateInformation (saved.getData(), (int) saved.getSize());
+            std::unique_ptr<ChanSamplerEditor> editor (static_cast<ChanSamplerEditor*> (other.createEditor()));
+            pump (50);
+            WaveformView* otherView = nullptr;
+            forEach<WaveformView> (*editor, [&] (WaveformView& v) { otherView = &v; });
+            const auto shown = editor->viewForTesting();
+            const auto zoom = otherView->getView();
+            check (shown == std::array<int, 3> { 1, 1, 3 } && zoom == std::pair<float, float> { 0.25f, 0.5f }, "the view comes back with the state",
+                   "sheet " + juce::String (shown[0]) + ", tab " + juce::String (shown[1]) + ", target " + juce::String (shown[2])
+                       + ", zoom " + juce::String (zoom.first) + " to " + juce::String (zoom.second));
+        }
+        // A state from before has none of it: the first sheet, Tools, the Volume page, the whole sample
+        {
+            ChanSamplerProcessor fresh;
+            std::unique_ptr<ChanSamplerEditor> editor (static_cast<ChanSamplerEditor*> (fresh.createEditor()));
+            pump (50);
+            check (editor->viewForTesting() == std::array<int, 3> { 0, 0, 1 }, "a state with no view shows the first sheet, Tools and Volume");
+        }
+        first->showSheetForTesting (1, 1);
+        first->showSheetForTesting (0, 0);
+        view->setView (0.0f, 1.0f);
+        first.reset();
         processor.resetParameters();
         h.clear();
     }

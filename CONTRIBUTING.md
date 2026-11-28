@@ -60,14 +60,15 @@ and `-NullCheck` add the hand-over checks; the full list of options is at the to
 
 Code rules:
 
-- C++17 and JUCE; the plug-in's sources are in `plugin/Source/` (`dsp/` the engine in plain C++ without
-  JUCE, namespace `cs::dsp`: `Engine.h/.cpp` its top class, `Tuning.h` its constants, one file per further block; `ui/`
-  the plug-in's own controls in `Controls.h/.cpp`; at the top the processor, the editor, the parameters (`Params.h`,
-  the IDs in `cs::id`), the presets, and the JUCE side of the engine named by its job: `SampleFile.h` (the loaded file
-  and JUCE views of the engine's buffers), `SampleExchange`, `PresetImport`, `CutGroups`, `History`), listed once in
-  `plugin/plugin.cmake`. What every editor of the suite uses is in `shared/` (the static library
-  `ChanSamplerShared`): `ui/Theme.h` (the colours and the font), `ui/Widgets.h/.cpp` (knobs, switches, menus, dialogs,
-  panels), `ui/HostFocus.h/.cpp` (the host's keys after a click), `dsp/Math.h` (deterministic math).
+- C++17 and JUCE; the plug-in's sources are in `plugin/Source/` (`dsp/` the engine in plain C++ without JUCE,
+  namespace `cs::dsp`: `Engine.h/.cpp` its top class, `Tuning.h` its constants, one file per further block; `ui/` the
+  plug-in's own controls in `Controls.h/.cpp` and the editor's geometry in `Layout.h`; at the top the processor, the
+  editor, the parameters (`Params.h`, the IDs in `cs::id`), the presets, and the JUCE side of the engine named by its
+  job: `SampleFile.h` (the loaded file and JUCE views of the engine's buffers), `SampleExchange`, `PresetImport`,
+  `CutGroups`, `History`), listed once in `plugin/plugin.cmake`. What every editor of the suite uses is in `shared/`
+  (the static library `ChanSamplerShared`): `ui/Theme.h` (the colours and the font), `ui/Widgets.h/.cpp` (knobs,
+  switches, menus, dialogs, panels), `ui/HostFocus.h/.cpp` (the host's keys after a click), `dsp/Math.h`
+  (deterministic math).
 - Every C++ name of the plug-in is in the namespace `cs` (the tool abbreviation), the shared code in `chan`.
 - Match the code around you: its naming, its comment density, and comments that say what was measured in FL rather
   than restating the code.

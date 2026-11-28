@@ -3,6 +3,7 @@
 #include <juce_audio_utils/juce_audio_utils.h>
 
 #include "ui/Controls.h"
+#include "ui/Layout.h"
 #include "shared/ui/HostFocus.h"
 #include "shared/ui/Widgets.h"
 #include "PluginProcessor.h"
@@ -32,13 +33,15 @@ public:
 
     // For tools/Snapshot.cpp: shows a sheet (0 SMP, 1 INS, 2 FUNC) and INS target page.
     void showSheetForTesting (int sheet, int insPage);
+    // What is shown: the sheet, the Tools / Effects tab and the INS target page (tests)
+    std::array<int, 3> viewForTesting() const;
     void filesDropped (const juce::StringArray& files, int x, int y) override;
     // The window's keys (Ctrl+Z, Ctrl+Y / Ctrl+Shift+Z, Ctrl+C / Ctrl+V); public for tests/ChanSamplerUiTests.cpp.
     bool keyPressed (const juce::KeyPress&, juce::Component*) override;
     using juce::AudioProcessorEditor::keyPressed;
 
 private:
-    static constexpr int canvasW = 563, canvasH = 446;
+    static constexpr int canvasW = layout::canvasW, canvasH = layout::canvasH;
 
     // Builders: positions are FL form coordinates relative to the parent.
     juce::Slider& knob (juce::Component& parent, const juce::String& paramId, int x, int y, int size,
@@ -52,8 +55,8 @@ private:
     void showAboutMenu (juce::Component& target);
     juce::Label& text (juce::Component& parent, const juce::String& s, int x, int y, int w, int h, float size, bool bold = false,
                        juce::Justification just = juce::Justification::centredLeft);
-    chan::ui::Panel& panel (juce::Component& parent, const juce::String& title, int x, int y, int w, int h, int headerInset = 0);
-    juce::Component& group (juce::Component& parent, int x, int y, int w, int h);
+    chan::ui::Panel& panel (juce::Component& parent, const juce::String& title, layout::Box at, int headerInset = 0);
+    juce::Component& group (juce::Component& parent, layout::Box at);
 
     template <typename T>
     T& own (std::unique_ptr<T> c, juce::Component& parent, juce::Rectangle<int> bounds)

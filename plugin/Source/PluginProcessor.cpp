@@ -12,6 +12,8 @@ ChanSamplerProcessor::ChanSamplerProcessor()
                [this] (const juce::File& f) { restoreSample (f); },
                [this] { return apvts.state.getProperty ("presetName", "").toString(); },
                [this] (const juce::String& name) { apvts.state.setProperty ("presetName", name, nullptr); },
+               [this] { return getSampleTempo(); },
+               [this] (double bpm) { setSampleTempo (bpm); },
                dynamic_cast<HistoryStepParameter*> (apvts.getParameter (id::historyStep)),
                wrapperType != wrapperType_Standalone && wrapperType != wrapperType_Undefined)   // a plugin: the host's history
 {
@@ -29,6 +31,7 @@ ChanSamplerProcessor::ChanSamplerProcessor()
 
     publish (dsp::buildProcessedSample (*raw, readPrecomputeSettings()));
     rebuildThread.startThread();
+    worker.startThread();
     startTimer (50);
 }
 
@@ -43,6 +46,12 @@ ChanSamplerProcessor::~ChanSamplerProcessor()
     apvts.removeParameterListener (id::cutItself, this);
     // Joined, never killed: a rebuild in progress holds the rebuild mutex and may hold the heap's lock. It is told
     // to give up, so the join is short even in the middle of a long sample's reverb.
+    alive->store (false);        // no completion of a job runs from here on
+    if (loadCancel != nullptr)
+        loadCancel->store (true);
+    worker.signalThreadShouldExit();
+    worker.notify();
+    worker.stopThread (-1);
     stopRebuild = true;
     rebuildThread.signalThreadShouldExit();
     rebuildThread.notify();
@@ -517,9 +526,7 @@ void ChanSamplerProcessor::rebuildSample()
     // Build from a snapshot of the raw sample without holding the pool lock.
     const std::lock_guard<std::mutex> one (rebuildMutex);
     const auto source = getRaw();
-    auto settings = readPrecomputeSettings();
-    if (std::abs (settings.targetRate - source->sampleRate) <= 0.5)
-        settings.targetRate = 0.0;   // the file is already at the playback rate: nothing to convert
+    const auto settings = settingsFor (*source, readPrecomputeSettings());
     if (source == builtFrom && settings == builtWith)
         return;
     auto built = dsp::buildProcessedSample (*source, settings, source, &stopRebuild);
@@ -529,6 +536,13 @@ void ChanSamplerProcessor::rebuildSample()
     builtFrom = source;
     builtWith = settings;
     sendChangeMessage();
+}
+
+dsp::PrecomputeSettings ChanSamplerProcessor::settingsFor (const RawSample& source, dsp::PrecomputeSettings settings)
+{
+    if (std::abs (settings.targetRate - source.sampleRate) <= 0.5)
+        settings.targetRate = 0.0;   // the file is already at the playback rate: nothing to convert
+    return settings;
 }
 
 void ChanSamplerProcessor::publish (dsp::SampleData::Ptr newSample)
@@ -643,24 +657,18 @@ namespace
     }
 }
 
-bool ChanSamplerProcessor::reloadSample()
+void ChanSamplerProcessor::reloadSample (std::function<void (bool)> done)
 {
-    const History::ScopedSuspend noHistory (history);
-    const auto file = getSampleFile();
-    if (! file.existsAsFile())
-        return false;
-    const auto saved = apvts.copyState();
-    if (! loadSample (file))
-        return false;
-    apvts.replaceState (saved);
-    rebuildSample();
-    return true;
+    if (const auto file = getSampleFile(); file.existsAsFile())
+        loadSampleInBackground (file, std::move (done), true);
+    else if (done != nullptr)
+        done (false);
 }
 
 void ChanSamplerProcessor::reloadIfFileChanged()
 {
     const auto r = getRaw();
-    if (! r->file.existsAsFile())
+    if (loadsRunning.load() > 0 || ! r->file.existsAsFile())
         return;
     const std::pair<juce::int64, juce::int64> now { r->file.getLastModificationTime().toMilliseconds(), r->file.getSize() };
     if (now == std::make_pair (r->fileTime, r->fileSize))
@@ -673,8 +681,12 @@ void ChanSamplerProcessor::reloadIfFileChanged()
         changedStamp = now;
         return;
     }
-    if (now != failedStamp && ! reloadSample())
-        failedStamp = now;     // e.g. saved in a format we cannot read: try again on the next change
+    if (now != failedStamp)
+        reloadSample ([this, now] (bool ok)
+        {
+            if (! ok)
+                failedStamp = now;     // e.g. saved in a format we cannot read: try again on the next change
+        });
 }
 
 juce::MemoryBlock ChanSamplerProcessor::getSampleAsWav() const
@@ -694,13 +706,16 @@ juce::MemoryBlock ChanSamplerProcessor::getSampleAsWav() const
     return block;
 }
 
-bool ChanSamplerProcessor::loadSample (const juce::File& file)
+// Reads a file into a sample: its audio and what the file says about itself. It touches nothing of the processor's
+// but the format manager, which only reads, so it runs on the worker thread as well as on the message thread.
+// playbackRate: the host's rate, 0 when none is known yet (for the memory limit).
+ChanSamplerProcessor::Decoded ChanSamplerProcessor::decodeSample (const juce::File& file, double playbackRate)
 {
-    const History::Transaction edit (history, "Load sample: " + file.getFileName());
-    loadError = "Could not read " + file.getFileName() + ": not a supported audio file, or the file is damaged.";
+    Decoded d;
+    d.error = "Could not read " + file.getFileName() + ": not a supported audio file, or the file is damaged.";
     std::unique_ptr<juce::AudioFormatReader> reader (formatManager.createReaderFor (file));
     if (reader == nullptr)
-        return false;
+        return d;
 
     // Broken or hostile headers: refuse what no real file has, never trust a
     // length the file cannot hold (an uncompressed WAV / AIFF stores every
@@ -709,27 +724,23 @@ bool ChanSamplerProcessor::loadSample (const juce::File& file)
     // nulltest/check_corrupt_files.py).
     const auto rate = reader->sampleRate;
     if (reader->numChannels < 1 || reader->numChannels > 64 || ! (rate >= 1000.0 && rate <= 768000.0) || reader->bitsPerSample > 64)
-        return false;
+        return d;
     juce::int64 frames = reader->lengthInSamples;
     const auto formatName = reader->getFormatName();
     if ((formatName.containsIgnoreCase ("WAV") || formatName.containsIgnoreCase ("AIFF")) && reader->bitsPerSample >= 8)
         frames = juce::jmin (frames, file.getSize() / ((juce::int64) reader->numChannels * (reader->bitsPerSample / 8)));
-    const auto playRate = hostRate.load() > 0.0 ? hostRate.load() : rate;
+    const auto playRate = playbackRate > 0.0 ? playbackRate : rate;
     constexpr double maxSamples = 1 << 28;   // 1 GB of float audio per copy
     if (frames <= 0)
-        return false;
+        return d;
     if ((double) frames * juce::jmax (1.0, playRate / rate) * juce::jmin (2, (int) reader->numChannels) > maxSamples)
     {
-        loadError = file.getFileName() + " is too long to load (" + juce::String ((double) frames / rate / 60.0, 1)
+        d.error = file.getFileName() + " is too long to load (" + juce::String ((double) frames / rate / 60.0, 1)
                   + " minutes). Chan Sampler holds samples in memory, up to about "
                   + juce::String (juce::roundToInt (maxSamples / juce::jmin (2, (int) reader->numChannels) / juce::jmax (rate, playRate) / 60.0)) + " minutes at this rate.";
-        return false;
+        return d;
     }
-    loadError.clear();
-    {
-        const juce::ScopedLock sl (sampleFolderLock);
-        lastSampleFolder = file.getParentDirectory();
-    }
+    d.error.clear();
 
     RawSample r;
     r.file = file;
@@ -783,13 +794,37 @@ bool ChanSamplerProcessor::loadSample (const juce::File& file)
     }
     r.fileTempo = juce::jmax (0.0, md.getValue (juce::WavAudioFormat::acidTempo, juce::String (wav.acidTempo)).getDoubleValue());
 
+    // The root note comes with the sample (measured in FL by loading
+    // files into its Sampler): the "inst" chunk's note, else the "smpl"
+    // chunk's MIDI unity note when it is a note (0..127; some files hold
+    // note x 256 there, which FL ignores), else C5.
+    {
+        const auto valid = [] (int n) { return n >= 0 && n <= 127; };
+        const int stored = valid (wav.instNote) ? wav.instNote : (valid (wav.unityNote) ? wav.unityNote : 60);
+        d.rootNote = file.hasFileExtension (".wav;.wave") ? stored : 60;
+    }
+    d.raw = std::make_shared<const RawSample> (std::move (r));
+    return d;
+}
+
+// A read file becomes the sample (message thread): one edit. prebuilt, when the worker made it, is the sample's
+// precomputed copy for the settings prebuiltWith; without it the copy is built here.
+void ChanSamplerProcessor::applySample (const Decoded& d, dsp::SampleData::Ptr prebuilt, const dsp::PrecomputeSettings& prebuiltWith)
+{
+    const auto loaded = d.raw;
+    const auto& file = loaded->file;
+    const int length = loaded->audio.getNumSamples();
+    const History::Transaction edit (history, "Load sample: " + file.getFileName());
+    {
+        const juce::ScopedLock sl (sampleFolderLock);
+        lastSampleFolder = file.getParentDirectory();
+    }
     {
         const juce::ScopedLock sl (poolLock);
-        raw = std::make_shared<const RawSample> (std::move (r));
+        raw = loaded;
     }
     loopTextLength.store (length);   // loop knob texts are sample positions
 
-    const auto loaded = getRaw();
     // FL keeps a tempo with each sample (Detect tempo); an ACID WAV brings its own.
     setSampleTempo (loaded->fileTempo);
     auto set = [this] (const char* id, float value)
@@ -797,16 +832,8 @@ bool ChanSamplerProcessor::loadSample (const juce::File& file)
         auto* p = apvts.getParameter (id);
         setParameterValue (*p, p->convertTo0to1 (value));
     };
-    // The root note comes with the sample (measured in FL by loading
-    // files into its Sampler): the "inst" chunk's note, else the "smpl"
-    // chunk's MIDI unity note when it is a note (0..127; some files hold
-    // note x 256 there, which FL ignores), else C5. A restored project or
-    // preset puts its own root back afterwards.
-    {
-        const auto valid = [] (int n) { return n >= 0 && n <= 127; };
-        const int stored = valid (wav.instNote) ? wav.instNote : (valid (wav.unityNote) ? wav.unityNote : 60);
-        set (id::rootNote, (float) (file.hasFileExtension (".wav;.wave") ? stored : 60));
-    }
+    // The file's root note (decodeSample). A restored project or preset puts its own root back afterwards.
+    set (id::rootNote, (float) d.rootNote);
     // A file's own loop points become the loop markers; Use loop points is
     // left as the user set it (FL does not switch it on).
     if (loaded->embeddedLoopStart >= 0 && loaded->embeddedLoopEnd > loaded->embeddedLoopStart)
@@ -825,8 +852,86 @@ bool ChanSamplerProcessor::loadSample (const juce::File& file)
         set (id::loopEnd, 0.0f);
     }
 
-    rebuildSample();
+    if (prebuilt == nullptr)
+    {
+        rebuildSample();
+        return;
+    }
+    {
+        const std::lock_guard<std::mutex> one (rebuildMutex);
+        publish (std::move (prebuilt));
+        builtFrom = loaded;
+        builtWith = prebuiltWith;
+    }
+    sendChangeMessage();
+    rebuildPending = true;   // a setting that changed while the file was read: the rebuild thread sees to it
+    rebuildThread.notify();
+}
+
+bool ChanSamplerProcessor::loadSample (const juce::File& file)
+{
+    ++loadTicket;   // a file still being read gives way
+    const auto d = decodeSample (file, hostRate.load());
+    loadError = d.error;
+    if (d.raw == nullptr)
+        return false;
+    applySample (d, nullptr, {});
     return true;
+}
+
+void ChanSamplerProcessor::loadSampleInBackground (const juce::File& file, std::function<void (bool)> done, bool keepSettings)
+{
+    if (loadCancel != nullptr)
+        loadCancel->store (true);   // an earlier file still being read gives way to this one
+    const auto cancel = loadCancel = std::make_shared<std::atomic<bool>> (false);
+    const int ticket = ++loadTicket;
+    struct Result
+    {
+        Decoded decoded;
+        dsp::SampleData::Ptr built;
+        dsp::PrecomputeSettings settings;
+    };
+    const auto result = std::make_shared<Result>();
+    ++loadsRunning;
+    runInBackground ([this, file, settings = readPrecomputeSettings(), rate = hostRate.load(), cancel, result]
+    {
+        if (cancel->load())
+            return;
+        result->decoded = decodeSample (file, rate);
+        if (result->decoded.raw == nullptr || cancel->load())
+            return;
+        result->settings = settingsFor (*result->decoded.raw, settings);
+        result->built = dsp::buildProcessedSample (*result->decoded.raw, result->settings, result->decoded.raw, cancel.get());
+    },
+    [this, ticket, result, report = std::move (done), keepSettings]
+    {
+        --loadsRunning;
+        if (ticket != loadTicket.load())
+            return;   // another sample was asked for or put in place meanwhile
+        loadError = result->decoded.error;
+        const bool ok = result->decoded.raw != nullptr;
+        if (ok && keepSettings)
+        {
+            // The same file again: its own root note and loop points give way to the settings in use
+            const History::ScopedSuspend noHistory (history);
+            const auto saved = apvts.copyState();
+            applySample (result->decoded, result->built, result->settings);
+            apvts.replaceState (saved);
+            rebuildPending = true;
+            rebuildThread.notify();
+        }
+        else if (ok)
+        {
+            applySample (result->decoded, result->built, result->settings);
+        }
+        if (report != nullptr)
+            report (ok);
+    });
+}
+
+void ChanSamplerProcessor::runInBackground (std::function<void()> work, std::function<void()> completion)
+{
+    worker.add (std::move (work), std::move (completion), alive);
 }
 
 // The history putting a sample back (undo, redo): the sample only. Loading a file sets values of its own (its root
@@ -843,8 +948,15 @@ void ChanSamplerProcessor::restoreSample (const juce::File& file)
     rebuildSample();
 }
 
+void ChanSamplerProcessor::editSampleTempo (double bpm)
+{
+    const History::Transaction edit (history, "Sample tempo");
+    setSampleTempo (bpm);
+}
+
 void ChanSamplerProcessor::removeSample()
 {
+    ++loadTicket;   // a file still being read gives way
     const History::Transaction edit (history, "Remove sample");
     {
         const juce::ScopedLock sl (poolLock);
@@ -856,6 +968,7 @@ void ChanSamplerProcessor::removeSample()
 
 void ChanSamplerProcessor::setMissingSample (const juce::File& file)
 {
+    ++loadTicket;   // a file still being read gives way
     RawSample r;
     r.file = file;
     r.missing = true;

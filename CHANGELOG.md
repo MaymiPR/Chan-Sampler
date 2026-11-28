@@ -10,6 +10,13 @@
 
 ### Improved
 
+- **The view is saved:** the sheet, the Tools / Effects tab, the envelope target page and the sample view's zoom
+  are saved with the project and with a preset, and come back with them.
+- **Sample view:** while a note plays, only the strip around the play bar is redrawn, and the wave is read only
+  where it is drawn. The editor uses less of the processor while playing; the picture is the same.
+- **Long samples:** a file opened, dropped, pasted or reloaded in the editor is read in the background, and so
+  is tempo detection, so a long file no longer holds the host's window while it loads. The sample changes when
+  it is ready.
 - **Vendor name:** hosts list the plug-in under the vendor "Chan Sampler" (it was "ChanSampler"). FL Studio and other
   hosts file it under the new name; if it does not show up there, rescan the plug-ins. Saved projects and presets
   load as before: the plug-in codes, bundle IDs and parameter IDs are unchanged.
@@ -43,6 +50,11 @@
   and a WAV whose marker chunks claim more entries than the file holds stops at the file's end.
 - **Undo of a sample change:** the sample comes back with the settings you had, where it came back with the root
   note and the loop points its file carries (standalone app).
+- **Sample tempo:** the sample's tempo belongs to undo and redo (standalone app): undo of a sample change brings
+  the old sample's tempo back, and a tempo set with Detect tempo is a step of its own. The project is marked
+  as changed when the tempo changes.
+- **Knob menus:** a value set from a knob's menu and what follows it (the linked loop END, PITCH switching
+  Resample to Auto) are one undo step.
 - **PITCH:** a drag of PITCH and the switch from Resample to Auto it causes are one undo step (they were two;
   standalone app).
 - **Cut self:** switching it and the two cut groups it sets are one undo step (they were three), and one undo

@@ -76,7 +76,7 @@ public:
 
     // Extra menu entries: text and the parameter value they set.
     std::vector<std::pair<juce::String, float>> presets;
-    // Called before / after any edit from the menu (e.g. turns an envelope on).
+    // Called before / after any edit from the menu (e.g. turns an envelope on), inside the edit's gesture.
     std::function<void()> beforeEdit, afterEdit;
     // No "Type in value" entry (FL's TIME knob has none).
     bool noTypeIn = false;
@@ -100,9 +100,10 @@ public:
     std::optional<float> typedPosition (const juce::String& text, bool asPosition = false) const;
     // The text the box shows for a position in the control's own unit (or as A).
     juce::String typedText (float position, bool asPosition = false) const;
+    // An edit from the menu (Reset, a preset, Paste value, Type in value): one gesture around the value.
+    void setPosition (float normalised);
 
 private:
-    void setPosition (float normalised);
     void closeTypeIn (bool apply);
 
     juce::Component& owner;

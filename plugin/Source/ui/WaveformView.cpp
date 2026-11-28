@@ -18,6 +18,13 @@ namespace
 
 WaveformView::WaveformView (ChanSamplerProcessor& p) : processor (p)
 {
+    // The zoom the state was saved with (the whole sample when it has none, or one that makes no sense)
+    const auto from = (float) processor.apvts.state.getProperty ("viewFrom", 0.0f), to = (float) processor.apvts.state.getProperty ("viewTo", 1.0f);
+    if (from >= 0.0f && to <= 1.0f && from < to)
+    {
+        viewStart = from;
+        viewEnd = to;
+    }
     startTimerHz (60);
 }
 
@@ -26,6 +33,12 @@ WaveformView::~WaveformView()
     endMarkerDrag();      // closed in mid-drag: no gesture stays open
     ++renderGeneration;   // a running render stops at its next check
     renderPool.removeAllJobs (true, 10000);
+}
+
+void WaveformView::rememberView()
+{
+    processor.apvts.state.setProperty ("viewFrom", viewStart, nullptr);
+    processor.apvts.state.setProperty ("viewTo", viewEnd, nullptr);
 }
 
 void WaveformView::setSample (dsp::SampleData::Ptr newSample)
@@ -269,14 +282,32 @@ void WaveformView::timerCallback()
     const float now[4] = { getValue (id::startOffset), getValue (id::loopStart),
                            getValue (id::loopEnd), getValue (id::useLoop) + (sample != nullptr && sample->autoLoop ? 2.0f : 0.0f) };
     const auto ph = processor.getPlayhead();
-    if (std::memcmp (now, lastMarkers, sizeof (now)) != 0 || ph != playhead)
+    const bool markersMoved = std::memcmp (now, lastMarkers, sizeof (now)) != 0;
+    if (markersMoved || ph != playhead)
     {
         std::memcpy (lastMarkers, now, sizeof (now));
         if (ph >= 0.0f && playhead >= 0.0f && ph != playhead)
             playDirection = ph > playhead ? 1.0f : -1.0f;
+        // The play bar alone moving (a note playing, up to 60 times a second) repaints where it was and where
+        // it is, not the whole view
+        repaintPlayBar (playhead);
         playhead = ph;
-        repaint();
+        repaintPlayBar (playhead);
+        if (markersMoved)
+            repaint();
     }
+}
+
+// The play bar's two places: its line and 11 px trail in the wave (on either side: the direction may have
+// turned), and its 2 px mark in the overview.
+void WaveformView::repaintPlayBar (float at)
+{
+    if (at < 0.0f)
+        return;
+    const auto wave = waveArea();
+    repaint (juce::Rectangle<float> (std::floor (fracToX (at)) - 12.0f, wave.getY(), 25.0f, wave.getHeight()).getSmallestIntegerContainer());
+    const auto inner = scrollArea().withTrimmedTop (2.0f).withTrimmedBottom (1.0f).reduced (buttonW, 0.0f);
+    repaint (juce::Rectangle<float> (inner.getX() + at * inner.getWidth() - 2.0f, inner.getY(), 4.0f, inner.getHeight()).getSmallestIntegerContainer());
 }
 
 // FL's sample view colours live with the other tokens in Widgets.h.
@@ -303,6 +334,12 @@ void WaveformView::drawLanes (juce::Graphics& g, juce::Rectangle<float> area, fl
     if (total <= 0 || width <= 0)
         return;
     const auto framesPerColumn = (double) (to - from) * total / area.getWidth();
+    // Only the columns inside what is being painted, and a few around them so that the shape's edge there is
+    // the one a whole repaint draws: a strip around the play bar costs a strip.
+    const auto clip = g.getClipBounds().toFloat();
+    constexpr int around = 8;
+    const int firstColumn = juce::jlimit (0, width, (int) std::floor ((clip.getX() - area.getX()) * scale) - around);
+    const int lastColumn = juce::jlimit (firstColumn, width, (int) std::ceil ((clip.getRight() - area.getX()) * scale) + around);
     const int chL = laneChannel >= 0 ? laneChannel : 0, chR = laneChannel >= 0 ? laneChannel : juce::jmin (1, sample->audio.getNumChannels() - 1);
     const auto* l0 = sample->audio.getReadPointer (chL);
     const auto* r0 = sample->audio.getReadPointer (chR);
@@ -336,12 +373,13 @@ void WaveformView::drawLanes (juce::Graphics& g, juce::Rectangle<float> area, fl
             lastI = i;
             lastV = v;
         };
-        for (int x = 0; x < width; ++x)
+        for (int x = firstColumn; x < lastColumn; ++x)
         {
             const auto f0 = from + (to - from) * (float) x / (float) width;
             const auto f1 = from + (to - from) * (float) (x + 1) / (float) width;
             if (f0 >= 1.0f)
                 break;
+            ++columnsScanned;
             const int i0 = juce::jlimit (0, total - 1, (int) std::floor (f0 * (float) total));
             const int i1 = juce::jlimit (i0 + 1, total, (int) std::floor (f1 * (float) total));
             int iLo = i0, iHi = i0;
@@ -369,12 +407,13 @@ void WaveformView::drawLanes (juce::Graphics& g, juce::Rectangle<float> area, fl
     std::vector<juce::Point<float>> upper, lower;
     upper.reserve ((size_t) width);
     lower.reserve ((size_t) width);
-    for (int x = 0; x < width; ++x)
+    for (int x = firstColumn; x < lastColumn; ++x)
     {
         const auto f0 = from + (to - from) * (float) x / (float) width;
         const auto f1 = from + (to - from) * (float) (x + 1) / (float) width;
         if (f0 >= 1.0f)
             break;
+        ++columnsScanned;
         float lo = 0, hi = 0;
         if (framesPerColumn <= 8192.0)
         {
@@ -798,6 +837,7 @@ void WaveformView::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseW
     const auto rel = (anchor - viewStart) / (viewEnd - viewStart);
     viewStart = juce::jlimit (0.0f, 1.0f - newLen, anchor - rel * newLen);
     viewEnd = viewStart + newLen;
+    rememberView();
     repaint();
 }
 
@@ -865,6 +905,7 @@ void WaveformView::mouseDrag (const juce::MouseEvent& e)
         const auto len = viewEnd - viewStart;
         viewStart = juce::jlimit (0.0f, 1.0f - len, (e.position.x - inner.getX()) / inner.getWidth() - dragOffset);
         viewEnd = viewStart + len;
+        rememberView();
         repaint();
         return;
     }
@@ -963,12 +1004,27 @@ void WaveformView::showMenu()
 void WaveformView::detectTempo (std::function<void (double)> done)
 {
     const auto raw = processor.getRaw();
-    const int frames = raw->audio.getNumSamples();
-    if (frames == 0)
+    if (raw->audio.getNumSamples() == 0)
         return;
+    if (const auto current = processor.getSampleTempo(); current > 0)
+    {
+        showTempoChoices (raw, current, true, std::move (done));
+        return;
+    }
+    // The estimate reads the whole sample: on the worker thread, and the choices open when it is there
+    const auto estimate = std::make_shared<double> (0.0);
+    processor.runInBackground ([raw, estimate] { *estimate = dsp::tempo::detect (raw->audio, raw->sampleRate, 75.0, 150.0); },
+                               [safe = juce::Component::SafePointer<WaveformView> (this), raw, estimate, chosen = std::move (done)]
+    {
+        if (safe != nullptr && safe->processor.getRaw() == raw)   // still this sample
+            safe->showTempoChoices (raw, *estimate, false, chosen);
+    });
+}
+
+void WaveformView::showTempoChoices (std::shared_ptr<const RawSample> raw, double estimate, bool isCurrent, std::function<void (double)> done)
+{
+    const int frames = raw->audio.getNumSamples();
     const auto rate = raw->sampleRate;
-    const auto current = processor.getSampleTempo();
-    const auto estimate = current > 0 ? current : dsp::tempo::detect (raw->audio, rate, 75.0, 150.0);
     const auto project = displayBpm.load();
     auto describe = [frames, rate] (double bpm)
     {
@@ -976,11 +1032,11 @@ void WaveformView::detectTempo (std::function<void (double)> done)
     };
 
     juce::String message = "Choose the tempo range (BPM) this sample most likely falls in, or keep the tempo it has now.\n\n";
-    message << (current > 0 ? "This sample's tempo is " + describe (current) + "."
-                            : "This sample has no tempo information. If the estimate (" + describe (estimate) + ") looks wrong, choose a range.")
+    message << (isCurrent ? "This sample's tempo is " + describe (estimate) + "."
+                          : "This sample has no tempo information. If the estimate (" + describe (estimate) + ") looks wrong, choose a range.")
             << "\n\nTo play it in step with the project, choose the project's tempo. If it should not follow any tempo, choose No tempo.";
 
-    const juce::StringArray choices { tempoText (estimate) + (current > 0 ? " (current)" : " (estimated)"),
+    const juce::StringArray choices { tempoText (estimate) + (isCurrent ? " (current)" : " (estimated)"),
                                       "50 to 100", "75 to 150", "100 to 200", "150 to 300",
                                       "Type in (BPM)", "Type in (beats)", tempoText (project) + " (project)", "No tempo" };
     const auto name = raw->file.getFileNameWithoutExtension().isNotEmpty() ? raw->file.getFileNameWithoutExtension() : juce::String ("Sample");
@@ -994,7 +1050,7 @@ void WaveformView::detectTempo (std::function<void (double)> done)
         {
             if (safe == nullptr)
                 return;
-            safe->processor.setSampleTempo (bpm);
+            safe->processor.editSampleTempo (bpm);
             if (done != nullptr)
                 done (bpm);
         };
@@ -1003,8 +1059,13 @@ void WaveformView::detectTempo (std::function<void (double)> done)
         {
             case 0: apply (estimate); break;
             case 1: case 2: case 3: case 4:
-                apply (dsp::tempo::detect (raw->audio, rate, ranges[choice - 1][0], ranges[choice - 1][1]));
+            {
+                const auto bpm = std::make_shared<double> (0.0);
+                safe->processor.runInBackground ([raw, rate, low = ranges[choice - 1][0], high = ranges[choice - 1][1], bpm]
+                                                 { *bpm = dsp::tempo::detect (raw->audio, rate, low, high); },
+                                                 [apply, bpm] { apply (*bpm); });
                 break;
+            }
             case 5:
                 chan::ui::askText (*safe, "Tempo detection", "Tempo (BPM)", tempoText (estimate), [apply] (const juce::String& t)
                 {
@@ -1066,8 +1127,12 @@ void WaveformView::pasteSample()
     const auto file = exchange::pasteFromClipboard (ChanSamplerProcessor::userFolder ("Pasted audio"));
     if (file == juce::File())
         chan::ui::showDialog (*this, "Chan Sampler", "The clipboard holds no audio.", true);
-    else if (! processor.loadSample (file))
-        chan::ui::showDialog (*this, "Chan Sampler", processor.getLoadError(), true);
+    else
+        processor.loadSampleInBackground (file, [this, safe = juce::Component::SafePointer<WaveformView> (this)] (bool loaded)
+        {
+            if (safe != nullptr && ! loaded)
+                chan::ui::showDialog (*this, "Chan Sampler", processor.getLoadError(), true);
+        });
 }
 
 void WaveformView::saveAs()
@@ -1379,11 +1444,13 @@ void WaveformView::drawSpectrum (juce::Graphics& g, juce::Rectangle<float> area)
 {
     const auto scale = juce::jmax (1.0f, g.getInternalContext().getPhysicalPixelScaleFactor());
     const int w = juce::jmax (1, (int) std::ceil (area.getWidth() * scale)), h = juce::jmax (2, (int) std::ceil (area.getHeight() * scale));
-    const auto key = juce::String::toHexString ((juce::pointer_sized_int) sample.get()) + " " + juce::String (viewStart) + " " + juce::String (viewEnd)
-                   + " " + juce::String (w) + "x" + juce::String (h);
-    if (key != spectrumKey)
+    const auto key = juce::String (viewStart) + " " + juce::String (viewEnd) + " " + juce::String (w) + "x" + juce::String (h);
+    // The image is this sample's: told by the sample itself, since a later sample may sit at a freed one's address
+    const bool sameSample = ! spectrumOf.owner_before (sample) && ! sample.owner_before (spectrumOf) && ! spectrumOf.expired();
+    if (key != spectrumKey || ! sameSample)
     {
         spectrumKey = key;
+        spectrumOf = sample;
         spectrumImage = juce::Image (juce::Image::RGB, w, h, true, juce::SoftwareImageType());   // filled from several threads
         const int total = sample->getTotalFrames();
         const auto* l = sample->audio.getReadPointer (0);

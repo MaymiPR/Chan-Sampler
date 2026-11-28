@@ -607,9 +607,10 @@ void ParamMenu::setPosition (float normalised)
     if (beforeEdit != nullptr)
         beforeEdit();
     param.setValueNotifyingHost (juce::jlimit (0.0f, 1.0f, normalised));
-    param.endChangeGesture();
+    // What follows the edit (the linked loop END, Resample switched to Auto) is part of the same step too
     if (afterEdit != nullptr)
         afterEdit();
+    param.endChangeGesture();
 }
 
 void ParamMenu::show()
