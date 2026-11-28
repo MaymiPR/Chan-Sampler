@@ -18,6 +18,13 @@ namespace
 
 WaveformView::WaveformView (ChanSamplerProcessor& p) : processor (p)
 {
+    // The zoom the state was saved with (the whole sample when it has none, or one that makes no sense)
+    const auto from = (float) processor.apvts.state.getProperty ("viewFrom", 0.0f), to = (float) processor.apvts.state.getProperty ("viewTo", 1.0f);
+    if (from >= 0.0f && to <= 1.0f && from < to)
+    {
+        viewStart = from;
+        viewEnd = to;
+    }
     startTimerHz (60);
 }
 
@@ -26,6 +33,12 @@ WaveformView::~WaveformView()
     endMarkerDrag();      // closed in mid-drag: no gesture stays open
     ++renderGeneration;   // a running render stops at its next check
     renderPool.removeAllJobs (true, 10000);
+}
+
+void WaveformView::rememberView()
+{
+    processor.apvts.state.setProperty ("viewFrom", viewStart, nullptr);
+    processor.apvts.state.setProperty ("viewTo", viewEnd, nullptr);
 }
 
 void WaveformView::setSample (dsp::SampleData::Ptr newSample)
@@ -824,6 +837,7 @@ void WaveformView::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseW
     const auto rel = (anchor - viewStart) / (viewEnd - viewStart);
     viewStart = juce::jlimit (0.0f, 1.0f - newLen, anchor - rel * newLen);
     viewEnd = viewStart + newLen;
+    rememberView();
     repaint();
 }
 
@@ -891,6 +905,7 @@ void WaveformView::mouseDrag (const juce::MouseEvent& e)
         const auto len = viewEnd - viewStart;
         viewStart = juce::jlimit (0.0f, 1.0f - len, (e.position.x - inner.getX()) / inner.getWidth() - dragOffset);
         viewEnd = viewStart + len;
+        rememberView();
         repaint();
         return;
     }

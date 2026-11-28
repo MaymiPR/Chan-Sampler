@@ -531,6 +531,48 @@ int main (int argc, char** argv)
         h.clear();
     }
 
+    // --- What the editor shows is saved with the state: the sheet, the Tools / Effects tab, the INS target page
+    // and the sample view's zoom come back with a project
+    {
+        processor.resetParameters();
+        processor.loadSample (sample);
+        auto first = makeEditor();
+        pump (50);
+        WaveformView* view = nullptr;
+        forEach<WaveformView> (*first, [&] (WaveformView& v) { view = &v; });
+        first->showSheetForTesting (0, 1);      // the Effects tab
+        first->showSheetForTesting (1, 3);      // the INS sheet, Mod Y
+        view->setView (0.25f, 0.5f);
+        juce::MemoryBlock saved;
+        processor.getStateInformation (saved);
+        {
+            ChanSamplerProcessor other;
+            other.setStateInformation (saved.getData(), (int) saved.getSize());
+            std::unique_ptr<ChanSamplerEditor> editor (static_cast<ChanSamplerEditor*> (other.createEditor()));
+            pump (50);
+            WaveformView* otherView = nullptr;
+            forEach<WaveformView> (*editor, [&] (WaveformView& v) { otherView = &v; });
+            const auto shown = editor->viewForTesting();
+            const auto zoom = otherView->getView();
+            check (shown == std::array<int, 3> { 1, 1, 3 } && zoom == std::pair<float, float> { 0.25f, 0.5f }, "the view comes back with the state",
+                   "sheet " + juce::String (shown[0]) + ", tab " + juce::String (shown[1]) + ", target " + juce::String (shown[2])
+                       + ", zoom " + juce::String (zoom.first) + " to " + juce::String (zoom.second));
+        }
+        // A state from before has none of it: the first sheet, Tools, the Volume page, the whole sample
+        {
+            ChanSamplerProcessor fresh;
+            std::unique_ptr<ChanSamplerEditor> editor (static_cast<ChanSamplerEditor*> (fresh.createEditor()));
+            pump (50);
+            check (editor->viewForTesting() == std::array<int, 3> { 0, 0, 1 }, "a state with no view shows the first sheet, Tools and Volume");
+        }
+        first->showSheetForTesting (1, 1);
+        first->showSheetForTesting (0, 0);
+        view->setView (0.0f, 1.0f);
+        first.reset();
+        processor.resetParameters();
+        h.clear();
+    }
+
     // --- A project whose sample is no longer at its saved path finds it by its name in the folder a sample was last
     // loaded from (a sample library that moved); with no file of that name anywhere it stays missing, its path kept
     {

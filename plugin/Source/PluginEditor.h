@@ -32,6 +32,8 @@ public:
 
     // For tools/Snapshot.cpp: shows a sheet (0 SMP, 1 INS, 2 FUNC) and INS target page.
     void showSheetForTesting (int sheet, int insPage);
+    // What is shown: the sheet, the Tools / Effects tab and the INS target page (tests)
+    std::array<int, 3> viewForTesting() const;
     void filesDropped (const juce::StringArray& files, int x, int y) override;
     // The window's keys (Ctrl+Z, Ctrl+Y / Ctrl+Shift+Z, Ctrl+C / Ctrl+V); public for tests/ChanSamplerUiTests.cpp.
     bool keyPressed (const juce::KeyPress&, juce::Component*) override;

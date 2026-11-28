@@ -154,7 +154,23 @@ ChanSamplerEditor::ChanSamplerEditor (ChanSamplerProcessor& p)
     buildSampleSheet();
     buildInsSheet();
     buildFuncSheet();
-    showSheet (0);
+    // What was shown when the state was saved (a state from before has none of it: the first sheet, each tab as built)
+    auto& state = samplerProcessor.apvts.state;
+    showSheet (juce::jlimit (0, 2, (int) state.getProperty ("viewSheet", 0)));
+    auto remember = [this, &state] (auto* tabs, const char* key, int count)
+    {
+        if (tabs == nullptr)
+            return;
+        tabs->setSelected (juce::jlimit (0, count - 1, (int) state.getProperty (key, tabs->getSelected())), true);
+        tabs->onChange = [this, key, shows = tabs->onChange] (int i)
+        {
+            if (shows != nullptr)
+                shows (i);
+            samplerProcessor.apvts.state.setProperty (key, i, nullptr);
+        };
+    };
+    remember (fxTabs, "viewEffectsTab", 2);
+    remember (targetTabs, "viewTarget", 5);
 
     // Never take keyboard focus: focused buttons swallow the space bar, and
     // unhandled keys then reach the host (play / pause).
@@ -1048,6 +1064,12 @@ void ChanSamplerEditor::showSheetForTesting (int sheet, int insPage)
         targetTabs->setSelected (insPage, true);
 }
 
+std::array<int, 3> ChanSamplerEditor::viewForTesting() const
+{
+    return { insSheet.isVisible() ? 1 : funcSheet.isVisible() ? 2 : 0, fxTabs != nullptr ? fxTabs->getSelected() : -1,
+             targetTabs != nullptr ? targetTabs->getSelected() : -1 };
+}
+
 void ChanSamplerEditor::showSheet (int index)
 {
     smpSheet.setVisible (index == 0);
@@ -1055,6 +1077,7 @@ void ChanSamplerEditor::showSheet (int index)
     funcSheet.setVisible (index == 2);
     if (sheetTabs != nullptr)
         sheetTabs->setSelected (index, false);
+    samplerProcessor.apvts.state.setProperty ("viewSheet", index, nullptr);
 }
 
 void ChanSamplerEditor::changeListenerCallback (juce::ChangeBroadcaster* source)

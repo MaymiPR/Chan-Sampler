@@ -10,6 +10,8 @@
 
 ### Improved
 
+- **The view is saved:** the sheet, the Tools / Effects tab, the envelope target page and the sample view's zoom
+  are saved with the project and with a preset, and come back with them.
 - **Sample view:** while a note plays, only the strip around the play bar is redrawn, and the wave is read only
   where it is drawn. The editor uses less of the processor while playing; the picture is the same.
 - **Long samples:** a file opened, dropped, pasted or reloaded in the editor is read in the background, and so
